@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-05, rev. 9)
+# ai-collab-mcp — Progress Report (2026-09-05, rev. 11)
 
 > ## 交接狀態
 >
@@ -7,12 +7,38 @@
 > | Step 1–5、5.1、6、6.1 | ✅ 已完成,63 項離線測試全過 |
 > | **Step 6.1 Worker Context Propagation** | **DONE —— worker input contract 已落地** |
 > | **Post-6.1 SIMPLE live regression** | **DONE —— rev.7/8 共 3 種題型各 n=1,當時三段式皆完整執行** |
-> | **Step 7 V1 Complexity Router** | **IMPLEMENTED —— 有界 SIMPLE direct delivery,詳見第十六節** |
+> | **Step 7 V1 Complexity Router** | **IMPLEMENTED / CODE ACCEPTED —— 不回滾,production E2E 尚待 Step 7.1** |
+> | **Step 7.1 E2E Runtime Acceptance** | **NEXT —— 只跑 SIMPLE direct + DEEP grounded 兩條 live path** |
+> | **Milestone 2: True Multi-Agent Collaboration** | **PLANNED —— Step 7.1 後優先,詳見第十九節** |
 > | **目前離線測試** | **99 項全過 = 既有 63 + Step 7 新增 36** |
-> | **Step 8** | **NOT STARTED** |
+> | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
+> | **Step 8 Implementation** | **DEFERRED —— Milestone 2 驗證後再回來** |
 > | 未完成的程式修改 | **無** |
 >
-> **Step 7 V1 IMPLEMENTED。** 僅限 `simple + exactly 1 successful specialist + valid non-empty text + non-retrieval` 原樣交付 Worker Output 並省略 synthesis。NORMAL、DEEP、retrieval 與不明狀態維持既有行為;全敗仍為 `FAILED / finalOutput = null / no synthesis`。本輪只做離線 mock 驗證,沒有新增 live API 測試或開始 Step 8。rev.7/8 的品質證據支持這個有界決策,不支持所有 single-specialist 任務都跳過 synthesis。
+> **Roadmap 已重新拉回產品北極星。** Step 7 V1 implementation 與 99 項 structural tests 保留,不回滾;但它尚未跑過 post-implementation SIMPLE direct-delivery live path,而 DEEP + grounded retrieval + synthesis + evidence banner 也從未完整 E2E live。先以 Step 7.1 補齊這兩條 production acceptance,再進 Milestone 2 驗證三個模型是否真的會利用彼此輸出、處理 disagreement 並改善決策。Step 8 scope analysis 保留,implementation 延後至 Milestone 2 之後。
+
+## rev. 11 改了什麼(Step 7.1 + Milestone 2 Roadmap Decision)
+
+1. **Step 7 不回滾,但拆開兩種 acceptance** —— 99 項離線測試證明 implementation 符合 specification,不證明未來所有 SIMPLE output 都具高品質。Step 7 V1 為 code accepted;production/runtime acceptance 尚待 Step 7.1。
+2. **新增 Step 7.1 Test A** —— 跑一次真正的 SIMPLE direct-delivery E2E,驗證 planning → worker → direct delivery、2 model calls、`SUCCESS`、`policy.synthesize=false`、正確 reason、`synthesisMs=0`、`finalOutput === Worker raw output` 與 MCP consumer 可正常讀取。
+3. **新增 Step 7.1 Test B** —— 跑一次明確需要最新外部證據的 DEEP grounded E2E,驗證 Chief 自然選到 evidence-capable specialist、實際 search、`GROUNDED` metadata/sources 保存、synthesis 執行,以及 `PARTIALLY_GROUNDED` banner/warning/source information 正確。
+4. **不擴張錯誤修法** —— 不加入 readability regex,不新增一個 LLM quality gate,也不把 DEEP 重跑擴成 n=5 latency/planning distribution 研究。Direct delivery 目前只支持「未觀察到 material correctness regression」,不保證 presentation 與 synthesis 逐字等質。
+5. **插入 Milestone 2** —— Step 7.1 通過後不直接實作 Step 8,先做 True Multi-Agent Collaboration scope/acceptance:Round 1 多專家產出 → Chief 找出 disagreement/gaps → Round 2 針對彼此輸出交叉挑戰/修正 → Chief Decision。
+6. **北極星與證據層級** —— Milestone 1 已證明 pipeline/orchestrator/debate 基本協作可運作;Milestone 2 要回答「三模型互補是否明顯優於單模型」,不是只證明三個 API 可並行。證據強度依序為 runtime measurement、code/deterministic tests、independent external evidence、multi-model critique、single-model reasoning;模型收斂不是獨立實證。
+7. **Step 8 狀態** —— scope analysis 已完成且保留;implementation 順序改到 Milestone 2 之後。本輪只更新 roadmap/documentation,未執行 Step 7.1、Milestone 2 或 Step 8 implementation。
+
+---
+
+## rev. 10 改了什麼(Step 8 Scope Analysis)
+
+1. **Step 7 freeze** —— 使用者已驗收 Step 7 V1;本輪不修改 execution policy、runtime 或測試。
+2. **Usage code reality** —— OpenAI `response.usage`、Anthropic `response.usage`、Gemini `response.usageMetadata` 在現行 SDK/API response 可取得不同程度的 metadata,但三個 adapters 都未把它帶出 `CallResult`。
+3. **Timing code reality** —— orchestrator 以 `Date.now()` 保存 planning/workers/synthesis/total phase wall time;`workersMs` 是平行 worker span,不是 call duration 總和。pipeline/debate 沒有 run-level timing/usage report。
+4. **四層責任分離** —— runtime usage truth、versioned pricing registry、pure cost calculation、run-level reporting 不混用;unknown/partial/reported zero 必須可區分。
+5. **V1 建議** —— 先做 provider-native usage extraction、monotonic per-call duration、deterministic call ledger 與 coverage-aware token/latency aggregation。Pricing/cost interfaces 可先定義,但 price book 保持空,不得產生假美元總額。
+6. **文件與狀態** —— 完整 schema、provider gaps、資料流、測試策略、scope 與 review questions 見 `STEP8_SCOPE_ANALYSIS.md`。本輪只有文件,Step 8 implementation 仍為 NOT STARTED。
+
+---
 
 ## rev. 9 改了什麼(Step 7 V1 Implementation)
 
@@ -769,8 +795,10 @@ Run 4 與 Run 5 證明了這件事。做效能或成本估算時,**不能假設�
 ✅ 5.1 Grounded Retrieval MVP          ← Gemini Google Search,實測通過
 ✅ 6.  Chief of Staff System Prompt     ← 常設簡報與單次任務分離
 ✓  6.1 Worker Context Propagation      ← DONE,worker input contract 已落地
-✓  7.  Complexity Router V1            ← IMPLEMENTED,有界 SIMPLE direct delivery
-   8.  Cost / Token / Latency Tracking ← NOT STARTED,本輪完成後停止
+✓  7.  Complexity Router V1            ← IMPLEMENTED / CODE ACCEPTED,不回滾
+▶  7.1 E2E Runtime Acceptance          ← NEXT,兩條 targeted live production paths
+   M2. True Multi-Agent Collaboration  ← 7.1 通過後優先做 scope + acceptance
+-  8.  Cost / Token / Latency Tracking ← SCOPE ANALYSIS DONE,implementation 延後至 M2 後
    9.  Model Router
    10. Validation Layer
    11. Red Team
@@ -791,6 +819,8 @@ Run 4 與 Run 5 證明了這件事。做效能或成本估算時,**不能假設�
 3. 降低 Chief 的 temperature 或改用更確定性的規劃方式
 
 第 2 個選項的論證最強:**我們原本擔心的不是「計畫會變」,而是「計畫變了但看不出來」。** 後者已經被第五節解決。
+
+**rev.11 roadmap decision:** 此題保留為 deferred open question,不併入 Step 7.1。Step 7.1 的 DEEP case 只驗證一條有效 grounding E2E path,不補跑到 n=5 或估計 planning variance。
 
 ---
 
@@ -1354,3 +1384,135 @@ Chief system prompt、Worker input contract、planning schema/cap、agent regist
 `npm ci` 使用既有 lockfile 完成獨立安裝,`npm test` 全數通過。沒有新增 dependency、沒有燒 live API,也未修改 rev.7/8 原始證據或宣稱新的 latency 分佈。
 
 **Scope deviation: 無。** 附帶的 Git baseline import 依使用者明確選擇進行,兩個既有測試腳本的調整為 policy 稽核相容性。未開始 Step 8、Model Router、retrieval/normal/deep fast path、zero-specialist、fused planning、prompt recalibration、Validation Layer 或新的 benchmark expansion。完成本輪後停止。
+
+---
+
+# 十七、Step 8 — SCOPE ANALYSIS COMPLETE / NOT IMPLEMENTED
+
+完整分析見 [`STEP8_SCOPE_ANALYSIS.md`](STEP8_SCOPE_ANALYSIS.md)。本輪以 baseline commit `d80416701690fc380a6aa160723ec71aa97419d6` 查核現行 code 與 pinned SDK,結論如下：
+
+1. 三家 provider response 都有某種 usage metadata,但欄位語意不同,且現行 adapters 全部在 `CallResult` 邊界丟棄。
+2. 現行 `planningMs / workersMs / synthesisMs / totalMs` 是 orchestrator phase wall time;沒有 per-call duration。平行 `workersMs` 不可當 worker call durations 總和。
+3. 現行 optional `ModelPricing` 全部留空是正確狀態;兩個 token rates 不足以表示 cache、thinking/reasoning、tier、region、context band、modality 與 tools。
+4. Runtime usage truth、pricing registry、cost calculation 與 run-level reporting 必須維持四層分離。Missing 不是 0;partial subtotal 不是 total;public list estimate 不是 invoice cost。
+5. 建議 V1 先接 usage + call latency + coverage-aware reporting,並只定義 pricing/cost contracts。未經另一次價格資料審查,registry 維持空白、cost 明示 unavailable。
+
+本輪未修改 `src/`、`package.json` 或測試,未執行 live API,也未開始 Step 8 implementation。Step 8 分析保留為 review-ready input,但下一個執行動作已改為 Step 7.1 E2E acceptance;其後先做 Milestone 2 scope/acceptance,再回到 Step 8 implementation。
+
+---
+
+# 十八、Step 7.1 — E2E RUNTIME ACCEPTANCE(NEXT / NOT RUN)
+
+## 為什麼需要 7.1
+
+Step 7 的 36 項新增測試證明 policy、call count、raw-output equality、timing schema 與 failure/retrieval boundary 符合 specification;它們不驗證 live model behavior 或 MCP consumer integration。另有一個更大的鏈路缺口:Gemini grounding、orchestrator deep run 與 evidence banner 各自測過,但以下完整 production path 從未 live E2E 成立過：
+
+```text
+DEEP task
+→ Chief selects evidence-capable specialist
+→ retrieval enabled
+→ live Google Search
+→ GROUNDED metadata/sources
+→ synthesis
+→ PARTIALLY_GROUNDED final banner/report
+```
+
+Step 7.1 只補這兩個具體缺口,不是重開 benchmark expansion。
+
+## Test A — SIMPLE Direct Delivery E2E
+
+必須從 MCP consumer 走完整 live path並保存原始回應。Pass conditions：
+
+```text
+planning → worker → direct delivery
+model calls = 2
+status = SUCCESS
+report.policy.synthesize = false
+report.policy.reason = simple_single_specialist_direct_delivery
+timings.synthesisMs = 0
+finalOutput === exact Worker raw output
+MCP consumer 可讀取新的 policy/report semantics
+```
+
+內容驗收至少檢查 correctness、language、requested format/constraints、mission scope 與 user-facing acceptability。Presentation normalization 可能與舊 synthesis 版不同;純 cosmetic verbosity 不自動算 correctness failure,但結果不得被描述為「保證與 synthesis 等質」。
+
+## Test B — DEEP Grounded Orchestrator E2E
+
+Task 必須自然、明確需要最新外部 evidence,不可用測試 harness 強制指定 market researcher 來繞過 Chief planning。Pass conditions：
+
+```text
+complexity = deep
+Chief naturally selects an evidence-capable specialist
+retrieval is actually requested
+live grounding occurs
+retrieval.status = GROUNDED
+sources and grounding metadata survive the worker boundary
+synthesis runs
+run status/evidence summary remain coherent
+final output begins with the correct PARTIALLY_GROUNDED warning/banner
+source information is preserved and inspectable
+```
+
+若 Chief 未選 evidence-capable specialist,該次只能記為「未測到目標鏈路 / inconclusive」,不能算 pass。這一輪只要求一條有效的 targeted E2E observation,不從單次 latency 推估 distribution,也不順便把 deep planning variance 擴成 n=5。
+
+## Acceptance boundary
+
+- A 與 B 都通過後,Step 7 才標記為 production E2E accepted。
+- 任一失敗時先保存 raw evidence、分類是 policy、provider、retrieval、report 還是 consumer defect;不得悄悄跳過或直接進下一 milestone。
+- Step 7.1 不加入 readability regex、不新增 LLM quality gate、不回滾 Step 7。
+- 除非 live test 揭露實際 defect,本階段應只有 harness/evidence/HANDOFF 變更;任何 runtime fix 另行定義 scope 並重新驗證 99 項離線測試。
+
+---
+
+# 十九、Milestone 2 — TRUE MULTI-AGENT COLLABORATION(PLANNED)
+
+## Roadmap decision
+
+Milestone 1 已證明三種基本模式可運作：Pipeline 會傳遞前一模型輸出,Orchestrator 會由 Chief 分工後平行執行並 synthesis,Debate 會互評再由 Judge 決定。這完成了「三個模型能接上並參與同一工作」,但現行 Orchestrator 主要仍是 fan-out / fan-in：
+
+```text
+Chief plan
+→ specialists work independently in parallel
+→ one final synthesis
+```
+
+使用者的產品北極星更進一步：不同模型要能利用彼此結果、指出分歧、針對分歧修正,最後形成比單一模型更好的決策。因此 roadmap 在 Step 7.1 後插入 Milestone 2,優先於 Step 8 implementation。
+
+## Target collaboration shape
+
+```text
+Chief planning
+→ Round 1: multiple specialists produce role-specific work
+→ Chief identifies disagreements, unsupported assumptions and gaps
+→ Round 2: targeted cross-critique / evidence challenge / revision
+→ Chief Decision: resolves or explicitly preserves remaining disagreement
+→ user-facing final answer with traceable contributions
+```
+
+研究、商業/風險與品牌/創意等角色只是示例,不能硬編碼成 provider preference。Planning/execution 仍以 role/capability facts 為依據;Milestone 2 的 live acceptance 可以刻意配置三個不同 provider-backed agents來證明跨模型協作,但不改寫「Execution Policy 不依賴 ProviderName」與 Step 9 Model Router boundary。
+
+## Milestone 2 要回答的問題
+
+1. 至少兩個 specialist 是否實際讀取並引用另一人的產出,而非三份獨立答案並排？
+2. Chief 是否能明確找出 material disagreement 或 unsupported assumption？
+3. Round 2 是否因 cross-critique / evidence 而修正、收斂或合理保留分歧？
+4. Final decision 是否能追溯哪些結論來自何種角色/evidence,且不把未解分歧藏掉？
+5. 相對單一模型 baseline 是否有可觀察品質增量？此項需在測試前先定義 rubric 與 comparison protocol,不能只靠另一個模型說「比較好」。
+6. 額外 rounds 的 latency/cost 是否值得品質增量？在 Step 8 尚未 implementation 前只能保存 call count 與現有 timing observations,不能填假 token/cost。
+
+## Scope gate
+
+Milestone 2 目前是 **roadmap decision,不是 implementation specification**。Step 7.1 通過後先做 code-reality scope analysis、state machine/data flow、停止條件、failure semantics 與 acceptance design,經 architecture review 才能開始 runtime implementation。
+
+新的主線順序：
+
+```text
+Step 7.1 E2E Runtime Acceptance
+→ Milestone 2 scope + architecture review
+→ True Multi-Agent Collaboration implementation + real-work acceptance
+→ Step 8 Cost / Token / Latency implementation
+→ Step 9 Model Router
+→ Step 10 Validation Layer
+```
+
+Step 8 並未取消;rev.10 的 usage/pricing/cost/reporting 分層仍是有效設計輸入,只是優先順序讓位給核心產品價值驗證。
