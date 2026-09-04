@@ -1,0 +1,32 @@
+{
+  "name": "ai-collab-mcp",
+  "version": "1.0.0",
+  "description": "MCP server that lets Claude, GPT, and Gemini collaborate via orchestrator/worker, pipeline, and debate workflows",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "ai-collab-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "test": "npm run build && node test-chief.mjs && node test-run-status.mjs && node test-registry.mjs && node test-mcp-smoke.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.123.0",
+    "@google/generative-ai": "^0.24.1",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "dotenv": "^17.4.2",
+    "openai": "^7.10.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  }
+}
