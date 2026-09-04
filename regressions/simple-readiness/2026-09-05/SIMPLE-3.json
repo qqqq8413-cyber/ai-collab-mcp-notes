@@ -1,0 +1,69 @@
+{
+  "id": "SIMPLE-3",
+  "category": "Short summary of supplied meeting notes",
+  "task": "請用繁體中文將以下會議紀錄摘要成一段、最多兩句、總長不超過 100 個字（含標點，不含空白）。保留最終交付期限、負責人、交付項目及數量，並說明尚未確定的事項。只輸出摘要，不要標題、條列或建議；不要把被否決的提案寫成決議，也不要推測未定資訊。\n\n會議紀錄：\n原本提議 9 月 12 日交付五支 30 秒影片，但已否決。最終決議由林宜庭在 9 月 18 日前交付三支 15 秒直式短片，供秋季活動使用。投放平台與廣告預算尚未確定，下次會議再討論。",
+  "acceptance": {
+    "correctness": "Final deadline September 18, owner 林宜庭, three 15-second vertical shorts; platform and advertising budget remain undecided.",
+    "language": "Traditional Chinese.",
+    "format": "One paragraph, at most two sentences, <= 100 Unicode code points including punctuation and excluding whitespace; no title or list.",
+    "constraints": "Use only supplied notes; do not adopt the rejected September 12 / five 30-second videos proposal or invent platform, budget, or advice.",
+    "missionScope": "Summarize final decisions and uncertainty only.",
+    "userFacingReadiness": "Worker can be sent unchanged as the requested short summary, without editorial cleanup."
+  },
+  "startedAt": "2026-09-04T17:39:09.360Z",
+  "completedAt": "2026-09-04T17:39:38.564Z",
+  "structuralChecks": {
+    "simple": true,
+    "singleAssignment": true,
+    "singleSuccessfulWorker": true,
+    "successStatus": true,
+    "synthesisExecuted": true,
+    "noBannerSoFinalIsRawSynthesis": true
+  },
+  "result": {
+    "plan": {
+      "complexity": "simple",
+      "requiredCapabilities": [
+        "concise summarization",
+        "Traditional Chinese writing",
+        "decision clarity"
+      ],
+      "assignments": [
+        {
+          "agentId": "brand_creative",
+          "mission": "將會議紀錄濃縮為繁體中文一段、最多兩句、總長不超過100字（含標點、不含空白），保留最終交付期限、負責人、交付項目與數量，並清楚說明未定事項；勿把被否決提案寫成決議，勿推測未定資訊；只輸出摘要，不要標題、條列或建議。",
+          "priority": "high"
+        }
+      ],
+      "requiresRedTeam": false,
+      "reason": "這是明確的格式化摘要任務，只需一位擅長精煉表述與決議釐清的語言/創意人即可完成；無需研究或多方辯證。"
+    },
+    "planningAdjustments": [],
+    "workerResults": [
+      {
+        "agentId": "brand_creative",
+        "provider": "openai",
+        "mission": "將會議紀錄濃縮為繁體中文一段、最多兩句、總長不超過100字（含標點、不含空白），保留最終交付期限、負責人、交付項目與數量，並清楚說明未定事項；勿把被否決提案寫成決議，勿推測未定資訊；只輸出摘要，不要標題、條列或建議。",
+        "output": "最終由林宜庭於9月18日前交付三支15秒直式短片，供秋季活動使用；投放平台與廣告預算未定，將於下次會議討論。"
+      }
+    ],
+    "report": {
+      "status": "SUCCESS",
+      "requestedWorkers": 1,
+      "successfulWorkers": 1,
+      "failedWorkers": 0,
+      "failures": [],
+      "synthesisAllowed": true,
+      "evidenceLabel": "NOT_APPLICABLE",
+      "notes": []
+    },
+    "finalOutput": "最終由林宜庭於9月18日前交付三支15秒直式短片，供秋季活動使用；投放平台與廣告預算未定，將於下次會議討論。",
+    "timings": {
+      "planningMs": 10071,
+      "workersMs": 10703,
+      "synthesisMs": 8428,
+      "totalMs": 29202
+    },
+    "rosterWarnings": []
+  }
+}

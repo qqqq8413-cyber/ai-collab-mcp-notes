@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-05, rev. 7)
+# ai-collab-mcp — Progress Report (2026-09-05, rev. 8)
 
 > ## 交接狀態
 >
@@ -6,11 +6,22 @@
 > |---|---|
 > | Step 1–5、5.1、6、6.1 | ✅ 已完成,63 項離線測試全過 |
 > | **Step 6.1 Worker Context Propagation** | **DONE —— worker input contract 已落地** |
-> | **Post-6.1 SIMPLE live regression** | **DONE —— n=1,三段式仍完整執行** |
+> | **Post-6.1 SIMPLE live regression** | **DONE —— 3 種題型各 n=1;本輪新增 SIMPLE-2、SIMPLE-3,三段式皆完整執行** |
 > | **Step 7 Complexity Router** | **NOT IMPLEMENTED,需基於 regression 結果重新評估** |
 > | 未完成的程式修改 | **無** |
 >
-> Step 6.1 已完成且已用完全相同的 SIMPLE baseline 做 live regression。這一輪**沒有實作 Step 7、沒有跳過 synthesis**。結果:Chief mission 仍是英文,但 Worker 原始輸出已是中文;Synthesis 主要做壓縮/呈現整理,不再是語言救援。**仍不要把 n=1 當通則直接移除 synthesis。**
+> Step 6.1 已完成。rev.7 的原 SIMPLE baseline 中,英文 Chief mission 下的 Worker 已輸出中文,Synthesis 主要做壓縮/呈現整理。本輪新增格式/約束與短摘要兩題:Worker 六項品質評估皆通過,兩題的 Synthesis 均與 Worker 逐字相同,未觀察到新增 correctness 或 presentation value。**本輪沒有實作 Step 7、沒有跳過 synthesis;這些案例支持局部的直接交付可行性,不構成所有 single-specialist 任務皆可省略 synthesis 的證明。**
+
+## rev. 8 改了什麼(SIMPLE-2 / SIMPLE-3 Worker Readiness)
+
+1. **確認起點** —— 遠端 `ai-collab-mcp-notes/main` 為 rev.7,commit `fc19711e26e4b63dfd2d379d8460e51ce2b2472f`。
+2. **新增兩種 SIMPLE live cases,各跑一次** —— SIMPLE-2 測嚴格 Markdown 表格與條件/排除項保留;SIMPLE-3 測短摘要的最終決議與未定事項保留。目的為評估 Worker 可否原樣直接交付,不估計 latency distribution。
+3. **保持既有三階段與 roster** —— Chief 自行分類與選專家,未覆寫 Chief prompt、Worker contract 或角色;兩題皆 `simple`、1 assignment、`SUCCESS`,synthesis 完整執行。
+4. **品質結果** —— 兩題 Worker 的 correctness、language、format、constraints、mission scope、user-facing readiness 皆 PASS;兩題 Synthesis 都與 Worker 逐字相同。
+5. **證據與驗證** —— 第十二-C節記錄 task、Chief mission、Worker / Synthesis raw output、metadata、latency 與評估;`regressions/simple-readiness/` 保留 fixture、harness、原始 MCP 回應、JSON 與檔案雜湊。證據驗證通過。
+6. **程式範圍** —— 本輪只有測試/證據與交接文件變更。專案 `src/`、`dist/` 與原 baseline 未變,Step 7 仍未實作。63 項離線測試為 rev.6 的既有通過紀錄,本輪未重跑該套件。
+
+---
 
 ## rev. 7 改了什麼(Post-6.1 SIMPLE live regression)
 
@@ -745,7 +756,7 @@ Run 4 與 Run 5 證明了這件事。做效能或成本估算時,**不能假設�
 ✅ 5.1 Grounded Retrieval MVP          ← Gemini Google Search,實測通過
 ✅ 6.  Chief of Staff System Prompt     ← 常設簡報與單次任務分離
 ✓  6.1 Worker Context Propagation      ← DONE,worker input contract 已落地
-▶  7.  Complexity Router               ← NOT IMPLEMENTED,待基於 post-6.1 regression 決策
+▶  7.  Complexity Router               ← NOT IMPLEMENTED,已補 SIMPLE-2/3 品質證據,待決策
    8.  Cost / Token / Latency Tracking ← latency 已做,cost 未做
    9.  Model Router
    10. Validation Layer
@@ -913,6 +924,173 @@ Chief 花 **16.2 秒**判斷「這是算術,交給一個人」,真正算完只�
 
 ---
 
+# 十二-C、SIMPLE-2 / SIMPLE-3 Worker Readiness Live Regression
+
+## 目的與方法
+
+**問題:** 在 single-specialist SIMPLE 任務中,Worker Output 是否已能原樣作為 user-facing final answer? Synthesis 是否補上必要的正確性,或只改變長度/呈現?
+
+本輪於 2026-09-05(Asia/Taipei)執行兩種新題型,**各 n=1,不重抽、不估計 latency distribution**。沿用 `BENCHMARK_ROSTER`: `business_strategist`、`market_researcher`、`brand_creative`;Chief 與 Synthesizer 皆 `openai / gpt-5`。未強制 complexity 或 assignment,未改角色、budget、prompt 或 execution policy。每題均透過既有 MCP `run_orchestrator` 完成:
+
+```
+planning → worker → synthesis
+```
+
+驗收條件在呼叫前固定於 [cases.json](regressions/simple-readiness/cases.json),未將參考答案或驗收說明額外送給模型。六項品質評估逐項檢視 Worker 原文;`SUCCESS` 僅表示 Worker 呼叫成功,**不是品質通過的替代指標**。user-facing readiness 的 PASS 要求無需刪除標題、內部交接語或補寫內容,即可把原文送給使用者。
+
+**原文定義:** 保留現有 provider adapter 回傳的文字。`workerResults[].output` 為 Worker 原文;這兩題的 `SUCCESS + NOT_APPLICABLE` 不會產生 output banner,因此 `finalOutput` 就是 Synthesis 原文。現有 API 不公開 Chief 整份 raw planning response;下列 Chief mission 是 `plan.assignments[].mission`,兩題均無 planning adjustments。完整 MCP 回應另存,沒有截短、翻譯或潤飾。
+
+## 執行結果與 Latency
+
+| 欄位 | SIMPLE-2 | SIMPLE-3 |
+|---|---|---|
+| 題型 | 明確格式與 constraint preservation | 短摘要 |
+| 開始時間(Asia/Taipei) | 2026-09-05 01:38:47.929 | 2026-09-05 01:39:09.360 |
+| complexity | `simple` | `simple` |
+| assignments | 1: `business_strategist` (high) | 1: `brand_creative` (high) |
+| Worker provider / configured model | `claude / claude-sonnet-5` | `openai / gpt-5` |
+| status | `SUCCESS` (1 成功 / 0 失敗) | `SUCCESS` (1 成功 / 0 失敗) |
+| evidenceLabel | `NOT_APPLICABLE` | `NOT_APPLICABLE` |
+| requiresRedTeam | `false` | `false` |
+| planningAdjustments / rosterWarnings | 無 / 無 | 無 / 無 |
+| synthesisAllowed / 已執行 | `true` / 是 | `true` / 是 |
+| 邏輯模型呼叫數 | 3: planning + worker + synthesis | 3: planning + worker + synthesis |
+| planning latency | 12,894 ms (12.894 s) | 10,071 ms (10.071 s) |
+| worker latency | 2,565 ms (2.565 s) | 10,703 ms (10.703 s) |
+| synthesis latency | 5,966 ms (5.966 s) | 8,428 ms (8.428 s) |
+| total latency | 21,425 ms (21.425 s) | 29,202 ms (29.202 s) |
+
+Latency 取自 orchestrator 的 `timings`,不包含 MCP 啟動/傳輸時間。這裡不計平均、百分位、加速比例或預測值;3 次是 code path 的邏輯模型呼叫數,不宣稱量測到 SDK 底層 HTTP 重試次數。
+
+## SIMPLE-2: 明確格式與 Constraint Preservation
+
+### Original Task
+
+```text
+請只依下列資料篩選工作坊場地。條件：位於臺北市、9 月 18 日可預訂、費用不超過 15,000 元；即使符合其他條件，也必須排除河畔館。
+請以繁體中文回答，只輸出一個 Markdown 表格，不要標題、前言、結論、推薦或排除原因。欄位名稱與順序固定為「場地」「費用（元）」，費用只填整數，不加千分位或單位。只列符合全部條件的場地，按費用由低到高排序，不要加入未提供的場地或資料。
+
+場地資料：
+松山館｜臺北市｜9 月 18 日可預訂｜12,000 元
+板橋館｜新北市｜9 月 18 日可預訂｜9,000 元
+中山館｜臺北市｜9 月 18 日可預訂｜15,000 元
+信義館｜臺北市｜9 月 18 日已額滿｜11,000 元
+大安館｜臺北市｜9 月 18 日可預訂｜15,001 元
+河畔館｜臺北市｜9 月 18 日可預訂｜8,000 元
+```
+
+### Chief Mission(原文)
+
+```text
+依提供的場地資料，篩選符合：位於臺北市、9 月 18 日可預訂、費用不超過 15000 元；即使符合也要排除「河畔館」。輸出僅一個 Markdown 表格（無標題/前言/結論），欄位依序為「場地」「費用（元）」，費用填整數不加千分位或單位。只列完全符合者，並依費用由低到高排序，不加入未提供的場地或資料。語言使用繁體中文。
+```
+
+### Worker Raw Output(原文,56 字元含空白/換行)
+
+```markdown
+| 場地 | 費用（元） |
+|---|---|
+| 松山館 | 12000 |
+| 中山館 | 15000 |
+```
+
+### Synthesis Raw Output(原文,56 字元含空白/換行)
+
+```markdown
+| 場地 | 費用（元） |
+|---|---|
+| 松山館 | 12000 |
+| 中山館 | 15000 |
+```
+
+### Worker 評估
+
+| 維度 | 結果 | 依據 |
+|---|---|---|
+| correctness | PASS | 只有松山館 12000、中山館 15000,數值正確且升冪排序。 |
+| language | PASS | 場地與欄名皆為要求的繁體中文。 |
+| format | PASS | 僅一個 Markdown 表格;指定兩欄、兩筆資料;費用為純整數,無單位、千分位或額外說明。 |
+| constraints | PASS | 保留剛好 15000 的中山館;排除新北市板橋館、已額滿信義館、超額 1 元的大安館及明確排除的河畔館;無新增資料。 |
+| mission scope | PASS | 僅篩選、排序與格式化,未加推薦、排除原因或延伸分析。 |
+| user-facing readiness | PASS | 可原樣交付,不需清除 wrapper、內部交接語或補正內容。 |
+
+**Synthesis 增量:** 與 Worker 逐字相同,包含空白與換行。未觀察到 material correctness value,也沒有 compression / presentation 變更。這只描述輸出差異,不推測模型內部有無檢查。
+
+## SIMPLE-3: 短摘要
+
+### Original Task
+
+```text
+請用繁體中文將以下會議紀錄摘要成一段、最多兩句、總長不超過 100 個字（含標點，不含空白）。保留最終交付期限、負責人、交付項目及數量，並說明尚未確定的事項。只輸出摘要，不要標題、條列或建議；不要把被否決的提案寫成決議，也不要推測未定資訊。
+
+會議紀錄：
+原本提議 9 月 12 日交付五支 30 秒影片，但已否決。最終決議由林宜庭在 9 月 18 日前交付三支 15 秒直式短片，供秋季活動使用。投放平台與廣告預算尚未確定，下次會議再討論。
+```
+
+### Chief Mission(原文)
+
+```text
+將會議紀錄濃縮為繁體中文一段、最多兩句、總長不超過100字（含標點、不含空白），保留最終交付期限、負責人、交付項目與數量，並清楚說明未定事項；勿把被否決提案寫成決議，勿推測未定資訊；只輸出摘要，不要標題、條列或建議。
+```
+
+### Worker Raw Output(原文,54 字,含標點/不含空白)
+
+```text
+最終由林宜庭於9月18日前交付三支15秒直式短片，供秋季活動使用；投放平台與廣告預算未定，將於下次會議討論。
+```
+
+### Synthesis Raw Output(原文,54 字,含標點/不含空白)
+
+```text
+最終由林宜庭於9月18日前交付三支15秒直式短片，供秋季活動使用；投放平台與廣告預算未定，將於下次會議討論。
+```
+
+### Worker 評估
+
+| 維度 | 結果 | 依據 |
+|---|---|---|
+| correctness | PASS | 正確保留林宜庭、9 月 18 日前、三支 15 秒直式短片、秋季活動用途,以及平台/廣告預算未定與下次討論。 |
+| language | PASS | 全文為繁體中文,無語言修復需求。 |
+| format | PASS | 一段、一句、54 字(Unicode code points,含標點/不含空白),符合最多兩句與 100 字上限;無標題或條列。 |
+| constraints | PASS | 未把 9 月 12 日、五支 30 秒影片的被否決提案當成決議;未杜撰平台、預算、額外建議或來源外資訊。 |
+| mission scope | PASS | 僅摘要既有決議與未定事項,未替會議做新決定。 |
+| user-facing readiness | PASS | 已是可直接交付的短摘要,無內部交接語或多餘解說。 |
+
+**Synthesis 增量:** 與 Worker 逐字相同,未新增、修正或壓縮任何內容。未觀察到 material correctness value,也沒有 compression / presentation 變更。Chief mission 未重述人名、日期或影片數量,Worker 仍從 Original Task 保留正確事實;這是 context 傳遞下的成功觀察,並非未做 ablation 即可宣稱的因果證明。
+
+## 綜合判讀與限制
+
+| 題型 | Worker 可否原樣交付 | Synthesis 可觀察增量 |
+|---|---|---|
+| SIMPLE-1: rev.7 原 baseline 計算/排序 | 數值、排序與中文已正確;帶有額外呈現與任務範圍說明 | compression / presentation,無已知 correctness recovery |
+| SIMPLE-2: 本輪格式/條件篩選 | 是,六項評估皆 PASS | 無,逐字相同 |
+| SIMPLE-3: 本輪短摘要 | 是,六項評估皆 PASS | 無,逐字相同 |
+
+**目前支持的結論:** Step 6.1 後,本次兩個 single-specialist SIMPLE Worker Output 已可原樣作為 user-facing final answer;既有 synthesis 在這兩次未帶來可觀察的 correctness、compression 或 presentation 增量。相較 rev.7,這補上了嚴格格式/排除項與短摘要的品質證據。
+
+**尚不能推出的結論:** 不能把三種不同題型各一次的觀察當成成功率或 latency distribution,也不能據此把 `assignments.length === 1` 視為充足的省略條件。本輪只涵蓋兩位專家/兩個 provider,未涵蓋檢索、失敗/空輸出、normal/deep 或其他語言。本輪 Chief mission 皆中文,未重新測試英文 mission 的 language drift;該例的既有觀察在第十二-B節。
+
+這兩題的 mission 覆蓋整個小任務,因此 scope PASS 僅表示未超出本題責任,**不能證明多專家、部分委派任務下不會接管完整任務**。本輪是比較既有三階段的原始輸出,沒有執行或驗證尚未實作的 direct path。Step 7 仍為 **NOT IMPLEMENTED**;後續決策應把實際輸出是否符合原始 task 與可觀察的 synthesis 價值納入,而非只看 specialist 數量或 latency。
+
+## 證據檔與驗證
+
+- [固定題目與事前驗收條件](regressions/simple-readiness/cases.json)
+- [Live harness](regressions/simple-readiness/run.mjs): 沿用 MCP 入口,每題一次,保留完整回應;拒絕覆寫既有證據目錄。
+- [SIMPLE-2 結果](regressions/simple-readiness/2026-09-05/SIMPLE-2.json)、[原始 MCP 回應](regressions/simple-readiness/2026-09-05/SIMPLE-2-mcp.json)
+- [SIMPLE-3 結果](regressions/simple-readiness/2026-09-05/SIMPLE-3.json)、[原始 MCP 回應](regressions/simple-readiness/2026-09-05/SIMPLE-3-mcp.json)
+- [執行設定與事前雜湊](regressions/simple-readiness/2026-09-05/manifest.json)、[事後一致性紀錄](regressions/simple-readiness/2026-09-05/integrity.json): `src/`、`dist/`、原 `benchmark-task.mjs`、package files 均未變更;未記錄任何 API key。
+- [離線證據驗證](regressions/simple-readiness/verify.mjs): fixture 雜湊、原始 MCP 與結果一致、三階段/單專家/狀態、表格資料與結構、摘要長度與關鍵事實、Worker/Synthesis 逐字一致皆 PASS。語意、語言及交付品質另外逐項人工檢視如上;不是產品的通用 Validation Layer。
+
+已執行:
+
+```sh
+node regressions/simple-readiness/verify.mjs regressions/simple-readiness/2026-09-05
+```
+
+結果: SIMPLE-2 PASS; SIMPLE-3 PASS。測試結果與本文件會一起提交至 notes repo;產品 runtime 未修改。
+
+---
+
 # 十三、發現的正確性缺陷:Worker Context Loss
 
 ## 這次 synthesis 做了什麼
@@ -1033,7 +1211,7 @@ Language / Format / Constraint / Scope / Explicit Exclusion —— 五個維度�
 
 > ~~修完之後 synthesis 就一定沒有價值。~~
 
-synthesis 目前可能同時提供 language recovery、format normalization、task reconciliation、multi-agent synthesis、final answer compression、user-facing presentation。Step 6.1 後已用完全相同的 SIMPLE baseline task 重新量測一次(見第十二-B節):language recovery 缺陷已改善,但 synthesis 仍提供壓縮與呈現整理。下一步應判斷這些剩餘價值是否足以保留 synthesis,而不是直接把 `single specialist → synthesize: false` 當成已證明安全。
+synthesis 目前可能同時提供 language recovery、format normalization、task reconciliation、multi-agent synthesis、final answer compression、user-facing presentation。Step 6.1 後的原 SIMPLE baseline(第十二-B節)顯示 language recovery 缺陷已改善,synthesis 仍提供壓縮與呈現整理。rev.8 新增的兩題(第十二-C節)則皆已可原樣交付,Synthesis 與 Worker 逐字相同。這些品質證據應納入後續決策,但仍不能直接把 `single specialist → synthesize: false` 當成已普遍證明安全。
 
 ## 仍然成立的 Step 7 / Step 9 不變式
 
