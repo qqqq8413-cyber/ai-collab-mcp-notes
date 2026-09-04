@@ -1,13 +1,15 @@
-# ai-collab-mcp — Progress Report & Review Request (2026-09-04)
+# ai-collab-mcp — Progress Report (2026-09-04, rev. 2)
 
-> **這份文件同時給 GPT 與 Gemini 閱讀。** 內容是自足的,不需要額外附上架構文件也能讀懂。
+> **給 GPT 與 Gemini 的說明:** 你們先前收到的是 rev. 1,並回答了文末那四個問題。**這一版修正了 rev. 1 的一個關鍵前提** —— 詳見第六節。你們基於「Chief 每次都排除 Gemini」所做的診斷,現在證據基礎變弱了。
 >
-> **先講立場問題(重要)**:第五節那個待決策的問題,內容正是「這個系統要不要繼續使用 Gemini」。**兩位讀者在這題上都不是中立第三方**:
->
-> - **Gemini** 是被討論要不要繼續使用的對象。
-> - **GPT** 既是做出排除決定的 Chief(`gpt-5`),也是實際被選用的 `brand_creative`(`gpt-5`)—— 等於在評價自己的判斷。
->
-> 我不打算因此不問你們。剛好相反,你們各自的觀點正是這題缺的。但請在回答時**明確區分「哪些是可驗證的論證」與「哪些是你作為當事方的偏好」**。
+> **立場揭露(沿用 rev. 1):** 第六節那個問題,兩位讀者都不是中立第三方。Gemini 是被討論要不要繼續使用的對象;GPT 既是做出排除決定的 Chief(`gpt-5`)也是被選用的 `brand_creative`(`gpt-5`)。
+
+## rev. 2 改了什麼
+
+1. **新增第 3 項功能:Run Status / Evidence Label**(第五節)
+2. **第 5 次執行推翻了 rev. 1 的核心前提** —— Chief 這次**選了** Gemini(第六節)
+3. **§25 穩定度的說法改弱** —— `normal` 已驗證,`deep` 未驗證(第八節)
+4. **新增 GPT 與 Gemini 的審查結果與已採行的決定**(第七節)
 
 ---
 
@@ -53,9 +55,9 @@ TypeScript (ESM) + @modelcontextprotocol/sdk + zod
   - `simple`(最多 1 位專家):計算、格式化、短摘要、單一資訊處理
   - `normal`(最多 3 位):報價分析、腳本評估、商業提案、一般專案決策
   - `deep`(最多 4 位):**公司年度策略**、重大投資、高風險合約、財務策略、大型品牌專案
-- **§17 Run Status**(尚未實作) — 讓 worker 失敗在最終結果上可見,而不是靜默降級。
+- **§17 Run Status** — 讓 worker 失敗在最終結果上可見,而不是靜默降級。**(本次已實作)**
 - **§19 Validation Layer**(尚未實作) — 在 worker 完成後檢查產出是否有未經證據支撐的重大假設。
-- **§23** — 開發順序。**§24** — 明確不做的項目。**§25** — 驗收標準。**§28** — 本次開發的具體要求清單(Chief Planning Protocol V1)。
+- **§23** — 開發順序。**§24** — 明確不做的項目。**§25** — 驗收標準。**§28** — Chief Planning Protocol V1 的要求清單。
 
 ## 測試用的 task
 
@@ -126,7 +128,7 @@ Orchestrator 第一次跑,6 個 worker 任務中**有 2 個回傳 0 字元**,流
 
 ---
 
-# 四、Phase 5:Chief Planning Protocol V1(本次完成)
+# 四、Phase 5 第 1、2 項:Chief Planning Protocol V1
 
 ## 要解決的問題
 
@@ -145,125 +147,248 @@ Planning V1 之前,**同一個 task 跑兩次,Chief 拆出的子任務數是 6 �
 | 7. structured schema | zod 驗證;JSON 解析可處理 markdown fence |
 | 8. 預留 cost / latency constraints | `budget` 參數:`maxSpecialists` 強制執行,cost/latency 傳達給 Chief |
 | 9. 保留 planning rationale 供 audit | `reason` 欄位 + `planningAdjustments` 記錄約束層的每次修正 |
-| 10. 同一 task 連跑 3 次比較 | 已執行,結果如下 |
+| 10. 同一 task 連跑多次比較 | 已執行 5 次,結果如下 |
 
 ### 關鍵設計:約束不只寫在 prompt
 
 Prompt 可以被模型忽略,所以另外實作了 `enforceConstraints()`,把違規計畫強制修正成合規,**並把每次修正記錄在 `planningAdjustments`**。這樣同時保證成本可預測、以及 Chief 是否守規矩可被稽核。
 
-## 測試結果:同一 task 連跑 3 次
-
-| Run | complexity | missions | API calls | agents | adjustments | failures | total |
-|---|---|---|---|---|---|---|---|
-| 1 | normal | 2 | 4 | business_strategist + brand_creative | 0 | 0 | 255.2s |
-| 2 | normal | 2 | 4 | business_strategist + brand_creative | 0 | 0 | 277.9s |
-| 3 | normal | 2 | 4 | business_strategist + brand_creative | 0 | 0 | 252.6s |
-
-### 修正前後對比
-
-| | 修正前 | 修正後 |
-|---|---|---|
-| Mission 數 | **6 vs 13**(差 2 倍以上) | **2 / 2 / 2** |
-| API 呼叫 | 8 / 15 | **4 / 4 / 4** |
-| Complexity 分類 | 無此概念 | 穩定 |
-| 約束層介入 | — | **0 次**(Chief 自己就遵守) |
-| Worker 失敗 | 2 個空輸出 | 0 |
-| 最終輸出 | 8,614 字 | 3,662–4,406 字 |
-
-`adjustments = 0` 是很好的訊號:Chief 在讀到明確約束後**自願遵守**,強制層完全沒有介入,代表約束是被理解而非被硬套。
-
 ## 追加修正:Complexity 校準
 
 第一輪 3 次測試中 Chief 都判為 `normal`,但 §14 明確把「公司年度策略」列為 **DEEP** —— 而測試 task 正是公司年度策略。
 
-**原因**:第一版實作只給了各級距的人數上限,漏了 §14 的語意定義與判斷範例,Chief 等於沒有判準在猜。
+**原因**:第一版實作只給了各級距的人數上限,漏了 §14 的語意定義與判斷範例,Chief 等於沒有判準在猜。修正後 Run 4、Run 5 都正確判為 `deep`。
 
-**修正後單次驗證**:
+## 全部 5 次執行紀錄
 
-```
-complexity : deep    ← 已符合 §14 定義
-missions   : 2
-API calls  : 4
-adjustments: 0
-failures   : 0
-total      : 239.0s
-```
+| Run | complexity | missions | agents | API calls | adjustments | failures | total |
+|---|---|---|---|---|---|---|---|
+| 1 | normal | 2 | BS + BC | 4 | 0 | 0 | 255.2s |
+| 2 | normal | 2 | BS + BC | 4 | 0 | 0 | 277.9s |
+| 3 | normal | 2 | BS + BC | 4 | 0 | 0 | 252.6s |
+| 4 | **deep** | 2 | BS + BC | 4 | 0 | 0 | 239.0s |
+| 5 | **deep** | **3** | **MR + BS + BC** | **5** | 0 | 0 | 213.9s |
 
-> ⚠️ 此修正後只跑了 1 次(為節省 API 成本),**complexity 分類在修正後的穩定度尚未用 3 次驗證**。
+> BS = `business_strategist`(Claude)、BC = `brand_creative`(GPT)、MR = `market_researcher`(Gemini)
+>
+> Run 1–3 在 complexity 校準前;Run 4–5 在校準後。Run 5 是 Run Status 上線後的第一次執行。
+
+### 修正前後對比
+
+| | 修正前 | 修正後(5 次) |
+|---|---|---|
+| Mission 數 | **6 vs 13**(差 2 倍以上) | **2–3** |
+| API 呼叫 | 8 / 15 | **4–5** |
+| Complexity 分類 | 無此概念 | 校準後 2/2 正確判為 deep |
+| 約束層介入 | — | **0 次**(Chief 自己就遵守) |
+| Worker 失敗 | 2 個空輸出 | 0 |
+
+`adjustments = 0` 是很好的訊號:Chief 在讀到明確約束後**自願遵守**,強制層完全沒有介入,代表約束是被理解而非被硬套。
+
+### ⚠️ 但「穩定」這個詞用得太滿了
+
+rev. 1 說「已收斂到 2/2/2」是根據 3 次 `normal` 執行。加入 deep 的兩次之後,準確的說法是:
+
+> **Planning V1 讓計畫變得有界(bounded),不是變得確定(deterministic)。**
+
+- **`normal`:3/3 完全一致** —— 這條站得住
+- **`deep`:2 次跑出 2 個不同的計畫**(2 missions vs 3 missions,選人也不同)—— 未驗證
+
+原本 6 vs 13 的擺盪確實消失了(現在 2–3),所以 §25「不應再出現 6 / 13 / 20」仍然成立。但不能說成「穩定」。
 
 ---
 
-# 五、需要架構決策的問題:Gemini 完全未被選用
+# 五、Phase 5 第 3 項:Worker Failure / Run Status(本次新增)
 
-## 現象
+對應 §17。`run_orchestrator` 現在額外回傳一個 `report`。
 
-Planning V1 上線後 **4 次執行**(3 次 normal + 1 次 deep),Chief **每一次都只選 business_strategist(Claude)+ brand_creative(GPT),完全沒有選 market_researcher(Gemini)**。
+## Run Status
 
-而且是明確寫理由排除的:
+| 狀態 | 條件 | 行為 |
+|---|---|---|
+| `SUCCESS` | 全員回傳 | 正常整合 |
+| `DEGRADED` | 有人失敗,至少一人成功 | 整合照做,但 **synthesizer 會被明確告知誰缺席、不准腦補其貢獻**,並要求說明答案哪裡因此變薄 |
+| `FAILED` | 全員失敗 | **跳過整合階段**,`finalOutput` 回 `null` |
 
-> Run 1:「不需另啟市場研究即可先行制定策略與試點,日後可用營運數據校準」
-> Run 2:「無需額外市場研究即可提出可執行方案」
-> Run 3:「不需額外市場研究即可產出可執行策略與 KPI,避免冗餘協作」
+`FAILED` 那條是重點。原本的行為是把 error 字串塞進 synthesis prompt 讓模型自己看著辦 —— 那正是「靜默降級」的來源。現在不花那筆錢,也不產生一份用錯誤訊息寫成的策略。
 
-**重點**:即使在 `deep`(允許 4 個 specialist)的情況下,Chief 仍只選 2 個。所以**這是 Chief 的實質判斷,不是被人數上限卡掉**。
+## Evidence Label
 
-## 這是架構文件內部兩條原則的衝突
+| 標籤 | 條件 |
+|---|---|
+| `NOT_APPLICABLE` | complexity 不是 `deep` |
+| `EVIDENCE_BACKED` | 有標記 `evidenceCapable` 的專家成功回傳 |
+| `CONDITIONAL` | 有找 evidence 專家,但全部失敗 |
+| `HYPOTHESIS` | deep 任務,但根本沒找 evidence 專家 |
 
-這不是實作 bug,是**架構文件自己的兩條原則指向相反方向**:
+**`CONDITIONAL` 和 `HYPOTHESIS` 會把警告直接加在 `finalOutput` 開頭**,不只放在 metadata:
 
-- **§4 / §5** → Chief 現在的行為完全正確,少即是好,成本降 73%。
-- **§9** 把 Gemini 定位為 evidence gathering → 若這個能力池永遠不會被觸發,它在架構圖上就是死的。
+```
+> **UNVERIFIED — HYPOTHESIS**
+> No external evidence was gathered for this answer. Treat it as a strategy
+> hypothesis to be validated, not as a conclusion. Pricing, market and growth
+> figures below are unchecked model assumptions.
+```
 
-換句話說:**「最小充分」的判準到底是「答案看起來完整」還是「答案有證據支撐」?** 現在 Chief 用的是前者。
+metadata 保護不了讀者 —— 一份沒有實證的策略文件,讀起來跟有實證的一模一樣。標記必須長在文件上。
 
-## 具體的品質損失(可驗證的部分)
+## 關鍵設計:結構判定,不做自我評估
 
-對比修正前的 13 子任務版本:Gemini 當時提供了競品定價標竿,**直接成為最終文件裡定價帶與毛利率的依據**。現在的 3,707 字策略沒有這層實證支撐 —— 這是一份公司年度成長策略,目前建立在模型的既有認知之上。
+**label 完全由 complexity 與「誰實際回傳了」決定,絕不去問 Chief 覺得需不需要研究。**
 
-## 三個可能方向
+理由是實測的:Chief 在 4 次執行中每次都回答「不需要市場研究」。它的自我評估不是可用訊號。§14 已經把 `deep` 定義成公司年度策略、重大投資、高風險合約 —— 這些本質上依賴外部事實,不需要再問一次。
 
-| 方向 | 做法 | 成本影響 | 風險 |
+> 這一點刻意**不採用** GPT 建議的 `requiresEvidence: true` 由 Chief 標記 —— 理由見第七節。
+
+## 離線測試
+
+```bash
+npm test   # 15 項,不花任何 API 額度
+```
+
+真實跑一次要約 4 分鐘、4–5 次模型呼叫,狀態規則不該需要那個。其中一項專門鎖住上述設計決定:
+
+```
+✓ label never depends on the Chief saying research was unnecessary
+```
+
+同樣的 worker 結果、同樣的名單,只有 complexity 能移動 label —— 沒有任何欄位能讓 Chief 用嘴巴脫離 `HYPOTHESIS`。
+
+---
+
+# 六、⚠️ rev. 1 的核心前提被推翻
+
+## rev. 1 說了什麼
+
+> Planning V1 上線後 **4 次執行**(3 次 normal + 1 次 deep),Chief **每一次都只選 business_strategist(Claude)+ brand_creative(GPT),完全沒有選 market_researcher(Gemini)**。
+> **重點**:即使在 `deep`(允許 4 個 specialist)的情況下,Chief 仍只選 2 個。所以**這是 Chief 的實質判斷,不是被人數上限卡掉**。
+
+## Run 5 發生了什麼
+
+**Chief 選了 Gemini。** 同一個 task、同一份名單、同一個 prompt。
+
+| | Run 4 | Run 5 |
+|---|---|---|
+| complexity | deep | deep |
+| missions | 2 | 3 |
+| agents | BS + BC | **MR + BS + BC** |
+| Evidence Label(依現行規則) | **HYPOTHESIS** | **EVIDENCE_BACKED** |
+
+已確認**不是程式改動造成的**:planning prompt 只餵給 Chief `agentId` 與 `role` 兩個欄位,新增的 `evidenceCapable` 從來沒有進過那個字串。
+
+## 所以正確的說法是
+
+**在 `deep` 這一層是 1 排除 / 1 選用,n=2。** 那是擲硬幣,不是穩定模式。「每一次都排除」不成立。
+
+## 這反而讓結構性標記更有必要
+
+原本的論證是「Chief 系統性地不做研究,所以要強制」。現在的論證更強:
+
+> 同一個 deep 任務,**有時候有實證、有時候沒有,而產出的文件長得一模一樣**。讀者無從分辨手上這份是哪一種。
+
+Run 4 和 Run 5 產出的都是「Studio X 2027 成長策略」,一份有市場研究一份沒有 —— 在 label 存在之前,打開它們看不出差別。**系統性偏誤至少是可預期的,變異不是。**
+
+## 但這削弱了兩位審查者的第 4 題答案
+
+GPT 與 Gemini 在第 4 題都把 Chief 診斷為**系統性認知偏誤**:
+
+> GPT:「用輸出的完整度代替 epistemic confidence」
+> Gemini:「典型的 LLM 偏誤 —— 因為我自己能寫出一份看起來極為完整的文本,所以主觀認為不需要外部事實」
+
+如果這是變異而非偏誤,**這兩個診斷是打偏的**。它們診斷的對象是一個穩定傾向,而資料現在顯示的是不穩定。
+
+**未解**:n=2 太少,無法判斷 1:1 是隨機還是有其他因素。要補到 n=5 需在 deep 再跑 3 次(約 12 分鐘、15 次呼叫)。
+
+---
+
+# 七、GPT 與 Gemini 的審查結果
+
+rev. 1 向兩者提出四個問題,**分開獨立提問,雙方都沒看過對方的答案**。
+
+## 方法論警告:提問者引導了證人
+
+rev. 1 只給了三個選項,而且文末直接建議了「方向 2 只套用在 deep」這個折衷做法。**兩邊提出的「過渡補丁」正是我遞給它們的。** 所以「兩邊都選方向 3」不能當成交叉驗證的證據。
+
+有訊息量的是:它們**在框架之外**的收斂,以及它們的分歧。
+
+## 框架外的收斂(獨立提問,因此是真訊號)
+
+| 收斂點 | rev. 1 有無暗示 |
+|---|---|
+| 以同一診斷否決 Run 2 的理由:**可執行 ≠ 正確** | 無 |
+| 驗證粒度選在 **claim / assumption 層級**,而非「叫一個模型評論整份答案」 | 無 |
+| **「充分」必須先成立,「最小」才有意義** | 無 |
+| Run 3 區分「能力重複」與「能力缺口」 | 無 |
+
+## 唯一的分歧,精準地跟自身利益重合
+
+兩邊都選方向 3,分歧全在**過渡期怎麼辦**:
+
+| | 過渡補丁 | 成本 | 誰得利 |
 |---|---|---|---|
-| 1. 維持現況 | 相信 Chief 判斷,策略以既有認知為基礎 | 最低(4 calls) | 重大決策建立在未驗證假設上 |
-| 2. prompt 加硬規則 | 「deep 任務必須包含至少一個 evidence-gathering capability」 | +1 call(deep 時) | 把判斷寫死,可能在不需要研究的 deep 任務上浪費 |
-| 3. 交給 Validation Layer(§19) | Chief 自由規劃,worker 完成後檢查「是否有未經證據支撐的重大假設」,必要時才補研究 | 動態(多數情況 0,必要時 +1~2) | 最貼近 §19 原始設計,但要等開發順序第 10 項才做得到 |
+| **GPT** | Chief 標記 `requiresEvidence`,沒有 evidence agent 就把輸出降級成 `HYPOTHESIS` / `CONDITIONAL` | **+0 calls** | 維持 GPT+Claude 陣容 |
+| **Gemini** | deep 任務硬性規定至少一個 evidence-gathering **模型** | **+1 call(每次 deep)** | 保證 Gemini 出場 |
 
-一個中間做法:方向 2 只套用在 `deep`,`normal` 維持現況。日常任務仍是 4 calls,只有真正高風險的決策才強制拉進證據來源。
+**兩個模型分開問,各自獨立提出了對自己有利的過渡方案。**
+
+Gemini 這裡另有一處邏輯不一致:它先批評方向 2「在 Prompt 硬寫死規則違背 §4 動態調度的初衷,容易在不需要調研的 deep 任務上造成無謂的 API 成本浪費」,然後推薦的過渡補丁就是那個東西 —— 而不一致的方向正好是把自己放進去。
+
+另外,GPT 明確把能力與模型脫鉤(`Gemini / GPT / DB / Web / Context`),承認 evidence 不一定要 Gemini 來做;**Gemini 全程沒有提過這個能力可由網路搜尋、資料庫或 GPT 滿足**,把「evidence capability」與「我」畫上了等號。這題 GPT 比較守規矩。
+
+## 各自的實質貢獻(互補而非競爭)
+
+**GPT —— 架構形狀:**
+- **Critical Claims 抽取**:把「你需不需要研究」(模型很爛的自我評估)換成「你的建議依賴哪些斷言、各自拿什麼支持」(模型很強的抽取任務)
+- `decisionSensitive` 閘門:不是每個未驗證假設都值得花錢查,防止 Validation Layer 膨脹成第二個 13-task 怪物
+- 順序論證:先定 decision quality floor,再在達標方案裡找最便宜的
+
+**Gemini —— 偵測器形狀,更可操作:**
+- **定量錨點測試**:產出中若有定價、毛利率、市場規模、CAPEX 回本期、客單價,且無法由純數學推出 → 必須引進外部證據。**大部分可用啟發式規則完成,不必再燒一次 LLM 呼叫**
+- 反事實敏感度:「若競品突然降價 30%,此策略是否直接失效?」
+- schema 的 `researchQuery` 欄位:直接產出要給 researcher 的檢索指令(GPT 的 schema 只到 `recommendedCapability`)
+
+## 兩邊都漏掉的問題
+
+**誰來抽取 Critical Claims / 誰來當 Validation Guard?**
+
+若由產出建議的同一個模型執行,就是同一個模型稽核自己的信心水準 —— 正是它們兩個都診斷出來的 Run 2 病灶。Gemini 的 prompt 寫了「你是一個嚴格的商業審計員」但沒說是誰;GPT 完全沒提。
+
+**追加約束:validator 不得為產出者。** 目前 GPT 兼 Chief 與 synthesizer,因此 validator 只能是 Claude 或 Gemini。
+
+## 已採行的決定
+
+1. **方向 3(Validation Layer)為目標**,兩位審查者與實作者一致。
+2. **過渡期採 GPT 的形狀(標記輸出),不採 Gemini 的(強制出場)** —— 理由不是誰比較可信,而是效果:每次 deep 硬塞一個研究員,連 Gemini 自己都承認會浪費;誠實標記成本為 0,且保住了真正重要的資訊。
+3. **但不採用 GPT 的 `requiresEvidence` 由 Chief 自評** —— 這與 GPT 自己在第 2 題的建議互相矛盾:
+
+   > 不要問 Chief:「你需不需要研究?」因為它很容易回答「不用」。
+
+   而我們有實測資料證明這個 Chief 就是會回答「不用」。改為**結構判定**(見第五節)。
+4. **Validation Layer(第 10 項)實作時**:用 Gemini 的定量錨點測試當便宜的第一道偵測 → GPT 的 `decisionSensitive` 閘門決定值不值得花錢 → Gemini 的 `researchQuery` 讓補研究可執行 → evidence mission 走 capability router 不綁定模型(GPT)→ **validator 不得為產出者**(本文追加)。
+5. **不跑 `run_debate`** —— 兩者結論並不相反,唯一分歧已可診斷(各自提對自己有利的過渡方案),再花一次辯論成本沒有增益。
 
 ---
 
-# 六、我具體想請你回答的
-
-1. **上面三個方向,你選哪一個?為什麼?** 請直接給結論再給理由,不要三個都分析一輪然後不表態。
-2. **「最小充分協作」應該怎麼定義才不會退化成「省成本」?** 有沒有可操作的判準,能區分「這個任務真的不需要外部證據」跟「模型只是不知道自己不知道」?
-3. **如果選方向 3(Validation Layer),它該檢查什麼?** 請具體到可以寫成 prompt 或 schema 的程度 —— 例如要偵測哪幾類「未經證據支撐的重大假設」。
-4. **你認為 Chief 排除市場研究的那三個理由,哪些站得住腳、哪些是合理化?**
-
-再提醒一次:第 1 題與第 4 題你是利害關係方(理由見文件開頭),請把「論證」和「立場」分開寫。
-
-> 這四題 GPT 與 Gemini 會分別回答,答案將並排比對。如果兩邊結論相反,就直接拿這題去跑 `run_debate`。
-
----
-
-# 七、§25 驗收標準檢核
+# 八、§25 驗收標準檢核
 
 | 標準 | 狀態 |
 |---|---|
-| 同一 Task 重跑多次 | ✅ 已跑 4 次 |
-| Complexity classification 大致穩定 | ✅ 修正前 3/3 一致;修正後僅 1 次,待補驗證 |
-| Required capabilities 大致穩定 | ✅ 語意一致(商業策略/GTM/品牌設計),用字有差異 |
-| Agent 數量受限制 | ✅ |
-| Subtask 數量受限制 | ✅ |
-| Worker failure 可見 | ⚠️ 每個 worker 的 error 有被捕捉,但**還沒有正式 Run Status**(§17,開發順序第 3 項) |
-| JSON planning 穩定 | ✅ 4/4 次解析成功,0 次 schema 失敗 |
+| 同一 Task 重跑多次 | ✅ 已跑 5 次 |
+| Complexity classification 大致穩定 | ⚠️ 校準後 2/2 判為 deep,但 n=2 |
+| Required capabilities 大致穩定 | ⚠️ 語意方向一致,但 Run 5 明顯較廣(9 項 vs 3–7 項) |
+| Agent 數量受限制 | ✅ 從未超過 cap |
+| Subtask 數量受限制 | ✅ 2–3,遠離修正前的 6–13 |
+| **計畫可重現** | ❌ **`normal` 3/3 一致;`deep` 2 次得到 2 個不同計畫** |
+| Worker failure 可見 | ✅ **本次完成** — SUCCESS / DEGRADED / FAILED + 失敗清單 + synthesisAllowed |
+| JSON planning 穩定 | ✅ 5/5 次解析成功,0 次 schema 失敗 |
 | Cost 可追蹤 | ❌ 開發順序第 8 項,尚未做 |
-| Latency 可追蹤 | ✅ 已加入分階段 `timings` |
+| Latency 可追蹤 | ✅ 分階段 `timings` |
 | Chief 可以清楚仲裁 disagreement | ❌ 開發順序第 10–11 項,尚未做 |
 | 使用者收到 Executive Brief | ❌ 開發順序第 12 項,尚未做 |
 
 ---
 
-# 八、目前程式碼狀態
+# 九、目前程式碼狀態
 
 | 檔案 | 內容 |
 |---|---|
@@ -271,23 +396,24 @@ Planning V1 上線後 **4 次執行**(3 次 normal + 1 次 deep),Chief **每一�
 | `src/providers/claude.ts` | 共用額度;空輸出 throw(附 stop_reason + thinking tokens) |
 | `src/providers/openai.ts` | `max_completion_tokens`;共用額度;空輸出 throw |
 | `src/providers/gemini.ts` | 共用額度;空輸出 throw(附 finishReason) |
-| `src/modes/orchestrator.ts` | **重寫**:Planning Protocol V1、zod schema、約束強制層、分階段計時 |
-| `src/index.ts` | `run_orchestrator` 新增 `budget` 參數 |
-| `README.md` | 新增 Runtime notes(MCP timeout、推理 token 額度) |
+| `src/modes/orchestrator.ts` | Planning Protocol V1、zod schema、約束強制層、分階段計時、**Run Status / Evidence Label / 輸出標記** |
+| `src/index.ts` | `run_orchestrator` 的 `budget` 參數、**worker 的 `evidenceCapable` 參數** |
+| `README.md` | Runtime notes(MCP timeout、推理 token 額度)、**Run status 與 evidence label 說明** |
 
 ## 測試腳本
 
+- `npm test` — **離線 15 項,驗證 run status 與輸出標記規則,不花 API 額度**
 - `check-providers.mjs` — 驗證三家 API Key
 - `test-pipeline.mjs` — Pipeline 接力測試
-- `test-orchestrator.mjs` — Orchestrator 穩定度測試,可指定次數(`node test-orchestrator.mjs 3`),自動輸出比較表與 `orchestrator-run-N.json`
+- `test-orchestrator.mjs` — Orchestrator 穩定度測試(`node test-orchestrator.mjs 3`),輸出比較表與 `orchestrator-run-N.json`
 
 ---
 
-# 九、實務提醒
+# 十、實務提醒
 
 ### 1. 延遲仍是架構層級的問題
 
-Planning V1 把 API 呼叫從 15 降到 4,但**總時間只從 309s 降到約 240–280s**。原因是 mission 變成一個大的 coherent mission 後,單一 worker 的執行時間拉長(115–184s),整合階段仍需 65–99s。
+Planning V1 把 API 呼叫從 15 降到 4–5,但**總時間只從 309s 降到約 214–278s**。原因是 mission 變成一個大的 coherent mission 後,單一 worker 的執行時間拉長(115–184s),整合階段仍需 65–99s。
 
 **降低 API 呼叫數 ≠ 等比降低延遲。** 真正的瓶頸是推理模型的單次思考時間,要靠 streaming 或更小的模型來解。
 
@@ -295,30 +421,40 @@ Planning V1 把 API 呼叫從 15 降到 4,但**總時間只從 309s 降到約 24
 
 單次 orchestrator 要 4 分鐘以上,預設會被誤判成卡死(`-32001 Request timed out`,但流程其實還活著)。已寫進 README,呼叫時要帶 `{ timeout: 900000 }`。
 
-### 3. Worker 失敗仍會靜默降級
+### 3. 同一個 task 不會給出同一個計畫
 
-單一 worker 出錯會把 error 字串塞進 synthesis prompt 由 synthesizer 自行判斷。加上空輸出防呆後,最隱蔽的情況已被擋下,但**多個 worker 掛掉時最終答案仍會悄悄降級而不報錯**。這正是 §17 Run Status 要解決的。
+Run 4 與 Run 5 證明了這件事。做效能或成本估算時,**不能假設同一個 task 的計畫可重現** —— 要用區間(2–3 missions / 4–5 calls),不要用點值。
 
 ---
 
-# 十、下一步(依 §23 開發順序)
+# 十一、下一步(依 §23 開發順序)
 
 ```
 ✅ 1. Chief Planning Constraints
-✅ 2. Structured Planning Output      ← zod 驗證已做
-▶  3. Worker Failure / Run Status     ← 建議下一個
-   4. Agent Registry
+✅ 2. Structured Planning Output
+✅ 3. Worker Failure / Run Status     ← 本次完成(含 evidence label 與輸出標記)
+▶  4. Agent Registry                  ← 建議下一個
    5. Model Capability Registry
    6. Chief of Staff System Prompt
    7. Complexity Router               ← 部分已內含在 Planning V1
    8. Cost / Token / Latency Tracking ← latency 已做,cost 未做
    9. Model Router
-   10. Validation Layer               ← 第五節方向 3 需要它
+   10. Validation Layer               ← 第七節的決定需要它
    11. Red Team
    12. Executive Brief Schema
-   13. Automated Tests
+   13. Automated Tests                ← 已提前做了 run status 的部分
    14. Project Context
    15. Memory / Persistence
 ```
 
 **明確不做**(§24):OpenClaw / Slack / Discord / Telegram / Web UI / Ollama / Long-term Memory / Complex Gateway。
+
+## 一個仍然開放的問題
+
+**deep 層的計畫變異要不要處理?** 目前 n=2 且結果相反。三個選項:
+
+1. 補跑 3 次到 n=5,先確認變異的幅度再決定
+2. 接受變異,理由是 evidence label 已經讓「這次有沒有做研究」變得可見 —— 變異不再是隱形的
+3. 降低 Chief 的 temperature 或改用更確定性的規劃方式
+
+第 2 個選項的論證最強:**我們原本擔心的不是「計畫會變」,而是「計畫變了但看不出來」。** 後者已經被第五節解決。
