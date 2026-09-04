@@ -32,8 +32,9 @@ for (let i = 1; i <= RUNS; i++) {
     capabilities: p.plan.requiredCapabilities,
     agents: p.plan.assignments.map((a) => a.agentId),
     missionCount: p.plan.assignments.length,
-    // A FAILED run skips synthesis, so it spends one call fewer.
-    apiCalls: 1 + p.plan.assignments.length + (p.report.synthesisAllowed ? 1 : 0),
+    // Count scheduled model calls from policy; the status guard alone is insufficient.
+    apiCalls: 1 + p.plan.assignments.length + ((p.report.policy?.synthesize ?? p.report.synthesisAllowed) ? 1 : 0),
+    policy: p.report.policy,
     requiresRedTeam: p.plan.requiresRedTeam,
     adjustments: p.planningAdjustments,
     status: p.report.status,
@@ -45,6 +46,7 @@ for (let i = 1; i <= RUNS; i++) {
   summary.push(row);
 
   console.log('status          :', row.status, '| evidence:', row.evidenceLabel);
+  console.log('policy          :', row.policy ?? 'legacy report');
   console.log('complexity      :', row.complexity);
   console.log('capabilities    :', row.capabilities.join(', '));
   console.log('agents          :', row.agents.join(', '));

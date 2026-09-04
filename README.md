@@ -2,6 +2,8 @@
 
 此 repository 包含可建置的 MCP server、離線測試與交接紀錄。最新狀態見 [HANDOFF.md](HANDOFF.md);歷史架構分析見 [STEP7_SCOPE_ANALYSIS.md](STEP7_SCOPE_ANALYSIS.md)。
 
+目前 **Step 7 V1 IMPLEMENTED**: 僅 SIMPLE、恰好一位成功且輸出非空的 Worker、non-retrieval 執行會原樣直接交付,其餘路徑保留原行為。`report.policy` 記錄是否 synthesis 及原因,`synthesisAllowed` 保留原 Run Status 的失敗保護語意。
+
 ## 建置與離線測試
 
 本次使用 Node.js v24.15.0 驗證。從 repository 根目錄執行:
@@ -11,7 +13,7 @@ npm ci
 npm test
 ```
 
-`npm test` 先編譯 TypeScript,再執行離線測試與 MCP smoke tests。這些測試不需要 API key。
+`npm test` 先編譯 TypeScript,再執行 99 項離線測試與 MCP smoke tests。這些測試不需要 API key,包括 36 項新增 execution-policy tests。
 
 ## 啟動 MCP Server
 

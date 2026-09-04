@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { callProvider } from '../providers/index.js';
 import type { RetrievalResult } from '../providers/types.js';
 import type { ProviderName } from '../config.js';
+import { deriveExecutionPolicy, type ExecutionPolicy } from '../agents/policy.js';
 import {
   CHIEF_SYSTEM_PROMPT,
   MISSION_CHAR_LIMIT,
@@ -72,8 +73,10 @@ export interface RunReport {
   successfulWorkers: number;
   failedWorkers: number;
   failures: WorkerFailure[];
-  /** False when there is nothing worth synthesizing; the synthesis call is then skipped. */
+  /** Failure guard, not a record of execution. The policy decides whether synthesis runs. */
   synthesisAllowed: boolean;
+  /** Added by runOrchestrator once the executed plan and worker results are available. */
+  policy?: ExecutionPolicy;
   evidenceLabel: EvidenceLabel;
   /** What retrieval actually did across the run. Absent when none was attempted. */
   retrieval?: {
@@ -138,6 +141,8 @@ export interface OrchestratorOptions {
   /** Synthesizes worker results into the final answer. Defaults to the orchestrator. */
   synthesizer?: { provider: ProviderName; model?: string };
   budget?: PlanningBudget;
+  /** Injectable dispatcher for offline execution tests; not exposed through MCP. */
+  call?: typeof callProvider;
 }
 
 export interface WorkerRunResult {
@@ -403,13 +408,13 @@ export function buildOutputBanner(report: RunReport): string {
 }
 
 export async function runOrchestrator(options: OrchestratorOptions) {
-  const { task, orchestrator, workers, synthesizer = orchestrator, budget } = options;
+  const { task, orchestrator, workers, synthesizer = orchestrator, budget, call = callProvider } = options;
   if (workers.length === 0) throw new Error('Orchestrator requires at least one worker');
 
   const startedAt = Date.now();
 
   const planningStart = Date.now();
-  const planResult = await callProvider(
+  const planResult = await call(
     orchestrator.provider,
     buildPlanningPrompt(task, workers, budget),
     {
@@ -430,7 +435,7 @@ export async function runOrchestrator(options: OrchestratorOptions) {
     plan.assignments.map(async (assignment): Promise<WorkerRunResult> => {
       const worker = workers.find((w) => w.id === assignment.agentId)!;
       try {
-        const result = await callProvider(worker.provider, buildWorkerPrompt(task, assignment.mission), {
+        const result = await call(worker.provider, buildWorkerPrompt(task, assignment.mission), {
           model: worker.model,
           system: worker.role,
           // Search costs money and changes what the answer is made of, so it is attached
@@ -457,18 +462,31 @@ export async function runOrchestrator(options: OrchestratorOptions) {
   );
   const workersMs = Date.now() - workersStart;
 
-  const report = buildRunReport(plan.complexity, workers, workerResults);
+  const runReport = buildRunReport(plan.complexity, workers, workerResults);
+  const report = {
+    ...runReport,
+    policy: deriveExecutionPolicy({
+      complexity: plan.complexity,
+      assignmentIds: plan.assignments.map((assignment) => assignment.agentId),
+      status: runReport.status,
+      synthesisAllowed: runReport.synthesisAllowed,
+      retrievalRequired: plan.assignments.some((assignment) =>
+        Boolean(workers.find((worker) => worker.id === assignment.agentId)!.evidenceCapable)
+      ),
+      workerResults: workerResults.map(({ agentId, output, error, retrieval }) => ({
+        agentId, output, error, retrieval,
+      })),
+    }),
+  };
 
-  // Every specialist failed. Synthesizing here would ask a model to write a confident
-  // answer out of a list of error strings, which is the silent-degradation failure this
-  // status layer exists to prevent — so spend nothing and return the failure.
-  if (!report.synthesisAllowed) {
+  if (!report.policy.synthesize) {
+    report.notes.push(`Synthesis skipped: ${report.policy.reason}.`);
     return {
       plan,
       planningAdjustments,
       workerResults,
       report,
-      finalOutput: null,
+      finalOutput: report.synthesisAllowed ? workerResults[0].output! : null,
       timings: {
         planningMs,
         workersMs,
@@ -495,7 +513,7 @@ ${
     : ''
 }
 Synthesize these results into a single, coherent final answer to the original task.`;
-  const finalResult = await callProvider(synthesizer.provider, synthesisPrompt, {
+  const finalResult = await call(synthesizer.provider, synthesisPrompt, {
     model: synthesizer.model,
   });
   const synthesisMs = Date.now() - synthesisStart;

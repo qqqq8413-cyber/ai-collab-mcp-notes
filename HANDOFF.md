@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-05, rev. 8)
+# ai-collab-mcp — Progress Report (2026-09-05, rev. 9)
 
 > ## 交接狀態
 >
@@ -6,11 +6,24 @@
 > |---|---|
 > | Step 1–5、5.1、6、6.1 | ✅ 已完成,63 項離線測試全過 |
 > | **Step 6.1 Worker Context Propagation** | **DONE —— worker input contract 已落地** |
-> | **Post-6.1 SIMPLE live regression** | **DONE —— 3 種題型各 n=1;本輪新增 SIMPLE-2、SIMPLE-3,三段式皆完整執行** |
-> | **Step 7 Complexity Router** | **NOT IMPLEMENTED,需基於 regression 結果重新評估** |
+> | **Post-6.1 SIMPLE live regression** | **DONE —— rev.7/8 共 3 種題型各 n=1,當時三段式皆完整執行** |
+> | **Step 7 V1 Complexity Router** | **IMPLEMENTED —— 有界 SIMPLE direct delivery,詳見第十六節** |
+> | **目前離線測試** | **99 項全過 = 既有 63 + Step 7 新增 36** |
+> | **Step 8** | **NOT STARTED** |
 > | 未完成的程式修改 | **無** |
 >
-> Step 6.1 已完成。rev.7 的原 SIMPLE baseline 中,英文 Chief mission 下的 Worker 已輸出中文,Synthesis 主要做壓縮/呈現整理。本輪新增格式/約束與短摘要兩題:Worker 六項品質評估皆通過,兩題的 Synthesis 均與 Worker 逐字相同,未觀察到新增 correctness 或 presentation value。**本輪沒有實作 Step 7、沒有跳過 synthesis;這些案例支持局部的直接交付可行性,不構成所有 single-specialist 任務皆可省略 synthesis 的證明。**
+> **Step 7 V1 IMPLEMENTED。** 僅限 `simple + exactly 1 successful specialist + valid non-empty text + non-retrieval` 原樣交付 Worker Output 並省略 synthesis。NORMAL、DEEP、retrieval 與不明狀態維持既有行為;全敗仍為 `FAILED / finalOutput = null / no synthesis`。本輪只做離線 mock 驗證,沒有新增 live API 測試或開始 Step 8。rev.7/8 的品質證據支持這個有界決策,不支持所有 single-specialist 任務都跳過 synthesis。
+
+## rev. 9 改了什麼(Step 7 V1 Implementation)
+
+1. **使用者正式批准 Step 7 V1** —— 依 rev.8 的三種 SIMPLE 題型證據實作有界 fast path;舊版「不要開始 Step 7」是當時的限制,本輪已被新要求取代。
+2. **獨立 Execution Policy** —— `src/agents/policy.ts` 的 `deriveExecutionPolicy(facts)` 集中判斷,不讀取 provider/model 身分。orchestrator 根據 plan、實際 Worker 結果與 retrieval request facts 推導 `report.policy`。
+3. **Direct Delivery** —— 合格任務只呼叫 planning + worker;`finalOutput` 為 Worker 原文,無改寫/翻譯/格式化/額外 model call,保留 `synthesisMs: 0` 與其餘 timing 欄位。
+4. **既有行為與稽核** —— 保留 Run Status、evidence banner、grounding metadata、Chief/Worker prompts、角色與模型綁定。`synthesisAllowed` 仍是失敗保護,實際執行決策由 `report.policy.synthesize/reason` 表示。兩個既有 live 測試腳本的呼叫數/輸出標籤同步讀取 policy,本輪未執行它們。
+5. **離線驗證** —— `npm test` 通過 **99 項**;新增 36 項涵蓋 eligibility、raw bytes、timings、report、retrieval、失敗、異常狀態與 model independence。既有 Step 6.1 三項測試仍通過,SIMPLE-2/3 只使用已存原文做離線 replay。
+6. **程式碼納入 Git** —— 經使用者確認,沿用 `ai-collab-mcp-notes/main`,納入可建置 source、lockfile 與測試。先以 `de876be` 匯入未修改的 Step 6.1 baseline,再獨立提交本輪 diff。`.env`、`node_modules/`、`dist/` 不入 Git;原 `AI Agent/` 同步本輪變更。
+
+---
 
 ## rev. 8 改了什麼(SIMPLE-2 / SIMPLE-3 Worker Readiness)
 
@@ -756,8 +769,8 @@ Run 4 與 Run 5 證明了這件事。做效能或成本估算時,**不能假設�
 ✅ 5.1 Grounded Retrieval MVP          ← Gemini Google Search,實測通過
 ✅ 6.  Chief of Staff System Prompt     ← 常設簡報與單次任務分離
 ✓  6.1 Worker Context Propagation      ← DONE,worker input contract 已落地
-▶  7.  Complexity Router               ← NOT IMPLEMENTED,已補 SIMPLE-2/3 品質證據,待決策
-   8.  Cost / Token / Latency Tracking ← latency 已做,cost 未做
+✓  7.  Complexity Router V1            ← IMPLEMENTED,有界 SIMPLE direct delivery
+   8.  Cost / Token / Latency Tracking ← NOT STARTED,本輪完成後停止
    9.  Model Router
    10. Validation Layer
    11. Red Team
@@ -925,6 +938,8 @@ Chief 花 **16.2 秒**判斷「這是算術,交給一個人」,真正算完只�
 ---
 
 # 十二-C、SIMPLE-2 / SIMPLE-3 Worker Readiness Live Regression
+
+> 本節為 rev.8 的歷史三階段測試紀錄。其當時的 `NOT IMPLEMENTED` 狀態與原始輸出保留不改;現行 Step 7 V1 implementation 見第十六節。
 
 ## 目的與方法
 
@@ -1242,3 +1257,100 @@ rev. 4:
 補充:
 
 > **A single measurement is evidence of a failure mode, not a universal performance law.**
+
+---
+
+# 十六、Step 7 V1 — IMPLEMENTED
+
+## Eligibility 與邊界
+
+現行流程保留獨立 planning 與可稽核 structured plan。完成原有 constraints enforcement 與 Worker 執行後,由純函式 `deriveExecutionPolicy(facts)` 判斷:
+
+```text
+complexity === simple
+AND enforced plan has exactly one assignment
+AND run status === SUCCESS and the existing synthesis failure guard allows proceeding
+AND exactly one matching Worker result, with no error
+AND output is a string whose trimmed length is greater than zero
+AND selected execution does not request retrieval
+AND Worker result carries no retrieval metadata
+    -> policy.synthesize = false
+    -> finalOutput = exact Worker raw output
+    -> synthesisMs = 0
+```
+
+`trim()` 只用於判斷有無文字,不替換輸出。`valid` 在 V1 指型別與非空檢查,不是語意正確性、格式或 claim-level validation;本輪未新增 Validation Layer。
+
+Retrieval requirement 取自 **enforced assignments 中被選中的 Worker** 是否實際會收到 `retrieval: { enabled: true }`,不是看 roster 裡是否存在 researcher,也不解析 Chief 的自由文字或比對 provider/model。已要求 retrieval 的執行即使回傳 `UNGROUNDED`、`FAILED` 或沒有 metadata,仍排除 fast path;意外出現的 retrieval metadata 也保守排除。
+
+| 執行情況 | 行為 |
+|---|---|
+| SIMPLE + 1 成功、非空、non-retrieval Worker | planning + worker,Worker 原文直接交付 |
+| NORMAL / DEEP + 1 Worker | 保留 synthesis,即使由 budget cap 限制至 1 人 |
+| SIMPLE + 多 assignments 的異常 policy input | 不走 direct;以純函式測試驗證,不繞過產品原有 cap |
+| SIMPLE + retrieval required / metadata present | 保留 synthesis |
+| 多人成功 / 部分失敗 | 保留 synthesis,原 SUCCESS / DEGRADED 與 banner 語意不變 |
+| 全員失敗(包括單 Worker 失敗) | FAILED,finalOutput = null,無 synthesis |
+| 未知 complexity/status/retrieval fact、缺少/多出/不匹配的 result、result 帶 error | 保守維持 synthesis,不推定 direct eligibility |
+| 非字串、空字串、只有空白的異常 adapter 輸出 | 不走 direct,維持原本的 synthesis fallback;不重定義 Run Status |
+
+現行 provider adapters 已會對空白文字丟錯,走既有 Worker failure 流程。異常 adapter 測試刻意模擬不遵守 adapter contract 的輸出,只驗證 policy 不會把它直接交付。
+
+## Report 與 Timing
+
+`buildRunReport()` 的 SUCCESS / DEGRADED / FAILED 判準未改。`runOrchestrator()` 回傳時一律附加 `report.policy`;原 standalone `buildRunReport()` 沒有完整 plan,不自行推導 policy。
+
+Direct path 範例:
+
+```json
+{
+  "status": "SUCCESS",
+  "synthesisAllowed": true,
+  "policy": {
+    "topology": "single",
+    "synthesize": false,
+    "reason": "simple_single_specialist_direct_delivery"
+  }
+}
+```
+
+`topology` 表示 assigned specialist 數量,不是 stage 數量;NORMAL + 1 Worker 也可為 `single` 且 `synthesize: true`。`synthesisAllowed` 表示 Run Status 是否允許後續整合,**不再可用它單獨推斷 synthesis 是否執行**。既有呼叫端應優先讀取 `report.policy.synthesize`;舊報告沒有 policy 時才 fallback 至 `synthesisAllowed`。
+
+| reason | synthesize | 意義 |
+|---|---|---|
+| `simple_single_specialist_direct_delivery` | false | 合格的有界 fast path |
+| `no_successful_workers` | false | 原有全敗 guard,finalOutput 為 null |
+| `non_simple_execution` | true | NORMAL / DEEP 保留原路徑 |
+| `not_single_specialist` | true | 不符合單一 assignment |
+| `retrieval_not_eligible` | true | retrieval required、未知或帶 retrieval metadata |
+| `invalid_worker_output` | true | 非字串/空白文字 |
+| `unsupported_execution_state` | true | 其他不明或不一致的 execution facts |
+
+所有回傳路徑保留 `planningMs / workersMs / synthesisMs / totalMs`。兩種略過 synthesis 的情況都有明確 reason 與 notes,不再只以 `synthesisMs = 0` 猜測發生了什麼。本輪沒有新增其他 disable-synthesis 選項。
+
+## 修改範圍
+
+- `src/agents/policy.ts`: 純函式與只含 plan/execution facts 的輸入型別;沒有 provider/model identifier 或 runtime import。
+- `src/modes/orchestrator.ts`: 可注入 dispatcher `call`(預設原 `callProvider`,不暴露於 MCP schema)、附加 policy、依 policy 略過 synthesis。
+- `test-execution-policy.mjs` 與 `package.json`: 36 項 mock/policy/replay 測試納入 `npm test`。
+- `test-simple-baseline.mjs`、`test-orchestrator.mjs`: 修正既有 API call count 與輸出標示,讀取 policy;題目、roster 與 sampling 未變,本輪未 live 執行。
+- `README.md`、`.gitignore`: repository 的建置說明與本機設定/產物忽略規則。原本未追蹤的 source/既有測試/lockfile 另外以 baseline commit 納入,不屬於 Step 7 runtime 改寫。
+
+Chief system prompt、Worker input contract、planning schema/cap、agent registry、provider adapters、retrieval wiring、evidence summary/banner、模型選擇皆保留。Synthesis 的原 prompt 與模型呼叫參數也保留,僅合格 fast path 不呼叫它。
+
+## 驗證結果
+
+| Test suite | 通過 |
+|---|---:|
+| `test-chief.mjs` | 11 |
+| `test-run-status.mjs`(含 Step 6.1 三項) | 25 |
+| `test-registry.mjs` | 20 |
+| `test-mcp-smoke.mjs` | 7 |
+| `test-execution-policy.mjs`(新增) | 36 |
+| **合計** | **99,0 failed** |
+
+新增測試直接計數 planning/worker/synthesis 的 dispatcher 呼叫;驗證 non-retrieval SIMPLE 僅 2 次、NORMAL/DEEP 單專家仍 3 次、多人/失敗邊界、raw text 與 UTF-8 bytes 等值、timing schema、可序列化的 policy/reason、retrieval metadata/source/count/banner 保留、變更模型身分不改 policy。SIMPLE-2/3 使用 rev.8 儲存的 Worker 輸出與 mission 離線 replay,不是新的 live 品質或 latency 樣本。
+
+`npm ci` 使用既有 lockfile 完成獨立安裝,`npm test` 全數通過。沒有新增 dependency、沒有燒 live API,也未修改 rev.7/8 原始證據或宣稱新的 latency 分佈。
+
+**Scope deviation: 無。** 附帶的 Git baseline import 依使用者明確選擇進行,兩個既有測試腳本的調整為 policy 稽核相容性。未開始 Step 8、Model Router、retrieval/normal/deep fast path、zero-specialist、fused planning、prompt recalibration、Validation Layer 或新的 benchmark expansion。完成本輪後停止。

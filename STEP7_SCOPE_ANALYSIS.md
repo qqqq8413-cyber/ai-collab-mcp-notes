@@ -1,13 +1,12 @@
 # §23 Step 7 — Complexity Router:範圍分析
 
-> **POSTSCRIPT (2026-09-05): Step 6.1 已於本分析之後完成。**
+> **POSTSCRIPT (2026-09-05): Step 7 V1 IMPLEMENTED。**
 >
-> Worker 呼叫現在透過 `buildWorkerPrompt(task, mission)` 同時傳入 Original User Task 與 Assigned Mission,並以離線測試鎖住 context preservation 與 mission scope preservation。之後已用完全相同的 SIMPLE baseline 做一次 live regression(見 `HANDOFF.md` rev.7)。**Step 7 仍未實作。**
+> Step 6.1 與 rev.7/8 的三種 SIMPLE 題型證據完成後,使用者正式批准有界 V1。現行 eligibility 僅為 **SIMPLE + exactly one successful specialist + valid non-empty text + non-retrieval**;`deriveExecutionPolicy(facts)` 已接入 orchestrator,透過 `report.policy` 稽核。完整 implementation 與 99 項離線測試結果見 `HANDOFF.md` rev.9 第十六節。
 
-> **STATUS: NOT IMPLEMENTED — POST-6.1 SIMPLE BASELINE RECORDED**
+> **STATUS: STEP 7 V1 IMPLEMENTED — BOUNDED SIMPLE DIRECT DELIVERY**
 >
-> 原始分析文件未修改任何程式碼;2026-09-05 postscript 記錄 Step 6.1 後續實作結果。
-> 依據:`src/modes/orchestrator.ts` 現況 call graph、`src/agents/chief.ts`、5 次 deep orchestrator 實測、1 次獨立 planning 實測、1 次 simple 任務 baseline 實測(第 9 節)。
+> **正文第 1–13 節保留為歷史分析,其中「現況」、行號、未實作狀態與假說都是當時的快照。** 第 3、4、6、7 節以單一 assignment 推導省略 synthesis 的舊方案仍不適用。現行實作以第 14 節、HANDOFF rev.9 與 code reality 為準;歷史 latency 不可當成預測。
 
 ## ⚠️ 本文第 3、6 節的 V1 提案已被實測推翻
 
@@ -581,9 +580,28 @@ Step 7 決定 execution shape,不得因 provider / model identity 決定拓撲�
 
 | 項目 | 狀態 |
 |---|---|
-| Step 7 | **NOT IMPLEMENTED**,待基於 post-6.1 regression 決策 |
+| Step 7 | **V1 IMPLEMENTED**,僅合格的 SIMPLE non-retrieval 單專家 direct delivery |
 | Step 6.1 | **DONE**,worker input contract 已落地 |
-| 程式碼變更 | `src/modes/orchestrator.ts`、`test-run-status.mjs`、`dist/modes/orchestrator.js` |
-| 離線測試 | 63 項全過 |
+| 程式碼變更 | 新增 `src/agents/policy.ts`;orchestrator 接線、可注入 dispatcher 與 report.policy |
+| 離線測試 | **99 項全過**,既有 63 + 新增 36 |
+| Step 8 | **NOT STARTED**,本輪完成後停止 |
 
-下一位接手者不要直接實作 Step 7。已用完全相同的 SIMPLE baseline task 重跑一次(見 `HANDOFF.md` rev.7);下一步應基於 Worker Output 與 Synthesized Output 的品質差異,判斷 synthesis 在 single-specialist 情境是否仍提供足夠價值。
+---
+
+## 14. 已批准並完成的 V1
+
+實際 API 為 `deriveExecutionPolicy(facts: ExecutionFacts)`。Policy 讀取 enforced plan 的 complexity/assignment ids、status、synthesis failure guard、retrieval request fact 與對應 Worker 結果,不接觸 provider/model。
+
+```text
+simple + exactly one matching successful Worker + non-empty string
++ no retrieval request + no retrieval metadata
+    -> direct delivery of exact Worker output
+```
+
+`trim()` 只做非空判斷,原文不變;未新增語意品質 Validation Layer。NORMAL/DEEP 即使只有一人仍 synthesis;被選 Worker 要求 retrieval 時,即使未實際搜尋或未回傳 metadata 也仍 synthesis;不明/不一致 facts 不走 direct。全敗仍 FAILED/null/no synthesis,不重做 Run Status。
+
+`report.policy` 包含 `topology / synthesize / reason`。`topology: single` 不代表一定省略 synthesis;`synthesisAllowed` 保留原 failure-guard 語意,不能單獨用來計算本次是否呼叫 synthesis。Fast path 使用 `simple_single_specialist_direct_delivery`,全敗使用 `no_successful_workers`,兩者 timing 皆保留完整 schema 與 `synthesisMs: 0`。
+
+新增 36 項純函式/mock/integration/replay 測試納入 `npm test`,總計 99 項全過,包括 Step 6.1、retrieval sources/count/banner、raw output bytes、各種失敗與 provider independence。本輪沒有新增 live API 或新的 SIMPLE 題型。歷史三階段 `regressions/simple-readiness/` 原始證據未改。
+
+Repository 現已依使用者決定在 `ai-collab-mcp-notes/main` 納入可建置程式碼與測試。V1 至此停止;不自行啟動 Step 8 或擴大 fast-path eligibility。

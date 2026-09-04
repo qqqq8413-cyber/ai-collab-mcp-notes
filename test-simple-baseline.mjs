@@ -1,5 +1,5 @@
-// Baseline measurement: what does the current three-stage orchestrator cost on a task
-// that needs none of it? Measurement only — nothing here changes behaviour.
+// Runs the existing SIMPLE task through the current orchestrator and reports its policy.
+// Live measurement only -- nothing here changes execution behaviour.
 //
 //   node test-simple-baseline.mjs
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -30,11 +30,13 @@ const res = await client.callTool(
 const p = JSON.parse(res.content[0].text);
 const s = (ms) => (ms / 1000).toFixed(1) + 's';
 const t = p.timings;
+const synthesized = p.report.policy?.synthesize ?? p.report.synthesisAllowed;
 
 console.log('complexity      :', p.plan.complexity);
 console.log('capabilities    :', p.plan.requiredCapabilities.join(', '));
 console.log('assignments     :', p.plan.assignments.map((a) => a.agentId).join(', '));
-console.log('API calls       :', 1 + p.plan.assignments.length + (p.report.synthesisAllowed ? 1 : 0));
+console.log('API calls       :', 1 + p.plan.assignments.length + (synthesized ? 1 : 0));
+console.log('policy          :', p.report.policy ?? 'legacy report');
 console.log('status          :', p.report.status, '| evidence:', p.report.evidenceLabel);
 console.log('adjustments     :', p.planningAdjustments.length ? p.planningAdjustments : 'none');
 console.log('reason          :', p.plan.reason);
@@ -45,9 +47,7 @@ console.log('  workers       :', s(t.workersMs), `(${((t.workersMs / t.totalMs) 
 console.log('  synthesis     :', s(t.synthesisMs), `(${((t.synthesisMs / t.totalMs) * 100).toFixed(0)}%)`);
 console.log('  total         :', s(t.totalMs));
 
-// The question Step 7 turns on: with one specialist, is synthesis doing work, or is it
-// paying a full model turn to restate an answer that was already complete?
-console.log('\nwhat synthesis actually did');
+console.log(synthesized ? '\noutput after synthesis' : '\noutput with synthesis skipped');
 for (const w of p.workerResults) {
   console.log(`  ${w.agentId} output: ${w.output?.length ?? 0} chars`);
 }
@@ -55,7 +55,7 @@ console.log('  final output   :', p.finalOutput?.length ?? 0, 'chars');
 if (p.workerResults.length === 1 && p.finalOutput) {
   const worker = p.workerResults[0].output ?? '';
   console.log('\n--- specialist output ---\n' + worker.slice(0, 700));
-  console.log('\n--- final output after synthesis ---\n' + p.finalOutput.slice(0, 700));
+  console.log(`\n--- final output (${synthesized ? 'synthesized' : 'direct delivery'}) ---\n` + p.finalOutput.slice(0, 700));
 }
 
 writeFileSync('simple-baseline.json', JSON.stringify(p, null, 2));
