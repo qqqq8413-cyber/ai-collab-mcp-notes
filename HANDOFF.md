@@ -1,6 +1,15 @@
-# ai-collab-mcp — Progress Report (2026-09-05, rev. 3)
+# ai-collab-mcp — Progress Report (2026-09-05, rev. 4)
 
 > **立場揭露(沿用前版):** 第六節那個問題,兩位讀者都不是中立第三方。Gemini 是被討論要不要繼續使用的對象;GPT 既是做出排除決定的 Chief(`gpt-5`)也是被選用的 `brand_creative`(`gpt-5`)。
+>
+> **但 rev. 4 對這件事有一個結構性的新發現 —— 見第五-E 節。簡短版:Chief 從來就看不到哪個專家背後是哪家模型。** 前三版關於「Chief 對 Gemini 的偏誤」的所有討論,包括兩位審查者各兩輪、共四份回答,都建立在一個它不可能做到的行為上。
+
+## rev. 4 改了什麼(Step 6)
+
+1. **Chief of Staff System Prompt 完成**(§23 第 6 項)—— 常設簡報與單次任務指令分到兩個欄位(第五-E 節)
+2. **發現「能力優先於模型」一直是結構性成立的** —— Chief 收到的名單只有 id 和 role,沒有 provider(第五-E 節)
+3. **修掉一個我自己製造的比較謬誤** —— 驗證腳本用了不同的 task 字串,基準任務已抽成單一來源(第五-F 節)
+4. **60 項離線測試 + 8 項真實規劃驗證**,全數通過
 
 ## rev. 3 改了什麼(Step 5、5.1)
 
@@ -402,8 +411,104 @@ agent 不能宣告、呼叫端不能強制、**品牌本身不算數** —— �
 | `test-run-status.mjs` | 22 | run status、evidence label、retrieval 統計、輸出標記 |
 | `test-registry.mjs` | 20 | agent 展開、能力推導、runtime vs vendor、品牌捷徑防護 |
 | `test-mcp-smoke.mjs` | 7 | MCP server、工具註冊、union schema、不得虛構定價 |
-| **合計** | **49** | **全部離線,零 API 成本** |
+| `test-chief.mjs` | 11 | 常設簡報內容、拆分未新增約束、名單不洩漏模型 |
+| **合計** | **60** | **全部離線,零 API 成本** |
 | `test-grounding-live.mjs` | 6 | 真實 Gemini grounding(需 API 額度,不在 `npm test` 裡) |
+| `test-chief-live.mjs` | 8 | 真實規劃呼叫,只跑規劃階段(1 次呼叫) |
+
+---
+
+# 五-E、§23 第 6 項:Chief of Staff System Prompt
+
+## 做了什麼
+
+Chief 以前把所有東西擠在一個 user prompt 裡,`system` 是空的。現在分成兩個欄位:
+
+| | 位置 | 內容 |
+|---|---|---|
+| **常設簡報** | `system` | 身分、最小充分協作、能力優先於模型、複雜度定義、9 條規劃規則 |
+| **這一件工作** | `user` | 任務、名單、預算約束、輸出 schema |
+
+`CHIEF_SYSTEM_PROMPT` 在 `src/agents/chief.ts`,可用 `orchestrator.systemPrompt` 逐次覆寫。
+
+## 這是職責分離,不是重新校準
+
+先前的決策是**不修改 Planning Prompt**。所以原本的原則、複雜度定義、9 條規則全部逐字搬移,**一條新規則都沒加**。兩項測試鎖住這件事:
+
+```
+✓ carries all nine planning rules
+✓ the split introduced no new numeric constraint   (caps 仍是 1/3/4,mission 仍是 600 字元)
+```
+
+### 刻意沒加的東西
+
+原本可以在常設簡報裡加一句「不要因為你寫得出一份看起來完整的答案,就認定不需要外部證據」—— 那正是 GPT 與 Gemini 獨立診斷出的 Run 2 病灶。
+
+**但那就是被否決掉的那種 prompt 校準**,而且它會推高研究專家被選中的機率,直接改變行為。結構性的 Evidence Label 已經在處理這個風險,不需要再用 prompt 去推。
+
+## ⚠️ 結構性發現:Chief 看不到模型
+
+寫測試時去看 Chief 實際收到的名單長什麼樣:
+
+```
+- agentId: business_strategist | role: Business Strategist — 商業模式、財務邏輯
+- agentId: market_researcher   | role: Market Analyst — 市場情報
+- agentId: brand_creative      | role: Brand Strategist — 品牌策略
+```
+
+**只有 `agentId` 和 `role`。沒有 provider、沒有 model。**
+
+`buildPlanningPrompt` 從第一版起就是這樣寫的。也就是說:
+
+- **「能力優先於模型」一直是結構性成立的**,不是靠 prompt 裡的一句話。Chief **沒辦法**依品牌偏好或排斥任何專家,因為它從來不知道誰是誰。
+- **rev. 1「Chief 系統性排除 Gemini」的整個前提,描述的是一個它做不到的行為。** 它不知道 `market_researcher` 背後是 Gemini。它選或不選,是基於 role 描述裡的「市場情報、競品、證據蒐集」這個能力,與模型品牌無關。
+
+rev. 2 用 Run 5 的實測推翻了那個結論;rev. 4 補上了為什麼 —— 那個結論從一開始就不可能成立。
+
+**兩位審查者各兩輪、四份回答,寫了大量關於「Chief 對 Gemini 的認知偏誤」的分析,沒有一份想到要去確認 Chief 到底看得到什麼。** 提問文件也沒提供這個資訊。這是一個所有參與者都跳過了「先看實際輸入」這一步的例子。
+
+已鎖成測試:
+
+```
+✓ the roster hides which model backs each specialist
+```
+
+## 真實驗證(1 次 API 呼叫)
+
+拆開 system / user 之後,輸出格式指令在 user prompt、規則在 system prompt —— **Chief 還會不會回傳純 JSON,離線測試證明不了。** 過去 5 次執行的 JSON 解析成功率是 5/5,不驗證就不能宣稱維持。
+
+`node test-chief-live.mjs`(只跑規劃階段,不執行任何 worker):
+
+```
+planning call: 25.1s, 641 chars
+✓ returned bare JSON with no markdown fence
+✓ complexity is one of the three levels
+✓ listed required capabilities first
+✓ every agentId is on the roster
+✓ one mission per specialist
+✓ every mission under 600 chars
+✓ gave a rationale
+```
+
+---
+
+# 五-F、一個提問者自己製造的比較謬誤
+
+上面那次驗證回傳 `complexity: normal`,而 Run 4、Run 5 都是 `deep`。看起來像分類不穩。
+
+**不是。那是驗證腳本自己造成的。**
+
+腳本裡用的是這份公開文件的代稱「Studio X」,orchestrator harness 用的是真實公司名 —— 兩個不同的輸入,連冒號全形半形都不同。Chief 給的理由是「**基於一般化需求**,無須市場研究即可產出可執行方案」,它把代稱讀成了假設性案例,這完全合理。
+
+**所以那個 `normal` 不能拿來跟 Run 4、5 比較。** 若不查證就當成「complexity 分類不穩」寫進報告,會產生一個純粹由測試設計製造、但看起來很像真發現的結論。
+
+## 修法
+
+基準任務抽成單一來源 `benchmark-task.mjs`,所有 harness 一律 import:
+
+> 放在同一個地方,因為它是控制變因:跑次之間比較 complexity、專家數和成本,只有在輸入逐位元組相同時才有意義。各自 inline 一份的 harness 會悄悄變得不可比 —— 這已經發生過一次。
+
+**因此第四節那張 5 次執行紀錄表仍然有效**(那 5 次用的都是同一個字串),而這次的 `normal` 不列入其中。
 
 ---
 
@@ -413,6 +518,8 @@ agent 不能宣告、呼叫端不能強制、**品牌本身不算數** —— �
 
 > Planning V1 上線後 **4 次執行**(3 次 normal + 1 次 deep),Chief **每一次都只選 business_strategist(Claude)+ brand_creative(GPT),完全沒有選 market_researcher(Gemini)**。
 > **重點**:即使在 `deep`(允許 4 個 specialist)的情況下,Chief 仍只選 2 個。所以**這是 Chief 的實質判斷,不是被人數上限卡掉**。
+
+> ⚠️ **rev. 4 補充:這一整節談的「Chief 與 Gemini 的關係」是個誤置的框架。** Chief 收到的名單裡沒有 provider 欄位 —— 它不知道 `market_researcher` 背後是 Gemini。它選或不選,依據的是 role 描述裡的能力,與模型品牌無關。見第五-E 節。
 
 ## Run 5 發生了什麼
 
@@ -549,6 +656,7 @@ Gemini 這裡另有一處邏輯不一致:它先批評方向 2「在 Prompt 硬�
 | `src/providers/gemini.ts` | 共用額度;空輸出 throw(附 finishReason) |
 | `src/modes/orchestrator.ts` | Planning Protocol V1、zod schema、約束強制層、分階段計時、**Run Status / Evidence Label / 輸出標記** |
 | `src/index.ts` | `budget` 參數、worker ref 的 `providesEvidence`、**`list_agents` / `list_models` 工具** |
+| `src/agents/chief.ts` | **新增** — `CHIEF_SYSTEM_PROMPT`、`buildPlanningPrompt`、規劃常數 |
 | `src/agents/registry.ts` | **新增** — Agent Registry、能力推導、`rosterWarnings` |
 | `src/models/capabilities.ts` | **新增** — Model Capability Registry、`supportedByProvider` vs `enabledInRuntime`、定價留空 |
 | `src/providers/types.ts` | **新增 retrieval 型別** — `RetrievalRequest` / `RetrievalStatus` / `RetrievalResult` |
@@ -592,7 +700,8 @@ Run 4 與 Run 5 證明了這件事。做效能或成本估算時,**不能假設�
 ✅ 4. Agent Registry
 ✅ 5. Model Capability Registry        ← runtime 事實 vs 廠商宣稱
 ✅ 5.1 Grounded Retrieval MVP          ← Gemini Google Search,實測通過
-▶  6. Chief of Staff System Prompt     ← 下一個
+✅ 6. Chief of Staff System Prompt     ← 常設簡報與單次任務分離
+▶  7. Complexity Router                ← 下一個(部分已內含在 Planning V1,需先釐清剩餘範圍)
    7. Complexity Router               ← 部分已內含在 Planning V1
    8. Cost / Token / Latency Tracking ← latency 已做,cost 未做
    9. Model Router
