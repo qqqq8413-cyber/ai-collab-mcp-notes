@@ -1,8 +1,12 @@
 # §23 Step 7 — Complexity Router:範圍分析
 
-> **STATUS: NOT IMPLEMENTED — BLOCKED BY STEP 6.1**
+> **POSTSCRIPT (2026-09-05): Step 6.1 已於本分析之後完成。**
 >
-> 分析文件,**未修改任何程式碼**。
+> Worker 呼叫現在透過 `buildWorkerPrompt(task, mission)` 同時傳入 Original User Task 與 Assigned Mission,並以離線測試鎖住 context preservation 與 mission scope preservation。之後已用完全相同的 SIMPLE baseline 做一次 live regression(見 `HANDOFF.md` rev.7)。**Step 7 仍未實作。**
+
+> **STATUS: NOT IMPLEMENTED — POST-6.1 SIMPLE BASELINE RECORDED**
+>
+> 原始分析文件未修改任何程式碼;2026-09-05 postscript 記錄 Step 6.1 後續實作結果。
 > 依據:`src/modes/orchestrator.ts` 現況 call graph、`src/agents/chief.ts`、5 次 deep orchestrator 實測、1 次獨立 planning 實測、1 次 simple 任務 baseline 實測(第 9 節)。
 
 ## ⚠️ 本文第 3、6 節的 V1 提案已被實測推翻
@@ -423,9 +427,9 @@ deep 任務的 mission 都是中文,worker 也用中文回答。只有這次 sim
 5.1 Grounded Retrieval           ✅
 6   Chief of Staff System Prompt ✅
 
-6.1 Worker Context Propagation   ← NEXT,Step 7 的前置條件
+6.1 Worker Context Propagation   ✅ DONE,worker input contract 已落地
 
-7   Complexity Router            ← BLOCKED BY 6.1
+7   Complexity Router            ← NOT IMPLEMENTED,待基於 post-6.1 regression 決策
 8   Cost / Token / Latency Tracking
 9   Model Router
 10  Validation Layer
@@ -577,9 +581,9 @@ Step 7 決定 execution shape,不得因 provider / model identity 決定拓撲�
 
 | 項目 | 狀態 |
 |---|---|
-| Step 7 | **NOT IMPLEMENTED**,BLOCKED BY Step 6.1 |
-| Step 6.1 | **NEXT**,尚未實作 |
-| 程式碼變更 | **無** —— 本次只新增量測腳本與文件 |
-| 離線測試 | 60 項全過 |
+| Step 7 | **NOT IMPLEMENTED**,待基於 post-6.1 regression 決策 |
+| Step 6.1 | **DONE**,worker input contract 已落地 |
+| 程式碼變更 | `src/modes/orchestrator.ts`、`test-run-status.mjs`、`dist/modes/orchestrator.js` |
+| 離線測試 | 63 項全過 |
 
-下一位接手者的第一個 implementation task 是 **Step 6.1**,不是 Step 7。
+下一位接手者不要直接實作 Step 7。已用完全相同的 SIMPLE baseline task 重跑一次(見 `HANDOFF.md` rev.7);下一步應基於 Worker Output 與 Synthesized Output 的品質差異,判斷 synthesis 在 single-specialist 情境是否仍提供足夠價值。

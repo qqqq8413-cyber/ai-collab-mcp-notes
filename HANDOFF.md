@@ -1,15 +1,36 @@
-# ai-collab-mcp — Progress Report (2026-09-05, rev. 5)
+# ai-collab-mcp — Progress Report (2026-09-05, rev. 7)
 
 > ## 交接狀態
 >
 > | 項目 | 狀態 |
 > |---|---|
-> | Step 1–5、5.1、6 | ✅ 已完成,60 項離線測試全過 |
-> | **Step 6.1 Worker Context Propagation** | **NEXT —— 尚未實作** |
-> | **Step 7 Complexity Router** | **NOT IMPLEMENTED,BLOCKED BY Step 6.1** |
+> | Step 1–5、5.1、6、6.1 | ✅ 已完成,63 項離線測試全過 |
+> | **Step 6.1 Worker Context Propagation** | **DONE —— worker input contract 已落地** |
+> | **Post-6.1 SIMPLE live regression** | **DONE —— n=1,三段式仍完整執行** |
+> | **Step 7 Complexity Router** | **NOT IMPLEMENTED,需基於 regression 結果重新評估** |
 > | 未完成的程式修改 | **無** |
 >
-> Step 7 的範圍分析已完成(`STEP7_SCOPE_ANALYSIS.md`),但其 V1 提案已被 SIMPLE baseline 實測推翻。**下一位接手者的第一個 implementation task 是 Step 6.1,不是 Step 7。**
+> Step 6.1 已完成且已用完全相同的 SIMPLE baseline 做 live regression。這一輪**沒有實作 Step 7、沒有跳過 synthesis**。結果:Chief mission 仍是英文,但 Worker 原始輸出已是中文;Synthesis 主要做壓縮/呈現整理,不再是語言救援。**仍不要把 n=1 當通則直接移除 synthesis。**
+
+## rev. 7 改了什麼(Post-6.1 SIMPLE live regression)
+
+1. **確認遠端狀態** —— `ai-collab-mcp-notes/main` 在本次開始時仍停在 rev.5,rev.6 尚未同步。
+2. **用完全相同的 SIMPLE baseline 重跑 live regression** —— task 仍來自 `benchmark-task.mjs` 的 `SIMPLE_TASK`。
+3. **未開始 Step 7** —— execution path 仍是 planning → worker → synthesis,API calls = 3,沒有 single-specialist fast path。
+4. **觀察結果** —— Chief mission 仍是英文;Worker 在 Step 6.1 contract 下產出中文;Synthesis 輸出中文且更短。
+5. **完整紀錄** —— Chief mission、Worker 原始輸出、Synthesis 原始輸出與 latency 見第十二-B節。
+
+---
+
+## rev. 6 改了什麼(Step 6.1 Worker Context Propagation)
+
+1. **修復 Worker Context Loss** —— Worker 呼叫現在透過 `buildWorkerPrompt(task, mission)` 同時帶入 Original User Task 與 Assigned Mission。
+2. **保留 Mission Scope** —— worker contract 明確要求只執行 Assigned Mission,不得接管完整任務或做跨專家最終決策。
+3. **新增離線測試** —— 驗證 Language / Format / Constraint / Scope / Explicit Exclusion 五個 task-level context 維度會出現在 worker prompt,並驗證 scope takeover 防線。
+4. **未開始 Step 7** —— synthesis 邏輯、execution policy、direct/fast path 均未修改。
+5. **63 項離線測試全過**:`npm test`。
+
+---
 
 ## rev. 5 改了什麼(SIMPLE baseline + Step 6.1 前置項目)
 
@@ -723,8 +744,8 @@ Run 4 與 Run 5 證明了這件事。做效能或成本估算時,**不能假設�
 ✅ 5. Model Capability Registry        ← runtime 事實 vs 廠商宣稱
 ✅ 5.1 Grounded Retrieval MVP          ← Gemini Google Search,實測通過
 ✅ 6.  Chief of Staff System Prompt     ← 常設簡報與單次任務分離
-▶  6.1 Worker Context Propagation      ← NEXT,Step 7 的前置條件
-   7.  Complexity Router               ← NOT IMPLEMENTED,BLOCKED BY 6.1(範圍分析已完成)
+✓  6.1 Worker Context Propagation      ← DONE,worker input contract 已落地
+▶  7.  Complexity Router               ← NOT IMPLEMENTED,待基於 post-6.1 regression 決策
    8.  Cost / Token / Latency Tracking ← latency 已做,cost 未做
    9.  Model Router
    10. Validation Layer
@@ -775,7 +796,102 @@ synthesis    :  6.2s  (24%)
 total        : 25.8s
 ```
 
-## 這次 baseline 的價值不是延遲分佈,而是推翻了一個架構假設
+---
+
+# 十二-B、Post-6.1 SIMPLE Live Regression(n=1)
+
+**目的:** 驗證 Step 6.1 Worker Context Propagation 修好後,同一個 SIMPLE baseline 的 worker 是否仍需要 synthesis 做 correctness recovery。
+
+**執行限制:** 本輪**沒有實作 Step 7**,也**沒有跳過 synthesis**。實際路徑仍是:
+
+```
+planning → worker → synthesis
+```
+
+任務與第十二節完全相同:
+
+```
+以下三筆報價都是未稅總價，請換算成含稅（營業稅 5%）金額，並由低到高排序：
+A 案 48,000 元
+B 案 52,500 元
+C 案 45,800 元
+```
+
+## 結果(實測 observation)
+
+```
+complexity   : simple
+assignments  : 1 specialist (business_strategist)
+API calls    : 3
+status       : SUCCESS
+evidence     : NOT_APPLICABLE
+adjustments  : none
+
+planning     :  7.9s  (35%)
+worker       :  4.1s  (19%)
+synthesis    : 10.2s  (46%)
+total        : 22.2s
+```
+
+## Chief mission(原文)
+
+```
+Compute 5% VAT-inclusive totals for A=48,000; B=52,500; C=45,800, then sort offers from lowest to highest. Return the inclusive amounts and the sorted ranking.
+```
+
+## Worker 原始輸出(原文,318 chars)
+
+```markdown
+# 含稅金額計算與排序結果
+
+## 換算明細（未稅 × 1.05 = 含稅）
+
+| 方案 | 未稅金額 | 含稅金額（5% 營業稅） |
+|------|---------|---------------------|
+| A 案 | 48,000 元 | **50,400 元** |
+| B 案 | 52,500 元 | **55,125 元** |
+| C 案 | 45,800 元 | **48,090 元** |
+
+## 由低到高排序
+
+1. **C 案：48,090 元**
+2. **A 案：50,400 元**
+3. **B 案：55,125 元**
+
+---
+以上為含稅金額計算與排序結果，僅涵蓋本任務指定之運算範圍。
+```
+
+## Synthesis 原始輸出(原文,118 chars)
+
+```text
+含稅金額（未稅 × 1.05）：
+- A 案：50,400 元
+- B 案：55,125 元
+- C 案：48,090 元
+
+由低到高排序：
+1) C 案：48,090 元
+2) A 案：50,400 元
+3) B 案：55,125 元
+```
+
+## 觀察
+
+| | Step 6.1 前 baseline | Step 6.1 後 regression |
+|---|---|---|
+| Chief mission | 英文 | 英文 |
+| Worker 原始輸出 | 英文 | **中文** |
+| Synthesis 原始輸出 | 中文 | 中文 |
+| Worker chars | 460 | 318 |
+| Synthesis chars | 112 | 118 |
+| Total latency | 25.8s | 22.2s |
+
+**結論:** Step 6.1 修掉了本次已知的 language/context recovery 缺陷:即使 Chief mission 仍是英文,worker 也能依 Original Task 的語言與範圍輸出中文。這支持「Worker Context Propagation 是必要前置修復」。
+
+**但這仍不等於 Step 7 可以直接跳過 synthesis。** 本次 synthesis 仍做了可觀察的 user-facing compression / presentation normalization,只是它不再補救語言錯誤。是否足以移除,需要把「輸出品質差異」納入 Step 7 決策,而不是只看 latency。
+
+## 第一次 baseline 的價值不是延遲分佈,而是推翻了一個架構假設
 
 原本的假設:
 
@@ -787,11 +903,11 @@ total        : 25.8s
 
 **實測證明這個假設目前不成立。**
 
-## Planning 佔 63%,是實際工作的 5 倍
+## 第一次 baseline 中 Planning 佔 63%,是實際工作的 5 倍
 
 Chief 花 **16.2 秒**判斷「這是算術,交給一個人」,真正算完只要 **3.4 秒**。
 
-SIMPLE workload 的主要 latency center 是 **planning**,不是 synthesis。
+在第一次 baseline 中,SIMPLE workload 的主要 latency center 是 **planning**,不是 synthesis。Post-6.1 regression 的分佈已改變(見第十二-B節),所以不要把這個百分比當成通則。
 
 > ⚠️ **但現在不要實作融合式 routing + answer。** 那會破壞 `PLAN → 可先被獨立稽核 → EXECUTION` 這個架構性質。是否值得用它換延遲,是 V2 的架構取捨,不是現在的 bug fix。
 
@@ -867,7 +983,7 @@ deep 任務的 mission 都是中文,worker 也用中文回答。**只有這次 s
 
 ---
 
-# 十四、Step 6.1 — Worker Context Propagation(NEXT)
+# 十四、Step 6.1 — Worker Context Propagation(DONE)
 
 ## 核心原則(architecture decision)
 
@@ -917,7 +1033,7 @@ Language / Format / Constraint / Scope / Explicit Exclusion —— 五個維度�
 
 > ~~修完之後 synthesis 就一定沒有價值。~~
 
-synthesis 目前可能同時提供 language recovery、format normalization、task reconciliation、multi-agent synthesis、final answer compression、user-facing presentation。修好之後**必須用完全相同的 SIMPLE baseline task 重新量測**(不要換 benchmark),比較 Worker Output 與 Synthesized Output,才知道剩下哪些仍有實質價值。
+synthesis 目前可能同時提供 language recovery、format normalization、task reconciliation、multi-agent synthesis、final answer compression、user-facing presentation。Step 6.1 後已用完全相同的 SIMPLE baseline task 重新量測一次(見第十二-B節):language recovery 缺陷已改善,但 synthesis 仍提供壓縮與呈現整理。下一步應判斷這些剩餘價值是否足以保留 synthesis,而不是直接把 `single specialist → synthesize: false` 當成已證明安全。
 
 ## 仍然成立的 Step 7 / Step 9 不變式
 
