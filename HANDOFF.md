@@ -1,4 +1,26 @@
-# ai-collab-mcp — Progress Report (2026-09-05, rev. 4)
+# ai-collab-mcp — Progress Report (2026-09-05, rev. 5)
+
+> ## 交接狀態
+>
+> | 項目 | 狀態 |
+> |---|---|
+> | Step 1–5、5.1、6 | ✅ 已完成,60 項離線測試全過 |
+> | **Step 6.1 Worker Context Propagation** | **NEXT —— 尚未實作** |
+> | **Step 7 Complexity Router** | **NOT IMPLEMENTED,BLOCKED BY Step 6.1** |
+> | 未完成的程式修改 | **無** |
+>
+> Step 7 的範圍分析已完成(`STEP7_SCOPE_ANALYSIS.md`),但其 V1 提案已被 SIMPLE baseline 實測推翻。**下一位接手者的第一個 implementation task 是 Step 6.1,不是 Step 7。**
+
+## rev. 5 改了什麼(SIMPLE baseline + Step 6.1 前置項目)
+
+1. **首次量測了 simple 任務** —— 先前 6 次量測全部是 deep(第十二節)
+2. **發現 Worker Context Loss** —— Worker 在 delegation boundary 看不到 Original User Task(第十三節)
+3. **Step 7 的 V1 提案被推翻** —— 「單一專家跳過 synthesis」會造成輸出回歸,不是優化(第十三節)
+4. **新增 Step 6.1** 作為 Step 7 的前置條件(第十四節)
+5. **未修改任何程式碼**
+
+---
+
 
 > **立場揭露(沿用前版):** 第六節那個問題,兩位讀者都不是中立第三方。Gemini 是被討論要不要繼續使用的對象;GPT 既是做出排除決定的 Chief(`gpt-5`)也是被選用的 `brand_creative`(`gpt-5`)。
 >
@@ -700,15 +722,15 @@ Run 4 與 Run 5 證明了這件事。做效能或成本估算時,**不能假設�
 ✅ 4. Agent Registry
 ✅ 5. Model Capability Registry        ← runtime 事實 vs 廠商宣稱
 ✅ 5.1 Grounded Retrieval MVP          ← Gemini Google Search,實測通過
-✅ 6. Chief of Staff System Prompt     ← 常設簡報與單次任務分離
-▶  7. Complexity Router                ← 下一個(部分已內含在 Planning V1,需先釐清剩餘範圍)
-   7. Complexity Router               ← 部分已內含在 Planning V1
-   8. Cost / Token / Latency Tracking ← latency 已做,cost 未做
-   9. Model Router
-   10. Validation Layer               ← 第七節的決定需要它
+✅ 6.  Chief of Staff System Prompt     ← 常設簡報與單次任務分離
+▶  6.1 Worker Context Propagation      ← NEXT,Step 7 的前置條件
+   7.  Complexity Router               ← NOT IMPLEMENTED,BLOCKED BY 6.1(範圍分析已完成)
+   8.  Cost / Token / Latency Tracking ← latency 已做,cost 未做
+   9.  Model Router
+   10. Validation Layer
    11. Red Team
    12. Executive Brief Schema
-   13. Automated Tests                ← 已提前做了 run status 的部分
+   13. Automated Tests                 ← 已提前做了 run status 的部分
    14. Project Context
    15. Memory / Persistence
 ```
@@ -724,3 +746,205 @@ Run 4 與 Run 5 證明了這件事。做效能或成本估算時,**不能假設�
 3. 降低 Chief 的 temperature 或改用更確定性的規劃方式
 
 第 2 個選項的論證最強:**我們原本擔心的不是「計畫會變」,而是「計畫變了但看不出來」。** 後者已經被第五節解決。
+
+---
+
+# 十二、SIMPLE Baseline 實測(n=1)
+
+**這是第一次量測 simple 任務。** 先前 6 次量測全部是 deep 級的公司年度策略。
+
+任務(§14 定義下毫無疑問的 `simple`:純計算與格式化,所有資訊都在題目裡):
+
+```
+以下三筆報價都是未稅總價，請換算成含稅（營業稅 5%）金額，並由低到高排序：
+A 案 48,000 元   B 案 52,500 元   C 案 45,800 元
+```
+
+## 結果(實測 observation)
+
+```
+complexity   : simple          ← 分類正確
+assignments  : 1 specialist
+API calls    : 3
+status       : SUCCESS
+adjustments  : none
+
+planning     : 16.2s  (63%)
+worker       :  3.4s  (13%)
+synthesis    :  6.2s  (24%)
+total        : 25.8s
+```
+
+## 這次 baseline 的價值不是延遲分佈,而是推翻了一個架構假設
+
+原本的假設:
+
+```
+1 specialist
+→ synthesis 只是把一份答案重新整理成一份答案
+→ 可以安全跳過
+```
+
+**實測證明這個假設目前不成立。**
+
+## Planning 佔 63%,是實際工作的 5 倍
+
+Chief 花 **16.2 秒**判斷「這是算術,交給一個人」,真正算完只要 **3.4 秒**。
+
+SIMPLE workload 的主要 latency center 是 **planning**,不是 synthesis。
+
+> ⚠️ **但現在不要實作融合式 routing + answer。** 那會破壞 `PLAN → 可先被獨立稽核 → EXECUTION` 這個架構性質。是否值得用它換延遲,是 V2 的架構取捨,不是現在的 bug fix。
+
+---
+
+# 十三、發現的正確性缺陷:Worker Context Loss
+
+## 這次 synthesis 做了什麼
+
+| | 內容 | 長度 |
+|---|---|---|
+| 專家產出 | **英文** markdown 表格 + 計算過程 | 460 字元 |
+| synthesis 後 | **中文**,只有答案與排序 | 112 字元 |
+
+原始 task 是中文。實際的執行鏈是:
+
+```
+Original User Task（中文）
+        ↓
+      Chief
+        ↓
+Assigned Mission（這次寫成純英文）
+        ↓
+      Worker  ← 只拿到 Mission,從未看過 Original Task
+        ↓
+Worker Output（英文）
+        ↓
+   Synthesizer  ← 重新取得 Original User Task
+        ↓
+Final Output（中文）
+```
+
+**synthesis 並非單純重複轉述。它補救了上游的 context loss** —— user language recovery、output formatting、original task reconciliation。
+
+若照原提案直接實作 `assignments.length === 1 → synthesize: false`,這個中文任務最後會得到**英文的 Worker Output**。那是 output regression,不是 optimization。
+
+## ⚠️ 不要把問題定義成「Mission Language Drift」
+
+語言只是第一個被觀察到的**症狀**。真正的架構問題是:
+
+> **Worker Context Loss** —— Original User Task 在 `Chief → Worker` 這個 delegation boundary 被丟失。
+
+同一個缺陷未來同樣可能吃掉:輸出語言、格式要求、預算約束、地理範圍、時間範圍、明確排除項、要求的輸出結構、使用者特定需求、task 層級約束、原始意圖。
+
+**這是 correctness / context propagation 問題,不是 prompt language 問題。**
+
+## 發生率(實測 observation,樣本已標明)
+
+比對所有已記錄的執行(task 皆為中文),用中日韓字元比例衡量:
+
+| 執行 | mission | worker 產出 |
+|---|---|---|
+| deep run 1 | 68–74% | 44–48% |
+| deep run 2 | 47–71% | 44–52% |
+| deep run 3 | 66–68% | 44–49% |
+| **simple baseline** | **0%** | **0%** |
+
+deep 任務的 mission 都是中文,worker 也用中文回答。**只有這次 simple 任務,Chief 把 mission 寫成純英文。**
+
+**偶發,不是系統性 —— 但偶發就足以讓「單一專家跳過 synthesis」不能無條件成立。**
+
+## ⚠️ 24% 這個數字的正確寫法
+
+**正確(實測 observation,n=1):**
+
+> 在這一次 SIMPLE baseline 中,synthesis 佔了 6.2 秒 / 總時間的 24%。
+
+**錯誤(把 n=1 當通則,且忽略 synthesis 本次確實有功能):**
+
+> ~~Step 7 可以讓 SIMPLE 任務快 24%。~~
+
+目前沒有證據支持這個推論。
+
+---
+
+# 十四、Step 6.1 — Worker Context Propagation(NEXT)
+
+## 核心原則(architecture decision)
+
+> **Original Task 與 Assigned Mission 是兩種不同的資訊,兩者都必須存在於 Worker 的執行 context。**
+
+| | 是什麼 |
+|---|---|
+| **Original User Task** | immutable task context —— 使用者真正要求什麼,以及 task 層級的約束 |
+| **Assigned Mission** | delegated responsibility —— 這位專家負責哪一部分 |
+
+**Mission 不得取代 Original Task。**
+
+## 必須同時保證兩件事
+
+修好 context 之後會冒出新的失敗模式:worker 拿到完整 task 後開始接管整件事。
+
+```
+Original Task: 制定完整公司成長策略,包含市場、財務、品牌
+Assigned Mission: 分析市場競爭環境與外部證據
+```
+
+`market_researcher` **應該**知道完整 Original Task(那是 context),但**仍然只能**負責市場與證據,不能自己開始做品牌策略、財務模型或最終建議。
+
+```
+Context Preservation  +  Mission Scope Preservation
+```
+
+## ⚠️ 不得用 prompt calibration 修
+
+**不要**在 Chief 常設簡報加「mission 一律用使用者的語言撰寫」這類句子。那會把**結構性的 context-loss 缺陷**降格成**prompt 行為校準**。
+
+> **Structural mechanisms > prompt persuasion**
+
+應該修的是 **Worker Input Contract**,而不是要求 Chief 更努力把 Original Task 壓縮進 Mission。
+
+## 驗證方向(不要只測語言)
+
+Language / Format / Constraint / Scope / Explicit Exclusion —— 五個維度的細節見 `STEP7_SCOPE_ANALYSIS.md` 第 10 節。
+
+## ⚠️ 修好之後不要直接移除 synthesis
+
+目前只能得到:
+
+> **修復 Worker Context Propagation 是重新評估 single-specialist synthesis 的必要前提。**
+
+**不能**得到:
+
+> ~~修完之後 synthesis 就一定沒有價值。~~
+
+synthesis 目前可能同時提供 language recovery、format normalization、task reconciliation、multi-agent synthesis、final answer compression、user-facing presentation。修好之後**必須用完全相同的 SIMPLE baseline task 重新量測**(不要換 benchmark),比較 Worker Output 與 Synthesized Output,才知道剩下哪些仍有實質價值。
+
+## 仍然成立的 Step 7 / Step 9 不變式
+
+本次發現不影響:
+
+```
+ExecutionPolicy must not depend on ProviderName.
+```
+
+---
+
+# 十五、本專案累積的工程原則
+
+本次新增:
+
+> **Do not remove a stage merely because its nominal responsibility appears redundant. First verify what hidden corrective responsibilities that stage is actually performing in the current system.**
+
+rev. 4:
+
+> **Do not analyze why a model made a choice until you first verify exactly what the model actually saw.**
+
+一貫原則:
+
+> **Measurement overrides architecture speculation.**
+> **Structural mechanisms > prompt persuasion.**
+> **Runtime truth > architecture assumption.**
+
+補充:
+
+> **A single measurement is evidence of a failure mode, not a universal performance law.**
