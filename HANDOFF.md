@@ -1,15 +1,21 @@
-# ai-collab-mcp — Progress Report (2026-09-04, rev. 2)
+# ai-collab-mcp — Progress Report (2026-09-05, rev. 3)
 
-> **給 GPT 與 Gemini 的說明:** 你們先前收到的是 rev. 1,並回答了文末那四個問題。**這一版修正了 rev. 1 的一個關鍵前提** —— 詳見第六節。你們基於「Chief 每次都排除 Gemini」所做的診斷,現在證據基礎變弱了。
->
-> **立場揭露(沿用 rev. 1):** 第六節那個問題,兩位讀者都不是中立第三方。Gemini 是被討論要不要繼續使用的對象;GPT 既是做出排除決定的 Chief(`gpt-5`)也是被選用的 `brand_creative`(`gpt-5`)。
+> **立場揭露(沿用前版):** 第六節那個問題,兩位讀者都不是中立第三方。Gemini 是被討論要不要繼續使用的對象;GPT 既是做出排除決定的 Chief(`gpt-5`)也是被選用的 `brand_creative`(`gpt-5`)。
+
+## rev. 3 改了什麼(Step 5、5.1)
+
+1. **發現 rev. 2 的 Evidence Label 在說謊** —— 三個 provider 都沒有接上任何檢索,`EVIDENCE_BACKED` 標記的是意圖不是事實(第五-A 節)
+2. **Model Capability Registry 完成**(§23 第 5 項),把「廠商有沒有」和「我們接了沒有」拆成兩個欄位(第五-B 節)
+3. **Grounded Retrieval MVP 完成**(Step 5.1),Gemini Google Search 已接上並實測通過(第五-C 節)
+4. **`EVIDENCE_BACKED` 這個標籤被移除** —— 最高只能到 `PARTIALLY_GROUNDED`(第五-D 節)
+5. **49 項離線測試 + 6 項真實 grounding 實測**,全數通過
 
 ## rev. 2 改了什麼
 
-1. **新增第 3 項功能:Run Status / Evidence Label**(第五節)
-2. **第 5 次執行推翻了 rev. 1 的核心前提** —— Chief 這次**選了** Gemini(第六節)
-3. **§25 穩定度的說法改弱** —— `normal` 已驗證,`deep` 未驗證(第八節)
-4. **新增 GPT 與 Gemini 的審查結果與已採行的決定**(第七節)
+1. 新增第 3 項功能:Run Status / Evidence Label(第五節)
+2. 第 5 次執行推翻了 rev. 1 的核心前提 —— Chief 這次**選了** Gemini(第六節)
+3. §25 穩定度的說法改弱 —— `normal` 已驗證,`deep` 未驗證(第八節)
+4. 新增 GPT 與 Gemini 的審查結果與已採行的決定(第七節)
 
 ---
 
@@ -214,10 +220,13 @@ rev. 1 說「已收斂到 2/2/2」是根據 3 次 `normal` 執行。加入 deep 
 
 ## Evidence Label
 
+> ⚠️ **以下這張表是 rev. 2 的版本,已被 rev. 3 取代 —— `EVIDENCE_BACKED` 已被移除。**
+> 保留在這裡是為了讓第五-A 節的問題可以被對照理解。現行定義見第五-D 節。
+
 | 標籤 | 條件 |
 |---|---|
 | `NOT_APPLICABLE` | complexity 不是 `deep` |
-| `EVIDENCE_BACKED` | 有標記 `evidenceCapable` 的專家成功回傳 |
+| ~~`EVIDENCE_BACKED`~~ | ~~有標記 `evidenceCapable` 的專家成功回傳~~ ← **這條在說謊,見第五-A 節** |
 | `CONDITIONAL` | 有找 evidence 專家,但全部失敗 |
 | `HYPOTHESIS` | deep 任務,但根本沒找 evidence 專家 |
 
@@ -243,7 +252,7 @@ metadata 保護不了讀者 —— 一份沒有實證的策略文件,讀起來�
 ## 離線測試
 
 ```bash
-npm test   # 15 項,不花任何 API 額度
+npm test   # 不花任何 API 額度
 ```
 
 真實跑一次要約 4 分鐘、4–5 次模型呼叫,狀態規則不該需要那個。其中一項專門鎖住上述設計決定:
@@ -253,6 +262,148 @@ npm test   # 15 項,不花任何 API 額度
 ```
 
 同樣的 worker 結果、同樣的名單,只有 complexity 能移動 label —— 沒有任何欄位能讓 Chief 用嘴巴脫離 `HYPOTHESIS`。
+
+---
+
+# 五-A、⚠️ rev. 2 的 Evidence Label 在說謊
+
+## 怎麼發現的
+
+實作 Model Capability Registry 時必須先確認每個模型實際能做什麼,於是查了三個 provider 的原始碼:
+
+| 檔案 | 呼叫方式 | tools / grounding |
+|---|---|---|
+| `gemini.ts` | `generateContent` | **無** |
+| `openai.ts` | `chat.completions.create` | **無** |
+| `claude.ts` | `messages.create` | **無** |
+
+**當時這個系統裡沒有任何模型能檢索外部資訊。** 三家都是純文字進、純文字出。
+
+## 後果
+
+- `market_researcher` 標的 `evidenceCapable: true` **在實質上是假的**。它跟 Claude、GPT 一樣從訓練資料產出市場說法,認知地位完全相同。
+- **Run 5 的 `EVIDENCE_BACKED` 標記是錯的。** 那次沒有蒐集到任何證據。
+- 更早那句「Gemini 提供了競品定價標竿,直接成為最終文件裡定價帶與毛利率的依據」—— 那些標竿是**生成的,不是查來的**。§9 把 Gemini 定位為 evidence gathering 這件事,從來沒有被接上。
+
+rev. 2 蓋的防護層,染上了它本來要治的病:讓未經驗證的東西看起來已驗證。GPT 與 Gemini 各審查兩輪、四份回答,沒有一份提到這件事;Gemini 還為自己的證據角色辯護了很長一段。
+
+---
+
+# 五-B、§23 第 5 項:Model Capability Registry
+
+`src/models/capabilities.ts` 記錄的是**在這個 codebase 裡實際接通的能力**,不是廠商官網宣稱什麼。每個能力拆成兩個獨立事實:
+
+```ts
+grounded_retrieval: { supportedByProvider: true, enabledInRuntime: false }
+```
+
+**只有 `enabledInRuntime` 能授予能力。** `supportedByProvider` 存在的目的,是讓「廠商有提供」和「我們接了」之間的落差保持可見,而不是被悄悄混為一談。
+
+`list_models` 兩個都報,並列出「廠商有提供但這裡沒接」的清單。
+
+### 定價刻意留空
+
+`pricing` 沒有填任何數字。沒有經過查證的即時價格,而編一個看起來合理的數字會直接流進第 8 項成本追蹤,變成這個系統自己定義要抓的那種「無錨點的量化宣稱」。有一項測試鎖住:`assert.doesNotMatch(text, /\$\d/)`。
+
+要啟用成本追蹤,得有人去官方定價頁抄真實數字,連同 `source` 與 `checkedOn` 一起填。**Grounded search 是在 token 之外另外計費的,所以這件事現在更重要,不是更不重要。**
+
+---
+
+# 五-C、Step 5.1:Grounded Retrieval MVP
+
+## 設計
+
+檢索是**逐次呼叫掛上去的,不是預設開啟**:
+
+```ts
+callGemini(mission, { retrieval: { enabled: true } })
+```
+
+`run_orchestrator` 只把它掛給 `evidenceCapable` 推導為 true 的專家,所以一般推理任務不會無聲地開始產生搜尋費用。Provider interface 用的是 capability option,`gemini.ts` 裡沒有寫死任何 agent id。
+
+| `status` | 意義 |
+|---|---|
+| `GROUNDED` | 搜尋執行了,並回傳至少一個來源 |
+| `UNGROUNDED` | 搜尋有提供,但模型選擇不用 / 沒有可用來源 |
+| `FAILED` | 要求檢索但無法執行(例如該 provider 在 runtime 沒接) |
+
+向 Claude 或 OpenAI 要求檢索會回 `FAILED` 並附說明,**而不是回一個沒有標記的訓練資料答案**。
+
+## 實測結果(2026-09-05,`node test-grounding-live.mjs`)
+
+6 項全過:
+
+```
+✓ ordinary call carries no retrieval result
+✓ evidence call returned a retrieval result
+✓ status is GROUNDED
+✓ at least one source URL
+✓ source urls are real urls
+✓ query count reported by the API
+```
+
+實際回傳:
+
+```
+status       : GROUNDED
+queries      : ["site:blackmagicdesign.com \"PYXIS 6K\" price"]
+queryCount   : 1
+sourcesFound : 1
+raw metadata : searchEntryPoint, groundingChunks, groundingSupports, webSearchQueries
+```
+
+## 實測揭露的限制(以實測為準)
+
+1. **來源 URL 不是出版者的網址。** 回傳的是 `vertexaisearch.cloud.google.com/grounding-api-redirect/…` 轉址連結,出版者網域出現在 chunk 的 title 裡。**這些是查詢用的轉址,不是可長期引用的出處。**
+2. **`groundingSupports` 會把答案的片段對應到支撐它的 chunk。** 目前沒有任何程式用它 —— 但這正是 claim-level validation 需要的原始材料,Step 10 應該直接用。
+3. `gemini-3.1-pro-preview` 會回傳暫時性的 `503 high demand`。第一次實測就撞到,重試即成功。**這要當成暫時性錯誤處理,不是 grounding 失敗。**
+4. 一次提問只產生 1 個查詢、1 個來源。搜尋量由模型自己決定,不是我們控制的。
+
+---
+
+# 五-D、`EVIDENCE_BACKED` 已被移除
+
+Grounding 接上後最危險的事,是把「某個專家搜尋過」直接升級成「整份答案有實證」。所以標籤上限被刻意壓住:
+
+| 標籤 | 條件 |
+|---|---|
+| `NOT_APPLICABLE` | 不是 deep |
+| `HYPOTHESIS` | 完全沒有嘗試檢索 |
+| `CONDITIONAL` | 嘗試了但沒拿到東西(模型沒搜、檢索失敗、或該專家掛掉) |
+| `PARTIALLY_GROUNDED` | **上限** —— 至少一位專家做了真實的 grounded retrieval |
+
+**沒有 `EVIDENCE_BACKED` 可以拿,因為這一層裡沒有任何東西賺得到它。** 一個 grounded 專家只證明那位專家搜尋過,不能證明最終答案的重大 claim 有被它找到的來源支撐 —— 那是 claim-level 的工作,屬於 Validation Layer(第 10 項)。
+
+而且 `PARTIALLY_GROUNDED` **仍然會在產出文件開頭印警告**:
+
+```
+> **PARTIALLY GROUNDED — claims not yet validated**
+> 1 specialist(s) searched and cited 2 source(s), listed in the run report.
+> That covers their own research only. Nobody has checked whether the figures
+> and claims below are the ones those sources support.
+```
+
+## evidenceCapable 的推導鏈
+
+```
+Agent Intent (providesEvidence)
+        ×
+Model Runtime Capability (enabledInRuntime)
+        ×
+Execution Retrieval State (GROUNDED / UNGROUNDED / FAILED)
+```
+
+agent 不能宣告、呼叫端不能強制、**品牌本身不算數** —— 有一項測試專門擋掉 `provider === "gemini" → evidenceCapable = true` 這種捷徑:一個綁在 Gemini 上但不是用來蒐證的專家,必須保持普通。未列在 registry 裡的模型一律視為不具備能力,不給予推定。
+
+## 測試
+
+| 檔案 | 項數 | 內容 |
+|---|---|---|
+| `test-run-status.mjs` | 22 | run status、evidence label、retrieval 統計、輸出標記 |
+| `test-registry.mjs` | 20 | agent 展開、能力推導、runtime vs vendor、品牌捷徑防護 |
+| `test-mcp-smoke.mjs` | 7 | MCP server、工具註冊、union schema、不得虛構定價 |
+| **合計** | **49** | **全部離線,零 API 成本** |
+| `test-grounding-live.mjs` | 6 | 真實 Gemini grounding(需 API 額度,不在 `npm test` 裡) |
 
 ---
 
@@ -397,8 +548,13 @@ Gemini 這裡另有一處邏輯不一致:它先批評方向 2「在 Prompt 硬�
 | `src/providers/openai.ts` | `max_completion_tokens`;共用額度;空輸出 throw |
 | `src/providers/gemini.ts` | 共用額度;空輸出 throw(附 finishReason) |
 | `src/modes/orchestrator.ts` | Planning Protocol V1、zod schema、約束強制層、分階段計時、**Run Status / Evidence Label / 輸出標記** |
-| `src/index.ts` | `run_orchestrator` 的 `budget` 參數、**worker 的 `evidenceCapable` 參數** |
-| `README.md` | Runtime notes(MCP timeout、推理 token 額度)、**Run status 與 evidence label 說明** |
+| `src/index.ts` | `budget` 參數、worker ref 的 `providesEvidence`、**`list_agents` / `list_models` 工具** |
+| `src/agents/registry.ts` | **新增** — Agent Registry、能力推導、`rosterWarnings` |
+| `src/models/capabilities.ts` | **新增** — Model Capability Registry、`supportedByProvider` vs `enabledInRuntime`、定價留空 |
+| `src/providers/types.ts` | **新增 retrieval 型別** — `RetrievalRequest` / `RetrievalStatus` / `RetrievalResult` |
+| `src/providers/gemini.ts` | **Google Search grounding**,逐次掛載;metadata 正規化 |
+| `src/providers/claude.ts`、`openai.ts` | 被要求檢索時回 `FAILED` 並說明,不假裝有做 |
+| `README.md` | Runtime notes、Run status、Agents、Models、**Grounded retrieval 與實測 API 行為** |
 
 ## 測試腳本
 
@@ -432,10 +588,11 @@ Run 4 與 Run 5 證明了這件事。做效能或成本估算時,**不能假設�
 ```
 ✅ 1. Chief Planning Constraints
 ✅ 2. Structured Planning Output
-✅ 3. Worker Failure / Run Status     ← 本次完成(含 evidence label 與輸出標記)
-▶  4. Agent Registry                  ← 建議下一個
-   5. Model Capability Registry
-   6. Chief of Staff System Prompt
+✅ 3. Worker Failure / Run Status
+✅ 4. Agent Registry
+✅ 5. Model Capability Registry        ← runtime 事實 vs 廠商宣稱
+✅ 5.1 Grounded Retrieval MVP          ← Gemini Google Search,實測通過
+▶  6. Chief of Staff System Prompt     ← 下一個
    7. Complexity Router               ← 部分已內含在 Planning V1
    8. Cost / Token / Latency Tracking ← latency 已做,cost 未做
    9. Model Router
