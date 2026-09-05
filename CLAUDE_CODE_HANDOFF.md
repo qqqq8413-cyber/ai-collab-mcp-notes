@@ -1,5 +1,21 @@
 # Claude Code Handoff: Milestone 2 Scope Analysis
 
+> **STATUS: EXECUTED (rev. 14).** The deliverable is
+> [`MILESTONE2_SCOPE_ANALYSIS.md`](MILESTONE2_SCOPE_ANALYSIS.md); the summary lives in
+> `HANDOFF.md` §20. Two statements below were **corrected by code reality** and should not
+> be carried forward as written:
+>
+> - The "candidate DEEP logical-call ceiling: about 7" holds only for a three-specialist
+>   plan. Planning is bounded, not deterministic. The ceiling is **`N + 4`**, which is
+>   **8** at `SPECIALIST_CAP.deep = 4`.
+> - A synthesis gate asked to judge `needs_evidence` cannot do so today: the synthesizer
+>   receives only the original task and each successful worker's `agentId` / `mission` /
+>   `output`. **No retrieval metadata reaches it.** Feeding it retrieval status is a
+>   prerequisite change, not a side effect of building the gate.
+>
+> This document is retained as the brief that was executed. Milestone 2 runtime
+> implementation is still not approved.
+
 ## Authority and Current State
 
 Use repository code and the latest `HANDOFF.md` as the source of truth. This handoff

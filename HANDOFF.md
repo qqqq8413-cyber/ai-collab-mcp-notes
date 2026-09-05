@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-05, rev. 13)
+# ai-collab-mcp — Progress Report (2026-09-05, rev. 14)
 
 > ## 交接狀態
 >
@@ -9,14 +9,28 @@
 > | **Post-6.1 SIMPLE live regression** | **DONE —— rev.7/8 共 3 種題型各 n=1,當時三段式皆完整執行** |
 > | **Step 7 V1 Complexity Router** | **CODE + RUNTIME ACCEPTED —— 有界 SIMPLE direct delivery** |
 > | **Step 7.1 E2E Runtime Acceptance** | **DONE —— Test A PASS / Test B PASS,詳見第十八節** |
-> | **Milestone 2: True Multi-Agent Collaboration** | **NEXT: SCOPE ANALYSIS —— 不直接 implementation,詳見第十九節** |
-> | **Claude Code handoff** | **READY —— 見 `CLAUDE_CODE_HANDOFF.md`** |
+> | **Milestone 2: True Multi-Agent Collaboration** | **SCOPE ANALYSIS DONE / NOT IMPLEMENTED —— 見 `MILESTONE2_SCOPE_ANALYSIS.md`、第二十節** |
+> | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
 > | **目前離線測試** | **99 項全過 = 既有 63 + Step 7 新增 36** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
 > | **Step 8 Implementation** | **DEFERRED —— Milestone 2 驗證後再回來** |
 > | 未完成的程式修改 | **無** |
 >
-> **Step 7.1 已完成,Step 7 V1 現為 code + runtime accepted。** 固定 SIMPLE baseline 真正走 2-call direct delivery,Worker 原文與 finalOutput 完全相等;高風險 DEEP task 自然選到 evidence capability,完成 6 queries / 21 sources 的 grounded retrieval、三 Worker synthesis 與保守的 `PARTIALLY_GROUNDED` banner。未修改 runtime。Milestone 2 候選架構已縮減為最多一個 targeted Round 2 assignment,但尚未批准 implementation。下一棒由 Claude Code 先讀實際 code 並產出 scope analysis。
+> **Milestone 2 scope analysis 已完成,runtime 未動。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 14 改了什麼(Milestone 2 Scope Analysis)
+
+1. **產出 `MILESTONE2_SCOPE_ANALYSIS.md`** —— 依 `CLAUDE_CODE_HANDOFF.md` 的 deliverable 逐條回答 18 個問題,每個主張標記 `[FACT]` / `[DESIGN]` / `[SIGNAL]` / `[DECISION]` / `[OPEN]`,把「code 讀出來的事實」與「還沒有證據的設計選擇」分開,不讓提案借用觀測的可信度。
+2. **修正 call ceiling 的寫法** —— rev.13 的「deep logical call ceiling 候選約 7」只對三專家計畫成立。Planning 是 bounded-not-deterministic(同一 DEEP task 實測出現過 2 與 3 個 mission),上限必須寫成 `N + 4`;在 `SPECIALIST_CAP.deep = 4` 下是 8。否則一次合法的四專家執行會被誤讀成違規。
+3. **確認 synthesizer 看不到 retrieval metadata** —— synthesis prompt 只拿到 original task 與每個成功 worker 的 `agentId` / `mission` / `output`。**寫出最終答案的模型從來沒看過檢索到哪些來源**;source URL 只進到 report 與 banner。要 gate 判斷 `needs_evidence`,必須先補這條輸入,這是 M2 的前置改動而非附帶效果。
+4. **交付物不得押在 parse 上** —— 目前 orchestrator 只有一個 parse 依賴(Chief 計畫),且它失敗在任何 worker 花錢之前。Synthesis gate 會加上第二個 parse 依賴,位置在所有 worker 成本已付出之後(實測 DEEP 為 232.9s),且就在產生交付物的那一次呼叫上。因此建議自由文字在前、選擇性 JSON 在後、best-effort 解析,解析失敗等於現狀加一條註記。
+5. **主要風險是 latency,不是 correctness** —— synthesis 已是最慢單一階段(110.4s / 251.3s,44%),觸發路徑等於再加一次 synthesis 等級呼叫。新增一條 handoff 未列的 kill criterion:**若 gate 幾乎不觸發,C 就等於 B 再加一個浪費在關鍵路徑上的結構化輸出要求;觸發率本身就是停止條件,而且比品質更早可量測。**
+6. **實驗設計的兩個 code-level 阻礙** —— E1:只有 `gemini-3.1-pro-preview` 的 `grounded_retrieval` 是 `enabledInRuntime: true`,arm A 的檢索對等目前只能是 Gemini,否則全部 arm 關檢索、證據維度整個離開實驗(Q-B)。E2:banner 會把 `PARTIALLY_GROUNDED` / `DEGRADED` 印在交付物第一行,評估者一眼看出 arm,必須比較去掉 banner 的文字。
+7. **一個會壞掉的測試基礎設施** —— `test-execution-policy.mjs` 以「沒有 system prompt」辨識 synthesis 階段。M2 引入第二個 synthesis 等級呼叫後,任一個帶 system prompt 就會被誤判成 worker。必須在寫 M2 測試之前換成明確 stage 標籤,否則呼叫數斷言會安靜地量錯東西。
+8. **兩處交接快照不一致(皆非 runtime 缺陷)** —— D1:本地工作目錄不是 git checkout,無法 diff/revert,實作 M2 的人應該用 clone;改以逐位元組比對確認五個關鍵原始碼檔與遠端 `main`(HEAD `656d7b6`)相同。D2:`regressions/step7-1-e2e/SIMPLE-direct/normalized-result.json` 仍寫 `outcome: FAIL`,那是 rev.12 已記錄且已在 `run-case.mjs` 修掉的 harness false negative,artifact 未重跑。
+9. **本輪範圍** —— 只做 scope analysis。未修改 `src/`、prompts、tests、retrieval、Step 7/8/9/10 runtime,未執行 live benchmark;`npm test` 99 passed / 0 failed。
+
+---
 
 ## rev. 13 改了什麼(Claude Code Handoff / M2 Candidate Downscale)
 
@@ -1296,7 +1310,12 @@ ExecutionPolicy must not depend on ProviderName.
 
 # 十五、本專案累積的工程原則
 
-本次新增:
+rev. 14 新增:
+
+> **Never put the deliverable behind a parse that runs after the cost is already spent.**
+> **A mechanism that rarely fires is not cheap — on the critical path it is a permanent tax paid for an occasional benefit. Trigger rate is a stop condition, and it is measurable long before quality is.**
+
+rev. 6 新增:
 
 > **Do not remove a stage merely because its nominal responsibility appears redundant. First verify what hidden corrective responsibilities that stage is actually performing in the current system.**
 
@@ -1524,7 +1543,7 @@ source information is preserved and inspectable
 
 ---
 
-# 十九、Milestone 2 — TRUE MULTI-AGENT COLLABORATION(NEXT: SCOPE ANALYSIS / NOT IMPLEMENTED)
+# 十九、Milestone 2 — ROADMAP DECISION(rev.11/13 原始方向,已被第二十節依 code reality 修正)
 
 ## Roadmap decision
 
@@ -1592,3 +1611,95 @@ Step 7.1 E2E Runtime Acceptance
 ```
 
 Step 8 並未取消;rev.10 的 usage/pricing/cost/reporting 分層仍是有效設計輸入,只是優先順序讓位給核心產品價值驗證。Claude Code 的完整下一棒說明見 [`CLAUDE_CODE_HANDOFF.md`](CLAUDE_CODE_HANDOFF.md)。
+
+---
+
+# 二十、Milestone 2 — SCOPE ANALYSIS COMPLETE / NOT IMPLEMENTED
+
+完整文件:[`MILESTONE2_SCOPE_ANALYSIS.md`](MILESTONE2_SCOPE_ANALYSIS.md)(582 行,18 題全數回答)。本節只保留會影響決策的部分。
+
+## 交接快照的兩處不一致(皆非 runtime 缺陷)
+
+| 代號 | 內容 | 處置 |
+|---|---|---|
+| D1 | 本地工作目錄不是 git checkout,`git rev-parse` 直接 fatal | 改以逐位元組比對驗證,五個關鍵原始碼檔與遠端 `main`(HEAD `656d7b6`)相同。**本地修改不受版控,無法 diff 也無法 revert —— 實作 M2 的人應該用 clone,不要用這個目錄。** |
+| D2 | `regressions/step7-1-e2e/SIMPLE-direct/normalized-result.json` 仍寫 `outcome: FAIL`,唯一 false 的是 `expectedArithmeticAndOrder` | rev.12 `evaluation.md` 已記錄為 harness false negative(checker 未移除 Markdown emphasis,把標籤與金額之間的強調符號當成不相鄰),`run-case.mjs` 已修但 artifact 未重跑。**不是 runtime 缺陷。** |
+
+## 對 rev.13 候選邊界的兩處修正
+
+**1. DEEP logical call ceiling 是 `N + 4`,不是「約 7」。**
+
+`N` 是 Round 1 assignment 數。7 只對三專家計畫成立;`SPECIALIST_CAP.deep = 4`,所以上限是 8。Planning 是 bounded-not-deterministic —— 同一 DEEP task 實測出現過 2 與 3 個 mission。上限寫死成 7 會讓一次合法的四專家執行看起來像違規。
+
+```text
+1 planning + N workers + 1 gate/synthesis + (0 or 1) Round 2 + (0 or 1) decision synthesis
+```
+
+**2. synthesizer 目前收不到任何 retrieval metadata。**
+
+synthesis prompt 只包含 original task,以及每個成功 worker 的 `agentId` / `mission` / `output`(加上 DEGRADED 註記)。**寫出最終答案的模型從來沒看過檢索到哪些來源。** source URL 只進到 `report` 與給人看的 banner。
+
+因此:一個被要求判斷 `needs_evidence` 的 gate,會是在對它看不到的證據做推論。要 gate 這個維度,必須先把 retrieval status / query / source 摘要餵進 synthesis input —— 這是 M2 的**前置改動**,不是實作 gate 的附帶效果。
+
+## 核心設計建議:不要把交付物押在 parse 上
+
+目前 orchestrator 只有**一個** parse 依賴(Chief 的計畫 JSON),而它失敗在**任何 worker 花錢之前**,失敗成本是一次 planning 呼叫。
+
+Synthesis gate 會加上**第二個** parse 依賴,位置在**所有 worker 成本都已付出之後**(實測 DEEP 為 232.9s),而且就在產生交付物的那一次呼叫上。
+
+建議形狀:
+
+```text
+自由文字的 provisional answer(交付物本身)
+[--- optional machine-readable block ---]
+{ "issues": [ ... ] }   ← best-effort 解析,可以缺席
+```
+
+任何解析失敗都退回今天的行為(直接交付 synthesis 文字並記一條 note)。**最差情況等於現狀加一條註記,而不是交付物損毀。**
+
+## 主要風險是 latency,不是 correctness
+
+synthesis 已是最慢的單一階段:110.4s / 251.3s(44%)。觸發 Round 2 等於再加一次 synthesis 等級呼叫,DEEP 總時長可能從約 251s 推到 400s 以上。
+
+新增一條 handoff 未列的停止條件:
+
+> **若 gate 幾乎不觸發,C 就等於 B 再加一個浪費在關鍵路徑上的結構化輸出要求。觸發率本身就是 kill criterion,而且它比品質更早、更便宜就能量測。**
+
+先量觸發率,不要先量品質。
+
+## 實驗設計上的兩個 code-level 阻礙
+
+| 代號 | 阻礙 | 影響 |
+|---|---|---|
+| E1 | 只有 `gemini-3.1-pro-preview` 的 `grounded_retrieval` 是 `enabledInRuntime: true` | arm A(強單模型)要與 B/C 檢索對等,目前**只能是 Gemini**;否則所有 arm 都得關掉檢索,證據維度整個離開實驗。見 Q-B。 |
+| E2 | `buildOutputBanner` 會把 `PARTIALLY_GROUNDED` / `DEGRADED` 印在交付物第一行 | 評估者一眼就知道是哪個 arm,盲測失效。**必須比較去掉 banner 的文字。** |
+
+## 一個會壞掉的測試基礎設施
+
+`test-execution-policy.mjs:38`:
+
+```js
+const stage = calls.length === 0 ? 'planning' : options.system ? 'worker' : 'synthesis';
+```
+
+**synthesis 是靠「沒有 system prompt」辨識的。** M2 會引入第二個 synthesis 等級呼叫,任一個帶上 system prompt 就會被誤判成 worker。必須在寫 M2 測試**之前**換成明確的 stage 標籤,否則呼叫數斷言會安靜地量錯東西。
+
+## 不變式:collaboration 不得提升 evidence label
+
+今天這條由結構保證 —— evidence label 由 retrieval status 推導,collaboration 不觸碰該推導鏈。M2 必須維持:Round 2 只能**暴露**不確定性、衝突與 evidence gap,不能把 `UNGROUNDED` 升成 `PARTIALLY_GROUNDED`。claim-level evidence validation 仍屬 Step 10。
+
+## 尚待 architecture review 拍板的問題
+
+| # | 問題 |
+|---|---|
+| Q-A | Round 2 的 retrieval 算不算進 `evidenceLabel`?(**分析者傾向算,但需明確決定才能實作**) |
+| Q-B | Arm A 的檢索對等:Gemini-only,還是所有 arm 關檢索? |
+| Q-C | gate 該不該看到失敗 worker 的錯誤訊息?目前完全看不到,但失敗本身與決策相關 |
+| Q-D | `normal` 會不會被 gate,還是 `deep`-only 是永久邊界? |
+| Q-E | Round 2 timings 放哪裡?擴充 `timings` 會改動既有比較依賴的形狀 |
+| Q-F | direct-delivery 路徑要不要防禦性地套用 `buildOutputBanner`,讓第 1 節的 latent coupling 不會咬到未來路徑? |
+| Q-G | gate 產出 issue 但 Round 2 停用時,issue 要呈現給使用者還是只記錄? |
+
+## Scope gate(未改變)
+
+Milestone 2 仍是 **scope analysis,不是 implementation specification**。未經 architecture review 不進入 runtime implementation。本輪未修改 `src/`、prompts、tests、retrieval、Step 7/8/9/10 runtime,未執行 live benchmark;`npm test` 99 passed / 0 failed。
