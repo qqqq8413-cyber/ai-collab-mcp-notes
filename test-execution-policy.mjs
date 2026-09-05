@@ -36,7 +36,12 @@ const planFor = (complexity = 'simple', ids = ['w1']) => ({
 async function run({ plan = planFor(), workers = roster, responses = {}, originalTask = task, budget, advance = () => {} } = {}) {
   const calls = [];
   const call = async (provider, prompt, options) => {
-    const stage = calls.length === 0 ? 'planning' : options.system ? 'worker' : 'synthesis';
+    // The runtime states its own stage. Inferring it from the presence of a system prompt
+    // worked only while a run had at most one synthesis-class call; a second one would be
+    // counted as a worker and every call-count assertion here would quietly measure the
+    // wrong thing.
+    const stage = options.stage;
+    assert.ok(stage, 'every orchestrator call must declare its stage');
     calls.push({ stage, provider, prompt, options });
     advance(stage);
     if (stage === 'planning') return { provider, model: options.model, text: JSON.stringify(plan) };
@@ -80,7 +85,7 @@ console.log('\nExecution policy and direct delivery');
 
 await check('SIMPLE uses only planning and one worker, preserving the Step 6.1 input', async () => {
   const { result, calls } = await run();
-  assert.deepEqual(stages(calls), ['planning', 'worker']);
+  assert.deepEqual(stages(calls), ['planning', 'round1_worker']);
   assert.deepEqual(result.plan, planFor());
   assert.deepEqual(result.planningAdjustments, []);
   assert.equal(calls[1].prompt, buildWorkerPrompt(task, planFor().assignments[0].mission));
@@ -112,7 +117,7 @@ await check('fast path retains all timing fields and records zero synthesis time
   let now = 1000;
   Date.now = () => now;
   try {
-    const { result } = await run({ advance: (stage) => { now += { planning: 17, worker: 31, synthesis: 43 }[stage]; } });
+    const { result } = await run({ advance: (stage) => { now += { planning: 17, round1_worker: 31, synthesis: 43 }[stage]; } });
     assert.deepEqual(result.timings, { planningMs: 17, workersMs: 31, synthesisMs: 0, totalMs: 48 });
   } finally {
     Date.now = originalNow;
@@ -128,7 +133,7 @@ await check('abnormal SIMPLE with multiple assignments never takes the single fa
 
 await check('NORMAL with one specialist still synthesizes', async () => {
   const { result, calls } = await run({ plan: planFor('normal') });
-  assert.deepEqual(stages(calls), ['planning', 'worker', 'synthesis']);
+  assert.deepEqual(stages(calls), ['planning', 'round1_worker', 'synthesis']);
   assert.deepEqual(result.report.policy, { topology: 'single', synthesize: true, reason: 'non_simple_execution' });
   assert.equal(result.finalOutput, final);
   assert.ok(calls[2].prompt.includes(raw));
@@ -137,7 +142,7 @@ await check('NORMAL with one specialist still synthesizes', async () => {
 
 await check('DEEP with one specialist still synthesizes and retains the evidence banner', async () => {
   const { result, calls } = await run({ plan: planFor('deep') });
-  assert.deepEqual(stages(calls), ['planning', 'worker', 'synthesis']);
+  assert.deepEqual(stages(calls), ['planning', 'round1_worker', 'synthesis']);
   assert.equal(result.report.policy.synthesize, true);
   assert.equal(result.report.evidenceLabel, 'HYPOTHESIS');
   assert.match(result.finalOutput, /^> \*\*UNVERIFIED/);
@@ -148,13 +153,13 @@ await check('DEEP capped to one specialist still synthesizes and records the cap
   const { result, calls } = await run({ plan: planFor('deep', ['w1', 'w2']), budget: { maxSpecialists: 1 } });
   assert.equal(result.plan.assignments.length, 1);
   assert.match(result.planningAdjustments.join(' '), /Capped specialists at 1/);
-  assert.deepEqual(stages(calls), ['planning', 'worker', 'synthesis']);
+  assert.deepEqual(stages(calls), ['planning', 'round1_worker', 'synthesis']);
   assert.equal(result.report.policy.synthesize, true);
 });
 
 await check('NORMAL collaboration still calls both workers and synthesis', async () => {
   const { result, calls } = await run({ plan: planFor('normal', ['w1', 'w2']) });
-  assert.deepEqual(stages(calls), ['planning', 'worker', 'worker', 'synthesis']);
+  assert.deepEqual(stages(calls), ['planning', 'round1_worker', 'round1_worker', 'synthesis']);
   assert.equal(result.report.status, 'SUCCESS');
   assert.equal(result.report.policy.topology, 'collaborative');
   assert.equal(result.report.policy.synthesize, true);
@@ -162,7 +167,7 @@ await check('NORMAL collaboration still calls both workers and synthesis', async
 
 await check('partial failure retains DEGRADED synthesis and its missing-worker warning', async () => {
   const { result, calls } = await run({ plan: planFor('normal', ['w1', 'w2']), responses: { w2: new Error('offline failure') } });
-  assert.deepEqual(stages(calls), ['planning', 'worker', 'worker', 'synthesis']);
+  assert.deepEqual(stages(calls), ['planning', 'round1_worker', 'round1_worker', 'synthesis']);
   assert.equal(result.report.status, 'DEGRADED');
   assert.equal(result.report.successfulWorkers, 1);
   assert.equal(result.report.failedWorkers, 1);
@@ -192,7 +197,7 @@ for (const status of ['GROUNDED', 'UNGROUNDED', 'FAILED', undefined]) {
   await check(`requested retrieval stays on synthesis even when metadata is ${status ?? 'absent'}`, async () => {
     const metadata = status === undefined ? undefined : retrieval(status);
     const { result, calls } = await run({ plan: planFor('simple', ['research']), responses: { research: { text: raw, retrieval: metadata } } });
-    assert.deepEqual(stages(calls), ['planning', 'worker', 'synthesis']);
+    assert.deepEqual(stages(calls), ['planning', 'round1_worker', 'synthesis']);
     assert.deepEqual(calls[1].options.retrieval, { enabled: true });
     assert.equal(result.report.status, 'SUCCESS');
     assert.equal(result.report.policy.reason, 'retrieval_not_eligible');
@@ -204,7 +209,7 @@ for (const status of ['GROUNDED', 'UNGROUNDED', 'FAILED', undefined]) {
 await check('DEEP grounding sources, counts and presentation survive synthesis unchanged', async () => {
   const metadata = retrieval('GROUNDED');
   const { result, calls } = await run({ plan: planFor('deep', ['research']), responses: { research: { text: raw, retrieval: metadata } } });
-  assert.deepEqual(stages(calls), ['planning', 'worker', 'synthesis']);
+  assert.deepEqual(stages(calls), ['planning', 'round1_worker', 'synthesis']);
   assert.deepEqual(calls[1].options.retrieval, { enabled: true });
   assert.equal(result.report.evidenceLabel, 'PARTIALLY_GROUNDED');
   assert.deepEqual(result.report.retrieval, { specialistsAsked: 1, specialistsGrounded: 1, sourcesFound: 1, queryCount: 1, sources: metadata.sources });
@@ -215,14 +220,14 @@ await check('DEEP grounding sources, counts and presentation survive synthesis u
 await check('an unselected retrieval-capable worker does not block an ordinary SIMPLE run', async () => {
   const { result, calls } = await run();
   assert.ok(roster.some((worker) => worker.evidenceCapable));
-  assert.deepEqual(stages(calls), ['planning', 'worker']);
+  assert.deepEqual(stages(calls), ['planning', 'round1_worker']);
   assert.equal(result.report.policy.synthesize, false);
 });
 
 await check('unexpected retrieval metadata also prevents direct delivery', async () => {
   const { result, calls } = await run({ responses: { w1: { text: raw, retrieval: retrieval('GROUNDED') } } });
   assert.equal(calls[1].options.retrieval, undefined);
-  assert.deepEqual(stages(calls), ['planning', 'worker', 'synthesis']);
+  assert.deepEqual(stages(calls), ['planning', 'round1_worker', 'synthesis']);
   assert.equal(result.report.policy.reason, 'retrieval_not_eligible');
 });
 
@@ -230,7 +235,7 @@ console.log('\nInvalid and ambiguous facts');
 for (const [label, output] of [['empty', ''], ['whitespace', ' \n\t\u00a0'], ['missing', undefined], ['null', null], ['non-string', 42]]) {
   await check(`${label} output from an invalid adapter cannot take the direct path`, async () => {
     const { result, calls } = await run({ responses: { w1: { text: output } } });
-    assert.deepEqual(stages(calls), ['planning', 'worker', 'synthesis']);
+    assert.deepEqual(stages(calls), ['planning', 'round1_worker', 'synthesis']);
     assert.equal(result.report.policy.reason, 'invalid_worker_output');
     assert.equal(result.finalOutput, final);
     assert.equal(result.report.status, 'SUCCESS', 'do not redefine the legacy report for a broken adapter');
@@ -256,7 +261,7 @@ await check('changing worker provider/model does not change execution policy', a
   for (const [provider, model] of [['openai', 'gpt-fixture'], ['claude', 'claude-fixture'], ['gemini', 'gemini-fixture']]) {
     const workers = [{ ...roster[0], provider, model }];
     const { result, calls } = await run({ workers });
-    assert.deepEqual(stages(calls), ['planning', 'worker']);
+    assert.deepEqual(stages(calls), ['planning', 'round1_worker']);
     assert.equal(calls[1].provider, provider);
     assert.equal(calls[1].options.model, model);
     assert.equal(result.report.policy.reason, 'simple_single_specialist_direct_delivery');
@@ -277,7 +282,7 @@ for (const id of ['SIMPLE-2', 'SIMPLE-3']) {
     const { workers } = resolveRoster(['business_strategist', 'market_researcher', 'brand_creative']);
     const recorded = fixture.result.workerResults[0];
     const { result, calls } = await run({ plan: fixture.result.plan, workers, originalTask: fixture.task, responses: { [recorded.agentId]: { text: recorded.output } } });
-    assert.deepEqual(stages(calls), ['planning', 'worker']);
+    assert.deepEqual(stages(calls), ['planning', 'round1_worker']);
     assert.equal(calls[1].prompt, buildWorkerPrompt(fixture.task, recorded.mission));
     assert.equal(result.finalOutput, recorded.output);
     assert.equal(result.report.policy.reason, 'simple_single_specialist_direct_delivery');

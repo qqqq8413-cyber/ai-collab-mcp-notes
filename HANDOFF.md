@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-05, rev. 14)
+# ai-collab-mcp — Progress Report (2026-09-05, rev. 15)
 
 > ## 交接狀態
 >
@@ -9,14 +9,36 @@
 > | **Post-6.1 SIMPLE live regression** | **DONE —— rev.7/8 共 3 種題型各 n=1,當時三段式皆完整執行** |
 > | **Step 7 V1 Complexity Router** | **CODE + RUNTIME ACCEPTED —— 有界 SIMPLE direct delivery** |
 > | **Step 7.1 E2E Runtime Acceptance** | **DONE —— Test A PASS / Test B PASS,詳見第十八節** |
-> | **Milestone 2: True Multi-Agent Collaboration** | **SCOPE ANALYSIS DONE / NOT IMPLEMENTED —— 見 `MILESTONE2_SCOPE_ANALYSIS.md`、第二十節** |
+> | **Milestone 2 scope analysis** | **DONE —— 見 `MILESTONE2_SCOPE_ANALYSIS.md`、第二十節** |
+> | **Experimental Milestone 2-A Prototype** | **IMPLEMENTED / DEFAULT OFF —— 未 productionize,詳見第二十一節** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
-> | **目前離線測試** | **99 項全過 = 既有 63 + Step 7 新增 36** |
+> | **目前離線測試** | **175 項全過 = rev.14 的 99 + M2-A 新增 76** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
 > | **Step 8 Implementation** | **DEFERRED —— Milestone 2 驗證後再回來** |
 > | 未完成的程式修改 | **無** |
 >
-> **Milestone 2 scope analysis 已完成,runtime 未動。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+> **Experimental Milestone 2-A prototype 已實作,default OFF。** 關掉時的行為與回傳 payload 與 rev.14 逐欄相同,99 項既有測試無一需要放寬。新增 73 項測試涵蓋 stage 標記、call ceiling、best-effort parsing、issue 驗證、deterministic selection、selective peer context、失敗回退與 evidence 不變式。這是量測用的 prototype,不是 production feature,尚未跑過任何 live A/B/C/D。
+>
+> **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 15 改了什麼(Experimental Milestone 2-A Prototype)
+
+1. **實作 targeted peer challenge,default OFF** —— `Chief → Round 1 → Synthesis Gate →(有 decision-sensitive peer challenge 才)Round 2(最多 1 位)→ Decision Synthesis`。開關是 `experimental.collaboration.enabled`,不給就完全走舊路徑:stage 序列、`finalOutput`、回傳物件的 key 全部與 rev.14 相同,測試逐項比對過。
+2. **先換掉會壞掉的測試基礎設施** —— `CallStage` 成為 `CallOptions` 的顯式欄位(`planning` / `round1_worker` / `synthesis` / `synthesis_gate` / `round2_worker` / `decision_synthesis`)。舊 harness 用「沒有 system prompt」判定 synthesis,M2 加入第二個 synthesis 等級呼叫後必然誤判。三個 provider adapter 都不 spread `CallOptions`,所以這個標籤不可能流進任何廠商 API。
+3. **交付物不押在 parse 上** —— gate 先寫完整答案,再選擇性附一個 fenced JSON 區塊。區塊不存在、JSON 壞掉、schema 不符、agent 不存在、issue 不合格,五種情況全部退回 provisional answer 加一條註記,run 不會 FAILED。只有結尾、且內容含 `collaborationIssues` 的區塊才會被當成 metadata —— 答案裡真正的 JSON 範例不會被吞掉。
+4. **`sourceRef` 必須是不同的 agent** —— 自己引用自己會被擋下並記為 `self-review, not a peer challenge`。這不是潔癖:允許它就等於讓 arm C 混進 arm D 的行為,實驗會用錯誤的方式回答自己的問題。
+5. **deterministic selection** —— 多個合格 issue 時依「被挑戰者在 assignment order 的位置 → 挑戰來源的位置 → gate 產出順序」固定排序取一個。不隨機、不再問模型、不全部執行。同一份 gate 輸出永遠選到同一個 issue。
+6. **selective peer context** —— Round 2 只收到 original task、自己的 mission、自己的 Round 1 輸出、**一段** peer excerpt 與**一條** challenge。測試明確斷言第三位專家的輸出**不在** prompt 裡。沒有重用 `run_debate` 的 full-broadcast。
+7. **excerpt 是 runtime 擷取的,不是模型給的 offset** —— 由 runtime 從 `sourceRef` 的 Round 1 輸出取前 N 字元,記錄 `startChar` / `endChar` / `truncated` / `charLimit`。`peerExcerptChars` 是 configurable experimental parameter,預設值沒有任何實測支持,每次執行都把實際用值寫進報告。
+8. **Round 2 不做 retrieval** —— 即使被挑戰的專家是 `evidenceCapable` 也不掛。`needs_evidence` 只記錄不執行。理由是隔離變因:同時加入 peer interaction 與新的外部檢索,之後就無法分辨改善來自哪一個。
+9. **Evidence 不變式由結構保證** —— Round 2 的輸出不進 `workerResults`、不進 `summarizeRetrieval`、不進 `deriveEvidenceLabel`。banner 一律由 Round 1 的 report 產生。測試斷言 label 與 banner 在開關兩種狀態下完全相同,且沒有任何路徑能產生 `EVIDENCE_BACKED`。
+10. **失敗一律回退到 provisional answer** —— Round 2 失敗或 Decision Synthesis 失敗,`answerSource` 保持 `round1_provisional`,`RunStatus` 保持 Round 1 語意。Round 1 已經付過錢,M2 的任何失敗都不該讓使用者失去那份工作。
+11. **獨立 `CollaborationReport`** —— `NOT_TRIGGERED` / `SKIPPED` / `COMPLETED` / `FAILED` 四態、reason、selected issue、round2 agent、`answerSource`、peer excerpt metadata 與獨立 timings 區塊。既有 `planningMs` / `workersMs` / `synthesisMs` / `totalMs` 語意與形狀未動。
+12. **修正 rev.14 的一條原則** —— 使用者指令第 14 條推翻了我寫的「觸發率就是 kill criterion」。低觸發率同樣可能代表 gate 精準。觸發率降為 diagnostic,真正要量的是 triggered usefulness。詳見第十五節。
+13. **控制組被證明沒有漂移** —— 為了做出 gate 版本,synthesis prompt 被抽成變數。arm B 是實驗的控制組,這種重構正是會靜靜搬動一個換行的地方,而漂移過的控制組比沒有控制組更糟 —— 之後每一個 C 對 B 的差異都會有一部分是這次編輯造成的。因此加了測試,用 M2 之前的寫法重建 prompt 並逐位元組比對(SUCCESS 與 DEGRADED 兩種情況),並斷言 gate 版本是「控制組 prompt + 附錄」,沒有刪去任何東西。
+14. **測試** —— 99 → 175(新增 76 項)。0 failed。未跑任何 live benchmark。
+
+---
 
 ## rev. 14 改了什麼(Milestone 2 Scope Analysis)
 
@@ -1310,10 +1332,15 @@ ExecutionPolicy must not depend on ProviderName.
 
 # 十五、本專案累積的工程原則
 
+rev. 15 新增:
+
+> **A rate is not an outcome. How often a mechanism fires says nothing about whether the times it fired were worth it.**
+
+⚠️ **這條取代了 rev.14 我寫的「觸發率就是停止條件」。** 那個寫法是錯的:低觸發率同樣可以代表 gate 很精準 —— 只在真正有跨專家分歧時才啟動。把稀有當成無用,會把一個有鑑別力的機制當成失敗砍掉。觸發率降級為 **diagnostic metric**;真正要量的是 *triggered usefulness* —— Round 2 有沒有修正 material problem 或改變重要決策。
+
 rev. 14 新增:
 
 > **Never put the deliverable behind a parse that runs after the cost is already spent.**
-> **A mechanism that rarely fires is not cheap — on the critical path it is a permanent tax paid for an occasional benefit. Trigger rate is a stop condition, and it is measurable long before quality is.**
 
 rev. 6 新增:
 
@@ -1703,3 +1730,146 @@ const stage = calls.length === 0 ? 'planning' : options.system ? 'worker' : 'syn
 ## Scope gate(未改變)
 
 Milestone 2 仍是 **scope analysis,不是 implementation specification**。未經 architecture review 不進入 runtime implementation。本輪未修改 `src/`、prompts、tests、retrieval、Step 7/8/9/10 runtime,未執行 live benchmark;`npm test` 99 passed / 0 failed。
+
+---
+
+# 二十一、Experimental Milestone 2-A — IMPLEMENTED / DEFAULT OFF / NOT PRODUCTIONIZED
+
+這是**為了量測而做的 prototype**,不是 production feature。它存在只為回答一個問題:**不同 AI 互相挑戰,是否真的比現有 Orchestrator、甚至比同一個模型自己再想一次更有價值?** 在那個問題被實測回答之前,這裡沒有任何東西算是已驗證。
+
+## 執行形狀
+
+```text
+Chief Planning
+→ Round 1 Specialists(平行)
+→ Synthesis Gate  ── provisional answer(交付物)
+                   └─ optional collaboration issue block(metadata)
+      │
+      ├─ 沒有 decision-sensitive peer_challenge → provisional answer = Final
+      └─ 有 → Targeted Round 2(最多 1 位)→ Decision Synthesis → Final
+```
+
+## Logical call ceiling
+
+```text
+1 Chief + N Round-1 Workers + 1 Synthesis Gate + 1 Round-2 Worker + 1 Decision Synthesis = N + 4
+```
+
+`SPECIALIST_CAP.deep = 4`,所以 absolute ceiling 是 **8**。測試以精確等式斷言 N=3 → 7、N=4 → 8,並斷言 `round2_worker` 與 `decision_synthesis` 各只出現一次。這是 logical application calls;SDK / HTTP retry 不計入同一個 metric。
+
+## Gate 啟動條件
+
+| 條件 | 不符合時 |
+|---|---|
+| `experimental.collaboration.enabled === true` | 完全走舊路徑,回傳物件連 `collaboration` 這個 key 都沒有 |
+| `complexity === 'deep'` | `NOT_TRIGGERED` / `complexity_not_deep (...)` |
+| Round 1 `status === 'SUCCESS'` | `NOT_TRIGGERED` / `round1_status_degraded` |
+| 成功的專家 ≥ 2 | `NOT_TRIGGERED` / `single_specialist_no_peer` |
+
+Gate 沒啟動時,synthesis prompt 是既有那一份,一字未改 —— 不合格的執行不會偷偷變成另一個實驗。
+
+DEGRADED 被排除是刻意的:gate 會在少了一位專家的情況下比較專家,這時候的挑戰量到的是那次失敗,不是協作。
+
+## 交付物不押在 parse 上
+
+現有 orchestrator 只有一個 parse 依賴(Chief 計畫),它失敗在任何 worker 花錢**之前**。Gate 的 parse 位置在**所有 Round 1 成本已付出之後**,而且就在產生交付物的那次呼叫上。因此:
+
+| 情況 | 結果 |
+|---|---|
+| 沒有區塊 | `SKIPPED` / `no_issue_block` |
+| JSON 壞掉 | `SKIPPED` / `block_malformed` |
+| 不是物件 / 沒有 issues 陣列 | `SKIPPED` / `block_schema_invalid` |
+| issue 全部無效 | `SKIPPED` / `no_valid_issue` |
+| 有效但不合格 | `SKIPPED` / `no_decision_sensitive_peer_challenge` |
+| Round 2 失敗 | `FAILED` / `round2_worker_failed` |
+| Decision Synthesis 失敗 | `FAILED` / `decision_synthesis_failed` |
+
+**全部七種都交付 provisional answer,`RunStatus` 保持 Round 1 語意。** 只有結尾、且內容含 `collaborationIssues` 的區塊會被當成 metadata —— 答案裡的 JSON 範例不會被誤吞。
+
+## Issue schema 與 selection
+
+```ts
+interface CollaborationIssue {
+  targetAgentId: string;   // 必須是成功的 Round 1 專家
+  sourceRef: string;       // 必須是成功的、且不同的 Round 1 專家
+  challenge: string;
+  decisionSensitive: boolean;
+  action: 'peer_challenge' | 'needs_evidence';
+}
+```
+
+Round 2 資格:`decisionSensitive === true && action === 'peer_challenge'`。`needs_evidence` 只記錄。
+
+**`sourceRef !== targetAgentId` 是硬性的。** 自己引用自己是 self-review,正是 arm D 要隔離的東西;放行等於讓 arm C 混進 arm D 的行為,實驗會用錯誤的方式回答自己的問題。
+
+多個合格 issue 時的固定排序:**被挑戰者在 assignment order 的位置 → 挑戰來源的位置 → gate 產出順序**。不隨機、不再叫模型決定、不全部執行。重點不是這個排序最好,而是它固定 —— 同一份 gate 輸出永遠選到同一個 issue,行為改變就不能推給執行間的變異。
+
+## Selective peer context
+
+Round 2 只收到:original task、自己的 mission、自己的 Round 1 輸出、**一段** peer excerpt、**一條** challenge。測試明確斷言第三位專家的輸出**不在** prompt 內,provisional answer 也不在。沒有重用 `run_debate` 的 full-broadcast。
+
+Excerpt 由 **runtime** 從 `sourceRef` 的 Round 1 輸出擷取,記錄 `startChar` / `endChar` / `truncated` / `charLimit`。模型從不提供 character offset。
+
+⚠️ **已知限制:** `sourceRef` 解析到 agent 而非段落,所以長答案只被引用開頭,被挑戰的段落可能落在窗口外。修這個需要 passage-level reference,而那需要「agent 層級引用不夠」的證據 —— 那個證據目前不存在。
+
+`peerExcerptChars` 是 **configurable experimental parameter**,預設值沒有任何實測支持,每次執行都把實際用值寫進報告。
+
+## Evidence 不變式(由結構保證,不是由 prompt 保證)
+
+Round 2 的輸出**不進** `workerResults`、**不進** `summarizeRetrieval`、**不進** `deriveEvidenceLabel`。banner 一律由 Round 1 的 report 產生。因此 collaboration 在結構上碰不到 evidence label。
+
+Round 2 **不掛 retrieval**,即使被挑戰的專家是 `evidenceCapable`。理由是隔離變因:同時加入 peer interaction 與新的外部檢索,之後無法分辨改善來自哪一個。
+
+Decision synthesis 的 prompt 另外明寫「這一輪沒有取得新的外部證據,不得因為專家彼此同意就把任何東西描述成已驗證」—— 但這只是第二道防線,第一道是結構上它根本改不動 label。
+
+測試斷言:開關兩種狀態下 `evidenceLabel` 與 banner 完全相同;任何路徑都不產生 `EVIDENCE_BACKED`。
+
+## CollaborationReport
+
+```text
+status:       NOT_TRIGGERED | SKIPPED | COMPLETED | FAILED
+reason:       機器可讀的原因字串
+answerSource: round1_provisional | round2_decision_synthesis
+parse:        { status: absent | parsed | malformed | schema_invalid, note? }
+issues:       { emitted, valid, eligible, recorded[], rejected[{index, reason}] }
+selectedIssue / round2 { agentId, provider, peerExcerpt, output|error }
+timings:      { gateMs?, round2Ms?, decisionSynthesisMs?, totalMs? }
+```
+
+`timings.totalMs` **包含 gate**。不含的話,collaboration 會看起來剛好便宜了它所增加的最貴那一次呼叫。既有 `planningMs` / `workersMs` / `synthesisMs` / `totalMs` 的語意與形狀未動;M2 啟用時 `synthesisMs` 就是 gate 那次呼叫的時間,`gateMs` 與它相等,由測試斷言。
+
+## 兩個刻意保留的不對稱
+
+1. **SIMPLE direct-delivery 與 FAILED 執行不回傳 `collaboration` 物件**,即使開關打開。這兩條路徑在 policy 判定後就提前 return,屬於 Step 7 runtime;指令第 10、15 條要求本輪不改它們。deep 執行永遠不會走 direct delivery(policy 回 `non_simple_execution`),所以這不影響 M2 的量測範圍。
+2. **direct-delivery 仍不套 `buildOutputBanner`。** 本輪沒有順手改 runtime,改為新增不變式測試:凡是 direct-delivery 合格的 report,`buildOutputBanner(report)` 必須是空字串。未來 policy 一旦放寬到會需要 banner 的情況,測試會先炸,而不是使用者先收到沒有警示的答案。
+
+## Trigger rate 的正確定位
+
+⚠️ 這推翻了 rev.14 我自己寫的一條原則。
+
+觸發率**不是** kill criterion。低觸發率同樣可以代表 gate 很精準 —— 只在真正有跨專家分歧時才啟動。真正要量的是 **triggered usefulness**:Round 2 有沒有修正 material problem、有沒有改變重要決策。
+
+報告因此記錄 `issues.emitted` / `issues.valid` / `issues.eligible` 與是否觸發,但這些是 **diagnostic metric**,不是判決。
+
+## 這輪沒有做的事
+
+independent Chief Review、Judge、`run_debate()` nesting、full peer broadcast、超過 1 位 Round-2 專家、超過 2 rounds、autonomous loop、planning loop、Round-2 retrieval、claim-level validation、`groundingSupports` consumer、Step 8/9/10、pricing、大型 live benchmark、default-on。
+
+## 是否已具備進入 A/B/C/D 評估的條件?
+
+**Runtime 具備了,實驗協定還沒有。**
+
+| 項目 | 狀態 |
+|---|---|
+| arm B vs arm C | ✅ 同一個 MCP 工具,單一 flag 切換,payload 在關閉時逐欄相同 |
+| arm A(強單模型) | ✅ 用既有 `run_pipeline` 單步即可,不需要新程式 |
+| arm D(單模型 + self-review) | ✅ `run_pipeline` 兩步,第二步用 `{{input}}` 自我檢視 |
+| 盲測 | ✅ `finalOutput = banner + text` 且 `buildOutputBanner` 是純函式,`finalOutput.slice(banner.length)` 可精確還原無標籤答案。已加測試 —— 沒有這個,只有 B/C 帶 banner,評分者看第一行就知道是哪個 arm |
+| Frozen Evidence Packet | ✅ 架構可支援:四個 arm 全部關檢索、把凍結證據放進 task 文字,即可得到 byte-identical evidence input。**未建置**,依指令第 18 條 |
+| 檢索對等(E1) | ⚠️ 未解 —— 只有 Gemini 的 `grounded_retrieval` 是 `enabledInRuntime: true`。現階段唯一乾淨作法是四個 arm 全關檢索,證據維度暫時離開實驗 |
+| 評分 rubric 與比較協定 | ❌ 不存在,依指令第 18 條本輪不建 |
+| **Gate 在真實任務上是否會產出 issue** | ❌ **完全未知 —— 從未跑過一次 live gate** |
+
+最後一項是最便宜也最該先做的:在寫任何評分系統之前,先確認 gate 在真實 DEEP 任務上到底會不會產出合格的 peer challenge。如果從不產出,C 與 B 在行為上就是同一個東西,後面的比較全部沒有意義 —— 但依第 14 條,那是**診斷結果**,不是自動的處決理由:也可能代表這批任務本來就沒有跨專家分歧。
+
+已停在此處,未自行開始任何 live A/B/C/D benchmark。

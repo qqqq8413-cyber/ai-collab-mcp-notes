@@ -90,6 +90,36 @@ for (const [label, workers] of [
   });
 }
 
+console.log('\nExperimental collaboration schema');
+
+// The same zero-cost trick: an unknown agent id fails after schema validation, so reaching
+// agent resolution proves the schema accepted the call shape without contacting a model.
+for (const [label, experimental] of [
+  ['enabled with defaults', { collaboration: { enabled: true } }],
+  ['enabled with an excerpt limit', { collaboration: { enabled: true, peerExcerptChars: 400 } }],
+  ['explicitly disabled', { collaboration: { enabled: false } }],
+]) {
+  await check(`experimental collaboration ${label} passes schema validation`, async () => {
+    const res = await client.callTool({
+      name: 'run_orchestrator',
+      arguments: {
+        task: 'x',
+        orchestrator: { provider: 'openai' },
+        workers: ['no_such_agent'],
+        experimental,
+      },
+    });
+    assert.match(res.content.map((c) => c.text).join('\n'), /Unknown agent "no_such_agent"/);
+  });
+}
+
+await check('experimental collaboration is optional and off by default', async () => {
+  const schema = (await client.listTools()).tools.find((t) => t.name === 'run_orchestrator').inputSchema;
+  assert.ok(!(schema.required ?? []).includes('experimental'), 'experimental must be optional');
+  const enabled = schema.properties.experimental.properties.collaboration.properties.enabled;
+  assert.equal(enabled.default, false, 'the prototype must be off unless asked for');
+});
+
 await client.close();
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

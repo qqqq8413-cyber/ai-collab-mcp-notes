@@ -202,9 +202,34 @@ server.registerTool(
         })
         .optional()
         .describe('Constraints the Chief must plan within. maxSpecialists is enforced; cost and latency are stated to the Chief as planning constraints.'),
+      experimental: z
+        .object({
+          collaboration: z
+            .object({
+              enabled: z
+                .boolean()
+                .default(false)
+                .describe(
+                  'Off by default. When on and the run is a clean multi-specialist deep run, the synthesis call may also report one cross-specialist challenge, which sends exactly one specialist a targeted second round. Prototype under measurement: not a supported feature, and the deliverable never depends on it.'
+                ),
+              peerExcerptChars: z
+                .number()
+                .int()
+                .min(1)
+                .optional()
+                .describe(
+                  'How much of a peer specialist\'s answer is quoted into the second round. An experimental parameter with no measurement behind its default; the value used is recorded in the run\'s collaboration report.'
+                ),
+            })
+            .optional(),
+        })
+        .optional()
+        .describe(
+          'Prototypes under measurement. Omit for the standard orchestrator: with this absent, the run and its returned payload are identical to a build without it.'
+        ),
     },
   },
-  async ({ task, orchestrator, workers, synthesizer, budget }) => {
+  async ({ task, orchestrator, workers, synthesizer, budget, experimental }) => {
     const roster = resolveRoster(workers);
     const result = await runOrchestrator({
       task,
@@ -212,6 +237,7 @@ server.registerTool(
       workers: roster.workers,
       synthesizer,
       budget,
+      experimental,
     });
     return {
       content: [

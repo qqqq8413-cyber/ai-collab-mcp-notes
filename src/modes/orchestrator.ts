@@ -4,6 +4,19 @@ import type { RetrievalResult } from '../providers/types.js';
 import type { ProviderName } from '../config.js';
 import { deriveExecutionPolicy, type ExecutionPolicy } from '../agents/policy.js';
 import {
+  DEFAULT_PEER_EXCERPT_CHARS,
+  buildDecisionSynthesisPrompt,
+  buildGateAppendix,
+  buildPeerExcerpt,
+  buildRound2Prompt,
+  parseGateOutput,
+  selectIssue,
+  validateIssues,
+  type CollaborationConfig,
+  type CollaborationIssue,
+  type CollaborationReport,
+} from '../agents/collaboration.js';
+import {
   CHIEF_SYSTEM_PROMPT,
   MISSION_CHAR_LIMIT,
   SPECIALIST_CAP,
@@ -143,6 +156,14 @@ export interface OrchestratorOptions {
   budget?: PlanningBudget;
   /** Injectable dispatcher for offline execution tests; not exposed through MCP. */
   call?: typeof callProvider;
+  /**
+   * Prototypes under measurement. Everything here is off unless a caller asks for it, and
+   * a run with it off is byte-identical to a run on a build without it — including the
+   * shape of the returned object, so an A/B comparison is not comparing two payloads.
+   */
+  experimental?: {
+    collaboration?: CollaborationConfig;
+  };
 }
 
 export interface WorkerRunResult {
@@ -423,6 +444,7 @@ export async function runOrchestrator(options: OrchestratorOptions) {
       // rewritable by — the task text. Overridable so a caller can run a different Chief,
       // which is also what makes the default testable against alternatives.
       system: orchestrator.systemPrompt ?? CHIEF_SYSTEM_PROMPT,
+      stage: 'planning',
     }
   );
   const rawPlan = planSchema.parse(extractJsonObject(planResult.text));
@@ -438,6 +460,7 @@ export async function runOrchestrator(options: OrchestratorOptions) {
         const result = await call(worker.provider, buildWorkerPrompt(task, assignment.mission), {
           model: worker.model,
           system: worker.role,
+          stage: 'round1_worker',
           // Search costs money and changes what the answer is made of, so it is attached
           // only to specialists whose job is gathering evidence — and `evidenceCapable`
           // is itself derived, so a specialist cannot request it by asserting it.
@@ -496,39 +519,312 @@ export async function runOrchestrator(options: OrchestratorOptions) {
     };
   }
 
-  const synthesisStart = Date.now();
   const succeeded = workerResults.filter((r) => r.output !== undefined);
+  const specialistBlock = succeeded
+    .map((r) => `### ${r.agentId}\nMission: ${r.mission}\nResult: ${r.output}`)
+    .join('\n\n');
+  const degradedNote =
+    report.status === 'DEGRADED'
+      ? `\nNote: ${report.failedWorkers} specialist(s) failed and are missing from the above ` +
+        `(${report.failures.map((f) => f.agentId).join(', ')}). Do not invent their contribution. ` +
+        `Answer from what is present, and say plainly where the answer is thin because of it.\n`
+      : '';
   const synthesisPrompt = `Original task:
 ${task}
 
 Results from each specialist:
-${succeeded
-    .map((r) => `### ${r.agentId}\nMission: ${r.mission}\nResult: ${r.output}`)
-    .join('\n\n')}
-${
-  report.status === 'DEGRADED'
-    ? `\nNote: ${report.failedWorkers} specialist(s) failed and are missing from the above ` +
-      `(${report.failures.map((f) => f.agentId).join(', ')}). Do not invent their contribution. ` +
-      `Answer from what is present, and say plainly where the answer is thin because of it.\n`
-    : ''
-}
+${specialistBlock}
+${degradedNote}
 Synthesize these results into a single, coherent final answer to the original task.`;
-  const finalResult = await call(synthesizer.provider, synthesisPrompt, {
-    model: synthesizer.model,
-  });
+
+  const collaborationConfig = options.experimental?.collaboration;
+  const collaborationEnabled = collaborationConfig?.enabled === true;
+  const successfulAgentIds = succeeded.map((r) => r.agentId);
+
+  // Only a clean, multi-specialist deep run can host a peer challenge. A DEGRADED run is
+  // excluded on purpose: the gate would be choosing between specialists while one of them
+  // is missing, and a challenge routed at a partial team measures the failure, not the
+  // collaboration. When the gate is not active the prompt is the existing one, unchanged,
+  // so a non-eligible run is not quietly a different experiment.
+  const gateBlocked =
+    !collaborationEnabled
+      ? 'collaboration_disabled'
+      : plan.complexity !== 'deep'
+        ? `complexity_not_deep (${plan.complexity})`
+        : report.status !== 'SUCCESS'
+          ? `round1_status_${report.status.toLowerCase()}`
+          : successfulAgentIds.length < 2
+            ? 'single_specialist_no_peer'
+            : undefined;
+  const gateActive = collaborationEnabled && gateBlocked === undefined;
+
+  const synthesisStart = Date.now();
+  const finalResult = await call(
+    synthesizer.provider,
+    gateActive ? synthesisPrompt + buildGateAppendix(successfulAgentIds) : synthesisPrompt,
+    {
+      model: synthesizer.model,
+      stage: gateActive ? 'synthesis_gate' : 'synthesis',
+    }
+  );
   const synthesisMs = Date.now() - synthesisStart;
+
+  const banner = buildOutputBanner(report);
+
+  if (!collaborationEnabled) {
+    return {
+      plan,
+      planningAdjustments,
+      workerResults,
+      report,
+      finalOutput: banner + finalResult.text,
+      timings: {
+        planningMs,
+        workersMs,
+        synthesisMs,
+        totalMs: Date.now() - startedAt,
+      },
+    };
+  }
+
+  const collaboration = await runCollaboration({
+    call,
+    task,
+    plan,
+    workers,
+    succeeded,
+    specialistBlock,
+    degradedNote,
+    synthesizer,
+    gateActive,
+    gateBlocked,
+    gateText: finalResult.text,
+    gateMs: synthesisMs,
+    peerExcerptChars: collaborationConfig?.peerExcerptChars ?? DEFAULT_PEER_EXCERPT_CHARS,
+  });
 
   return {
     plan,
     planningAdjustments,
     workerResults,
     report,
-    finalOutput: buildOutputBanner(report) + finalResult.text,
+    // The banner is built from the Round 1 report either way. Collaboration cannot reach
+    // the evidence label, so it cannot change what the deliverable claims about itself.
+    finalOutput: banner + collaboration.answer,
+    collaboration: collaboration.report,
     timings: {
       planningMs,
       workersMs,
       synthesisMs,
       totalMs: Date.now() - startedAt,
+    },
+  };
+}
+
+interface CollaborationRunInput {
+  call: typeof callProvider;
+  task: string;
+  plan: Plan;
+  workers: Worker[];
+  succeeded: WorkerRunResult[];
+  specialistBlock: string;
+  degradedNote: string;
+  synthesizer: { provider: ProviderName; model?: string };
+  gateActive: boolean;
+  gateBlocked: string | undefined;
+  gateText: string;
+  gateMs: number;
+  peerExcerptChars: number;
+}
+
+/**
+ * Experimental Milestone 2-A.
+ *
+ * Every exit from here returns a deliverable. The provisional answer produced by the gate
+ * is the floor: a missing block, malformed JSON, an unroutable issue, a failed Round 2 or
+ * a failed decision synthesis all land on it. Round 1 has already been paid for by the
+ * time this runs, so no failure in here is allowed to cost the user that work.
+ */
+async function runCollaboration(input: CollaborationRunInput): Promise<{
+  answer: string;
+  report: CollaborationReport;
+}> {
+  const startedAt = Date.now();
+  const notes: string[] = [];
+
+  // The gate call happens before this function is entered, so its cost has to be added
+  // back in. Without that, `totalMs` would report collaboration as cheaper than it is by
+  // exactly the most expensive call it added.
+  const gateMs = input.gateActive ? input.gateMs : undefined;
+  const collaborationTotalMs = () => (gateMs ?? 0) + (Date.now() - startedAt);
+
+  const finish = (
+    answer: string,
+    status: CollaborationReport['status'],
+    reason: string,
+    extra: Partial<CollaborationReport> = {}
+  ): { answer: string; report: CollaborationReport } => ({
+    answer,
+    report: {
+      status,
+      reason,
+      answerSource: 'round1_provisional',
+      parse: { status: 'absent' },
+      issues: { emitted: 0, valid: 0, eligible: 0, recorded: [], rejected: [] },
+      timings: { gateMs, totalMs: collaborationTotalMs() },
+      notes,
+      ...extra,
+    },
+  });
+
+  if (!input.gateActive) {
+    notes.push(
+      `The collaboration gate did not run: ${input.gateBlocked}. The answer is the ordinary synthesis, unchanged.`
+    );
+    return finish(input.gateText, 'NOT_TRIGGERED', input.gateBlocked ?? 'not_eligible');
+  }
+
+  const parsed = parseGateOutput(input.gateText);
+  if (parsed.note) notes.push(parsed.note);
+  const provisional = parsed.answer;
+  const parseField = { status: parsed.status, note: parsed.note };
+
+  const { valid, rejected } = validateIssues(parsed.rawIssues, {
+    successfulAgentIds: input.succeeded.map((r) => r.agentId),
+  });
+  for (const r of rejected) {
+    notes.push(`Issue ${r.index} was dropped: ${r.reason}.`);
+  }
+
+  const agentOrder = input.plan.assignments.map((a) => a.agentId);
+  const selected = selectIssue(valid, agentOrder);
+  const eligibleCount = valid.filter((i) => i.decisionSensitive && i.action === 'peer_challenge').length;
+  const issuesField = {
+    emitted: parsed.rawIssues.length,
+    valid: valid.length,
+    eligible: eligibleCount,
+    recorded: valid,
+    rejected,
+  };
+
+  // `needs_evidence` is recorded and never acted on. Retrieval in Round 2 would add a
+  // second change on top of peer interaction, and the experiment could not then say which
+  // of the two produced any difference it measured.
+  const recordedEvidenceIssues = valid.filter((i) => i.action === 'needs_evidence');
+  if (recordedEvidenceIssues.length) {
+    notes.push(
+      `${recordedEvidenceIssues.length} issue(s) asked for external verification. They are recorded only: ` +
+        'Round 2 performs no retrieval in this experiment, so nothing here was checked against a source.'
+    );
+  }
+
+  if (!selected) {
+    const reason =
+      parsed.status === 'absent'
+        ? 'no_issue_block'
+        : parsed.status !== 'parsed'
+          ? `block_${parsed.status}`
+          : valid.length === 0
+            ? 'no_valid_issue'
+            : 'no_decision_sensitive_peer_challenge';
+    notes.push('Round 2 was skipped; the provisional answer was delivered as written.');
+    return finish(provisional, 'SKIPPED', reason, { parse: parseField, issues: issuesField });
+  }
+
+  const targetResult = input.succeeded.find((r) => r.agentId === selected.targetAgentId)!;
+  const peerResult = input.succeeded.find((r) => r.agentId === selected.sourceRef)!;
+  const targetWorker = input.workers.find((w) => w.id === selected.targetAgentId)!;
+  const excerpt = buildPeerExcerpt(selected.sourceRef, peerResult.output!, input.peerExcerptChars);
+  const { text: _excerptText, ...excerptMeta } = excerpt;
+
+  const round2Start = Date.now();
+  let revised: string;
+  try {
+    // No retrieval is attached, deliberately, even when this specialist is evidenceCapable.
+    const result = await input.call(
+      targetWorker.provider,
+      buildRound2Prompt({
+        task: input.task,
+        mission: targetResult.mission,
+        previousOutput: targetResult.output!,
+        excerpt,
+        challenge: selected.challenge,
+      }),
+      { model: targetWorker.model, system: targetWorker.role, stage: 'round2_worker' }
+    );
+    revised = result.text;
+  } catch (err) {
+    const round2Ms = Date.now() - round2Start;
+    notes.push(`Round 2 failed (${String(err)}); the provisional answer was delivered instead.`);
+    return finish(provisional, 'FAILED', 'round2_worker_failed', {
+      parse: parseField,
+      issues: issuesField,
+      selectedIssue: selected,
+      round2: {
+        agentId: targetWorker.id,
+        provider: targetWorker.provider,
+        peerExcerpt: excerptMeta,
+        error: String(err),
+      },
+      timings: { gateMs, round2Ms, totalMs: collaborationTotalMs() },
+    });
+  }
+  const round2Ms = Date.now() - round2Start;
+  const round2Field = {
+    agentId: targetWorker.id,
+    provider: targetWorker.provider,
+    peerExcerpt: excerptMeta,
+    output: revised,
+  };
+
+  const decisionStart = Date.now();
+  let decisionText: string;
+  try {
+    const decision = await input.call(
+      input.synthesizer.provider,
+      buildDecisionSynthesisPrompt({
+        task: input.task,
+        specialistBlock: input.specialistBlock,
+        degradedNote: input.degradedNote,
+        issue: selected,
+        revisedOutput: revised,
+      }),
+      { model: input.synthesizer.model, stage: 'decision_synthesis' }
+    );
+    decisionText = decision.text;
+  } catch (err) {
+    const decisionSynthesisMs = Date.now() - decisionStart;
+    notes.push(
+      `Decision synthesis failed (${String(err)}); the provisional answer was delivered instead. ` +
+        "Round 2's revision is recorded but did not reach the deliverable."
+    );
+    return finish(provisional, 'FAILED', 'decision_synthesis_failed', {
+      parse: parseField,
+      issues: issuesField,
+      selectedIssue: selected,
+      round2: round2Field,
+      timings: { gateMs, round2Ms, decisionSynthesisMs, totalMs: collaborationTotalMs() },
+    });
+  }
+  const decisionSynthesisMs = Date.now() - decisionStart;
+
+  notes.push(
+    `${selected.targetAgentId} was challenged from ${selected.sourceRef} and answered; the final ` +
+      'answer came from a decision synthesis over that exchange. No new evidence was gathered.'
+  );
+
+  return {
+    answer: decisionText,
+    report: {
+      status: 'COMPLETED',
+      reason: 'round2_completed',
+      answerSource: 'round2_decision_synthesis',
+      parse: parseField,
+      issues: issuesField,
+      selectedIssue: selected,
+      round2: round2Field,
+      timings: { gateMs, round2Ms, decisionSynthesisMs, totalMs: collaborationTotalMs() },
+      notes,
     },
   };
 }

@@ -39,12 +39,35 @@ export interface RetrievalResult {
   raw?: unknown;
 }
 
+/**
+ * Which step of a run a call belongs to.
+ *
+ * Recorded explicitly because it cannot be inferred. Offline tests previously identified
+ * synthesis by the *absence* of a system prompt, which stops working the moment a run has
+ * more than one synthesis-class call: a second one would be counted as a worker and the
+ * call-count assertions would silently measure the wrong thing.
+ *
+ * Diagnostic only. No provider adapter reads it, and none of them spread CallOptions into
+ * a request body, so it cannot reach a vendor API.
+ */
+export type CallStage =
+  | 'planning'
+  | 'round1_worker'
+  /** The single synthesis call of a run without experimental collaboration. */
+  | 'synthesis'
+  /** Synthesis that also asks for an optional collaboration issue block. */
+  | 'synthesis_gate'
+  | 'round2_worker'
+  | 'decision_synthesis';
+
 export interface CallOptions {
   model?: string;
   system?: string;
   temperature?: number;
   maxTokens?: number;
   retrieval?: RetrievalRequest;
+  /** Diagnostic label for tests and reporting; never sent to a provider. */
+  stage?: CallStage;
 }
 
 export interface CallResult {
