@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-06, rev. 20)
+# ai-collab-mcp — Progress Report (2026-09-06, rev. 21)
 
 > ## 交接狀態
 >
@@ -14,6 +14,7 @@
 > | **M2-A Diagnostic Live #1 / #2** | **兩次皆 NOT EXERCISED —— 被兩個不同條件擋在 gate 之前,詳見第二十二節** |
 > | **M2-A Controlled Replay #3** | **NOT EXERCISED —— gate 首次真正執行,但認出分歧後選擇在答案內解決,未輸出區塊,詳見第二十三節** |
 > | **M2-A Controlled Replay #4** | **FULL MECHANISM RUNTIME PASS —— 一次自然 valid issue → R2 → Decision Synthesis,不代表品質或產品價值已驗證** |
+> | **rev.20 Independent Code Review** | **ACCEPT WITH DOCUMENTATION CORRECTION —— 無 runtime defect;3 項文件/命名修正 + 1 項規格 concern 待 review,詳見第二十五節** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
 > | **目前離線測試** | **212 項全過 = rev.19 的 208 + Gate semantics 新增 4** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
@@ -23,6 +24,24 @@
 > **Experimental Milestone 2-A 已完成本輪限定工程,現在 STOPPED / AWAITING ARCHITECTURE REVIEW,default OFF。** 使用者批准 Gate eligibility 由 post-synthesis unresolved conflict 改成 pre-synthesis material disagreement;唯一一次 Replay #4 使用與 #3 byte-identical 的 fixture,自然跑通 valid issue、sourceRef、Targeted R2 與 Decision Synthesis。212 項離線測試通過,既有 assertions 未放寬,16 組修改前/後 control capture byte-identical。這是機制驗證,尚未執行品質比較或 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 21 改了什麼(rev.20 獨立審查紀錄 —— 無 production code 變更)
+
+**rev.21 = rev.20 的 code + 一份獨立審查紀錄。`src/` 一個 byte 都沒動,離線測試仍是 212 項。**
+被審對象是 `experimental/m2a-peer-challenge` @ `4e34d89d9d88e64d0bcfd641809c8ff57bf03b25`。
+
+1. **結論** —— `ACCEPT WITH DOCUMENTATION CORRECTION`。未發現 production runtime defect。
+   11 個審查面向中 10 項 PASS,1 項 CONCERN(Gate semantics —— 針對已批准規格本身的寬度,
+   不是實作偏差)。詳見第二十五節。
+2. **驗證方式** —— 不是讀 artifact 自報值。在 scratchpad 另開 `aedc9ef` 與 `4e34d89`
+   兩個乾淨 worktree,各自從 committed source 重新 `tsc` build,重跑 control capture、
+   全套離線測試、`verify.mjs`,並從 frozen snapshot 重建 live gate prompt 比對 byte。
+   審查全程只讀不寫,repo 未被修改,worktree 事後清除。
+3. **待處理項目** —— 3 項文件/命名落差(D1/D2/E4)與 1 項規格 concern(A1「strengthening」)。
+   **本輪未實作任何修正**,原因見第二十五節「為什麼不當場修」。
+4. **BENCHMARK RESET(rev.19)仍有效。** 本輪未執行任何 live call,未動 M2-A,未 productionize。
+
+---
 
 ## rev. 20 改了什麼(Gate Eligibility Specification / Controlled Replay #4)
 
@@ -1400,6 +1419,16 @@ ExecutionPolicy must not depend on ProviderName.
 
 # 十五、本專案累積的工程原則
 
+rev. 21 新增:
+
+> **An invariant that cannot fail in the path it runs in is not evidence, even when the property it names is true.**
+
+這條來自 rev.20 審查的 E4。`noRound2Leak: !Object.hasOwn(result,'workerResults')` 在 replay path 上**恆真** —— `replaySynthesis` 本來就不回傳該欄位,所以即使 production path 真的洩漏,它也照樣 PASS。該性質確實成立,但撐住它的是另外三條 invariant 加上結構論證,不是這條掛著它名字的檢查。**證據的標籤必須等於它實際檢查的東西**;不然日後有人會拿一條恆真式當保證。
+
+> **A faithful implementation of an approved specification does not make the specification right.**
+
+rev.20 的 Gate eligibility 文字與指令書的 contract 逐字對應 —— 實作零偏差。但判準裡的 `strengthening` 讓「改變 ∪ 強化」蓋住了 binary 的兩支,接近恆真。**審查要能分開問兩個問題:code 有沒有照規格做,以及規格本身合不合理。** 把第二個問題摺進第一個,規格的缺陷就永遠不會被發現。
+
 rev. 18 新增:
 
 > **A call asked both to resolve a conflict and to report unresolved conflicts will resolve it. Doing the first job well destroys the reason to do the second.**
@@ -2298,3 +2327,323 @@ Verifier 曾因 undefined 欄位在 JSON 中省略而誤判,只修比較表示�
 **狀態:STOPPED / AWAITING ARCHITECTURE REVIEW。**
 PASS 只代表 downstream mechanism 在真實 provider calls 下跑通一次。
 未證明 peer challenge 的品質增益或多模型優勢,未批准 productionization 或後續實驗。
+
+---
+
+# 二十五、rev.20 Independent Code Review —— ACCEPT WITH DOCUMENTATION CORRECTION
+
+由 Claude Code 執行的獨立 architecture + code review,對象是 rev.20。
+本輪**未實作任何變更**:`src/` 未動、測試未動、`diagnostics/` 未動,repo 只被讀取。
+
+```
+Branch reviewed       : experimental/m2a-peer-challenge
+HEAD reviewed         : 4e34d89d9d88e64d0bcfd641809c8ff57bf03b25
+Parent implementation : 267ecffb2eebbb8fe4d42333469ad8d10b0362f4
+Baseline              : aedc9efe0ff1f4acf7d5a36d9a1b3ab87e5b9af8 (rev.19)
+Ancestry              : aedc9ef → 267ecff → 4e34d89(線性,無 rebase / force)
+```
+
+## 驗證方式(重要:以下 PASS 不是讀 artifact 自報值)
+
+在 scratchpad 另開 `aedc9ef` 與 `4e34d89` 兩個乾淨 git worktree,各自從 committed source
+重新 `tsc` build,然後:
+
+| 動作 | 用途 |
+|---|---|
+| 兩個 commit 各跑一次 `control.mjs` | 獨立重算 disabled control hash |
+| 兩個 commit 各跑一次完整離線套件 | 獨立確認 208 / 212 |
+| 在 after worktree 跑 `verify.mjs` | 獨立確認 fixture identity、seal、runtime fingerprint |
+| 從 frozen snapshot + rev.20 `buildGateAppendix()` 重建 gate prompt | 獨立確認 gate 實際看到什麼 |
+
+worktree 事後已 `git worktree remove`,主 checkout 未受影響。
+
+## 逐項判定
+
+| # | 面向 | 判定 |
+|---|---|---|
+| 1 | Scope fidelity | **PASS** |
+| 2 | Gate semantics correctness | **CONCERN** |
+| 3 | Disabled control byte-equivalence | **PASS**(獨立重現) |
+| 4 | Offline tests | **PASS** |
+| 5 | Replay fixture identity | **PASS** |
+| 6 | Valid issue parsing | **PASS** |
+| 7 | SourceRef correctness | **PASS** |
+| 8 | Selective R2 context | **PASS** |
+| 9 | Evidence invariants | **PASS** |
+| 10 | Failure semantics classification | **PASS** |
+| 11 | Claims discipline | **PASS** |
+
+**Runtime defects found:無。**
+
+## 1. Scope fidelity —— PASS
+
+`src/` 全樹 diff = **4 additions / 1 deletion,單檔單 hunk**,位於 `buildGateAppendix()` 內。
+
+逐項核對宣稱的排除,全部成立:新增 provider call、force flag / detector / Judge、Planner、
+Chief、DEEP-only 資格、Chunker、parser schema、sourceRef resolver、retrieval、EvidenceLabel、
+Step 7 —— **一項都沒動**。`CollaborationConfig` 介面與 baseline `diff` 結果為 IDENTICAL,
+default OFF(`input.collaboration?.enabled === true`)未改。
+
+**HANDOFF 宣稱與 code reality 一致,未發現不符。**
+
+`verify.mjs` 自己也做了一次結構性 scope 檢查(`split('buildGateAppendix')[0]` 與
+`split('buildRound2Prompt')[1]` 對 baseline byte 相等),但要注意它的界線:
+`buildGateAppendix` 函式**本體**不在這兩段之內。真正把範圍釘死的是 git diff。
+
+## 2. Gate semantics correctness —— CONCERN
+
+先講清楚:**實作對規格是逐字忠實的。** 指令書的 contract「有實質可能改變、強化、否證或
+重大限定 final decision」與 code 的 `a meaningful chance of changing, strengthening,
+falsifying, or materially qualifying the final decision` 一一對應。**這不是實作越權。**
+
+三個限制與兩個 counterweight 都在(從 live gate prompt 原文確認,非從 source 推論):
+`material` / `cross-agent` / `decision-sensitive`、exclusion list、`At most one`、
+`Prefer omitting the block entirely`。
+
+CONCERN 針對**規格本身的寬度**:
+
+**(a)「strengthening」使判準接近恆真。** binary 結果只有「改變」與「不改變」兩支;
+「改變 ∪ 強化」把兩支都蓋住。直接 peer response 若沒改變決策,幾乎必然「強化」它。
+四個動詞裡它是唯一無法被否證的。
+
+**(b) 三個限制中只有一個是獨立的。** `material、cross-agent、decision-sensitive` 後面接冒號,
+由**同一句**定義三者 —— material 與 decision-sensitive 塌縮成同一條判準。真正獨立且有 code
+強制的只有 cross-agent(`validateIssues` 拒絕 self-review)。實際 guard 是
+**一條 code check + 一條 prompt 子句**,不是三條。
+
+**(c) 限制性語氣消失。** rev.19 是 `Raise an issue **only** where…`;rev.20 的 eligibility
+段落沒有 `only`,取而代之是祈使句 `If so, **emit** … even if your provisional answer offers
+a compromise`。`Prefer omitting` 防的是**捏造**分歧,不防**真實但次要**的分歧被過度提報;
+防後者的 exclusion list 現在正好排在那句 override 之下。
+
+**(d) 風險有界,且是成本不是正確性。** DEEP-only + SUCCESS + N≥2 未動;`selectIssue` 在 code
+層強制單一,不管模型吐幾個;ceiling 仍 N+4。過度觸發的最壞情況是每次 DEEP run 多兩次
+provider call。
+
+⚠️ **Replay #4 只有 1 個 issue,既不證明也不排除過度觸發。**
+
+## 3. Disabled control byte-equivalence —— PASS(獨立重現)
+
+在兩個 commit 各自 rebuild 後重跑 `control.mjs`:
+
+```
+aedc9ef → f50a7b2ee2a8b7f896dc6a6b88692d612281553011a1de685b2e39c9a567c698
+4e34d89 → f50a7b2ee2a8b7f896dc6a6b88692d612281553011a1de685b2e39c9a567c698
+committed control-before.json / control-after.json 亦同一 hash
+```
+
+16 組 = 3 complexity × 2 config × 3 status − 2 個不可能的 simple/DEGRADED。捕捉內容含
+provider、**完整 prompt**、options(model/system/stage)與完整 result(含 `finalOutput`、
+`workerResults`、`report`、`timings`),共 52 次 call;`result.collaboration` 全部 absent,
+三個 collaboration stage 全部未出現。
+
+`control.mjs` 以 `flag:'wx'` 寫檔,**無法事後覆寫 before** —— 這個細節讓證據鏈站得住。
+**Control 未漂移。**
+
+## 4. Offline tests —— PASS
+
+獨立重跑,非引用 log:
+
+```
+aedc9ef : 11 + 25 + 20 + 11 + 36 + 105 = 208 passed / 0 failed
+4e34d89 : 11 + 25 + 20 + 11 + 36 + 109 = 212 passed / 0 failed
+```
+
+**test diff 是純插入(`@@ -848,6 +848,71 @@`,零刪除行)** —— 這是「既有 assertions
+未放寬」最硬的證據,比逐條讀測試更可靠。四項新測試對應四個要求,全部到位;max-one 那項
+額外驗了 `calls.length === N + 4`。
+
+## 5. Replay fixture identity —— PASS
+
+`verify.mjs` 直接 `assert.deepEqual(a.snapshot, old.snapshot)` 對上 #3 的 artifact,
+不是比對自報 hash;五份 fixture 也逐檔 SHA-256 對回 `../controlled-replay/`。我重跑通過。
+
+```
+replay3SnapshotSha256 = replay4SnapshotSha256
+                      = cb5e9c309a8b64cac1b688d9de4ff4a9b26fc504d40d3ccb5ff412bcb4965a4b
+task / missions / Round1 outputs / assignment order / RunStatus / roster / chunkMap(18+22)
+```
+
+額外確認一項未被宣稱的事:`runtimeFingerprint`(33 個 src/dist/config 檔的 SHA-256)在我這台
+機器 clean rebuild 後**逐檔相同** —— build 是可重現的。
+
+## 6. Valid issue parsing —— PASS
+
+不看 artifact 自報欄位,改用 committed 的 production function 從 committed 的 gate response
+重算:`parseGateOutput(calls[0].responseText)` → `deepEqual(artifact.parserReplay)` ✓。
+`parse=parsed`;`emitted 1 / valid 1 / rejected 0 / eligible 1 / selected 1`。
+
+另從 frozen snapshot + rev.20 `buildGateAppendix` 獨立重建 live gate prompt,
+與 artifact 記錄 **byte-identical**:
+
+```
+sha256 a64cd320b27a61e722ff0e87701afa2469ca03b2329cd5a2d15ab0928009f8c7
+新語義存在 = true      rev.19 舊語義存在 = false
+max-one = true         prefer-omitting = true      exclusion list = true
+deterministic references offered = 40(unique 40)
+```
+
+**Gate 確實看到了新規則,而且看到的是 40 個確定性引用。**
+
+## 7. SourceRef correctness —— PASS(附精確度觀察)
+
+```
+sourceRef : business_strategist:p5
+resolved  : ok=true, index=4, offsets [175,215), 40 chars, truncated=false
+source ≠ target : business_strategist ≠ brand_creative
+```
+
+`resolveSourceRef` 是 `chunks.find(c => c.id === chunkId)` 精確比對 —— **無 fuzzy match**。
+唯一的 bare-id 接受條件是該 specialist 只有一個 chunk;本次 sourceRef 帶了 chunkId,
+該路徑未觸發 —— **無 answer-head fallback**。
+
+**相關性判定成立,但要記一筆:** p5 是 business_strategist 的**結論段**;真正針對副品牌的
+論證在 p7(「副品牌可以隔離部分品牌風險,但無法隔離營運資源」)與 p8(「即使叫 Content Lab,
+實際執行仍然會使用同一批剪輯…資源」)。引用機制 works,但 **n=1 尚未顯示 gate 在 40 個候選中
+會挑最精確的那個**。這正是 open question R-4,仍未解。
+
+## 8. Selective R2 context —— PASS
+
+讀 `calls[1].prompt` 原文:Original Task、Target Mission、Target Round1、**僅 p5 一段
+peer chunk**、Challenge。`business_strategist` 的其餘 17 個 chunk **一個都沒進去**。
+prompt 2188 字元 vs gate 5236 字元 —— **不是 full broadcast**。
+
+精確性補充:R2 prompt 還含第六個區塊「Round 2 contract」(5 條),那是 rev.19 就有的
+`buildRound2Prompt`,本次未改。該 contract 明文允許反駁(`Do not concede in order to
+agree`)—— 沒有強迫 consensus。
+
+## 9. Evidence invariants —— PASS(附 invariant 命名問題)
+
+```
+EvidenceLabel : HYPOTHESIS → HYPOTHESIS（並由 buildRunReport 從凍結 Round1 重算確認）
+RunStatus     : SUCCESS → SUCCESS
+banner        : before === after,且 finalOutput.startsWith(banner)
+retrieval     : 三次 live call 的 request / result 全為 null
+```
+
+「Round 2 不得進 `workerResults` / `summarizeRetrieval()` / `deriveEvidenceLabel()`」
+—— **性質成立**,但要點名它是**怎麼**成立的:
+
+- 結構上:`workerResults` 在 `orchestrator.ts:459` 建立一次,之後無任何 append;
+  `buildRunReport` 只在 line 491(production)與 951(replay)被呼叫,兩處都只吃 Round 1;
+  `summarizeRetrieval` / `deriveEvidenceLabel` 只能從 `buildRunReport` 內部到達;
+  `runCollaboration` 回傳 `{ answer, report }`,沒有通往 `workerResults` 的路徑。
+- 證據上:`reportUnchanged` + `recomputedReportUnchanged` + `bannerUnchanged` 三項合起來
+  就是這個性質的實證。
+
+**但掛著這個名字的那條 invariant 不是。** 見 E4。
+
+## 10. Failure semantics classification —— PASS
+
+分層正確,沒有把 offline test 寫成 live failure injection。
+
+**Live verified(真實 provider call,成功路徑):** Gate 執行 → valid issue 解析 →
+sourceRef 解析 → Targeted R2 → Decision Synthesis。
+
+**Offline-only(本次未 live 注入):** R2 failure fallback(`test-collaboration.mjs:535, 1060`)、
+Decision Synthesis fallback(`:550`)、multi-issue deterministic 保護(`:189, 926`)、
+malformed / schema_invalid 降級(`:224-238, 266, 302`)、validation 拒絕(`:348-381`)。
+
+## 11. Claims discipline —— PASS
+
+對 HANDOFF、evaluation.md、README.md 做禁語掃描(`p50 / p95 / average / 平均 / SLA /
+production ready / 優於 baseline / 品質提升 / 多模型優於`),所有命中都是**否定句**或
+**引用模型輸出**(`SLA` 出現在 challenge 原文裡,不是對系統的宣稱)。
+
+evaluation.md 有兩處主動放棄有利敘事,值得記功:
+
+1. 「#3 provisional 選 B、#4 provisional 選 C 是觀察,**不能歸因成 peer interaction 效果**」
+   —— 我驗證了 #3 provisional 開頭確實是「決策:選 B」,#4 是「選 C」。自我設限正確且必要。
+2. 主動記錄 verifier 曾因 `retrieval: undefined` 的 JSON 序列化而誤判,只改比較表示、
+   未改 artifact、未重跑 live。
+
+**另補一件文件沒宣稱但重要的事:headline decision 沒有翻轉。** #4 的 provisional 是 C,
+final 也是 C。改變的是 C 的**條件結構** —— final 加上「封閉艙驗證 → 90 天後轉 B」的門檻,
+並吸收了 brand_creative 在 R2 中從無條件 B 退到條件 B/否則 C 的修正。
+**任何「peer challenge 改變了決策」的說法都是錯的**;正確說法是「改變了決策的附帶條件」,
+而這是好是壞**未經證明**。
+
+## Architecture concerns
+
+**A1 —「strengthening」使 eligibility 判準接近恆真。** 見第 2 節。這是**已批准規格本身**的
+性質,不是實作偏差。建議 architecture review **明知地**決定它是否該留。
+**若日後出現過度觸發,這是第一個該懷疑的詞。**
+
+**A2 — 三個限制中僅一個獨立且有 code 強制。** 見第 2 節 (b)。
+
+**A3 — 限制性語氣(`only`)在 eligibility 段落消失,改為祈使的 `emit`。** 見第 2 節 (c)。
+若要恢復 rev.19 的緊度,補一條明確限制句即可,不需動其他任何東西。
+
+**A4 —(緩解)過度觸發的損害有界。** 見第 2 節 (d)。
+
+## Experimental validity concerns
+
+**E1 — #3 → #4 的差異是混淆的,而 artifact 自己證明了混淆非平凡。** 在 byte-identical
+fixture 上,gate 自己的 provisional 從 #3 的 B 變成 #4 的 C。既然模型在該 stage 的輸出
+**已被證實會變**,「#4 有 issue 而 #3 沒有」就無法在 n=1 vs n=1 下歸因於 wording change。
+evaluation.md 已正確聲明這點,**不是文件缺陷**;但任何建立在「wording 修正生效了」之上的
+後續決策,都需要兩種 wording 各跑多次。
+
+**E2 — Round 2 的 model 未 pin。** `round2_worker` 以 `model: null` 派送(roster 兩位的
+model 都是 null),由 adapter default 解成 gpt-5。`preflight.round2DefaultModels` 記了預期值
+且吻合,但**未來 adapter default 一改,這個 hash-frozen replay 的 R2 臂會靜默改變**。
+若 #4 要當日後的 comparator,建議把 R2 model 釘死。
+
+**E3 — 單 provider。** 三次 live call 全是 openai / gpt-5。target 恰好是 brand_creative
+(openai),`business_strategist`(claude)的 R2 路徑**從未執行**。跨 provider 的即時合作
+未驗證。evaluation.md 已揭露。
+
+**E4 — `noRound2Leak` 是該性質的弱代理。** `!Object.hasOwn(result,'workerResults')` 在
+replay path 上**恆真**(`replaySynthesis` 本就不回傳該欄位),即使 production path 真的
+洩漏也會 PASS。真正撐住該性質的是第 9 節列的三條 invariant 加結構論證。
+建議改名或改基,讓證據標籤等於實際檢查。
+
+**E5 — chunk 精確度未驗。** 見第 7 節,對應 open question R-4。
+
+## Documentation inconsistencies
+
+**D1 — 兩個新測試名稱超出其實際 assert 範圍。**
+`a provisional compromise does not disqualify a material Round 1 conflict` 與
+`equivalent recommendations and non-material differences remain excluded` 都跑在
+**scripted** gate response 上,驗的是 prompt 文字 + runtime 分支,不是模型判斷。
+檔案自己在上方註解已寫明(`These lock the delivered prompt contract and scripted runtime
+behavior, not LLM judgment`)—— **在上下文中沒有失實**,但只掃 pass list 的讀者會誤以為
+排除行為已被離線證明。建議改成 `…prompt states…` 形式。
+
+**D2 — 第四個測試名稱的「remain byte-equivalent」是同一 build 內的 parity 測試。**
+它比較 `run()`(omitted)與 `run({collaboration:false})`,**偵測不到跨 revision 漂移**。
+跨 revision 的保證只來自 committed 的 control-before/after artifact。應寫明,以免日後有人
+單靠離線套件來守這條線。
+
+**D3 —(既存,非 rev.20 回歸)`result.timings.synthesisMs` = 46729 只記 gate,**
+而交付答案來自 decision_synthesis(68965ms)。`collaboration.timings` 拆得正確,
+`result.timings.totalMs` = 158408 也正確。這是 rev.19 就有的行為,本次 diff 未觸及 ——
+僅標記以免日後有人把 `synthesisMs` 讀成「產生最終答案的成本」。
+
+## 為什麼不當場修
+
+1. **指令書明文禁止**:本輪只做 review,`Do not implement any follow-up changes`。
+2. **D1 / D2 要動 `test-collaboration.mjs`** —— 那是 rev.20 acceptance 的一部分,
+   改了就得重跑並重新宣稱 212,不該夾帶在 review 裡。
+3. **E4 要動 `harness.mjs`,而它在封印裡。** `diagnostics/m2a-live/controlled-replay-4/
+   hashes.json` 涵蓋該目錄下所有檔案(含 `harness.mjs`),`verify.mjs` 會逐檔比對。
+   **在原地改名會直接破壞 Replay #4 的封印,使既有證據失效。**
+   → 這項只能在**下一次 replay 的 harness** 修,不能回頭改。
+
+## Final recommendation
+
+```
+ACCEPT WITH DOCUMENTATION CORRECTION
+```
+
+production diff 乾淨(單檔單 hunk),證據鏈可獨立重現。`verify.mjs` 用 **production
+function** 從 committed source + committed response text 重推每個 downstream 欄位,
+這讓 artifact 不是敘述而是**可重算的紀錄**。文件的 claims discipline 通過,且有兩處
+主動放棄有利敘事。
+
+需要修正的是 **D1 / D2 / E4 三處標籤與其實際證明範圍的落差** —— 都是文件與命名,不是 code。
+
+**A1(`strengthening`)不列為 accept 的阻礙**,因為它是已批准規格的內容而非實作偏差;
+但它應該在 M2-A 本來就在等的那次 architecture review 裡被**明知地**決定,而不是預設留著。
+
+**狀態:M2-A 仍 STOPPED / AWAITING ARCHITECTURE REVIEW。本輪未實作任何 follow-up 變更。**
