@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-05, rev. 12)
+# ai-collab-mcp — Progress Report (2026-09-05, rev. 13)
 
 > ## 交接狀態
 >
@@ -10,12 +10,25 @@
 > | **Step 7 V1 Complexity Router** | **CODE + RUNTIME ACCEPTED —— 有界 SIMPLE direct delivery** |
 > | **Step 7.1 E2E Runtime Acceptance** | **DONE —— Test A PASS / Test B PASS,詳見第十八節** |
 > | **Milestone 2: True Multi-Agent Collaboration** | **NEXT: SCOPE ANALYSIS —— 不直接 implementation,詳見第十九節** |
+> | **Claude Code handoff** | **READY —— 見 `CLAUDE_CODE_HANDOFF.md`** |
 > | **目前離線測試** | **99 項全過 = 既有 63 + Step 7 新增 36** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
 > | **Step 8 Implementation** | **DEFERRED —— Milestone 2 驗證後再回來** |
 > | 未完成的程式修改 | **無** |
 >
-> **Step 7.1 已完成,Step 7 V1 現為 code + runtime accepted。** 固定 SIMPLE baseline 真正走 2-call direct delivery,Worker 原文與 finalOutput 完全相等;高風險 DEEP task 自然選到 evidence capability,完成 6 queries / 21 sources 的 grounded retrieval、三 Worker synthesis 與保守的 `PARTIALLY_GROUNDED` banner。未修改 runtime。下一步只做 Milestone 2 scope analysis,不開始 implementation;Step 8 implementation 仍延後。
+> **Step 7.1 已完成,Step 7 V1 現為 code + runtime accepted。** 固定 SIMPLE baseline 真正走 2-call direct delivery,Worker 原文與 finalOutput 完全相等;高風險 DEEP task 自然選到 evidence capability,完成 6 queries / 21 sources 的 grounded retrieval、三 Worker synthesis 與保守的 `PARTIALLY_GROUNDED` banner。未修改 runtime。Milestone 2 候選架構已縮減為最多一個 targeted Round 2 assignment,但尚未批准 implementation。下一棒由 Claude Code 先讀實際 code 並產出 scope analysis。
+
+## rev. 13 改了什麼(Claude Code Handoff / M2 Candidate Downscale)
+
+1. **完成乾淨交接** —— 新增 `CLAUDE_CODE_HANDOFF.md`,整理 current runtime facts、Milestone 2 候選架構、hard boundaries、實驗設計、code-reality questions 與明確禁止事項。下一個 deliverable 是 `MILESTONE2_SCOPE_ANALYSIS.md`,不是 runtime code。
+2. **候選架構縮減** —— 原本的 independent Chief Review + 全員 Round 2 + Chief Decision 方案不採用。現候選為既有 Round 1 後的 synthesis gate;只有 decision-sensitive cross-agent issue 才觸發最多 1 位 specialist 的 targeted Round 2,再做 decision synthesis。總 rounds 上限 2,deep logical call ceiling 候選約 7。
+3. **Review 證據定位** —— Claude 與 Gemini 的 independent architecture reviews 都警告重複 call、full broadcast/context growth、過早 taxonomy 與「多 token」confound;GPT 後續整合成較小候選。這些是 convergent review signals,不是 empirical proof,Claude Code 必須回到 repository code 驗證。
+4. **已確認 code reality** —— 現有 `run_debate` 每輪將所有其他 panelist 的完整答案廣播給每位 panelist,所有 panelists 都執行,round count 固定,最後另呼叫 Judge;它沒有 orchestrator 的 dispatcher injection、run status、retrieval report 或 timings。現有 orchestrator 是 planning → parallel workers → optional synthesis,而 synthesis prompt 只接 Worker 文字,不接 retrieval metadata。
+5. **Evidence invariant** —— collaboration 只能暴露不確定性、衝突與 evidence gap,不得提升 `evidenceLabel`。`groundingSupports` 目前只存在 provider raw metadata,沒有 runtime consumer;M2 目前不能做 claim-level evidence validation,該能力仍屬 Step 10。
+6. **Productionization gate** —— scope analysis 必須設計 A 強單模型、B 現有 orchestrator、C targeted peer interaction、D 單模型 self-review 的 ablation。只有 C 對 B 有 material improvement,且增益不能合理由 D 解釋,才值得 productionize;不先捏造百分比門檻。
+7. **本輪驗證與範圍** —— `main` 與 `origin/main` 同步,以 rev.12 commit `97e89d8d5b8ad9375b6d8fff232b3ca43aaa9b53` 為起點;`npm test` 99 passed / 0 failed。未修改 `src/`、prompts、tests、retrieval、Step 7 或 Step 8/9/10 runtime,未執行 live benchmark。
+
+---
 
 ## rev. 12 改了什麼(Step 7.1 E2E Runtime Acceptance)
 
@@ -1536,6 +1549,22 @@ Chief planning
 → user-facing final answer with traceable contributions
 ```
 
+rev.13 將這個方向縮成待分析候選,不是 implementation specification：
+
+```text
+Chief Planning → Round 1 Specialists → Synthesis Gate
+                                           │
+                              no issue ─────┴──── targeted issue
+                                  ↓                    ↓
+                                Final      Round 2(max 1 specialist)
+                                                       ↓
+                                               Decision Synthesis
+                                                       ↓
+                                                     Final
+```
+
+候選 hard boundaries:最多 2 rounds、Round 2 最多 1 assignment、不要獨立 Chief Review/Judge/autonomous loop/planning loop/full-output broadcast,Round 2 failure 回退 provisional answer,且 collaboration 不得提升 evidence label。這些邊界需由 `MILESTONE2_SCOPE_ANALYSIS.md` 依 code reality 挑戰或確認;未經 architecture review 不實作。
+
 研究、商業/風險與品牌/創意等角色只是示例,不能硬編碼成 provider preference。Planning/execution 仍以 role/capability facts 為依據;Milestone 2 的 live acceptance 可以刻意配置三個不同 provider-backed agents來證明跨模型協作,但不改寫「Execution Policy 不依賴 ProviderName」與 Step 9 Model Router boundary。
 
 ## Milestone 2 要回答的問題
@@ -1562,4 +1591,4 @@ Step 7.1 E2E Runtime Acceptance
 → Step 10 Validation Layer
 ```
 
-Step 8 並未取消;rev.10 的 usage/pricing/cost/reporting 分層仍是有效設計輸入,只是優先順序讓位給核心產品價值驗證。
+Step 8 並未取消;rev.10 的 usage/pricing/cost/reporting 分層仍是有效設計輸入,只是優先順序讓位給核心產品價值驗證。Claude Code 的完整下一棒說明見 [`CLAUDE_CODE_HANDOFF.md`](CLAUDE_CODE_HANDOFF.md)。
