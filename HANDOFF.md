@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-06, rev. 22)
+# ai-collab-mcp — Progress Report (2026-09-06, rev. 23)
 
 > ## 交接狀態
 >
@@ -15,7 +15,7 @@
 > | **M2-A Controlled Replay #3** | **NOT EXERCISED —— gate 首次真正執行,但認出分歧後選擇在答案內解決,未輸出區塊,詳見第二十三節** |
 > | **M2-A Controlled Replay #4** | **FULL MECHANISM RUNTIME PASS —— 一次自然 valid issue → R2 → Decision Synthesis,不代表品質或產品價值已驗證** |
 > | **rev.20 Independent Code Review** | **ACCEPT WITH DOCUMENTATION CORRECTION —— 無 runtime defect;3 項文件/命名修正 + 1 項規格 concern 待 review,詳見第二十五節** |
-> | **M2-B Effectiveness Experiment Design** | **DELIVERED / AWAITING GEMINI + GPT REVIEW —— 見 `M2_EFFECTIVENESS_EXPERIMENT.md` @ `734ad8e`。protocol 已產出,尚未 ACCEPT,尚未 implementation,尚未 live experiment** |
+> | **M2-B Protocol** | **ARCHITECTURE ACCEPTED / HARNESS IMPLEMENTATION NEXT / LIVE PILOT NOT AUTHORIZED —— `M2_EFFECTIVENESS_EXPERIMENT.md` v0.2 @ `a308bc8`** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
 > | **目前離線測試** | **212 項全過 = rev.19 的 208 + Gate semantics 新增 4** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
@@ -25,6 +25,34 @@
 > **Experimental Milestone 2-A 已完成本輪限定工程,現在 STOPPED / AWAITING ARCHITECTURE REVIEW,default OFF。** 使用者批准 Gate eligibility 由 post-synthesis unresolved conflict 改成 pre-synthesis material disagreement;唯一一次 Replay #4 使用與 #3 byte-identical 的 fixture,自然跑通 valid issue、sourceRef、Targeted R2 與 Decision Synthesis。212 項離線測試通過,既有 assertions 未放寬,16 組修改前/後 control capture byte-identical。這是機制驗證,尚未執行品質比較或 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 23 改了什麼(M2-B Architecture Review 結果 + 一項既有事實補記 —— 無 code)
+
+**rev.23 = rev.22 的 code + 狀態更新 + 一段 factual history。`src/` 一個 byte 都沒動,離線測試仍是 212 項。**
+
+1. **M2-B Protocol 通過 Architecture Review** —— GPT 裁決 `ACCEPT WITH ARCHITECTURE CORRECTIONS`。
+   依 13 項決策修訂後的 `M2_EFFECTIVENESS_EXPERIMENT.md` v0.2 已提交於 `a308bc8`。
+   主要修正:`C − D₁` 的估計對象由「pure peer information」收窄為
+   **Targeted Peer-Challenge Package**;Claims Ladder 的 L2 拆成 L2-P(`C > B`)與 L2-M(`C > B′`);
+   流程在 harness 與 live 之間插入一道 **GPT Harness Review**。設計細節不抄進本檔(規則 §46)。
+2. **Claim boundary(必須維持)** ——
+
+   ```
+   ✅ M2-B protocol 已通過 Architecture Review（v0.2）
+   ✅ harness implementation 是下一輪，但 scope 尚未下達
+   ❌ 尚未 harness implementation
+   ❌ 尚未 temperature probe
+   ❌ 尚未 live pilot（LIVE PILOT NOT AUTHORIZED）
+   ❌ 尚未有任何 effectiveness 證據
+   ```
+
+3. **補記一項既有 factual history** —— Diagnostic #1 的 arithmetic defect,見下方新增的第二十二-A 節。
+   **它不是 runtime defect**,分類為 Answer-Quality Defect(協作規則 §10)。
+4. **M2-A 狀態未變** —— 仍是 STOPPED / DEFAULT OFF。本輪未跑 live call、未改 Gate、
+   未動 Replay #4 封印、未 merge main。`GEMINI_M2B_REVIEW_PACKET.md` @ `14952c7` 指向 v0.1,
+   依 packet immutability 不回頭覆寫。
+
+---
 
 ## rev. 22 改了什麼(只加狀態指標 —— 無 code、無設計內容)
 
@@ -2160,6 +2188,60 @@ Chief 原文理由:
 | R-4 | Chunk 切法在 40 個 reference 的規模下是否足夠精準?(目前無證據,不宜先改) |
 
 **R-3 是關鍵。** 目前驗證機制的唯一辦法是不斷跑真實任務、等它自然觸發,而兩次都沒中。這既慢又貴,而且無法保證下一次會中。
+
+---
+
+# 二十二-A、Diagnostic #1 的 arithmetic defect(補記於 rev.23)
+
+> **分類:Answer-Quality Defect(協作規則 §10)。**
+> **不是 runtime defect** —— runtime、parser、report、evidence label 全部正常運作,
+> 錯的是模型自己寫出來的數字。此節只作為兩件事的 evidence,不作其他用途。
+
+## 事實
+
+`[FACT]` 可由 committed artifact 直接重算:
+`diagnostics/m2a-live/run1-not-exercised/artifact.json` 的 `calls[1].responseText`
+(`business_strategist` 的 Round 1 輸出)。
+
+原表的三欄:
+
+```
+                    增量成本合計   減：原外租省下   淨增量（報告值）   正確值
+Base      殘留 64萬      454萬          -256萬           198萬          134萬  ← 高估 64萬
+Upside    殘留  0萬      390萬          -320萬            70萬           70萬  ← 正確
+Downside  殘留160萬      590萬          -160萬           430萬          270萬  ← 高估 160萬
+```
+
+## 錯誤的性質
+
+`[FACT]` 殘留外租需求**已經被計入**「增量成本合計」,但扣除項只扣了
+**被取代的那一部分**外租(320萬 × 取代比例),而不是全額 320萬。
+
+**殘留為 0 時剛好正確,這解釋了為什麼 Upside 沒錯 —— 它是系統性錯誤,不是隨機失誤。**
+
+`[SIGNAL]` 一次觀察。不宣稱這是該模型的普遍行為,也不宣稱其他 arm 不會犯同類錯誤。
+
+## 只作為兩件事的 evidence
+
+1. **M2-B 的 F7 fixture 準入條件** —— Phase 1 排除「核心決策依賴大量 deterministic arithmetic」
+   的 fixture。理由是單一算術錯誤足以翻轉 headline decision,而它的發生是隨機的,
+   會成為與 peer information 無關的巨大變異來源。
+   詳見 `M2_EFFECTIVENESS_EXPERIMENT.md` §13.1、§24.3。
+2. **未來 deterministic Finance Layer 的 motivation** ——
+   長期架構方向是 `raw inputs → deterministic calculation layer → locked metrics → LLM interpretation`。
+   Finance Layer 尚未實作,在它完成前不應用純數學錯誤判定 Peer Challenge effectiveness。
+
+## 明確不得用於
+
+```
+❌ 不得稱為 runtime defect
+❌ 不得作為任何 arm 優劣的證據
+❌ 不得作為「應該現在就做 Finance Layer」的排序依據（那是獨立的 architecture decision）
+❌ 不得從一次觀察推論該 provider 的算術能力
+```
+
+`[DESIGN]` 附帶一個公平性註記:排除算術重的 fixture **對 arm C 不利,不是圖利 C** ——
+算術錯誤正是 peer challenge 最有機會抓到的東西之一。排除它是保守選擇。
 
 ---
 
