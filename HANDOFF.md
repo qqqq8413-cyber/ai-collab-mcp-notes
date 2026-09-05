@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-05, rev. 11)
+# ai-collab-mcp — Progress Report (2026-09-05, rev. 12)
 
 > ## 交接狀態
 >
@@ -7,15 +7,28 @@
 > | Step 1–5、5.1、6、6.1 | ✅ 已完成,63 項離線測試全過 |
 > | **Step 6.1 Worker Context Propagation** | **DONE —— worker input contract 已落地** |
 > | **Post-6.1 SIMPLE live regression** | **DONE —— rev.7/8 共 3 種題型各 n=1,當時三段式皆完整執行** |
-> | **Step 7 V1 Complexity Router** | **IMPLEMENTED / CODE ACCEPTED —— 不回滾,production E2E 尚待 Step 7.1** |
-> | **Step 7.1 E2E Runtime Acceptance** | **NEXT —— 只跑 SIMPLE direct + DEEP grounded 兩條 live path** |
-> | **Milestone 2: True Multi-Agent Collaboration** | **PLANNED —— Step 7.1 後優先,詳見第十九節** |
+> | **Step 7 V1 Complexity Router** | **CODE + RUNTIME ACCEPTED —— 有界 SIMPLE direct delivery** |
+> | **Step 7.1 E2E Runtime Acceptance** | **DONE —— Test A PASS / Test B PASS,詳見第十八節** |
+> | **Milestone 2: True Multi-Agent Collaboration** | **NEXT: SCOPE ANALYSIS —— 不直接 implementation,詳見第十九節** |
 > | **目前離線測試** | **99 項全過 = 既有 63 + Step 7 新增 36** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
 > | **Step 8 Implementation** | **DEFERRED —— Milestone 2 驗證後再回來** |
 > | 未完成的程式修改 | **無** |
 >
-> **Roadmap 已重新拉回產品北極星。** Step 7 V1 implementation 與 99 項 structural tests 保留,不回滾;但它尚未跑過 post-implementation SIMPLE direct-delivery live path,而 DEEP + grounded retrieval + synthesis + evidence banner 也從未完整 E2E live。先以 Step 7.1 補齊這兩條 production acceptance,再進 Milestone 2 驗證三個模型是否真的會利用彼此輸出、處理 disagreement 並改善決策。Step 8 scope analysis 保留,implementation 延後至 Milestone 2 之後。
+> **Step 7.1 已完成,Step 7 V1 現為 code + runtime accepted。** 固定 SIMPLE baseline 真正走 2-call direct delivery,Worker 原文與 finalOutput 完全相等;高風險 DEEP task 自然選到 evidence capability,完成 6 queries / 21 sources 的 grounded retrieval、三 Worker synthesis 與保守的 `PARTIALLY_GROUNDED` banner。未修改 runtime。下一步只做 Milestone 2 scope analysis,不開始 implementation;Step 8 implementation 仍延後。
+
+## rev. 12 改了什麼(Step 7.1 E2E Runtime Acceptance)
+
+1. **Test A PASS** —— 固定 `SIMPLE_TASK` 經 MCP production path 實跑:planning 7.318s、worker 5.216s、synthesis 0、total 12.534s;`simple`、1 assignment、`SUCCESS`、2 logical model calls、`policy.synthesize=false`、正確 reason,且 `finalOutput === Worker raw output`。
+2. **Test A 內容驗收** —— 5% 含稅金額 A=50,400、B=55,125、C=48,090 與 C→A→B 排序正確;繁中、constraints、format、readability 均 PASS。輸出偏長並帶 mission-scope 結尾,記為 cosmetic presentation variance,不是 correctness regression。
+3. **Test A harness false negative 完整保留** —— 初版 checker 未移除 Markdown emphasis/punctuation,把正確輸出誤判 FAIL。修正 local normalization 後以同一 raw response重驗 PASS,未重燒 API、未改 runtime。
+4. **Test B attempt 1 = TEST NOT EXERCISED** —— 初版 task 只描述新服務提案,未定義 major investment/high stakes;依 Chief 既有「按 stakes 判級」規則合理回 `normal`。該次仍自然選研究能力並完成 6 queries / 20 sources、metadata preservation 與 synthesis,但沒有進入 DEEP evidence-label branch。完整 raw evidence 保留。
+5. **Test B PASS** —— 只修正 fixture stakes,不指定 agent/provider/model。Chief 回 `deep`,自然選 3 capabilities;三 Worker 全成功。`market_researcher` 實際 `GROUNDED`,回報 6 queries / 21 sources及 `webSearchQueries`、`groundingChunks`、`groundingSupports`;report counts/sources 保留一致。
+6. **Synthesis / evidence semantics PASS** —— 5 logical model calls;planning 18.854s、workers 122.082s、synthesis 110.377s、total 251.313s;policy 為 collaborative / synthesize=true / `non_simple_execution`;report 為 `PARTIALLY_GROUNDED`,finalOutput 以 exact「claims not yet validated」banner 開頭,從未宣稱 `EVIDENCE_BACKED`。
+7. **證據與完整性** —— `regressions/step7-1-e2e/` 保存 fixtures、harness、raw MCP responses、normalized results、manual evaluations、timestamps、runtime fingerprints 與 `hashes.json`;offline verifier 對 A/B 皆 PASS 且 hash seal VERIFIED。未保存 API keys或 `.env`。
+8. **驗證與 scope** —— 本輪開始前重新 build 實際專案、確認 repo/project `src/` 一致,並重跑 `npm test`:99 passed / 0 failed。只有 harness、evidence 與 HANDOFF 變更;本輪未確認需修復的 runtime defect、沒有 runtime code 修改、沒有開始 Milestone 2 或 Step 8 implementation。
+
+---
 
 ## rev. 11 改了什麼(Step 7.1 + Milestone 2 Roadmap Decision)
 
@@ -795,9 +808,9 @@ Run 4 與 Run 5 證明了這件事。做效能或成本估算時,**不能假設�
 ✅ 5.1 Grounded Retrieval MVP          ← Gemini Google Search,實測通過
 ✅ 6.  Chief of Staff System Prompt     ← 常設簡報與單次任務分離
 ✓  6.1 Worker Context Propagation      ← DONE,worker input contract 已落地
-✓  7.  Complexity Router V1            ← IMPLEMENTED / CODE ACCEPTED,不回滾
-▶  7.1 E2E Runtime Acceptance          ← NEXT,兩條 targeted live production paths
-   M2. True Multi-Agent Collaboration  ← 7.1 通過後優先做 scope + acceptance
+✓  7.  Complexity Router V1            ← CODE + RUNTIME ACCEPTED,不回滾
+✓  7.1 E2E Runtime Acceptance          ← DONE,Test A / Test B PASS
+▶  M2. True Multi-Agent Collaboration  ← NEXT: scope + acceptance design,等 architecture review
 -  8.  Cost / Token / Latency Tracking ← SCOPE ANALYSIS DONE,implementation 延後至 M2 後
    9.  Model Router
    10. Validation Layer
@@ -1397,15 +1410,49 @@ Chief system prompt、Worker input contract、planning schema/cap、agent regist
 4. Runtime usage truth、pricing registry、cost calculation 與 run-level reporting 必須維持四層分離。Missing 不是 0;partial subtotal 不是 total;public list estimate 不是 invoice cost。
 5. 建議 V1 先接 usage + call latency + coverage-aware reporting,並只定義 pricing/cost contracts。未經另一次價格資料審查,registry 維持空白、cost 明示 unavailable。
 
-本輪未修改 `src/`、`package.json` 或測試,未執行 live API,也未開始 Step 8 implementation。Step 8 分析保留為 review-ready input,但下一個執行動作已改為 Step 7.1 E2E acceptance;其後先做 Milestone 2 scope/acceptance,再回到 Step 8 implementation。
+rev.10 的分析輪未修改 `src/`、`package.json` 或測試,未執行 live API,也未開始 Step 8 implementation。Step 8 分析保留為 review-ready input。rev.12 已完成 Step 7.1 E2E acceptance;下一步先做 Milestone 2 scope/acceptance design,經 architecture review 後才 implementation,再回到 Step 8 implementation。
 
 ---
 
-# 十八、Step 7.1 — E2E RUNTIME ACCEPTANCE(NEXT / NOT RUN)
+# 十八、Step 7.1 — E2E RUNTIME ACCEPTANCE(DONE / A+B PASS)
+
+## rev.12 Live 結果
+
+2026-09-05(Asia/Taipei)經 MCP stdio consumer 執行實際專案的 `dist/index.js`,Chief/synthesizer 使用既有 `openai / gpt-5`,沿用固定 `BENCHMARK_ROSTER`。未修改 Chief prompt、Worker contract、runtime、roster、complexity definitions 或 ExecutionPolicy。
+
+| 項目 | Test A | Test B attempt 1 | Test B corrected fixture |
+|---|---|---|---|
+| 最終驗收 | **PASS** | **TEST_NOT_EXERCISED** | **PASS** |
+| complexity / assignments | simple / 1 | normal / 3 | deep / 3 |
+| run status | SUCCESS | SUCCESS | SUCCESS |
+| logical model calls | 2 | 5 | 5 |
+| policy.synthesize | false | true | true |
+| evidenceLabel | NOT_APPLICABLE | NOT_APPLICABLE | PARTIALLY_GROUNDED |
+| queries / sources | 不適用 | 6 / 20 | 6 / 21 |
+| planningMs | 7,318 | 27,570 | 18,854 |
+| workersMs | 5,216 | 139,961 | 122,082 |
+| synthesisMs | 0 | 77,889 | 110,377 |
+| totalMs | 12,534 | 245,420 | 251,313 |
+
+**A:** `simple_single_specialist_direct_delivery`,Worker raw text 與 `finalOutput` 完全相等。含稅金額、C→A→B 排序、繁中、constraints、format、mission scope 與 user-facing readability 逐項檢查通過。較長的計算說明與 mission-scope 結尾屬 cosmetic variance。初版 checker 因 Markdown emphasis/punctuation 誤判,只修 local harness 並重驗同一原文,沒有重跑 API。原 `normalized-result.json` 的 FAIL 保留,由 `evaluation.json` 明確記錄 `HARNESS_FALSE_NEGATIVE` 與最終 PASS。
+
+**B attempt 1:** 有研究與 synthesis,但初版新服務提案未明示重大投資/stakes,Chief 依既有規則判 normal,未測到目標 DEEP banner branch。Observation、初步 root cause、affected layer(test fixture / planning input)與最小修正 scope 均保存於 evaluation。僅將 task 改為董事會重大投資、40% 預算與 6 名核心人員投入、現金流風險,沒有指定 agent/provider 或修改 runtime,只補跑一次。
+
+**B corrected:** Chief 自然選出三種 capabilities,其中 evidence-capable Worker 回傳 `GROUNDED`、6 queries、21 sources,含 `webSearchQueries`、`groundingChunks`、`groundingSupports` 原始 metadata。Worker 與 report source/count 資料一致;三個 Worker 成功後 synthesis 執行,finalOutput 以現行 exact `PARTIALLY GROUNDED — claims not yet validated` banner 開頭,沒有宣稱 `EVIDENCE_BACKED`。這是 runtime chain acceptance,不是 final answer 所有商業主張/價格的 claim-level validation。
+
+### 證據與量測界線
+
+- [`regressions/step7-1-e2e/README.md`](regressions/step7-1-e2e/README.md) 為證據索引與離線重驗方式;三次 attempt 均保留 task、manifest、raw MCP response、normalized result、evaluation、timestamps 與 runtime fingerprints,另有全目錄 `hashes.json`。
+- Chief mission 為 MCP `plan.assignments[].mission`;Worker 原文為 `workerResults[].output`。A 沒有 synthesis output;B 的 `finalOutput` 含 runtime banner,可依 normalized observation 保存的 exact `expectedBanner` 前綴取出未改寫的 synthesis 原文。未保存 provider HTTP response envelope 或 Chief 原始 planning envelope。
+- Logical model call count 依成功 plan assignments 與實際 policy/report、未變的 production branches 及離線 dispatcher tests 核對,不是獨立 live HTTP trace,不含 SDK retry 次數。
+- `retrieval: { enabled: true }` 的依據是 resolved `evidenceCapable` execution fact、orchestrator 的 capability-based dispatch branch、Gemini adapter 僅在此選項啟用時掛載 search/回傳 retrieval metadata,以及實際返回的 GROUNDED metadata。沒有另行攔截並記錄 CallOptions;不以 provider/agent 名稱推定。
+- Timing 為 runtime `Date.now()` phase wall time,不含 MCP 啟動/傳輸;workersMs 是平行 span,不是各 Worker latency 的總和。本輪不估計 latency distribution、token 或 cost。
+
+本輪 `npm test`: **99 passed / 0 failed**。Runtime source/build before-after fingerprints 一致,沒有 runtime code 修改;只有 local harness/fixture 修正。Step 7 現為 code + runtime accepted,但不保證所有未來 SIMPLE 答案 presentation 等質。到此停止,下一輪才做 Milestone 2 scope analysis。
 
 ## 為什麼需要 7.1
 
-Step 7 的 36 項新增測試證明 policy、call count、raw-output equality、timing schema 與 failure/retrieval boundary 符合 specification;它們不驗證 live model behavior 或 MCP consumer integration。另有一個更大的鏈路缺口:Gemini grounding、orchestrator deep run 與 evidence banner 各自測過,但以下完整 production path 從未 live E2E 成立過：
+Step 7 的 36 項新增測試證明 policy、call count、raw-output equality、timing schema 與 failure/retrieval boundary 符合 specification;它們不驗證 live model behavior 或 MCP consumer integration。rev.11 時的鏈路缺口是:Gemini grounding、orchestrator deep run 與 evidence banner 各自測過,但以下完整 production path 尚未 live E2E 成立;rev.12 已以上述 Test B 補齊：
 
 ```text
 DEEP task
@@ -1464,7 +1511,7 @@ source information is preserved and inspectable
 
 ---
 
-# 十九、Milestone 2 — TRUE MULTI-AGENT COLLABORATION(PLANNED)
+# 十九、Milestone 2 — TRUE MULTI-AGENT COLLABORATION(NEXT: SCOPE ANALYSIS / NOT IMPLEMENTED)
 
 ## Roadmap decision
 

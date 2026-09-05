@@ -1,0 +1,79 @@
+{
+  "caseId": "SIMPLE-direct",
+  "startedAt": "2026-09-04T18:51:22.445Z",
+  "completedAt": "2026-09-04T18:51:35.149Z",
+  "outcome": "FAIL",
+  "logicalModelCallCount": 2,
+  "structuralChecks": {
+    "complexitySimple": true,
+    "exactlyOneAssignment": true,
+    "exactlyOneSuccessfulWorker": true,
+    "statusSuccess": true,
+    "evidenceNotApplicable": true,
+    "policySkipsSynthesis": true,
+    "directDeliveryReason": true,
+    "synthesisMsZero": true,
+    "exactRawWorkerDelivery": true,
+    "noRetrievalMetadata": true,
+    "exactlyTwoLogicalModelCalls": true,
+    "expectedArithmeticAndOrder": false,
+    "nonEmptyUserFacingText": true
+  },
+  "observation": {
+    "selectedEvidenceAgentIds": [],
+    "groundedAgentIds": [],
+    "outputSha256": "7dc6557b2b71f9a5e3029c1f359d843e5690502fca3a3a2f860c48ab11ba068d",
+    "workerOutputSha256": "7dc6557b2b71f9a5e3029c1f359d843e5690502fca3a3a2f860c48ab11ba068d"
+  },
+  "result": {
+    "plan": {
+      "complexity": "simple",
+      "requiredCapabilities": [
+        "financial calculation"
+      ],
+      "assignments": [
+        {
+          "agentId": "business_strategist",
+          "mission": "Calculate 5% VAT-inclusive totals for quotes A, B, and C from their untaxed amounts; report each gross amount clearly and provide an ascending order list while preserving labels.",
+          "priority": "high"
+        }
+      ],
+      "requiresRedTeam": false,
+      "reason": "The task is a straightforward percentage calculation and sorting; one specialist with financial calculation capability suffices."
+    },
+    "planningAdjustments": [],
+    "workerResults": [
+      {
+        "agentId": "business_strategist",
+        "provider": "claude",
+        "mission": "Calculate 5% VAT-inclusive totals for quotes A, B, and C from their untaxed amounts; report each gross amount clearly and provide an ascending order list while preserving labels.",
+        "output": "# 含稅金額計算結果\n\n依營業稅 5% 換算，各案未稅總價轉為含稅金額如下：\n\n| 方案 | 未稅金額 | 含稅金額（未稅 × 1.05） |\n|------|---------|------------------------|\n| A 案 | 48,000 元 | **50,400 元** |\n| B 案 | 52,500 元 | **55,125 元** |\n| C 案 | 45,800 元 | **48,090 元** |\n\n## 由低到高排序\n\n1. **C 案：48,090 元**\n2. **A 案：50,400 元**\n3. **B 案：55,125 元**\n\n---\n\n**計算明細**：\n- A 案：48,000 × 1.05 = 50,400\n- B 案：52,500 × 1.05 = 55,125\n- C 案：45,800 × 1.05 = 48,090\n\n以上為三筆報價換算含稅金額及排序結果，僅涵蓋本任務指派之計算與排序範圍。"
+      }
+    ],
+    "report": {
+      "status": "SUCCESS",
+      "requestedWorkers": 1,
+      "successfulWorkers": 1,
+      "failedWorkers": 0,
+      "failures": [],
+      "synthesisAllowed": true,
+      "evidenceLabel": "NOT_APPLICABLE",
+      "notes": [
+        "Synthesis skipped: simple_single_specialist_direct_delivery."
+      ],
+      "policy": {
+        "topology": "single",
+        "synthesize": false,
+        "reason": "simple_single_specialist_direct_delivery"
+      }
+    },
+    "finalOutput": "# 含稅金額計算結果\n\n依營業稅 5% 換算，各案未稅總價轉為含稅金額如下：\n\n| 方案 | 未稅金額 | 含稅金額（未稅 × 1.05） |\n|------|---------|------------------------|\n| A 案 | 48,000 元 | **50,400 元** |\n| B 案 | 52,500 元 | **55,125 元** |\n| C 案 | 45,800 元 | **48,090 元** |\n\n## 由低到高排序\n\n1. **C 案：48,090 元**\n2. **A 案：50,400 元**\n3. **B 案：55,125 元**\n\n---\n\n**計算明細**：\n- A 案：48,000 × 1.05 = 50,400\n- B 案：52,500 × 1.05 = 55,125\n- C 案：45,800 × 1.05 = 48,090\n\n以上為三筆報價換算含稅金額及排序結果，僅涵蓋本任務指派之計算與排序範圍。",
+    "timings": {
+      "planningMs": 7318,
+      "workersMs": 5216,
+      "synthesisMs": 0,
+      "totalMs": 12534
+    },
+    "rosterWarnings": []
+  }
+}

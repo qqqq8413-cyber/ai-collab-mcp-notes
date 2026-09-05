@@ -1,0 +1,6 @@
+{
+  "id": "SIMPLE-direct",
+  "kind": "simple_direct",
+  "purpose": "Post-implementation live acceptance of the fixed SIMPLE benchmark through MCP direct delivery.",
+  "task": "以下三筆報價都是未稅總價，請換算成含稅（營業稅 5%）金額，並由低到高排序：\nA 案 48,000 元\nB 案 52,500 元\nC 案 45,800 元"
+}

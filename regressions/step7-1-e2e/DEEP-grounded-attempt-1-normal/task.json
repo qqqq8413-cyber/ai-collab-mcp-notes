@@ -1,0 +1,6 @@
+{
+  "id": "DEEP-grounded",
+  "kind": "deep_grounded",
+  "purpose": "One targeted live observation of the full DEEP planning, grounded retrieval, synthesis, and conservative evidence-reporting chain.",
+  "task": "請為一家位於台灣、主要服務企業品牌的 12 人影像製作公司，評估 2027 年是否值得推出「AI 生成產品廣告短片」服務。策略必須依據執行當日可查證的外部市場資訊，至少比較三個目前可用的競爭或替代方案及其公開價格或方案，並參考近期產業動態。請提出：1. 市場機會；2. 主要競爭與價格依據；3. 商業與交付風險；4. 品牌差異化方向；5. 最終 go / no-go 建議。外部事實請標示來源，未知數字不得臆測。"
+}

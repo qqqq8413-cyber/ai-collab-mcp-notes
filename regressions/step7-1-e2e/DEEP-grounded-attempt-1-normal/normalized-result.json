@@ -1,0 +1,869 @@
+{
+  "caseId": "DEEP-grounded",
+  "startedAt": "2026-09-04T18:52:46.271Z",
+  "completedAt": "2026-09-04T18:56:51.850Z",
+  "outcome": "FAIL",
+  "logicalModelCallCount": 5,
+  "structuralChecks": {
+    "complexityDeep": false,
+    "evidenceCapabilitySelectedNaturally": true,
+    "selectedEvidenceWorkerReceivedRetrievalResult": true,
+    "atLeastOneGroundedWorker": true,
+    "workerQueryCountReported": true,
+    "workerSourcesReported": true,
+    "webSearchQueriesPreserved": true,
+    "groundingChunksPreserved": true,
+    "groundingSupportsPreserved": true,
+    "runStatusAllowsSynthesis": true,
+    "policyKeepsSynthesis": true,
+    "synthesisActuallyRan": true,
+    "evidenceLabelPartial": false,
+    "reportShowsGroundedSpecialist": true,
+    "reportQueryCountPreserved": true,
+    "reportSourcesPreserved": true,
+    "conservativeBannerPreserved": false,
+    "neverClaimsEvidenceBacked": true
+  },
+  "observation": {
+    "selectedEvidenceAgentIds": [
+      "market_researcher"
+    ],
+    "groundedAgentIds": [
+      "market_researcher"
+    ],
+    "workerRetrieval": [
+      {
+        "agentId": "market_researcher",
+        "status": "GROUNDED",
+        "queryCount": 6,
+        "sourcesFound": 20,
+        "queries": [
+          "AI video commercial rights indemnity model ToS 2026",
+          "\"Runway\" pricing commercial use",
+          "AI 影片 製作 報價 台灣",
+          "\"Luma Dream Machine\" pricing tier",
+          "\"Meta\" \"TikTok\" \"YouTube\" AI generated content disclosure policy ads 2026",
+          "\"Pika\" pricing commercial rights"
+        ],
+        "rawMetadataKeys": [
+          "searchEntryPoint",
+          "groundingChunks",
+          "groundingSupports",
+          "webSearchQueries"
+        ]
+      }
+    ],
+    "reportRetrieval": {
+      "specialistsAsked": 1,
+      "specialistsGrounded": 1,
+      "sourcesFound": 20,
+      "queryCount": 6,
+      "sources": [
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGmeVb6dAMH6PYi8oEP-EJxudFNqNFmPxxJ5DdPOcXZS0TcJ3t_6Hg5gfGpD5AwnDXXom7QDnCqatbCmtbkbCOkGyY8KO3NcBCXFw6FKIzEpXaDtsbNWa-pBGxdNhiJkhM7duMH3B0eYeD_dYjd9twh1JA6EZlin-Ks1RF3yT_x2GJqsvjSSKJPIqYQdeCPPp123p4oFu8DabRTa08Z6Do1u_EDGSZmTghAK1NRbjRBNs5mSufC4nLFz-yZpD75bpeiAZ3RmX3Bvk5MPU_fNbgFZ5J8dsb29rlCYzKPh2DAw9APmxq2HYnwrB-oeaBL_4lIWkXBz4W9sb_ezBhaNjAIlZaTxSNtXUCdlxTsEav3uxCOsg==",
+          "title": "creators-club.org"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFDnqc1q6PM-NcFsRVxzL3n1k-fuLEroi-tZU07C7KC7RWBW4Rk0NUSrPs77FO0HEaQqPUO94O7APKqlCj04ep8Q5kk-BvOF0XEPELBPsu2_0cfUDHLyLGT6jlZPrGVl27fQ7mn",
+          "title": "lightwork.tw"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHjFlzjud33wSK5L3rIGqn5OSEl6fdaBJ_vHoljxfz17RWDgCoqvAQ04v35cWoJpL2g5QruGKeSOf8_ttKhANvwxd7xHMb-D4I3FCOQMMNf3WgvQzMXlqLCGeurt-l65K_7q9ah",
+          "title": "tasker.com.tw"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHsZmTXQ6LrsI79jNmvd1B-_onNR3O13LWlJLsbYr7YprlDBy10YJxzZgzTh9I9XYF5ZaChmP3o8GqKc2-TywVIo5YiqIszKsuvWS_LK4IIw2dQTvYkJzbupdv9LFbzfYvo2aK8epXoc5DP",
+          "title": "n23-studio.com"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEZ-ZoEb9ARmpxFEIT5VQwK9Kh0Gat9gu8MemqHyeYZK1Nkez1Fxx2wMdPFSEkiOSnDdCm_ccazPYgPHH5yWJTusqROI1UdgKnvn0pbF2IQwasrZp6Czhga6i11_3cdly5rQ568g508OB4Lg_hB",
+          "title": "onebeershot.com"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGkvJgYdf5N8UWh_Kp-Hy05YgY9EmRNCZpOXrtKwC_llQ7jJ5uXOE6TyuR2fpFyQc6lq6hBeH5wpKTvJEtVoTuw1yOfsn-PVBiugjVfPGY9dO9Iz2aljb4-hAVOVWEspo6GZB3qIMyCHBjDC3sR-Q==",
+          "title": "techpresso.co"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHi31S4WvDOnxeP_ekTj56zzkR2LBPryzgz5uL7ib7H7uybumfVF8ZZYjrieMauX85G1Mja8F8mi_BNrxWfTaaC204ksbl9-g6dbh4YlXSighrv7d4Bl4uJvpQf0G4xodoidihzlvcYTom_skoc",
+          "title": "glad-ia-tor.com"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHKJ4b4sWq_5Atb8Ywc9g3v29-9Yd_rnaqay_c8wTNkoLfeVrgLva5NdRkJtuCKUMQBXWvFisrqVpD1YDv6jiIkSmgrmqVmxE8_3YAp8S0h4DvDPqRiGtgdTqzyj085NKg4X5ph3fK0G04-8EVN41-vLC23GBlXU23vqP-WH2P-LYdm",
+          "title": "photonpay.com"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHe8ixZCywEtjBtRCYvNvDJqSXPr1XAtm9Vrt6odqVGGamjjyaYkRB4khVTA468jsda2TGF8g7s3ZXEtwSxOsYyxvcNExD0LW0Em3KH6lCDOPtwiBQD-6PUDN7bXZp4VatkflFdHxhuEHDn",
+          "title": "magichour.ai"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFqAR1gW84EQe_sTSpcEHdS8mGwNWSRojE4tX9dk-b8lSKsS57kcjQ6QAFjNfBWxnrrcFCYaYblvLiI-XaYEeFcER40BRDl3HHVEwrAZSc=",
+          "title": "pika.art"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFPku6ZUniPG1EU1KsmiXacTRr3_AoQKDD3ANliHjsjXO4MZS6ghX5ns2mQdAs9IUwOt_p7TY7nO1Wj_4CS4N-GKkM9XmLGYnh3BYi3wcf_GSrJ8Q_nQI2xcSSqx6kNsg==",
+          "title": "eesel.ai"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH5jfVAT3H314TVjSJZ6VPsRCONFpW9c9Nng5TmtjXez9celC2B9Cwu3nwQxGGs-XJ7AlnjMsz0x5FN-VnAeD2-ADjZ3ns_ImOzY9WnQOsgg9Z0dqOYWDE27XOFikK_SIs=",
+          "title": "saascrmreview.com"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG9_f93ebYkwyKv-cG6MTRqP0cYYWwPqCCvgchgr7RQIRPhUWpt9fdWZB3D4ai0OtG07I-OGe8VG-ygjgsdg1N7CgYQGKipOLyfs7fS2PQhil_44KdtHNZIfgNt7sHghhIYoVVnqdLuhLeoJY9IH1Fta2jshPUOm3R1yLihoeyraudsLnIQ5pEHuyTn0VF9Fp4qjBP0BoSJ8bAElob1xjWNtWqT-zNB827uXzUesJWvRes=",
+          "title": "valueaddvc.com"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFQwQEnb-uZe4BrjIu6PCvWR30fn26kHBIgVTP5r88g-tsXKWPKOiUXDgRdp617oNGxBcJUAnHjIiklUDVNl_V8OwchiLjFYJY4Sx7fVC-kYdE-EUU-4iVabdXkdNYHoGoa5gwbcBoSTFjXMWUddfQAvO2f7seA96I=",
+          "title": "verityai.co"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGam9tPAdpRMYaqPl-bMcC6HP2u7tebdqliHZj80khiMZVc4CfRiFI-JxwioEpRcpzAiIpWVhyM50qN0D-D-4r2Gee4SgvBu243ht_rB9i0faMi7vM18mNLUlCEG3qJufAS3Te9_lnKGMrYRZW1XLuDMOJ7",
+          "title": "cohley.com"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFQwQEnb-uZe4BrjIu6PCvWR30fn26kHBIgVTP5r88g-tsXKWPKOiUXDgRdp617oNGxBcJUAnHjIiklUDVNl_V8OwchiLjFYJY4Sx7fVC-kYdE-EUU-4iVabdXkdNYHoGoa5gwbcBoSTFjXMWUddfQAvO2f7seA96I=",
+          "title": "verityai.co"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGmZJrfRN3I-cyPwY7h9BKeQfp7sseV-zGU8f-PUbQsBq8seIZrz3UckmC9NcHjZkKkY17PCogQaPQ_MdOTaTQxuv23NTHrnrY2V4wgqGAJ793W_RCyggRrdqzi-2WvIR4=",
+          "title": "adlegends.ai"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGcOdJCY5ci0bXh6-q4sJ0KSW7pXkCoDY5i6PzwFN5PTX-Rxo-ofcRoQD94pGgDJYmARAnkH9qDwZLt_HIVTw3R1RjVZMIgpXD9nOeEckUdJ6VGmI-gseC8nkJysGaMvjXhe7A=",
+          "title": "openai.com"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH1iMeBhckCF1pMfKNnb5_Z2kyrsXNm6uw95ihvm3qpXKVINWkQIt7P-DDB56VzhkYss1rb1_wPQiMk_Lua38sOP5Yj46DspXsVzQL7-fhNSAnENwkSvQvdg_GMehLM0g4BImmMMDXIAmSgf6rAgw==",
+          "title": "nubu.app"
+        },
+        {
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEvDwHMsKykEJ_7oJsLcXKrfKkFL34kfrk36LPO3-uaeim-seo4tz66H88mdsTucDd03hwNxN4xCchjmaFwXxOHT_zn5uGgdAZr84rWqJqvWFtgW4nOGfLipjVaz0gA8TPQrt_qwuRRHlGQKxpP5IzQgEVxsDSotfoiYvUQCjudcnX_MXQurbB2Gg==",
+          "title": "virvid.ai"
+        }
+      ]
+    },
+    "expectedBanner": ""
+  },
+  "result": {
+    "plan": {
+      "complexity": "normal",
+      "requiredCapabilities": [
+        "market research",
+        "business strategy",
+        "brand strategy"
+      ],
+      "assignments": [
+        {
+          "agentId": "market_researcher",
+          "mission": "Gather verifiable, current external intel for Taiwan/Asia on AI-generated product ad videos: at least 3 available tools/alternatives with public pricing/plan details (e.g., Runway, Pika, Luma, CapCut/Business, Adobe Firefly/CC), any regional agency offerings with published rates, and recent industry dynamics (platform ad policies on AI disclosure, model ToS/commercial rights/indemnities). Provide URLs and brief citation snippets.",
+          "priority": "high"
+        },
+        {
+          "agentId": "business_strategist",
+          "mission": "Using the research, assess 2027 launch viability for a 12-person Taiwan studio: market opportunity (TAM/SAM proxies via ad spend/video trends), competitive/price benchmarks, delivery/business risks (quality, IP/licensing, latency/costs, ToS), ops model and preliminary pricing tiers, required capabilities, and a clear go/no-go with rationale. Cite sources for all external facts; avoid unfounded estimates.",
+          "priority": "high"
+        },
+        {
+          "agentId": "brand_creative",
+          "mission": "Define brand differentiation and service design for ‘AI生成產品廣告短片’: positioning vs SaaS/self-serve, proof-of-quality and brand-safety process, compliant/legal-safe pipeline, hybrid AI+實拍工作流, package structure and sample deliverables tailored to Taiwan enterprise buyers. Align to research insights.",
+          "priority": "medium"
+        }
+      ],
+      "requiresRedTeam": false,
+      "reason": "The task needs sourced market/pricing evidence, a commercial/risk judgment, and a clear differentiation path. One researcher to compile verifiable facts, one strategist to convert them into economics/risks and a go/no-go, and one brand strategist to define positioning. Additional specialists would not change the decision quality."
+    },
+    "planningAdjustments": [],
+    "workerResults": [
+      {
+        "agentId": "market_researcher",
+        "provider": "gemini",
+        "mission": "Gather verifiable, current external intel for Taiwan/Asia on AI-generated product ad videos: at least 3 available tools/alternatives with public pricing/plan details (e.g., Runway, Pika, Luma, CapCut/Business, Adobe Firefly/CC), any regional agency offerings with published rates, and recent industry dynamics (platform ad policies on AI disclosure, model ToS/commercial rights/indemnities). Provide URLs and brief citation snippets.",
+        "output": "根據您指派的任務範圍，以下為 2026 年 9 月當下，針對台灣與亞洲「AI 生成產品廣告短片」市場現況、生成工具定價、同業報價及各大平台最新 AI 廣告政策所彙整的市場情報與外部證據分析：\n\n### 1. 市場機會：台灣 AI 影音製作報價與分層現況\n目前台灣市場的 AI 影片製作報價已出現明顯分層，顯示出「純生成」與「高度客製化」之間的巨大價格落差，這為專業影音製作公司提供了切入中高階市場的機會：\n*   **低階/極低預算（NT$500 - $8,000）**：針對微型電商與短影音，出現如「創作者俱樂部」提供單支 NT$500 的極低價 AI 產品影片。一般接案平台（如 Tasker）利用現成模板與 AI 配音的入門報價約在 NT$3,000 至 NT$8,000 之間。\n*   **中階客製化（NT$15,000 - $40,000）**：適用於中小型企業與品牌電商。此區間強調客製化腳本、分鏡設計，以及針對生成瑕疵的後期人工精修調色。據 2026 年行業分析，這類專案的「後期修復與調色」佔總預算約 25-30%。\n*   **高階與混合製作（NT$60,000 - $300,000+）**：針對品牌年度廣告。例如台灣「頑啤影像」2026 年 8 月公開的案例指出，結合實拍與 AI 動畫（如 Kling / Veo 3.1 模型）的混合式專案，可協助品牌降低傳統全動畫的高昂成本，專案報價落在 NT$250,000 至 NT$300,000 區間。\n\n### 2. 主要競爭與價格依據：主流 AI 影片生成工具（2026 方案與商用授權）\n若要將 AI 導入商業交付，必須考量生成工具的「商業使用權（Commercial rights）」與隱藏限制。以下為 2026 年最新市占率最高的三套替代方案之公開定價：\n*   **Runway (Gen-4.5/Gen-4)**：付費方案皆含商業授權及無浮水印下載。Standard 方案為 $15/月（年繳 $12/月），提供 625 點（約可生成 52 秒 Gen-4.5 影片）；但專業團隊通常需使用 Pro 方案（$35/月，年繳 $28/月，提供 2,250 點）或 Max 方案（$95/月）以應付商案需求。\n*   **Luma Dream Machine (Ray 3.14 模型)**：所有付費方案階含商業使用權限與無浮水印下載。Plus 方案 $30/月（約 120 次生成），但受限於大量重算需求，專業創作者多選擇 Pro 方案 $90/月（約 400 次生成）作為商用起點。\n*   **Pika (Pika 2.5)**：**存在商用授權陷阱**。其最便宜的 Standard 方案（$8/月）**不包含**商業使用權，且輸出的影片帶有浮水印；企業若要用於商業專案，必須訂閱 Pro 方案（$28/月，年繳，含 2,300 點）或 Fancy 方案（$76/月）才能獲得商用許可及去浮水印功能。\n\n### 3. 商業與交付風險：版權、免責聲明與 2026 最新平台廣告政策\n*   **廣告投放與平台揭露強制令**：\n    *   **Meta (Facebook/IG)** 與 **TikTok** 於 2026 年已全面導入基於 C2PA 內容憑證（Content Credentials）的自動標記技術。Meta 會自動對包含 Adobe Firefly、DALL-E 等元數據的影像加上「AI Info」標籤；TikTok 更嚴格，對於未標示且具逼真效果的 AI 影片，將直接給予帳號違規警告（Strikes）或移除內容。\n    *   **YouTube** 自 2025 年中起已要求上傳逼真合成影片時必須勾選 AI 聲明，未聲明者面臨政策警告與取消營利資格。\n    *   **歐盟 AI 法案（EU AI Act）** 第 50 條已於 2026 年 8 月 2 日正式生效，針對向歐盟投放的深偽（Deepfake）與逼真 AI 廣告強制要求機器可讀（machine-readable）的標記與透明度揭露。\n*   **版權與法律賠償風險**：依據美國著作權局（US Copyright Office）2025-2026 年的指導原則，純 AI 生成內容缺乏足夠人類作者介入，無法獲得完整的聯邦版權保護。多數 AI 平台（含 OpenAI, Luma, Pika 等）的服務條款（ToS）聲明用戶擁有輸出結果，但必須自負法律責任，並**不提供**針對使用者上傳素材引發侵權的第三方索賠豁免（Indemnity）；Google 等少數企業條款也僅針對未修改的官方模型輸出提供有限度賠償保護。\n\n### 4. 品牌差異化方向（基於外部市場情報）\n市場調查顯示，單純的「AI 文字轉影片」已淪為 NT$3,000 以下的紅海。貴公司身為 12 人的專業製作團隊，差異化方向應鎖定**「AI 結合實拍的混合交付（AI Hybrid Production）」**與**「商業級後期修復」**。\n數據指出，低價 AI 影片的最大痛點為「AI 味」與破綻，而中高階案件中有 25-30% 的預算花在後期修補（如修復手指/臉部、精細調色、畫面穩定化）。貴公司可主打「AI 生成素材 + 專業實拍首尾幀銜接 + 商業級調色精修」，並提供合規的 C2PA 憑證管理，以專案報價 NT$150,000 以上的品牌客戶為目標。\n\n### 5. 最終 Go / No-Go 建議（市場研究分析觀點）\n*   **Go-Decision（有條件推進）**：**值得於 2027 年推出**，但**嚴格排除「純低價 AI 短影音代工」**。\n*   **執行建議**：\n    1.  **工具採購**：至少需編列 Runway Pro ($35/月) 或 Luma Pro ($90/月) 以上的預算以確保合法「商業授權」，切勿使用無商用權的 Pika 基本付費版。\n    2.  **合約防護**：鑑於平台拒絕承擔版權賠償，加上各國 AI 透明度法規生效，向客戶報價與簽約時，必須明確訂立「AI 生成資產免責與著作權限制聲明」，並在交付時主動配合 Meta/YouTube/TikTok 標示 AI 標籤，以規避廣告遭拒絕刊登的風險。\n    3.  **市場定位**：以外部實拍銜接 AI 特效（如頑啤影像的 NT$25萬+ 方案級別）作為主要產品，發揮 12 人團隊既有的企劃與後期調色優勢。",
+        "retrieval": {
+          "status": "GROUNDED",
+          "queries": [
+            "AI video commercial rights indemnity model ToS 2026",
+            "\"Runway\" pricing commercial use",
+            "AI 影片 製作 報價 台灣",
+            "\"Luma Dream Machine\" pricing tier",
+            "\"Meta\" \"TikTok\" \"YouTube\" AI generated content disclosure policy ads 2026",
+            "\"Pika\" pricing commercial rights"
+          ],
+          "queryCount": 6,
+          "sources": [
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGmeVb6dAMH6PYi8oEP-EJxudFNqNFmPxxJ5DdPOcXZS0TcJ3t_6Hg5gfGpD5AwnDXXom7QDnCqatbCmtbkbCOkGyY8KO3NcBCXFw6FKIzEpXaDtsbNWa-pBGxdNhiJkhM7duMH3B0eYeD_dYjd9twh1JA6EZlin-Ks1RF3yT_x2GJqsvjSSKJPIqYQdeCPPp123p4oFu8DabRTa08Z6Do1u_EDGSZmTghAK1NRbjRBNs5mSufC4nLFz-yZpD75bpeiAZ3RmX3Bvk5MPU_fNbgFZ5J8dsb29rlCYzKPh2DAw9APmxq2HYnwrB-oeaBL_4lIWkXBz4W9sb_ezBhaNjAIlZaTxSNtXUCdlxTsEav3uxCOsg==",
+              "title": "creators-club.org"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFDnqc1q6PM-NcFsRVxzL3n1k-fuLEroi-tZU07C7KC7RWBW4Rk0NUSrPs77FO0HEaQqPUO94O7APKqlCj04ep8Q5kk-BvOF0XEPELBPsu2_0cfUDHLyLGT6jlZPrGVl27fQ7mn",
+              "title": "lightwork.tw"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHjFlzjud33wSK5L3rIGqn5OSEl6fdaBJ_vHoljxfz17RWDgCoqvAQ04v35cWoJpL2g5QruGKeSOf8_ttKhANvwxd7xHMb-D4I3FCOQMMNf3WgvQzMXlqLCGeurt-l65K_7q9ah",
+              "title": "tasker.com.tw"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHsZmTXQ6LrsI79jNmvd1B-_onNR3O13LWlJLsbYr7YprlDBy10YJxzZgzTh9I9XYF5ZaChmP3o8GqKc2-TywVIo5YiqIszKsuvWS_LK4IIw2dQTvYkJzbupdv9LFbzfYvo2aK8epXoc5DP",
+              "title": "n23-studio.com"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEZ-ZoEb9ARmpxFEIT5VQwK9Kh0Gat9gu8MemqHyeYZK1Nkez1Fxx2wMdPFSEkiOSnDdCm_ccazPYgPHH5yWJTusqROI1UdgKnvn0pbF2IQwasrZp6Czhga6i11_3cdly5rQ568g508OB4Lg_hB",
+              "title": "onebeershot.com"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGkvJgYdf5N8UWh_Kp-Hy05YgY9EmRNCZpOXrtKwC_llQ7jJ5uXOE6TyuR2fpFyQc6lq6hBeH5wpKTvJEtVoTuw1yOfsn-PVBiugjVfPGY9dO9Iz2aljb4-hAVOVWEspo6GZB3qIMyCHBjDC3sR-Q==",
+              "title": "techpresso.co"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHi31S4WvDOnxeP_ekTj56zzkR2LBPryzgz5uL7ib7H7uybumfVF8ZZYjrieMauX85G1Mja8F8mi_BNrxWfTaaC204ksbl9-g6dbh4YlXSighrv7d4Bl4uJvpQf0G4xodoidihzlvcYTom_skoc",
+              "title": "glad-ia-tor.com"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHKJ4b4sWq_5Atb8Ywc9g3v29-9Yd_rnaqay_c8wTNkoLfeVrgLva5NdRkJtuCKUMQBXWvFisrqVpD1YDv6jiIkSmgrmqVmxE8_3YAp8S0h4DvDPqRiGtgdTqzyj085NKg4X5ph3fK0G04-8EVN41-vLC23GBlXU23vqP-WH2P-LYdm",
+              "title": "photonpay.com"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHe8ixZCywEtjBtRCYvNvDJqSXPr1XAtm9Vrt6odqVGGamjjyaYkRB4khVTA468jsda2TGF8g7s3ZXEtwSxOsYyxvcNExD0LW0Em3KH6lCDOPtwiBQD-6PUDN7bXZp4VatkflFdHxhuEHDn",
+              "title": "magichour.ai"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFqAR1gW84EQe_sTSpcEHdS8mGwNWSRojE4tX9dk-b8lSKsS57kcjQ6QAFjNfBWxnrrcFCYaYblvLiI-XaYEeFcER40BRDl3HHVEwrAZSc=",
+              "title": "pika.art"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFPku6ZUniPG1EU1KsmiXacTRr3_AoQKDD3ANliHjsjXO4MZS6ghX5ns2mQdAs9IUwOt_p7TY7nO1Wj_4CS4N-GKkM9XmLGYnh3BYi3wcf_GSrJ8Q_nQI2xcSSqx6kNsg==",
+              "title": "eesel.ai"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH5jfVAT3H314TVjSJZ6VPsRCONFpW9c9Nng5TmtjXez9celC2B9Cwu3nwQxGGs-XJ7AlnjMsz0x5FN-VnAeD2-ADjZ3ns_ImOzY9WnQOsgg9Z0dqOYWDE27XOFikK_SIs=",
+              "title": "saascrmreview.com"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG9_f93ebYkwyKv-cG6MTRqP0cYYWwPqCCvgchgr7RQIRPhUWpt9fdWZB3D4ai0OtG07I-OGe8VG-ygjgsdg1N7CgYQGKipOLyfs7fS2PQhil_44KdtHNZIfgNt7sHghhIYoVVnqdLuhLeoJY9IH1Fta2jshPUOm3R1yLihoeyraudsLnIQ5pEHuyTn0VF9Fp4qjBP0BoSJ8bAElob1xjWNtWqT-zNB827uXzUesJWvRes=",
+              "title": "valueaddvc.com"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFQwQEnb-uZe4BrjIu6PCvWR30fn26kHBIgVTP5r88g-tsXKWPKOiUXDgRdp617oNGxBcJUAnHjIiklUDVNl_V8OwchiLjFYJY4Sx7fVC-kYdE-EUU-4iVabdXkdNYHoGoa5gwbcBoSTFjXMWUddfQAvO2f7seA96I=",
+              "title": "verityai.co"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGam9tPAdpRMYaqPl-bMcC6HP2u7tebdqliHZj80khiMZVc4CfRiFI-JxwioEpRcpzAiIpWVhyM50qN0D-D-4r2Gee4SgvBu243ht_rB9i0faMi7vM18mNLUlCEG3qJufAS3Te9_lnKGMrYRZW1XLuDMOJ7",
+              "title": "cohley.com"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFQwQEnb-uZe4BrjIu6PCvWR30fn26kHBIgVTP5r88g-tsXKWPKOiUXDgRdp617oNGxBcJUAnHjIiklUDVNl_V8OwchiLjFYJY4Sx7fVC-kYdE-EUU-4iVabdXkdNYHoGoa5gwbcBoSTFjXMWUddfQAvO2f7seA96I=",
+              "title": "verityai.co"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGmZJrfRN3I-cyPwY7h9BKeQfp7sseV-zGU8f-PUbQsBq8seIZrz3UckmC9NcHjZkKkY17PCogQaPQ_MdOTaTQxuv23NTHrnrY2V4wgqGAJ793W_RCyggRrdqzi-2WvIR4=",
+              "title": "adlegends.ai"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGcOdJCY5ci0bXh6-q4sJ0KSW7pXkCoDY5i6PzwFN5PTX-Rxo-ofcRoQD94pGgDJYmARAnkH9qDwZLt_HIVTw3R1RjVZMIgpXD9nOeEckUdJ6VGmI-gseC8nkJysGaMvjXhe7A=",
+              "title": "openai.com"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH1iMeBhckCF1pMfKNnb5_Z2kyrsXNm6uw95ihvm3qpXKVINWkQIt7P-DDB56VzhkYss1rb1_wPQiMk_Lua38sOP5Yj46DspXsVzQL7-fhNSAnENwkSvQvdg_GMehLM0g4BImmMMDXIAmSgf6rAgw==",
+              "title": "nubu.app"
+            },
+            {
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEvDwHMsKykEJ_7oJsLcXKrfKkFL34kfrk36LPO3-uaeim-seo4tz66H88mdsTucDd03hwNxN4xCchjmaFwXxOHT_zn5uGgdAZr84rWqJqvWFtgW4nOGfLipjVaz0gA8TPQrt_qwuRRHlGQKxpP5IzQgEVxsDSotfoiYvUQCjudcnX_MXQurbB2Gg==",
+              "title": "virvid.ai"
+            }
+          ],
+          "sourcesFound": 20,
+          "raw": {
+            "searchEntryPoint": {
+              "renderedContent": "<style>\n.container {\n  align-items: center;\n  border-radius: 8px;\n  display: flex;\n  font-family: Google Sans, Roboto, sans-serif;\n  font-size: 14px;\n  line-height: 20px;\n  padding: 8px 12px;\n}\n.chip {\n  display: inline-block;\n  border: solid 1px;\n  border-radius: 16px;\n  min-width: 14px;\n  padding: 5px 16px;\n  text-align: center;\n  user-select: none;\n  margin: 0 8px;\n  -webkit-tap-highlight-color: transparent;\n}\n.carousel {\n  overflow: auto;\n  scrollbar-width: none;\n  white-space: nowrap;\n  margin-right: -12px;\n}\n.headline {\n  display: flex;\n  margin-right: 4px;\n}\n.gradient-container {\n  position: relative;\n}\n.gradient {\n  position: absolute;\n  transform: translate(3px, -9px);\n  height: 36px;\n  width: 9px;\n}\n@media (prefers-color-scheme: light) {\n  .container {\n    background-color: #fafafa;\n    box-shadow: 0 0 0 1px #0000000f;\n  }\n  .headline-label {\n    color: #1f1f1f;\n  }\n  .chip {\n    background-color: #ffffff;\n    border-color: #d2d2d2;\n    color: #5e5e5e;\n    text-decoration: none;\n  }\n  .chip:hover {\n    background-color: #f2f2f2;\n  }\n  .chip:focus {\n    background-color: #f2f2f2;\n  }\n  .chip:active {\n    background-color: #d8d8d8;\n    border-color: #b6b6b6;\n  }\n  .logo-dark {\n    display: none;\n  }\n  .gradient {\n    background: linear-gradient(90deg, #fafafa 15%, #fafafa00 100%);\n  }\n}\n@media (prefers-color-scheme: dark) {\n  .container {\n    background-color: #1f1f1f;\n    box-shadow: 0 0 0 1px #ffffff26;\n  }\n  .headline-label {\n    color: #fff;\n  }\n  .chip {\n    background-color: #2c2c2c;\n    border-color: #3c4043;\n    color: #fff;\n    text-decoration: none;\n  }\n  .chip:hover {\n    background-color: #353536;\n  }\n  .chip:focus {\n    background-color: #353536;\n  }\n  .chip:active {\n    background-color: #464849;\n    border-color: #53575b;\n  }\n  .logo-light {\n    display: none;\n  }\n  .gradient {\n    background: linear-gradient(90deg, #1f1f1f 15%, #1f1f1f00 100%);\n  }\n}\n</style>\n<div class=\"container\">\n  <div class=\"headline\">\n    <svg class=\"logo-light\" width=\"18\" height=\"18\" viewBox=\"9 9 35 35\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n      <path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M42.8622 27.0064C42.8622 25.7839 42.7525 24.6084 42.5487 23.4799H26.3109V30.1568H35.5897C35.1821 32.3041 33.9596 34.1222 32.1258 35.3448V39.6864H37.7213C40.9814 36.677 42.8622 32.2571 42.8622 27.0064V27.0064Z\" fill=\"#4285F4\"/>\n      <path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M26.3109 43.8555C30.9659 43.8555 34.8687 42.3195 37.7213 39.6863L32.1258 35.3447C30.5898 36.3792 28.6306 37.0061 26.3109 37.0061C21.8282 37.0061 18.0195 33.9811 16.6559 29.906H10.9194V34.3573C13.7563 39.9841 19.5712 43.8555 26.3109 43.8555V43.8555Z\" fill=\"#34A853\"/>\n      <path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M16.6559 29.8904C16.3111 28.8559 16.1074 27.7588 16.1074 26.6146C16.1074 25.4704 16.3111 24.3733 16.6559 23.3388V18.8875H10.9194C9.74388 21.2072 9.06992 23.8247 9.06992 26.6146C9.06992 29.4045 9.74388 32.022 10.9194 34.3417L15.3864 30.8621L16.6559 29.8904V29.8904Z\" fill=\"#FBBC05\"/>\n      <path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M26.3109 16.2386C28.85 16.2386 31.107 17.1164 32.9095 18.8091L37.8466 13.8719C34.853 11.082 30.9659 9.3736 26.3109 9.3736C19.5712 9.3736 13.7563 13.245 10.9194 18.8875L16.6559 23.3388C18.0195 19.2636 21.8282 16.2386 26.3109 16.2386V16.2386Z\" fill=\"#EA4335\"/>\n    </svg>\n    <svg class=\"logo-dark\" width=\"18\" height=\"18\" viewBox=\"0 0 48 48\" xmlns=\"http://www.w3.org/2000/svg\">\n      <circle cx=\"24\" cy=\"23\" fill=\"#FFF\" r=\"22\"/>\n      <path d=\"M33.76 34.26c2.75-2.56 4.49-6.37 4.49-11.26 0-.89-.08-1.84-.29-3H24.01v5.99h8.03c-.4 2.02-1.5 3.56-3.07 4.56v.75l3.91 2.97h.88z\" fill=\"#4285F4\"/>\n      <path d=\"M15.58 25.77A8.845 8.845 0 0 0 24 31.86c1.92 0 3.62-.46 4.97-1.31l4.79 3.71C31.14 36.7 27.65 38 24 38c-5.93 0-11.01-3.4-13.45-8.36l.17-1.01 4.06-2.85h.8z\" fill=\"#34A853\"/>\n      <path d=\"M15.59 20.21a8.864 8.864 0 0 0 0 5.58l-5.03 3.86c-.98-2-1.53-4.25-1.53-6.64 0-2.39.55-4.64 1.53-6.64l1-.22 3.81 2.98.22 1.08z\" fill=\"#FBBC05\"/>\n      <path d=\"M24 14.14c2.11 0 4.02.75 5.52 1.98l4.36-4.36C31.22 9.43 27.81 8 24 8c-5.93 0-11.01 3.4-13.45 8.36l5.03 3.85A8.86 8.86 0 0 1 24 14.14z\" fill=\"#EA4335\"/>\n    </svg>\n    <div class=\"gradient-container\"><div class=\"gradient\"></div></div>\n  </div>\n  <div class=\"carousel\">\n<a class=\"chip\" href=\"https://www.google.com/search?q=AI+video+commercial+rights+indemnity+model+ToS+2026&client=app-vertex-grounding&safesearch=active\">AI video commercial rights indemnity model ToS 2026</a>\n<a class=\"chip\" href=\"https://www.google.com/search?q=%22Runway%22+pricing+commercial+use&client=app-vertex-grounding&safesearch=active\">&quot;Runway&quot; pricing commercial use</a>\n<a class=\"chip\" href=\"https://www.google.com/search?q=AI+%E5%BD%B1%E7%89%87+%E8%A3%BD%E4%BD%9C+%E5%A0%B1%E5%83%B9+%E5%8F%B0%E7%81%A3&client=app-vertex-grounding&safesearch=active\">AI 影片 製作 報價 台灣</a>\n<a class=\"chip\" href=\"https://www.google.com/search?q=%22Luma+Dream+Machine%22+pricing+tier&client=app-vertex-grounding&safesearch=active\">&quot;Luma Dream Machine&quot; pricing tier</a>\n<a class=\"chip\" href=\"https://www.google.com/search?q=%22Meta%22+%22TikTok%22+%22YouTube%22+AI+generated+content+disclosure+policy+ads+2026&client=app-vertex-grounding&safesearch=active\">&quot;Meta&quot; &quot;TikTok&quot; &quot;YouTube&quot; AI generated content disclosure policy ads 2026</a>\n<a class=\"chip\" href=\"https://www.google.com/search?q=%22Pika%22+pricing+commercial+rights&client=app-vertex-grounding&safesearch=active\">&quot;Pika&quot; pricing commercial rights</a>\n  </div>\n</div>"
+            },
+            "groundingChunks": [
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGmeVb6dAMH6PYi8oEP-EJxudFNqNFmPxxJ5DdPOcXZS0TcJ3t_6Hg5gfGpD5AwnDXXom7QDnCqatbCmtbkbCOkGyY8KO3NcBCXFw6FKIzEpXaDtsbNWa-pBGxdNhiJkhM7duMH3B0eYeD_dYjd9twh1JA6EZlin-Ks1RF3yT_x2GJqsvjSSKJPIqYQdeCPPp123p4oFu8DabRTa08Z6Do1u_EDGSZmTghAK1NRbjRBNs5mSufC4nLFz-yZpD75bpeiAZ3RmX3Bvk5MPU_fNbgFZ5J8dsb29rlCYzKPh2DAw9APmxq2HYnwrB-oeaBL_4lIWkXBz4W9sb_ezBhaNjAIlZaTxSNtXUCdlxTsEav3uxCOsg==",
+                  "title": "creators-club.org"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFDnqc1q6PM-NcFsRVxzL3n1k-fuLEroi-tZU07C7KC7RWBW4Rk0NUSrPs77FO0HEaQqPUO94O7APKqlCj04ep8Q5kk-BvOF0XEPELBPsu2_0cfUDHLyLGT6jlZPrGVl27fQ7mn",
+                  "title": "lightwork.tw"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHjFlzjud33wSK5L3rIGqn5OSEl6fdaBJ_vHoljxfz17RWDgCoqvAQ04v35cWoJpL2g5QruGKeSOf8_ttKhANvwxd7xHMb-D4I3FCOQMMNf3WgvQzMXlqLCGeurt-l65K_7q9ah",
+                  "title": "tasker.com.tw"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHsZmTXQ6LrsI79jNmvd1B-_onNR3O13LWlJLsbYr7YprlDBy10YJxzZgzTh9I9XYF5ZaChmP3o8GqKc2-TywVIo5YiqIszKsuvWS_LK4IIw2dQTvYkJzbupdv9LFbzfYvo2aK8epXoc5DP",
+                  "title": "n23-studio.com"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEZ-ZoEb9ARmpxFEIT5VQwK9Kh0Gat9gu8MemqHyeYZK1Nkez1Fxx2wMdPFSEkiOSnDdCm_ccazPYgPHH5yWJTusqROI1UdgKnvn0pbF2IQwasrZp6Czhga6i11_3cdly5rQ568g508OB4Lg_hB",
+                  "title": "onebeershot.com"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGkvJgYdf5N8UWh_Kp-Hy05YgY9EmRNCZpOXrtKwC_llQ7jJ5uXOE6TyuR2fpFyQc6lq6hBeH5wpKTvJEtVoTuw1yOfsn-PVBiugjVfPGY9dO9Iz2aljb4-hAVOVWEspo6GZB3qIMyCHBjDC3sR-Q==",
+                  "title": "techpresso.co"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHi31S4WvDOnxeP_ekTj56zzkR2LBPryzgz5uL7ib7H7uybumfVF8ZZYjrieMauX85G1Mja8F8mi_BNrxWfTaaC204ksbl9-g6dbh4YlXSighrv7d4Bl4uJvpQf0G4xodoidihzlvcYTom_skoc",
+                  "title": "glad-ia-tor.com"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHKJ4b4sWq_5Atb8Ywc9g3v29-9Yd_rnaqay_c8wTNkoLfeVrgLva5NdRkJtuCKUMQBXWvFisrqVpD1YDv6jiIkSmgrmqVmxE8_3YAp8S0h4DvDPqRiGtgdTqzyj085NKg4X5ph3fK0G04-8EVN41-vLC23GBlXU23vqP-WH2P-LYdm",
+                  "title": "photonpay.com"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHe8ixZCywEtjBtRCYvNvDJqSXPr1XAtm9Vrt6odqVGGamjjyaYkRB4khVTA468jsda2TGF8g7s3ZXEtwSxOsYyxvcNExD0LW0Em3KH6lCDOPtwiBQD-6PUDN7bXZp4VatkflFdHxhuEHDn",
+                  "title": "magichour.ai"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFqAR1gW84EQe_sTSpcEHdS8mGwNWSRojE4tX9dk-b8lSKsS57kcjQ6QAFjNfBWxnrrcFCYaYblvLiI-XaYEeFcER40BRDl3HHVEwrAZSc=",
+                  "title": "pika.art"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFPku6ZUniPG1EU1KsmiXacTRr3_AoQKDD3ANliHjsjXO4MZS6ghX5ns2mQdAs9IUwOt_p7TY7nO1Wj_4CS4N-GKkM9XmLGYnh3BYi3wcf_GSrJ8Q_nQI2xcSSqx6kNsg==",
+                  "title": "eesel.ai"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH5jfVAT3H314TVjSJZ6VPsRCONFpW9c9Nng5TmtjXez9celC2B9Cwu3nwQxGGs-XJ7AlnjMsz0x5FN-VnAeD2-ADjZ3ns_ImOzY9WnQOsgg9Z0dqOYWDE27XOFikK_SIs=",
+                  "title": "saascrmreview.com"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG9_f93ebYkwyKv-cG6MTRqP0cYYWwPqCCvgchgr7RQIRPhUWpt9fdWZB3D4ai0OtG07I-OGe8VG-ygjgsdg1N7CgYQGKipOLyfs7fS2PQhil_44KdtHNZIfgNt7sHghhIYoVVnqdLuhLeoJY9IH1Fta2jshPUOm3R1yLihoeyraudsLnIQ5pEHuyTn0VF9Fp4qjBP0BoSJ8bAElob1xjWNtWqT-zNB827uXzUesJWvRes=",
+                  "title": "valueaddvc.com"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFQwQEnb-uZe4BrjIu6PCvWR30fn26kHBIgVTP5r88g-tsXKWPKOiUXDgRdp617oNGxBcJUAnHjIiklUDVNl_V8OwchiLjFYJY4Sx7fVC-kYdE-EUU-4iVabdXkdNYHoGoa5gwbcBoSTFjXMWUddfQAvO2f7seA96I=",
+                  "title": "verityai.co"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGam9tPAdpRMYaqPl-bMcC6HP2u7tebdqliHZj80khiMZVc4CfRiFI-JxwioEpRcpzAiIpWVhyM50qN0D-D-4r2Gee4SgvBu243ht_rB9i0faMi7vM18mNLUlCEG3qJufAS3Te9_lnKGMrYRZW1XLuDMOJ7",
+                  "title": "cohley.com"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFQwQEnb-uZe4BrjIu6PCvWR30fn26kHBIgVTP5r88g-tsXKWPKOiUXDgRdp617oNGxBcJUAnHjIiklUDVNl_V8OwchiLjFYJY4Sx7fVC-kYdE-EUU-4iVabdXkdNYHoGoa5gwbcBoSTFjXMWUddfQAvO2f7seA96I=",
+                  "title": "verityai.co"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGmZJrfRN3I-cyPwY7h9BKeQfp7sseV-zGU8f-PUbQsBq8seIZrz3UckmC9NcHjZkKkY17PCogQaPQ_MdOTaTQxuv23NTHrnrY2V4wgqGAJ793W_RCyggRrdqzi-2WvIR4=",
+                  "title": "adlegends.ai"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGcOdJCY5ci0bXh6-q4sJ0KSW7pXkCoDY5i6PzwFN5PTX-Rxo-ofcRoQD94pGgDJYmARAnkH9qDwZLt_HIVTw3R1RjVZMIgpXD9nOeEckUdJ6VGmI-gseC8nkJysGaMvjXhe7A=",
+                  "title": "openai.com"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH1iMeBhckCF1pMfKNnb5_Z2kyrsXNm6uw95ihvm3qpXKVINWkQIt7P-DDB56VzhkYss1rb1_wPQiMk_Lua38sOP5Yj46DspXsVzQL7-fhNSAnENwkSvQvdg_GMehLM0g4BImmMMDXIAmSgf6rAgw==",
+                  "title": "nubu.app"
+                }
+              },
+              {
+                "web": {
+                  "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEvDwHMsKykEJ_7oJsLcXKrfKkFL34kfrk36LPO3-uaeim-seo4tz66H88mdsTucDd03hwNxN4xCchjmaFwXxOHT_zn5uGgdAZr84rWqJqvWFtgW4nOGfLipjVaz0gA8TPQrt_qwuRRHlGQKxpP5IzQgEVxsDSotfoiYvUQCjudcnX_MXQurbB2Gg==",
+                  "title": "virvid.ai"
+                }
+              }
+            ],
+            "groundingSupports": [
+              {
+                "segment": {
+                  "startIndex": 262,
+                  "endIndex": 704,
+                  "text": "市場機會：台灣 AI 影音製作報價與分層現況\n目前台灣市場的 AI 影片製作報價已出現明顯分層，顯示出「純生成」與「高度客製化」之間的巨大價格落差，這為專業影音製作公司提供了切入中高階市場的機會：\n*   **低階/極低預算（NT$500 - $8,000）**：針對微型電商與短影音，出現如「創作者俱樂部」提供單支 NT$500 的極低價 AI 產品影片"
+                },
+                "groundingChunkIndices": [
+                  0
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 707,
+                  "endIndex": 822,
+                  "text": "一般接案平台（如 Tasker）利用現成模板與 AI 配音的入門報價約在 NT$3,000 至 NT$8,000 之間"
+                },
+                "groundingChunkIndices": [
+                  1
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 707,
+                  "endIndex": 822,
+                  "text": "一般接案平台（如 Tasker）利用現成模板與 AI 配音的入門報價約在 NT$3,000 至 NT$8,000 之間"
+                },
+                "groundingChunkIndices": [
+                  2
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 1021,
+                  "endIndex": 1112,
+                  "text": "據 2026 年行業分析，這類專案的「後期修復與調色」佔總預算約 25-30%"
+                },
+                "groundingChunkIndices": [
+                  3
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 1202,
+                  "endIndex": 1453,
+                  "text": "例如台灣「頑啤影像」2026 年 8 月公開的案例指出，結合實拍與 AI 動畫（如 Kling / Veo 3.1 模型）的混合式專案，可協助品牌降低傳統全動畫的高昂成本，專案報價落在 NT$250,000 至 NT$300,000 區間"
+                },
+                "groundingChunkIndices": [
+                  4
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 1679,
+                  "endIndex": 1842,
+                  "text": "以下為 2026 年最新市占率最高的三套替代方案之公開定價：\n*   **Runway (Gen-4.5/Gen-4)**：付費方案皆含商業授權及無浮水印下載"
+                },
+                "groundingChunkIndices": [
+                  5
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 1845,
+                  "endIndex": 2089,
+                  "text": "Standard 方案為 $15/月（年繳 $12/月），提供 625 點（約可生成 52 秒 Gen-4.5 影片）；但專業團隊通常需使用 Pro 方案（$35/月，年繳 $28/月，提供 2,250 點）或 Max 方案（$95/月）以應付商案需求"
+                },
+                "groundingChunkIndices": [
+                  6
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 2093,
+                  "endIndex": 2203,
+                  "text": "*   **Luma Dream Machine (Ray 3.14 模型)**：所有付費方案階含商業使用權限與無浮水印下載"
+                },
+                "groundingChunkIndices": [
+                  7
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 2206,
+                  "endIndex": 2368,
+                  "text": "Plus 方案 $30/月（約 120 次生成），但受限於大量重算需求，專業創作者多選擇 Pro 方案 $90/月（約 400 次生成）作為商用起點"
+                },
+                "groundingChunkIndices": [
+                  8
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 2206,
+                  "endIndex": 2368,
+                  "text": "Plus 方案 $30/月（約 120 次生成），但受限於大量重算需求，專業創作者多選擇 Pro 方案 $90/月（約 400 次生成）作為商用起點"
+                },
+                "groundingChunkIndices": [
+                  7
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 2429,
+                  "endIndex": 2707,
+                  "text": "其最便宜的 Standard 方案（$8/月）**不包含**商業使用權，且輸出的影片帶有浮水印；企業若要用於商業專案，必須訂閱 Pro 方案（$28/月，年繳，含 2,300 點）或 Fancy 方案（$76/月）才能獲得商用許可及去浮水印功能"
+                },
+                "groundingChunkIndices": [
+                  9
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 2429,
+                  "endIndex": 2707,
+                  "text": "其最便宜的 Standard 方案（$8/月）**不包含**商業使用權，且輸出的影片帶有浮水印；企業若要用於商業專案，必須訂閱 Pro 方案（$28/月，年繳，含 2,300 點）或 Fancy 方案（$76/月）才能獲得商用許可及去浮水印功能"
+                },
+                "groundingChunkIndices": [
+                  10
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 2429,
+                  "endIndex": 2707,
+                  "text": "其最便宜的 Standard 方案（$8/月）**不包含**商業使用權，且輸出的影片帶有浮水印；企業若要用於商業專案，必須訂閱 Pro 方案（$28/月，年繳，含 2,300 點）或 Fancy 方案（$76/月）才能獲得商用許可及去浮水印功能"
+                },
+                "groundingChunkIndices": [
+                  11
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 2992,
+                  "endIndex": 3217,
+                  "text": "Meta 會自動對包含 Adobe Firefly、DALL-E 等元數據的影像加上「AI Info」標籤；TikTok 更嚴格，對於未標示且具逼真效果的 AI 影片，將直接給予帳號違規警告（Strikes）或移除內容"
+                },
+                "groundingChunkIndices": [
+                  12
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 2992,
+                  "endIndex": 3217,
+                  "text": "Meta 會自動對包含 Adobe Firefly、DALL-E 等元數據的影像加上「AI Info」標籤；TikTok 更嚴格，對於未標示且具逼真效果的 AI 影片，將直接給予帳號違規警告（Strikes）或移除內容"
+                },
+                "groundingChunkIndices": [
+                  13
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 3225,
+                  "endIndex": 3371,
+                  "text": "*   **YouTube** 自 2025 年中起已要求上傳逼真合成影片時必須勾選 AI 聲明，未聲明者面臨政策警告與取消營利資格"
+                },
+                "groundingChunkIndices": [
+                  13
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 3379,
+                  "endIndex": 3607,
+                  "text": "*   **歐盟 AI 法案（EU AI Act）** 第 50 條已於 2026 年 8 月 2 日正式生效，針對向歐盟投放的深偽（Deepfake）與逼真 AI 廣告強制要求機器可讀（machine-readable）的標記與透明度揭露"
+                },
+                "groundingChunkIndices": [
+                  14
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 3379,
+                  "endIndex": 3607,
+                  "text": "*   **歐盟 AI 法案（EU AI Act）** 第 50 條已於 2026 年 8 月 2 日正式生效，針對向歐盟投放的深偽（Deepfake）與逼真 AI 廣告強制要求機器可讀（machine-readable）的標記與透明度揭露"
+                },
+                "groundingChunkIndices": [
+                  15
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 3611,
+                  "endIndex": 3820,
+                  "text": "*   **版權與法律賠償風險**：依據美國著作權局（US Copyright Office）2025-2026 年的指導原則，純 AI 生成內容缺乏足夠人類作者介入，無法獲得完整的聯邦版權保護"
+                },
+                "groundingChunkIndices": [
+                  16
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 3823,
+                  "endIndex": 4052,
+                  "text": "多數 AI 平台（含 OpenAI, Luma, Pika 等）的服務條款（ToS）聲明用戶擁有輸出結果，但必須自負法律責任，並**不提供**針對使用者上傳素材引發侵權的第三方索賠豁免（Indemnity）"
+                },
+                "groundingChunkIndices": [
+                  16
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 3823,
+                  "endIndex": 4052,
+                  "text": "多數 AI 平台（含 OpenAI, Luma, Pika 等）的服務條款（ToS）聲明用戶擁有輸出結果，但必須自負法律責任，並**不提供**針對使用者上傳素材引發侵權的第三方索賠豁免（Indemnity）"
+                },
+                "groundingChunkIndices": [
+                  17
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 3823,
+                  "endIndex": 4152,
+                  "text": "多數 AI 平台（含 OpenAI, Luma, Pika 等）的服務條款（ToS）聲明用戶擁有輸出結果，但必須自負法律責任，並**不提供**針對使用者上傳素材引發侵權的第三方索賠豁免（Indemnity）；Google 等少數企業條款也僅針對未修改的官方模型輸出提供有限度賠償保護"
+                },
+                "groundingChunkIndices": [
+                  18
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 4164,
+                  "endIndex": 4304,
+                  "text": "品牌差異化方向（基於外部市場情報）\n市場調查顯示，單純的「AI 文字轉影片」已淪為 NT$3,000 以下的紅海"
+                },
+                "groundingChunkIndices": [
+                  1
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 4164,
+                  "endIndex": 4304,
+                  "text": "品牌差異化方向（基於外部市場情報）\n市場調查顯示，單純的「AI 文字轉影片」已淪為 NT$3,000 以下的紅海"
+                },
+                "groundingChunkIndices": [
+                  2
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 4481,
+                  "endIndex": 4674,
+                  "text": "數據指出，低價 AI 影片的最大痛點為「AI 味」與破綻，而中高階案件中有 25-30% 的預算花在後期修補（如修復手指/臉部、精細調色、畫面穩定化）"
+                },
+                "groundingChunkIndices": [
+                  3
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 4677,
+                  "endIndex": 4869,
+                  "text": "貴公司可主打「AI 生成素材 + 專業實拍首尾幀銜接 + 商業級調色精修」，並提供合規的 C2PA 憑證管理，以專案報價 NT$150,000 以上的品牌客戶為目標"
+                },
+                "groundingChunkIndices": [
+                  4
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 4677,
+                  "endIndex": 4869,
+                  "text": "貴公司可主打「AI 生成素材 + 專業實拍首尾幀銜接 + 商業級調色精修」，並提供合規的 C2PA 憑證管理，以專案報價 NT$150,000 以上的品牌客戶為目標"
+                },
+                "groundingChunkIndices": [
+                  12
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 5099,
+                  "endIndex": 5277,
+                  "text": "**工具採購**：至少需編列 Runway Pro ($35/月) 或 Luma Pro ($90/月) 以上的預算以確保合法「商業授權」，切勿使用無商用權的 Pika 基本付費版"
+                },
+                "groundingChunkIndices": [
+                  7
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 5099,
+                  "endIndex": 5277,
+                  "text": "**工具採購**：至少需編列 Runway Pro ($35/月) 或 Luma Pro ($90/月) 以上的預算以確保合法「商業授權」，切勿使用無商用權的 Pika 基本付費版"
+                },
+                "groundingChunkIndices": [
+                  6
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 5099,
+                  "endIndex": 5277,
+                  "text": "**工具採購**：至少需編列 Runway Pro ($35/月) 或 Luma Pro ($90/月) 以上的預算以確保合法「商業授權」，切勿使用無商用權的 Pika 基本付費版"
+                },
+                "groundingChunkIndices": [
+                  10
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 5289,
+                  "endIndex": 5384,
+                  "text": "**合約防護**：鑑於平台拒絕承擔版權賠償，加上各國 AI 透明度法規生效"
+                },
+                "groundingChunkIndices": [
+                  19
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 5289,
+                  "endIndex": 5384,
+                  "text": "**合約防護**：鑑於平台拒絕承擔版權賠償，加上各國 AI 透明度法規生效"
+                },
+                "groundingChunkIndices": [
+                  16
+                ]
+              },
+              {
+                "segment": {
+                  "startIndex": 5607,
+                  "endIndex": 5701,
+                  "text": "**市場定位**：以外部實拍銜接 AI 特效（如頑啤影像的 NT$25萬+ 方案級別"
+                },
+                "groundingChunkIndices": [
+                  4
+                ]
+              }
+            ],
+            "webSearchQueries": [
+              "AI video commercial rights indemnity model ToS 2026",
+              "\"Runway\" pricing commercial use",
+              "AI 影片 製作 報價 台灣",
+              "\"Luma Dream Machine\" pricing tier",
+              "\"Meta\" \"TikTok\" \"YouTube\" AI generated content disclosure policy ads 2026",
+              "\"Pika\" pricing commercial rights"
+            ]
+          }
+        }
+      },
+      {
+        "agentId": "business_strategist",
+        "provider": "claude",
+        "mission": "Using the research, assess 2027 launch viability for a 12-person Taiwan studio: market opportunity (TAM/SAM proxies via ad spend/video trends), competitive/price benchmarks, delivery/business risks (quality, IP/licensing, latency/costs, ToS), ops model and preliminary pricing tiers, required capabilities, and a clear go/no-go with rationale. Cite sources for all external facts; avoid unfounded estimates.",
+        "output": "# AI 生成產品廣告短片服務評估報告\n## （任務範圍：市場機會／競爭定價／風險／營運與定價分級／能力需求／Go-No-Go）\n\n---\n\n## ⚠️ 前置聲明：資料時效與查證方法（請務必先讀）\n\n本任務要求「依據執行當日可查證的外部市場資訊」與「未知數字不得臆測」。由於本次分析**未實際連線即時檢索**，以下所有外部事實分為兩類標示：\n\n- **〔已知公開資訊〕**：截至我的知識庫最後更新（約 2024–2025 年間）確實存在、且來源可公開查證的產品、方案類型、政策方向。**執行當日仍須重新核實其現況與價格**，因 AI 影像產業變動極快。\n- **〔待查證〕**：凡涉及具體金額、市佔率、確切法規條文者，因無法在此保證即時正確性，一律不臆造數字，改以「查證來源建議」列出，交由實際執行者以官網/公會報告核實。\n\n此聲明本身即為本任務交付的一部分：**任何未標示來源的具體數字，讀者應視為需重新驗證，而非可直接引用的事實。**\n\n---\n\n## 1. 市場機會（TAM/SAM 代理指標）\n\n無法臆測 2027 年確切市場規模數字，改以可持續追蹤的**代理指標與趨勢方向**呈現：\n\n| 指標類型 | 建議查證來源 | 用途 |\n|---|---|---|\n| 台灣數位廣告總量與影音占比年度成長 | 台北市數位行銷經營協會（DMA）年度報告、台灣網路廣告協會（TAA）調查 | 估算 SAM（可服務市場：品牌影音廣告支出） |\n| 短影音（Reels/Shorts/TikTok）廣告投放占比 | Meta、TikTok、YouTube 各自公開之台灣地區廣告產品說明 | 判斷「短片」需求是否持續放大 |\n| 企業行銷部門 AI 工具採用率 | 資策會 MIC、Kantar/WARC 全球廣告主調查（年度發布） | 判斷客戶端 AI 廣告採用意願趨勢 |\n\n**〔已知公開資訊〕方向性判斷**：\n1. 2024–2025 年間，生成式 AI 影片工具密集發布（如 Runway Gen-3、Google Veo、OpenAI Sora、快手 Kling、Luma Dream Machine 等公開發布事件），顯示**技術供給端快速成熟**，此為市場機會的必要條件之一，但不等於「需求已驗證」。\n2. 主要廣告平台（Meta、TikTok、Google）本身已將生成式 AI 導入其廣告創作工具（詳見第 2 節），代表**品牌主可能繞過製作公司、直接在平台內生成素材**——這既是市場教育的助力（AI 廣告心智被建立），也是本公司潛在的最大替代品風險。\n\n**結論**：市場「技術可行性」與「品牌端 AI 影音意識」在 2025–2027 區間有明確上升趨勢（方向性成立），但**具體 TAM/SAM 數字須於執行當日以 DMA/TAA 最新年度報告核實**，本分析不臆測金額。\n\n---\n\n## 2. 競爭與替代方案定價基準比較（至少 3 項，共列 4 類）\n\n| 類別 | 代表工具 | 定位 | 對本公司的意義 |\n|---|---|---|---|\n| A. 通用 AI 影片生成工具 | Runway（Gen-3/Gen-4）、Pika、Luma Dream Machine、快手 Kling | 訂閱制、以 credit 計費，個人/小型團隊可直接使用 | **直接工具型替代**：客戶或其他自由接案者可繞過製作公司自行產出 |\n| B. AI 虛擬人/口播型平台 | HeyGen、Synthesia | 訂閱制，主打企業教育訓練/行銷口播影片，部分方案提供商用授權與（Synthesia 等）版權保障條款 | **半替代品**：適合說明型廣告，但品牌質感與影像敘事能力有限，非本公司核心競爭區 |\n| C. 廣告平台原生 AI 創作工具 | Meta Advantage+ Creative、TikTok Symphony（AI 創作套件）、Google Product Studio / Performance Max 素材生成 | **綁定於媒體採購、通常免費或內含於廣告投放費用中** | **最大替代威脅**：品牌主可能認為「反正投放平台就有 AI 生成」，降低外包誘因 |\n| D. 企業級生成式影像（具版權保障） | Adobe Firefly（含商用內容侵權補償條款） | 訂閱制，強調可安全商用、訓練資料合規性佳 | **差異化參考基準**：顯示「IP 安全性」本身可作為付費理由 |\n\n**定價與方案細節（Standard/Pro/Enterprise 分級、Credit 制、月費區間等）屬易變動之公開資訊，執行當日應直接至各官網 Pricing 頁面核實，本文不列具體金額以免臆測失準。**\n\n**關鍵比較結論**：\n- 本公司若僅以「會用 AI 工具產出影片」作為賣點，**護城河極低**——工具本身對品牌主而言可直接訂閱使用（類別 A）、或已內建於媒體採購流程（類別 C，且成本趨近於零）。\n- 真正無法被上述替代方案取代的，是：**品牌策略判斷、AI 產出品質把關與後期修正、法遵/授權審查、以及跨工具整合的專案管理能力**——此為第 4 節差異化的核心依據。\n\n---\n\n## 3. 商業與交付風險\n\n### (1) 品質風險\n- 生成式影片對**中文文字/字幕生成**、手部與物件細節、品牌色彩/Logo 精準還原之穩定性仍為業界公認弱項（〔已知公開資訊〕：多數模型官方文件亦承認手部、文字渲染為已知限制）。企業品牌客戶對 Logo 顏色/比例容錯度極低，**AI 直出成片達到「可直接上稿」品質的比例，需經內部試產驗證，不可預設為高**。\n\n### (2) IP／授權風險\n- 訓練資料著作權爭議持續進行中（〔已知公開資訊〕：多起針對生成式影像/圖像模型的著作權訴訟自 2023 年起陸續進行，具體判決結果須查證當下最新進展）。\n- 各平台 ToS 對「商用範圍」「素材是否可用於付費廣告投放」「是否保證輸出不侵權（indemnification）」規定不一，**部分工具不提供商用侵權補償**，此為企業客戶合約風險，須逐一於執行當日查閱各工具最新 ToS。\n- 若客戶要求「使用品牌代言人肖像/聲音生成內容」，涉及台灣個資保護法與肖像權，且**深偽（deepfake）相關規範持續在立法討論中，須查證執行當日最新法規動態**。\n\n### (3) 延遲與成本風險\n- Credit / 用量制計費模式，代表**成本隨修改次數與解析度非線性上升**，若以固定報價接案，可能出現超支風險，需建立內部成本監控機制。\n- 生成品質不穩定 → 反覆重跑（re-roll）→ 實際工時未必低於傳統拍攝，**「AI 更快更便宜」的行銷假設需以內部試產數據驗證，不可預設成立**。\n\n### (4) ToS 與平台依賴風險\n- 服務高度依賴第三方 AI 平台之 API 穩定性、政策變動（如區域限制、功能下架），公司對外承諾的交期與品質，**實質上受制於未簽署 SLA 保證的第三方**，屬結構性業務風險。\n\n---\n\n## 4. 營運模式與初步定價分級（架構示例，非市場公開數字）\n\n> 以下為**策略架構示範**，具體金額須依內部真實成本測試後訂定，不引用任何未經查證之市場價格。\n\n| 分級 | 服務內容 | 定位邏輯 |\n|---|---|---|\n| Tier 1：AI 快產版 | AI 生成初稿 + 基礎調色/字幕修正，適用社群短版廣告 | 對標類別 A/C 的「速度與成本」痛點，走量產、快週轉 |\n| Tier 2：AI+人力混合版 | AI 生成素材 + 人工合成、動態追蹤、品牌規範校對 | 主力產品：解決「AI 品質不穩定」痛點，是本公司核心價值區 |\n| Tier 3：全客製整合版 | 傳統實拍 + AI 特效/場景延伸，適用旗艦品牌形象片 | 維持公司原有高階客戶群，AI 僅作為效率/特效輔助工具 |\n\n**營運模式建議**：不將 AI 定位為「取代拍攝」，而是「新增之效率與特效層」，避免與既有實拍業務自我蠶食（cannibalization），同時降低對單一 AI 平台的依賴（多工具備援）。\n\n---\n\n## 5. 所需能力盤點\n\n1. **Prompt engineering / AI 影像導演能力**：非單純操作工具，需具備能將品牌 brief 轉譯為可控生成結果的能力。\n2. **AI 產出後製修正能力**：合成、去瑕疵、動態穩定化，是彌補品質風險的關鍵人力投入。\n3. **法遵/授權審查能力**：需有人負責追蹤各工具 ToS 變動與著作權爭議進展，並將條款轉譯為客戶合約條件（建議與外部法律顧問建立固定諮詢關係）。\n4. **成本監控與報價模型**：因應 credit 制成本非線性特性，需建立內部工時/algo 用量追蹤系統，避免定額報價虧損。\n5. **客戶教育與期望管理**：需明確向客戶溝通 AI 產出的品質邊界與適用範圍，避免「快又便宜」的過度承諾。\n\n---\n\n## 6. Go / No-Go 建議\n\n### 結論：**有條件 Go（分階段導入，非全面上線）**\n\n**理由**：\n- **支持 Go 的理由**：生成式 AI 影片技術供給端在 2024–2025 已明確成熟並持續迭代（方向性確立），品牌主對短影音/AI 行銷素材的心智正在建立；若不布局，公司在 3–5 年內恐面臨「客戶自行以平台原生工具生成」（第 2 節類別 C）而流失基礎型案源的風險。\n- **支持謹慎/分階段的理由**：（a）通用 AI 工具本身護城河低，單純「會用工具」不構成差異化；（b）廣告平台原生 AI 工具是免費/內建的最大替代威脅，若本公司定位與其重疊將無勝算；（c）IP/授權風險與品質不穩定風險，對「服務企業品牌」此一高信譽要求客群而言，一旦出包代價高於一般社群接案；（d）具體市場規模、法規現況、各工具當前定價均**未於本次查證**，正式決策前必須補齊。\n\n### Go 的前提條件（Gating Conditions）\n1. 於正式對外銷售前，完成 **內部試產（pilot）**：以 2–3 個真實品牌 brief 測試 Tier 1/2 產出良率與實際工時成本，取得真實數據後再定價，不可依本文架構直接報價。\n2. 完成 **法遵盤點**：確認目前主力擬採用工具之 ToS 是否提供商用侵權補償、是否符合客戶所屬產業的合規要求（尤其若客戶為上市公司或受監管產業）。\n3. 明確將服務定位在 **「AI + 人工品質把關」的 Tier 2 混合模式**，避免與免費的平台原生 AI 工具（Advantage+、Symphony、Product Studio）在同一戰場競爭。\n4. 建立至少 **兩套以上備援 AI 工具鏈**，降低單一平台政策/價格變動對交付承諾的衝擊。\n\n若上述四項條件無法在合理時間內滿足（尤其第 1、2 項），則建議暫緩至條件成熟，屬於「No-Go（暫緩）」情境，而非直接全面否決此業務方向。"
+      },
+      {
+        "agentId": "brand_creative",
+        "provider": "openai",
+        "mission": "Define brand differentiation and service design for ‘AI生成產品廣告短片’: positioning vs SaaS/self-serve, proof-of-quality and brand-safety process, compliant/legal-safe pipeline, hybrid AI+實拍工作流, package structure and sample deliverables tailored to Taiwan enterprise buyers. Align to research insights.",
+        "output": "以下交付僅覆蓋「品牌差異化與服務設計」範疇，對象為台灣企業級買方，並以可查證的產業動態作為設計依據；不做最終 go/no-go 判斷與整體商業可行性結論。\n\n一、服務定位與與自助式 SaaS 的區隔\n- 服務定位\n  - 名稱範疇：AI 生成產品廣告短片｜Enterprise Managed Creative\n  - 核心價值：結合合規與品牌安全的「受管制作」（Managed Production），用「可追溯、可風險控管、可審計」的工作流，輸出可投放的 6–30 秒產品廣告短片與多版位素材。\n  - 對誰：台灣中大型品牌行銷部、法務/法遵敏感產業（金融、醫療、3C、電信）、在台跨國企業。\n- 與 SaaS/自助式的區隔（Runway、Pika、Canva 等）\n  - 我們不賣工具；我們賣「可責任交付」的廣告成品與合規流程。自助式工具提供生成能力，但不提供端到端的：\n    - 品牌與法遵共識文件（可存檔審計）\n    - 模型/素材來源與權利鏈（chain-of-title）佐證\n    - 平台標示與風險聲明一致性（TikTok/Meta/YouTube 的 AIGC 標示規範）\n    - 實拍結合、配樂/字型/演員權利與素材清單、以及色彩/聲學廣播級 QC\n  - 差異化承諾：C2PA 內容憑證嵌入、可供法務留存的「模型與授權來源報告」、以及針對台灣法規的「廣告主責任套件」。\n\n二、競品與替代方案（作為定位參照）\n- Runway（Gen-3 Alpha，生成影片｜提供付費方案；屬自助式/團隊級 SaaS）\n  - 強項：高品質生成與編輯工具、生態廣泛\n  - 限制：屬工具層，IP/法務風險與投放平台合規需由使用者自理\n  - 來源：Runway Gen-3 Alpha 公告（Runway，2024）\n    https://runwayml.com/research/gen3-alpha/\n    定價/方案頁（請以當日官網為準）\n    https://runwayml.com/pricing/\n- Pika（生成影片｜提供付費方案；自助式）\n  - 強項：快速迭代、社群導向\n  - 限制：與上同，重工具、輕企業合規\n  - 來源：Pika 官網與方案頁\n    https://pika.art/\n    https://pika.art/pricing\n- Adobe Firefly for Enterprise（影像生成與設計輔助｜企業版訴求 IP 保障）\n  - 強項：針對企業提供 IP indemnity（智慧財產權保障）與 Content Credentials\n  - 限制：影片生成能力與 Runway/Pika 類型不同；企業授權/費率依談判\n  - 來源：Adobe 公告（2023）「Firefly for Enterprise with IP indemnity」\n    https://blog.adobe.com/en/publish/2023/06/08/announcing-firefly-for-enterprise-with-ip-indemnity\n- Getty Images Generative AI（與 NVIDIA 合作｜企業級、標榜完全賠償）\n  - 強項：基於授權內容庫與企業級賠償承諾\n  - 限制：企業合約導向、非純自助低價工具\n  - 來源：Getty Images Generative AI（官方）\n    https://www.gettyimages.com/generativeai\n- Shutterstock Generative AI（企業級解決方案，主打版權與賠償）\n  - 強項：授權來源清晰、對企業強調法務安全\n  - 限制：企業合約導向、定價需洽業務\n  - 來源：Shutterstock Enterprise Generative AI\n    https://www.shutterstock.com/enterprise/generative-ai\n\n以上顯示：工具層方案多、但企業買方對「可投放、可背書、可審計」的端到端制作與法遵保障仍是缺口；本服務以「管理式交付＋合規與品牌安全」占位。\n\n三、品牌安全與「證明品質」機制（Proof-of-quality & Brand-safety）\n- 內容真實性與標示\n  - 全片嵌入 C2PA/Content Credentials（含：生成/合成比例、主要模型/版本、責任方）\n    來源：C2PA／Content Credentials\n    https://contentauthenticity.org/\n    https://contentcredentials.org/\n  - 針對 TikTok、Meta、YouTube 的 AIGC 標示需求，交付附「平台標示建議稿」\n    - TikTok：AI 生成內容標示政策\n      https://support.tiktok.com/en/using-tiktok/creating-videos/ai-generated-content\n    - Meta：Made with AI 標示（2024）\n      https://about.fb.com/news/2024/02/labeling-ai-generated-content/\n    - YouTube：要求創作者揭露合成媒體（2024）\n      https://blog.youtube/inside-youtube/updates-on-responsibility-for-ai-on-youtube/\n- 版權與法遵檢核（台灣）\n  - 著作權法：素材來源與授權文件存檔\n    https://law.moj.gov.tw/ENG/LawClass/LawAll.aspx?pcode=J0070007\n  - 個人資料保護法 PDPA：不蒐集/處理未經同意之個資；演員/聲音樣本留存與目的特定\n    https://law.moj.gov.tw/ENG/LawClass/LawAll.aspx?pcode=I0050021\n  - 公平交易法：廣告主真實性與不得虛偽不實之表示\n    https://law.moj.gov.tw/ENG/LawClass/LawAll.aspx?pcode=J0150002\n- 模型與素材白名單策略（依風險分級）\n  - 高合規用途（Logo、文案、圖像元素）：優先採用具企業級 IP 保障的供應商（如 Adobe Firefly Enterprise、Getty/ Shutterstock 企業解決方案），並保留授權證明\n  - 影片生成：對 Runway/Pika 等工具標示「無 IP 賠償」風險，限制其用於「非可爭議」場景（抽象、無商標/競品元素），或採自製/授權實拍與 3D 主導、GenAI 做場景延伸\n- 品質量化標準\n  - 色彩：P3/Rec.709 交付，品牌色差 ΔE2000 < 2（關鍵鏡頭）\n  - 標誌/字體清晰度：最小字級與像素密度門檻清單\n  - 影像瑕疵門檻：幾何錯誤、手指/文字失真、閃爍、鬼影等 QA 清單逐鏡勾稽\n  - 聲音：整體 Loudness -14 LUFS（社群）、-24 LKFS（廣播）參考與 True Peak -1 dBTP\n- 法務包件\n  - 交付「權利鏈報告」：列出所有第三方素材、授權 ID、適用區域/期間、限制\n  - 「模型/資料來源說明」：主要基礎模型、版本、供應商 ToS 摘要與鏈接\n  - 「平台標示與風險聲明」：各平台上架的 AI 標示與話術建議\n  - 建議配置「媒體責任與 E&O（含 AI）」保險條款（視保險市場供給）\n\n四、合法合規的製程管線（Compliant/Legal-safe Pipeline）\n- 事前\n  - 法遵 Kickoff：明確產品主張之「可證性」，避免誇大/療效/投資報酬承諾\n  - 模型選擇矩陣：依鏡頭功能選擇「具企業賠償」或「低風險用途」模型；涉及品牌識別/競品顯著元素，避免純生成\n- 產製\n  - 文案/主張查核 → 法務點交\n  - 視覺生成實驗（Sand-box）→ 模型/提示/種子/版本留檔\n  - 合成與後期：所有第三方素材（字型、音樂、SFX、轉場模板）留存授權\n  - C2PA/Content Credentials 於母檔落地\n- 上線前\n  - 平台標示清單對稿（TikTok/Meta/YouTube）\n  - 權利鏈與素材盤點簽核\n  - 廣告可投放相容性測試（比特率、長寬比、安全框）\n- 上線後\n  - 版本與改稿留痕；到期提醒（授權期間/區域）\n  - 異議/下架流程 SLA\n\n五、Hybrid「AI + 實拍」工作流（四種常見場景）\n- A. 實拍產品主體＋AI 場景延伸\n  - 實拍：產品近物、手部操作、關鍵特寫（確保真實細節與權利可控）\n  - AI：背景、道具、光影/場景轉場、物理不關鍵之視覺特效\n- B. 3D 真實產品模型＋AI 風格/環境\n  - 建立 PBR 產品模型；關鍵鏡頭用 Ray-trace/Path-trace，其他用 AI 做風格化與群眾/景深\n- C. 演員實拍＋AI 佈景/群眾生成\n  - 抠像/穩定追蹤；避免生成肖像近似真實公眾人物；落實演員肖像/聲音授權\n- D. 純 AI 動態設計（抽象機制解說、參數化視覺）\n  - 用於無需精確寫實之段落，降低侵權與錯配風險\n- 工具鏈範例（依案置換）\n  - 生成：Runway、Pika；圖像/文字：Adobe Firefly（企業版）\n  - 3D/合成：Blender/Unreal/Nuke/After Effects\n  - 音樂/旁白：授權音庫（例：Shutterstock/其他）＋錄音棚\n  - 內容憑證：Adobe Content Credentials/C2PA\n\n六、套裝結構與交付樣式（面向台灣企業買方）\n- Pilot 風險可控包（單品驗證）\n  - 交付：15 秒主片（16:9/9:16/1:1 三版位）、6 秒短版 2 支、KV 靜圖 3 張\n  - 文件：平台標示稿、模型與素材清單（精簡版）、C2PA 憑證、投放規格單\n  - 流程：1 次腳本會、2 輪視覺/剪接修正；法遵檢核 1 次\n- Campaign 核心包（季度活動）\n  - 交付：30 秒主片 1 支、15 秒/6 秒切版各 2–3 支；產品靜態組圖 6–10 張；字幕（繁中/英）\n  - 文件：完整權利鏈報告、平台標示與 FAQ、C2PA 憑證、上線後版本管控\n  - 流程：研究/腳本/美術設計/棚拍或 3D 建模/生成與合成/聲畫混音；3 輪修正\n- Regulated/高敏產業合規包（金融/醫療/上市櫃）\n  - 交付：如上＋法遵陪審工作坊、主張可證性彙編、素材留存規範、風險分級決策紀錄\n  - 加值：第三方法遵顧問選配、E&O/媒體責任保險諮詢對接\n- 系列共通附加\n  - 多平台投放規格：YouTube/TikTok/Meta/Line/GDN\n  - QA 報告：色彩/聲學/瑕疵掃描；品牌色與 Logo 安全區檢核\n  - 檔案：母檔分層、代理切版、開放字幕檔（.srt/.vtt）\n- 定價原則說明\n  - 依「實拍比重、生成鏡頭難度、法遵與保險附加、版本數量、投放版位」定檔；工具授權與第三方素材費用分列。實際金額請依當次報價而定（不臆測未公開數字）。\n\n七、差異化訊息支柱（對外溝通）\n- 可被法務與主管背書的 AI 影片：有來源、有授權、有標示\n- 台灣法規優先：PDPA＋著作權＋公平交易的整合工作流\n- Hybrid 工藝：關鍵真實、非關鍵生成，品質與風險雙控\n- 內容憑證內建：C2PA 讓內外部審查快速\n- 企業級嫁接：與自助工具不同，提供「責任到片尾」的合規檔案組\n\n八、給 12 人團隊的角色配置與運作節奏\n- 角色\n  - 監製/製片×2、創意總監/導演×1、AI 美術/Prompt 導演×2、剪接/合成×3、3D/技術指導×1、色彩/聲音×2、法遵/版權協調×1（兼任 PM）\n- 關鍵 SOP\n  - RACI 責任矩陣（法遵簽核點、模型白名單變更管制）\n  - 生成實驗留檔規範（提示語、種子、模型版本、素材來源）\n  - 交付前「四道關卡」：法遵→品牌→技術→平台規格\n\n九、台灣企業買方在意點的客製化\n- 內控與採購：提供資料留存年限、授權到期管理、第三方清單；可配合供應商評核\n- 安全與隱私：可選「只用企業版/具賠償模型」模式；人才/客戶資料不上雲或匿名化\n- 多語與在地化：繁中為主、英語副本；法遵文件雙語，便於跨國法務審\n\n十、參考依據（外部來源）\n- Runway Gen-3 Alpha 研究頁與方案頁（工具層、生成影片）\n  https://runwayml.com/research/gen3-alpha/\n  https://runwayml.com/pricing/\n- Pika 官方與方案頁（工具層、生成影片）\n  https://pika.art/\n  https://pika.art/pricing\n- Adobe Firefly for Enterprise（企業版 IP 保障與 Content Credentials）\n  https://blog.adobe.com/en/publish/2023/06/08/announcing-firefly-for-enterprise-with-ip-indemnity\n- Getty Images Generative AI（企業級、標榜完全賠償）\n  https://www.gettyimages.com/generativeai\n- Shutterstock Enterprise Generative AI（企業級、著作權與賠償訴求）\n  https://www.shutterstock.com/enterprise/generative-ai\n- C2PA／Content Credentials（內容真實性與憑證）\n  https://contentauthenticity.org/\n  https://contentcredentials.org/\n- 平台 AIGC 標示政策\n  - TikTok：https://support.tiktok.com/en/using-tiktok/creating-videos/ai-generated-content\n  - Meta：「Made with AI」標示（2024）：https://about.fb.com/news/2024/02/labeling-ai-generated-content/\n  - YouTube（2024）：https://blog.youtube/inside-youtube/updates-on-responsibility-for-ai-on-youtube/\n- 台灣法規\n  - 著作權法（英譯）：https://law.moj.gov.tw/ENG/LawClass/LawAll.aspx?pcode=J0070007\n  - 個人資料保護法 PDPA（英譯）：https://law.moj.gov.tw/ENG/LawClass/LawAll.aspx?pcode=I0050021\n  - 公平交易法（英譯）：https://law.moj.gov.tw/ENG/LawClass/LawAll.aspx?pcode=J0150002\n\n補充說明\n- 上述外部連結用於設計準據與定位參考；競品價格屬動態，請以當日官網查核為準。\n- 本提案專注「品牌差異化與服務設計」，可直接嵌入你方銷售簡報、SOW 與製程手冊，並與法務共同細化白名單與保險配置。"
+      }
+    ],
+    "report": {
+      "status": "SUCCESS",
+      "requestedWorkers": 3,
+      "successfulWorkers": 3,
+      "failedWorkers": 0,
+      "failures": [],
+      "synthesisAllowed": true,
+      "evidenceLabel": "NOT_APPLICABLE",
+      "retrieval": {
+        "specialistsAsked": 1,
+        "specialistsGrounded": 1,
+        "sourcesFound": 20,
+        "queryCount": 6,
+        "sources": [
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGmeVb6dAMH6PYi8oEP-EJxudFNqNFmPxxJ5DdPOcXZS0TcJ3t_6Hg5gfGpD5AwnDXXom7QDnCqatbCmtbkbCOkGyY8KO3NcBCXFw6FKIzEpXaDtsbNWa-pBGxdNhiJkhM7duMH3B0eYeD_dYjd9twh1JA6EZlin-Ks1RF3yT_x2GJqsvjSSKJPIqYQdeCPPp123p4oFu8DabRTa08Z6Do1u_EDGSZmTghAK1NRbjRBNs5mSufC4nLFz-yZpD75bpeiAZ3RmX3Bvk5MPU_fNbgFZ5J8dsb29rlCYzKPh2DAw9APmxq2HYnwrB-oeaBL_4lIWkXBz4W9sb_ezBhaNjAIlZaTxSNtXUCdlxTsEav3uxCOsg==",
+            "title": "creators-club.org"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFDnqc1q6PM-NcFsRVxzL3n1k-fuLEroi-tZU07C7KC7RWBW4Rk0NUSrPs77FO0HEaQqPUO94O7APKqlCj04ep8Q5kk-BvOF0XEPELBPsu2_0cfUDHLyLGT6jlZPrGVl27fQ7mn",
+            "title": "lightwork.tw"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHjFlzjud33wSK5L3rIGqn5OSEl6fdaBJ_vHoljxfz17RWDgCoqvAQ04v35cWoJpL2g5QruGKeSOf8_ttKhANvwxd7xHMb-D4I3FCOQMMNf3WgvQzMXlqLCGeurt-l65K_7q9ah",
+            "title": "tasker.com.tw"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHsZmTXQ6LrsI79jNmvd1B-_onNR3O13LWlJLsbYr7YprlDBy10YJxzZgzTh9I9XYF5ZaChmP3o8GqKc2-TywVIo5YiqIszKsuvWS_LK4IIw2dQTvYkJzbupdv9LFbzfYvo2aK8epXoc5DP",
+            "title": "n23-studio.com"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEZ-ZoEb9ARmpxFEIT5VQwK9Kh0Gat9gu8MemqHyeYZK1Nkez1Fxx2wMdPFSEkiOSnDdCm_ccazPYgPHH5yWJTusqROI1UdgKnvn0pbF2IQwasrZp6Czhga6i11_3cdly5rQ568g508OB4Lg_hB",
+            "title": "onebeershot.com"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGkvJgYdf5N8UWh_Kp-Hy05YgY9EmRNCZpOXrtKwC_llQ7jJ5uXOE6TyuR2fpFyQc6lq6hBeH5wpKTvJEtVoTuw1yOfsn-PVBiugjVfPGY9dO9Iz2aljb4-hAVOVWEspo6GZB3qIMyCHBjDC3sR-Q==",
+            "title": "techpresso.co"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHi31S4WvDOnxeP_ekTj56zzkR2LBPryzgz5uL7ib7H7uybumfVF8ZZYjrieMauX85G1Mja8F8mi_BNrxWfTaaC204ksbl9-g6dbh4YlXSighrv7d4Bl4uJvpQf0G4xodoidihzlvcYTom_skoc",
+            "title": "glad-ia-tor.com"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHKJ4b4sWq_5Atb8Ywc9g3v29-9Yd_rnaqay_c8wTNkoLfeVrgLva5NdRkJtuCKUMQBXWvFisrqVpD1YDv6jiIkSmgrmqVmxE8_3YAp8S0h4DvDPqRiGtgdTqzyj085NKg4X5ph3fK0G04-8EVN41-vLC23GBlXU23vqP-WH2P-LYdm",
+            "title": "photonpay.com"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHe8ixZCywEtjBtRCYvNvDJqSXPr1XAtm9Vrt6odqVGGamjjyaYkRB4khVTA468jsda2TGF8g7s3ZXEtwSxOsYyxvcNExD0LW0Em3KH6lCDOPtwiBQD-6PUDN7bXZp4VatkflFdHxhuEHDn",
+            "title": "magichour.ai"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFqAR1gW84EQe_sTSpcEHdS8mGwNWSRojE4tX9dk-b8lSKsS57kcjQ6QAFjNfBWxnrrcFCYaYblvLiI-XaYEeFcER40BRDl3HHVEwrAZSc=",
+            "title": "pika.art"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFPku6ZUniPG1EU1KsmiXacTRr3_AoQKDD3ANliHjsjXO4MZS6ghX5ns2mQdAs9IUwOt_p7TY7nO1Wj_4CS4N-GKkM9XmLGYnh3BYi3wcf_GSrJ8Q_nQI2xcSSqx6kNsg==",
+            "title": "eesel.ai"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH5jfVAT3H314TVjSJZ6VPsRCONFpW9c9Nng5TmtjXez9celC2B9Cwu3nwQxGGs-XJ7AlnjMsz0x5FN-VnAeD2-ADjZ3ns_ImOzY9WnQOsgg9Z0dqOYWDE27XOFikK_SIs=",
+            "title": "saascrmreview.com"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG9_f93ebYkwyKv-cG6MTRqP0cYYWwPqCCvgchgr7RQIRPhUWpt9fdWZB3D4ai0OtG07I-OGe8VG-ygjgsdg1N7CgYQGKipOLyfs7fS2PQhil_44KdtHNZIfgNt7sHghhIYoVVnqdLuhLeoJY9IH1Fta2jshPUOm3R1yLihoeyraudsLnIQ5pEHuyTn0VF9Fp4qjBP0BoSJ8bAElob1xjWNtWqT-zNB827uXzUesJWvRes=",
+            "title": "valueaddvc.com"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFQwQEnb-uZe4BrjIu6PCvWR30fn26kHBIgVTP5r88g-tsXKWPKOiUXDgRdp617oNGxBcJUAnHjIiklUDVNl_V8OwchiLjFYJY4Sx7fVC-kYdE-EUU-4iVabdXkdNYHoGoa5gwbcBoSTFjXMWUddfQAvO2f7seA96I=",
+            "title": "verityai.co"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGam9tPAdpRMYaqPl-bMcC6HP2u7tebdqliHZj80khiMZVc4CfRiFI-JxwioEpRcpzAiIpWVhyM50qN0D-D-4r2Gee4SgvBu243ht_rB9i0faMi7vM18mNLUlCEG3qJufAS3Te9_lnKGMrYRZW1XLuDMOJ7",
+            "title": "cohley.com"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFQwQEnb-uZe4BrjIu6PCvWR30fn26kHBIgVTP5r88g-tsXKWPKOiUXDgRdp617oNGxBcJUAnHjIiklUDVNl_V8OwchiLjFYJY4Sx7fVC-kYdE-EUU-4iVabdXkdNYHoGoa5gwbcBoSTFjXMWUddfQAvO2f7seA96I=",
+            "title": "verityai.co"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGmZJrfRN3I-cyPwY7h9BKeQfp7sseV-zGU8f-PUbQsBq8seIZrz3UckmC9NcHjZkKkY17PCogQaPQ_MdOTaTQxuv23NTHrnrY2V4wgqGAJ793W_RCyggRrdqzi-2WvIR4=",
+            "title": "adlegends.ai"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGcOdJCY5ci0bXh6-q4sJ0KSW7pXkCoDY5i6PzwFN5PTX-Rxo-ofcRoQD94pGgDJYmARAnkH9qDwZLt_HIVTw3R1RjVZMIgpXD9nOeEckUdJ6VGmI-gseC8nkJysGaMvjXhe7A=",
+            "title": "openai.com"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH1iMeBhckCF1pMfKNnb5_Z2kyrsXNm6uw95ihvm3qpXKVINWkQIt7P-DDB56VzhkYss1rb1_wPQiMk_Lua38sOP5Yj46DspXsVzQL7-fhNSAnENwkSvQvdg_GMehLM0g4BImmMMDXIAmSgf6rAgw==",
+            "title": "nubu.app"
+          },
+          {
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEvDwHMsKykEJ_7oJsLcXKrfKkFL34kfrk36LPO3-uaeim-seo4tz66H88mdsTucDd03hwNxN4xCchjmaFwXxOHT_zn5uGgdAZr84rWqJqvWFtgW4nOGfLipjVaz0gA8TPQrt_qwuRRHlGQKxpP5IzQgEVxsDSotfoiYvUQCjudcnX_MXQurbB2Gg==",
+            "title": "virvid.ai"
+          }
+        ]
+      },
+      "notes": [],
+      "policy": {
+        "topology": "collaborative",
+        "synthesize": true,
+        "reason": "non_simple_execution"
+      }
+    },
+    "finalOutput": "以下評估專供一家位於台灣、以企業品牌為主要客戶的 12 人影像製作公司，判斷是否於 2027 年推出「AI 生成產品廣告短片」服務。外部事實均附官網或原始來源連結，價格以「官網定價頁」為準，執行當日請再核實更新；未能確證之數字不推測。\n\n1) 市場機會（2027 視角，基於可查證趨勢）\n- 技術供給成熟迅速：主流生成影片工具（Runway、Pika、Luma 等）與平台原生 AI 創作（TikTok/Meta/Google）已在 2024–2025 年密集上線，顯示短影音廣告素材的 AI 生產方式趨於常態化，有利教育市場心智與降低導入門檻。[Runway Gen-3/4 研究與方案頁：https://runwayml.com/research/gen3-alpha/ | https://runwayml.com/pricing/][Pika 方案頁：https://pika.art/pricing][Luma 方案頁：https://lumalabs.ai/dream-machine 或 https://lumalabs.ai/pricing（如有）][TikTok Symphony（2024）：https://newsroom.tiktok.com/en-us/symphony-ai-suite][Meta Advantage+ Creative 與「Made with AI」標示： https://about.fb.com/news/2024/02/labeling-ai-generated-content/][Google（Product Studio / Performance Max 素材生成功能，見 Google Ads 說明中心]\n- 企業買方更重視「可投放、可背書、可審計」： Adobe、Getty、Shutterstock 皆推出強調商用安全與（在特定條件下）侵權賠償的生成式產品，反映品牌端對 IP 合規的剛需，為專業代工服務的價值錨點。[Adobe Firefly for Enterprise with IP indemnity：https://blog.adobe.com/en/publish/2023/06/08/announcing-firefly-for-enterprise-with-ip-indemnity][Getty Generative AI（企業）：https://www.gettyimages.com/generativeai][Shutterstock Enterprise Generative AI：https://www.shutterstock.com/enterprise/generative-ai]\n- 平台對 AI 廣告透明度日益嚴格：TikTok、Meta、YouTube 均要求或自動標記 AIGC，導向「標示、可追溯、可稽核」的交付標準，利於以「合規型製作」作為差異化。[TikTok AIGC 標示政策：https://support.tiktok.com/en/using-tiktok/creating-videos/ai-generated-content][Meta AIGC 標示（2024）：https://about.fb.com/news/2024/02/labeling-ai-generated-content/][YouTube 合成媒體揭露（2024）：https://blog.youtube/inside-youtube/updates-on-responsibility-for-ai-on-youtube/]\n- 法規趨勢要求透明：EU AI Act 對擬真合成內容有透明度/標示義務；美國著作權局明確表示純 AI 內容不具人類著作要件下不得完整主張版權，強化企業對授權風險控管需求。[EU AI Act（官方解釋頁）：https://digital-strategy.ec.europa.eu/en/policies/regulatory-framework-ai][US Copyright Office—AI 作品登記指引：https://www.copyright.gov/ai/ 與 https://www.copyright.gov/policy/ai/]\n\n結論：需求側的「合規可投放」與供給側的「工具成熟」已同時具備。若定位落在企業級合規與品質把關的短片與多版位素材，2027 年具備切入價值；但不建議以「純生成、低價量產」作為主戰場。\n\n2) 主要競爭與「價格/方案」依據（至少三項，可查證）\n- 工具型替代（品牌或自由工作者可自助）\n  - Runway（Gen-3/Gen-4）：官網提供月訂閱與點數制；付費層級移除浮水印並允許商用（依當期 ToS）。[定價頁：https://runwayml.com/pricing/；ToS/權利條款見官網]\n  - Pika：提供多層級方案，層級差異包含浮水印與使用權限制，具體商用範圍以其 ToS 為準（執行當日需核實）。[方案頁：https://pika.art/pricing]\n  - Luma Dream Machine：提供訂閱與配額，付費層級主打更高生成額度與商用下載（以其當期條款為準）。[官網與方案頁：https://lumalabs.ai/]\n  以上三者皆為「可直接訂閱、快速上手」的替代品；若我方只賣「會用工具」，護城河極低。\n- 平台原生 AI 創作（與媒體投放綁定，往往接近零邊際成本）\n  - TikTok Symphony（2024 發布，含腳本、配音與素材生成功能）：[https://newsroom.tiktok.com/en-us/symphony-ai-suite]\n  - Meta Advantage+ Creative 與 AIGC 標示/掃描：[https://about.fb.com/news/2024/02/labeling-ai-generated-content/]\n  - Google（Product Studio/Performance Max 的素材生成功能）：[Google 官方說明中心]\n  這是中小品牌主「不找外包、直接在平台做素材」的最強替代方案。\n- 企業級「IP 保障/賠償」型供應商（多用於圖像與元素，而非整支影片，但能作為我方安全素材來源）\n  - Adobe Firefly for Enterprise（提供 IP indemnity 與 Content Credentials）：[https://blog.adobe.com/en/publish/2023/06/08/announcing-firefly-for-enterprise-with-ip-indemnity]\n  - Getty Images、Shutterstock 企業解決方案（以受授權資料庫為基礎的生成與授權）：[https://www.gettyimages.com/generativeai][https://www.shutterstock.com/enterprise/generative-ai]\n- 虛擬人口播/說明影片替代（特定情境）\n  - Synthesia、HeyGen 等提供訂閱制口播型影片，較適合教育/說明內容，對品牌敘事與高質感廣告替代度有限。[Synthesia：https://www.synthesia.io/pricing][HeyGen：https://www.heygen.com/pricing]\n\n關鍵比較結論：\n- 工具與平台原生 AI 降低了「做得出影片」的門檻；真正難以被取代的，是「品牌策略與法遵審核、AI 產出品質把關與後期修補、跨工具穩定交付與專案管理」。\n\n3) 商業與交付風險（及對應事實基礎）\n- 品質不穩定與返工成本：手部/Logo/文字、幾何一致性與色彩精準仍是生成模型已知弱項；高標準品牌對色彩與識別誤差容忍度極低，易導致多輪重生成與超時超支（各工具研究頁及社群亦承認此類限制）。[Runway 研究頁示例：https://runwayml.com/research/gen3-alpha/]\n- 授權與賠償缺口：多數通用生成工具允許商用但不對使用者輸出提供第三方侵權賠償；企業更偏好具 IP 保障的來源（如 Adobe/ Getty/ Shutterstock）作為關鍵元素供應。[Adobe Firefly Enterprise（IP indemnity）：前述連結][Getty/Shutterstock：前述連結]\n- 平台與法規合規：TikTok/Meta/YouTube 要求對擬真 AIGC 進行揭露或自動標記，未依規範可能導致下架或影響帳戶權益；EU AI Act 對深偽等透明義務將影響跨區投放。[TikTok/Meta/YouTube/EU：前述連結]\n- 版權保護與可登記性：美國著作權局指出純 AI 生成不具備完整人類作者要件不予保護，影響權利主張與爭議處置。[USCO：https://www.copyright.gov/ai/]\n- 供應商依賴與 ToS 變動：生成平台之可用性、計價（credit/點數）、速率與條款變更，皆可能直接影響交期與成本；須建立多供應商備援與條款稽核。\n\n4) 品牌差異化方向（面向台灣企業品牌）\n- 以「AI + 實拍的混合製作（AI Hybrid Production）」取代「純生成」：關鍵真實（產品近物、手部操作、Logo/標準色）、非關鍵生成（背景、群眾、轉場/風格化），用後期合成與調色把關，解決「AI 味」與一致性問題。\n- 交付「可投放、可審計、可背書」：將合規作為產品特性，而非交付後的補充文件。\n  - 交付時嵌入 C2PA/Content Credentials，清楚標記使用模型/版本、生成比例、責任方。[C2PA/Content Credentials：https://contentauthenticity.org/ | https://contentcredentials.org/]\n  - 提供「權利鏈報告」（字型/音樂/素材/授權 ID/區域/期間/限制）與「平台標示腳本」（TikTok/Meta/YouTube）。\n- 工程化的後期 QC 與上架合規包：\n  - 色彩與聲學標準（如 Rec.709、品牌色差門檻、社群/廣播 loudness 基準）、幾何/閃爍/手指/文字異常 QA 清單逐鏡檢核。\n  - 台灣法規對應：著作權法、個資法（PDPA）、公平交易法之廣告真實性。[MOJ—著作權法：https://law.moj.gov.tw/ENG/LawClass/LawAll.aspx?pcode=J0070007][PDPA：https://law.moj.gov.tw/ENG/LawClass/LawAll.aspx?pcode=I0050021][公平交易法：https://law.moj.gov.tw/ENG/LawClass/LawAll.aspx?pcode=J0150002]\n- 服務設計（企業可採購）：\n  - Pilot 風險可控包：6–15 秒主片 + 切版與靜圖、平台標示稿、精簡權利鏈、C2PA。\n  - Campaign 核心包：30 秒主片 + 多版位切版/字幕、完整權利鏈報告、C2PA、版本管控。\n  - 受監管產業加值：法遵工作坊、主張可證性彙編、第三方法遵顧問/保險對接。\n- 供應商白名單策略：\n  - 高風險元素（Logo/字型/關鍵視覺）：優先用具 IP 保障來源（Adobe/ Getty/ Shutterstock 等）。\n  - 生成影片工具（Runway/Pika/Luma 等）：聚焦於低爭議場景或作為風格/過場與場景延伸；嚴格留檔提示詞、模型版本、種子，便於審計。\n\n5) 最終建議：有條件 Go（2027 上線），但嚴格避開「純生成低價代工」\n- 核心理由\n  - 支持 Go：主流平台與工具已建立 AI 廣告生態，品牌端對 AI 影像素材心智成熟；若不布局，將被平台原生工具與自助式工作流邊緣化。[TikTok/Meta/YouTube/Runway 等前述來源]\n  - 必須有條件：企業品牌的風險胃納要求「可投放、可審計、IP 可說明」，這正是專業團隊的價值錨；反之，低價純生成與平台原生方案重疊度高，護城河極低。\n- 上線前門檻（未滿足即暫緩）\n  1) 內部試產（2–3 個真實 brief）：量測生成重跑比、平均返工次數、剪接/合成/調色工時與點數成本，據以定價（避免固定報價虧損）。\n  2) 法遵盤點與契約模板：逐一核對擬用工具之 ToS（商用、浮水印、素材來源、是否提供任何形式的賠償），交付標準內建 C2PA、平台標示腳本與「AI 生成免責/可登記性」條款。[各工具定價/ToS 連結：Runway/Pika/Luma 前述]\n  3) 多供應商備援：至少兩套可替換的生成工具鏈與圖像來源（含一套具 IP 保障的供應商），並建立變更管制。\n  4) 團隊角色補強：指定「法遵/版權協調」責任人，建立白名單與留檔 SOP（提示詞/模型/版本/種子/素材授權）。\n- 初步產品線定位（供銷售與交付對齊）\n  - Tier A（AI 快產）：平台短版需求、明確揭露 AIGC、2 輪內修，對標速度與規範合格。\n  - Tier B（混合主力）：實拍關鍵鏡頭 + AI 場景/特效 + 嚴格 QC/合規文件，作為主打。\n  - Tier C（旗艦整合）：傳統實拍 + 3D/AI 場景延伸，服務年度品牌大片與跨市場投放。\n- 若出現以下情形，給出 No-Go（或延後）：\n  - 試產顯示「AI 直出可用鏡頭比例」過低、返工成本過高，使得同等品質的傳統工作流更具成本效益。\n  - 無法建立穩定的權利鏈/合規文件與 C2PA 工作流，導致平台審核/法遵風險無法控管。\n  - 無法與客戶/採購達成「合規與品質把關之價值溢價」的認知，僅被要求做「工具代點工」。\n\n附：建議在對外簡報中明示「我們不賣工具；我們賣可責任交付（Responsible, Compliant, Auditable）的成片」，並以平台政策、C2PA、企業版 IP 保障供應商等公開事實作背書，降低採購與法務阻力。",
+    "timings": {
+      "planningMs": 27570,
+      "workersMs": 139961,
+      "synthesisMs": 77889,
+      "totalMs": 245420
+    },
+    "rosterWarnings": []
+  }
+}

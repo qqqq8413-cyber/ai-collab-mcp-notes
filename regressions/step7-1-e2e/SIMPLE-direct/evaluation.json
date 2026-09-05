@@ -1,0 +1,19 @@
+{
+  "caseId": "SIMPLE-direct",
+  "evaluatedAt": "2026-09-04T18:51:57Z",
+  "originalHarnessOutcome": "FAIL",
+  "classification": "HARNESS_FALSE_NEGATIVE",
+  "reason": "The first check removed whitespace and comma separators but not Markdown emphasis and punctuation between each label and amount. The raw answer contains all three correct gross amounts in the requested C, A, B ascending order.",
+  "correctedStructuralChecks": {
+    "expectedArithmeticAndOrder": true
+  },
+  "manualEvaluation": {
+    "correctness": "PASS",
+    "language": "PASS",
+    "explicitConstraints": "PASS",
+    "requestedFormat": "PASS",
+    "userFacingReadability": "PASS"
+  },
+  "presentationObservation": "The answer is correct and directly usable, but it is more verbose than necessary and ends with a mission-scope sentence. This is cosmetic presentation variance, not a material correctness or constraint failure.",
+  "finalOutcome": "PASS"
+}

@@ -1,0 +1,6 @@
+{
+  "id": "DEEP-grounded",
+  "kind": "deep_grounded",
+  "purpose": "One targeted live observation of the full DEEP planning, grounded retrieval, synthesis, and conservative evidence-reporting chain.",
+  "task": "請為一家位於台灣、主要服務企業品牌的 12 人影像製作公司，制定 2027 年董事會級重大投資策略：是否應把未來 12 個月 40% 的可支配投資預算與 6 名核心人員投入「AI 生成產品廣告短片」新事業。若判斷錯誤，會直接危及既有專案交付與公司現金流。決策必須依據執行當日可查證的外部市場資訊，至少比較三個目前可用的競爭或替代方案及其公開價格或方案，並參考近期產業動態。請提出：1. 市場機會；2. 主要競爭與價格依據；3. 財務、商業與交付風險；4. 品牌差異化方向；5. 分階段投資與停止條件；6. 最終 go / no-go 建議。外部事實請標示來源，未知數字不得臆測。"
+}

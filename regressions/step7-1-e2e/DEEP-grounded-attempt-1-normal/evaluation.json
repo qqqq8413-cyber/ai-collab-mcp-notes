@@ -1,0 +1,23 @@
+{
+  "caseId": "DEEP-grounded",
+  "attempt": 1,
+  "evaluatedAt": "2026-09-04T18:57:43Z",
+  "originalHarnessOutcome": "FAIL",
+  "classification": "TEST_NOT_EXERCISED",
+  "runtimeDefectFound": false,
+  "observation": "Chief classified the task as normal, naturally selected all three capability roles, and completed grounded retrieval plus synthesis. Because evidence labeling is intentionally NOT_APPLICABLE outside deep runs, this attempt could not exercise the required DEEP to PARTIALLY_GROUNDED banner chain.",
+  "preliminaryRootCause": "The first task asked for a new-service proposal but did not state a major investment, company-wide annual strategy, or concrete high stakes. The standing Chief rules say to classify by what is at stake and explicitly list an ordinary business proposal as normal, so the returned classification is consistent with the current contract.",
+  "affectedLayer": "Step 7.1 test fixture / planning input",
+  "minimalCorrectionScope": "Preserve this raw attempt, then revise only the task fixture to state an explicit board-level major investment, company resource commitment, and cash-flow risk. Do not name or force an agent/provider and do not change Chief, evidence, synthesis, or policy runtime semantics.",
+  "usefulSubchainObservation": {
+    "evidenceCapabilitySelectedNaturally": true,
+    "groundedRetrieval": true,
+    "queryCount": 6,
+    "sourcesFound": 20,
+    "groundingMetadataPreserved": true,
+    "synthesisExecuted": true,
+    "evidenceLabel": "NOT_APPLICABLE",
+    "bannerPresent": false
+  },
+  "finalOutcome": "TEST_NOT_EXERCISED"
+}

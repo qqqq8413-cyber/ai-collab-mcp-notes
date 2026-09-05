@@ -1,0 +1,46 @@
+{
+  "caseId": "DEEP-grounded",
+  "attempt": 2,
+  "evaluatedAt": "2026-09-04T19:02:51Z",
+  "harnessOutcome": "PASS",
+  "manualEvaluation": {
+    "complexityDeep": "PASS",
+    "naturalCapabilityRouting": "PASS",
+    "realGroundedRetrieval": "PASS",
+    "sourceAndMetadataPreservation": "PASS",
+    "synthesisExecution": "PASS",
+    "evidenceSemantics": "PASS",
+    "conservativeUserFacingBanner": "PASS"
+  },
+  "observation": {
+    "complexity": "deep",
+    "assignments": 3,
+    "logicalModelCallCount": 5,
+    "status": "SUCCESS",
+    "policy": {
+      "topology": "collaborative",
+      "synthesize": true,
+      "reason": "non_simple_execution"
+    },
+    "groundedAgentId": "market_researcher",
+    "retrievalStatus": "GROUNDED",
+    "queryCount": 6,
+    "sourcesFound": 21,
+    "rawMetadataKeys": [
+      "searchEntryPoint",
+      "groundingChunks",
+      "groundingSupports",
+      "webSearchQueries"
+    ],
+    "evidenceLabel": "PARTIALLY_GROUNDED",
+    "timingsMs": {
+      "planning": 18854,
+      "workers": 122082,
+      "synthesis": 110377,
+      "total": 251313
+    }
+  },
+  "evidenceBoundary": "This acceptance proves the runtime chain and conservative reporting, not claim-level support for every statement in the synthesized answer.",
+  "runtimeCodeModified": false,
+  "finalOutcome": "PASS"
+}
