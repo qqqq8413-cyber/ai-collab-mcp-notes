@@ -1855,6 +1855,27 @@ timings:      { gateMs?, round2Ms?, decisionSynthesisMs?, totalMs? }
 
 independent Chief Review、Judge、`run_debate()` nesting、full peer broadcast、超過 1 位 Round-2 專家、超過 2 rounds、autonomous loop、planning loop、Round-2 retrieval、claim-level validation、`groundingSupports` consumer、Step 8/9/10、pricing、大型 live benchmark、default-on。
 
+## ⚠️ 實作後才看清的一個 confound(指令未提及,尚無解法)
+
+- **arm B**:synthesis prompt = `P` → 答案
+- **arm C**:synthesis prompt = `P + 附錄` → provisional answer
+
+**即使 C 完全沒有觸發 Round 2,C 的答案也是在一個和 B 不同的 prompt 下產生的。** 附錄要求模型去尋找跨專家分歧,這件事本身就可能改變答案 —— 更防禦性的措辭、注意力被分走,或反過來因為重讀各專家輸出而更完整。
+
+所以 `C > B` 有可能**完全不是 peer interaction 造成的**,而是附錄造成的。
+
+目前的觀察是這個 confound **可以從既有資料拆開,不需要新程式**,因為報告已經記錄每次執行是否觸發:
+
+```text
+C 執行中 status = SKIPPED   → 有附錄,無 peer interaction   ← 天然的 arm B′
+C 執行中 status = COMPLETED → 有附錄,有 peer interaction
+
+(B′ − B)  = 附錄本身的效果
+(C − B′)  = peer interaction 的效果
+```
+
+⚠️ **但這個拆法可能不成立,尚未驗證。** 觸發與否本身可能與任務難度相關(難的任務才有分歧),那 B′ 與 C 就不是隨機分組,兩者的差可能只是任務難度差。這一題已列入給 GPT/Gemini 的實作審查包第 2 節,列為最高優先。
+
 ## 是否已具備進入 A/B/C/D 評估的條件?
 
 **Runtime 具備了,實驗協定還沒有。**
