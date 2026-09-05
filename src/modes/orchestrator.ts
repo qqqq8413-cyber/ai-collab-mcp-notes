@@ -10,11 +10,14 @@ import {
   buildPeerExcerpt,
   buildRound2Prompt,
   parseGateOutput,
+  resolveSourceRef,
+  segmentAll,
   selectIssue,
   validateIssues,
   type CollaborationConfig,
   type CollaborationIssue,
   type CollaborationReport,
+  type OutputChunk,
 } from '../agents/collaboration.js';
 import {
   CHIEF_SYSTEM_PROMPT,
@@ -519,7 +522,63 @@ export async function runOrchestrator(options: OrchestratorOptions) {
     };
   }
 
-  const succeeded = workerResults.filter((r) => r.output !== undefined);
+  const stage = await runSynthesisStage({
+    call,
+    task,
+    complexity: plan.complexity,
+    agentOrder: plan.assignments.map((a) => a.agentId),
+    workers,
+    workerResults,
+    report,
+    synthesizer,
+    collaboration: options.experimental?.collaboration,
+  });
+
+  return {
+    plan,
+    planningAdjustments,
+    workerResults,
+    report,
+    finalOutput: stage.finalOutput,
+    ...(stage.collaboration ? { collaboration: stage.collaboration } : {}),
+    timings: {
+      planningMs,
+      workersMs,
+      synthesisMs: stage.synthesisMs,
+      totalMs: Date.now() - startedAt,
+    },
+  };
+}
+
+export interface SynthesisStageInput {
+  call: typeof callProvider;
+  task: string;
+  complexity: Complexity;
+  /** Assignment order, which fixes the deterministic issue ordering. */
+  agentOrder: readonly string[];
+  workers: Worker[];
+  workerResults: WorkerRunResult[];
+  report: RunReport;
+  synthesizer: { provider: ProviderName; model?: string };
+  collaboration?: CollaborationConfig;
+}
+
+export interface SynthesisStageOutput {
+  finalOutput: string;
+  synthesisMs: number;
+  collaboration?: CollaborationReport;
+}
+
+/**
+ * Everything from the synthesis call onwards, in one place.
+ *
+ * Shared with `replaySynthesis` on purpose. A replay that rebuilt this prompt separately
+ * would be measuring a second implementation of the system rather than the system, and the
+ * B / B-prime comparison it exists to support would be worth nothing.
+ */
+export async function runSynthesisStage(input: SynthesisStageInput): Promise<SynthesisStageOutput> {
+  const { call, task, report, synthesizer } = input;
+  const succeeded = input.workerResults.filter((r) => r.output !== undefined);
   const specialistBlock = succeeded
     .map((r) => `### ${r.agentId}\nMission: ${r.mission}\nResult: ${r.output}`)
     .join('\n\n');
@@ -537,9 +596,9 @@ ${specialistBlock}
 ${degradedNote}
 Synthesize these results into a single, coherent final answer to the original task.`;
 
-  const collaborationConfig = options.experimental?.collaboration;
-  const collaborationEnabled = collaborationConfig?.enabled === true;
+  const collaborationEnabled = input.collaboration?.enabled === true;
   const successfulAgentIds = succeeded.map((r) => r.agentId);
+  const chunksByAgent = segmentAll(succeeded);
 
   // Only a clean, multi-specialist deep run can host a peer challenge. A DEGRADED run is
   // excluded on purpose: the gate would be choosing between specialists while one of them
@@ -549,8 +608,8 @@ Synthesize these results into a single, coherent final answer to the original ta
   const gateBlocked =
     !collaborationEnabled
       ? 'collaboration_disabled'
-      : plan.complexity !== 'deep'
-        ? `complexity_not_deep (${plan.complexity})`
+      : input.complexity !== 'deep'
+        ? `complexity_not_deep (${input.complexity})`
         : report.status !== 'SUCCESS'
           ? `round1_status_${report.status.toLowerCase()}`
           : successfulAgentIds.length < 2
@@ -561,7 +620,7 @@ Synthesize these results into a single, coherent final answer to the original ta
   const synthesisStart = Date.now();
   const finalResult = await call(
     synthesizer.provider,
-    gateActive ? synthesisPrompt + buildGateAppendix(successfulAgentIds) : synthesisPrompt,
+    gateActive ? synthesisPrompt + buildGateAppendix(successfulAgentIds, chunksByAgent) : synthesisPrompt,
     {
       model: synthesizer.model,
       stage: gateActive ? 'synthesis_gate' : 'synthesis',
@@ -572,27 +631,16 @@ Synthesize these results into a single, coherent final answer to the original ta
   const banner = buildOutputBanner(report);
 
   if (!collaborationEnabled) {
-    return {
-      plan,
-      planningAdjustments,
-      workerResults,
-      report,
-      finalOutput: banner + finalResult.text,
-      timings: {
-        planningMs,
-        workersMs,
-        synthesisMs,
-        totalMs: Date.now() - startedAt,
-      },
-    };
+    return { finalOutput: banner + finalResult.text, synthesisMs };
   }
 
   const collaboration = await runCollaboration({
     call,
     task,
-    plan,
-    workers,
+    agentOrder: input.agentOrder,
+    workers: input.workers,
     succeeded,
+    chunksByAgent,
     specialistBlock,
     degradedNote,
     synthesizer,
@@ -600,33 +648,26 @@ Synthesize these results into a single, coherent final answer to the original ta
     gateBlocked,
     gateText: finalResult.text,
     gateMs: synthesisMs,
-    peerExcerptChars: collaborationConfig?.peerExcerptChars ?? DEFAULT_PEER_EXCERPT_CHARS,
+    peerExcerptChars: input.collaboration?.peerExcerptChars ?? DEFAULT_PEER_EXCERPT_CHARS,
+    disableRound2: input.collaboration?.disableRound2 === true,
   });
 
   return {
-    plan,
-    planningAdjustments,
-    workerResults,
-    report,
     // The banner is built from the Round 1 report either way. Collaboration cannot reach
     // the evidence label, so it cannot change what the deliverable claims about itself.
     finalOutput: banner + collaboration.answer,
+    synthesisMs,
     collaboration: collaboration.report,
-    timings: {
-      planningMs,
-      workersMs,
-      synthesisMs,
-      totalMs: Date.now() - startedAt,
-    },
   };
 }
 
 interface CollaborationRunInput {
   call: typeof callProvider;
   task: string;
-  plan: Plan;
+  agentOrder: readonly string[];
   workers: Worker[];
   succeeded: WorkerRunResult[];
+  chunksByAgent: Readonly<Record<string, OutputChunk[]>>;
   specialistBlock: string;
   degradedNote: string;
   synthesizer: { provider: ProviderName; model?: string };
@@ -635,6 +676,7 @@ interface CollaborationRunInput {
   gateText: string;
   gateMs: number;
   peerExcerptChars: number;
+  disableRound2: boolean;
 }
 
 /**
@@ -688,16 +730,25 @@ async function runCollaboration(input: CollaborationRunInput): Promise<{
   if (parsed.note) notes.push(parsed.note);
   const provisional = parsed.answer;
   const parseField = { status: parsed.status, note: parsed.note };
+  // Kept on every gated exit. The provisional and final answers differ only by the peer
+  // exchange, so they can be compared to each other on one task instead of across tasks —
+  // which is the only comparison here that is not confounded by task difficulty.
+  const gated = {
+    provisionalAnswer: provisional,
+    chunkMap: Object.fromEntries(
+      Object.entries(input.chunksByAgent).map(([id, chunks]) => [id, chunks.map((c) => c.id)])
+    ),
+  };
 
   const { valid, rejected } = validateIssues(parsed.rawIssues, {
     successfulAgentIds: input.succeeded.map((r) => r.agentId),
+    chunksByAgent: input.chunksByAgent,
   });
   for (const r of rejected) {
     notes.push(`Issue ${r.index} was dropped: ${r.reason}.`);
   }
 
-  const agentOrder = input.plan.assignments.map((a) => a.agentId);
-  const selected = selectIssue(valid, agentOrder);
+  const selected = selectIssue(valid, input.agentOrder);
   const eligibleCount = valid.filter((i) => i.decisionSensitive && i.action === 'peer_challenge').length;
   const issuesField = {
     emitted: parsed.rawIssues.length,
@@ -706,6 +757,12 @@ async function runCollaboration(input: CollaborationRunInput): Promise<{
     recorded: valid,
     rejected,
   };
+  if (eligibleCount > 1) {
+    notes.push(
+      `The gate was asked for at most one peer challenge and returned ${eligibleCount}. ` +
+        'The deterministic ordering picked one; the rest are recorded and were not run.'
+    );
+  }
 
   // `needs_evidence` is recorded and never acted on. Retrieval in Round 2 would add a
   // second change on top of peer interaction, and the experiment could not then say which
@@ -728,13 +785,36 @@ async function runCollaboration(input: CollaborationRunInput): Promise<{
             ? 'no_valid_issue'
             : 'no_decision_sensitive_peer_challenge';
     notes.push('Round 2 was skipped; the provisional answer was delivered as written.');
-    return finish(provisional, 'SKIPPED', reason, { parse: parseField, issues: issuesField });
+    return finish(provisional, 'SKIPPED', reason, { ...gated, parse: parseField, issues: issuesField });
+  }
+
+  if (input.disableRound2) {
+    notes.push(
+      'Round 2 is disabled for this run. The issue that would have been acted on is recorded, ' +
+        'and the answer is the gate\'s provisional one.'
+    );
+    return finish(provisional, 'SKIPPED', 'round2_disabled', {
+      ...gated,
+      parse: parseField,
+      issues: issuesField,
+      selectedIssue: selected,
+    });
   }
 
   const targetResult = input.succeeded.find((r) => r.agentId === selected.targetAgentId)!;
-  const peerResult = input.succeeded.find((r) => r.agentId === selected.sourceRef)!;
   const targetWorker = input.workers.find((w) => w.id === selected.targetAgentId)!;
-  const excerpt = buildPeerExcerpt(selected.sourceRef, peerResult.output!, input.peerExcerptChars);
+  // Already proved resolvable during validation; an unresolvable ref never reaches here.
+  const resolved = resolveSourceRef(selected.sourceRef, input.chunksByAgent);
+  if (!resolved.ok) {
+    notes.push(`The selected issue's sourceRef stopped resolving: ${resolved.reason}.`);
+    return finish(provisional, 'SKIPPED', 'source_ref_unresolvable', {
+      ...gated,
+      parse: parseField,
+      issues: issuesField,
+      selectedIssue: selected,
+    });
+  }
+  const excerpt = buildPeerExcerpt(resolved.agentId, resolved.chunk, input.peerExcerptChars);
   const { text: _excerptText, ...excerptMeta } = excerpt;
 
   const round2Start = Date.now();
@@ -757,6 +837,7 @@ async function runCollaboration(input: CollaborationRunInput): Promise<{
     const round2Ms = Date.now() - round2Start;
     notes.push(`Round 2 failed (${String(err)}); the provisional answer was delivered instead.`);
     return finish(provisional, 'FAILED', 'round2_worker_failed', {
+      ...gated,
       parse: parseField,
       issues: issuesField,
       selectedIssue: selected,
@@ -799,6 +880,7 @@ async function runCollaboration(input: CollaborationRunInput): Promise<{
         "Round 2's revision is recorded but did not reach the deliverable."
     );
     return finish(provisional, 'FAILED', 'decision_synthesis_failed', {
+      ...gated,
       parse: parseField,
       issues: issuesField,
       selectedIssue: selected,
@@ -819,6 +901,7 @@ async function runCollaboration(input: CollaborationRunInput): Promise<{
       status: 'COMPLETED',
       reason: 'round2_completed',
       answerSource: 'round2_decision_synthesis',
+      ...gated,
       parse: parseField,
       issues: issuesField,
       selectedIssue: selected,
@@ -826,5 +909,78 @@ async function runCollaboration(input: CollaborationRunInput): Promise<{
       timings: { gateMs, round2Ms, decisionSynthesisMs, totalMs: collaborationTotalMs() },
       notes,
     },
+  };
+}
+
+/**
+ * A Round 1 result set, frozen so it can be synthesized more than once.
+ *
+ * Held separately from a full run because the point is to hold the expensive part still.
+ * Planning and the specialists vary between runs — the same deep task has produced both a
+ * 2- and a 3-specialist plan — so two live runs never share Round 1, and any difference
+ * between their answers is partly that. Replaying one frozen Round 1 removes that.
+ */
+export interface Round1Snapshot {
+  task: string;
+  complexity: Complexity;
+  /** Assignment order, which fixes the deterministic issue ordering. */
+  agentOrder: readonly string[];
+  workers: Worker[];
+  workerResults: WorkerRunResult[];
+}
+
+export interface ReplayOptions {
+  synthesizer: { provider: ProviderName; model?: string };
+  collaboration?: CollaborationConfig;
+  call?: typeof callProvider;
+}
+
+/**
+ * Re-runs the synthesis stage over a frozen Round 1.
+ *
+ * This is how arm B and arm B-prime are compared: identical specialist outputs, one
+ * synthesized with the existing prompt and one with the gate prompt and Round 2 disabled.
+ * The difference between those two answers is what the appendix does, with nothing else
+ * moving — which is the confound that cannot be measured any other way, because whether a
+ * live run triggers Round 2 is correlated with the task, not assigned at random.
+ *
+ * It delegates to the same `runSynthesisStage` the live path uses, so a replay cannot
+ * drift into being a second implementation of the thing under test.
+ */
+export async function replaySynthesis(snapshot: Round1Snapshot, options: ReplayOptions) {
+  const report = buildRunReport(snapshot.complexity, snapshot.workers, snapshot.workerResults);
+  const startedAt = Date.now();
+  const stage = await runSynthesisStage({
+    call: options.call ?? callProvider,
+    task: snapshot.task,
+    complexity: snapshot.complexity,
+    agentOrder: snapshot.agentOrder,
+    workers: snapshot.workers,
+    workerResults: snapshot.workerResults,
+    report,
+    synthesizer: options.synthesizer,
+    collaboration: options.collaboration,
+  });
+
+  return {
+    report,
+    finalOutput: stage.finalOutput,
+    ...(stage.collaboration ? { collaboration: stage.collaboration } : {}),
+    timings: { synthesisMs: stage.synthesisMs, totalMs: Date.now() - startedAt },
+  };
+}
+
+/** Freezes the Round 1 half of a completed run so it can be replayed. */
+export function toRound1Snapshot(
+  run: { plan: Plan; workerResults: WorkerRunResult[] },
+  task: string,
+  workers: Worker[]
+): Round1Snapshot {
+  return {
+    task,
+    complexity: run.plan.complexity,
+    agentOrder: run.plan.assignments.map((a) => a.agentId),
+    workers,
+    workerResults: run.workerResults,
   };
 }

@@ -218,7 +218,13 @@ server.registerTool(
                 .min(1)
                 .optional()
                 .describe(
-                  'How much of a peer specialist\'s answer is quoted into the second round. An experimental parameter with no measurement behind its default; the value used is recorded in the run\'s collaboration report.'
+                  'How much of the referenced passage is quoted into the second round. An experimental parameter with no measurement behind its default; the value used is recorded in the run\'s collaboration report.'
+                ),
+              disableRound2: z
+                .boolean()
+                .optional()
+                .describe(
+                  'Runs the gate but never fires the second round. The control condition for measuring what the gate instruction alone does to the answer, separately from the peer exchange.'
                 ),
             })
             .optional(),

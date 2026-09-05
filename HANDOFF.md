@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-05, rev. 15)
+# ai-collab-mcp — Progress Report (2026-09-05, rev. 16)
 
 > ## 交接狀態
 >
@@ -10,9 +10,9 @@
 > | **Step 7 V1 Complexity Router** | **CODE + RUNTIME ACCEPTED —— 有界 SIMPLE direct delivery** |
 > | **Step 7.1 E2E Runtime Acceptance** | **DONE —— Test A PASS / Test B PASS,詳見第十八節** |
 > | **Milestone 2 scope analysis** | **DONE —— 見 `MILESTONE2_SCOPE_ANALYSIS.md`、第二十節** |
-> | **Experimental Milestone 2-A Prototype** | **IMPLEMENTED / DEFAULT OFF —— 未 productionize,詳見第二十一節** |
+> | **Experimental Milestone 2-A Prototype** | **PRE-LIVE FINALIZED / DEFAULT OFF —— 尚未跑過 live,詳見第二十一節** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
-> | **目前離線測試** | **175 項全過 = rev.14 的 99 + M2-A 新增 76** |
+> | **目前離線測試** | **208 項全過 = rev.14 的 99 + M2-A 累計 109** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
 > | **Step 8 Implementation** | **DEFERRED —— Milestone 2 驗證後再回來** |
 > | 未完成的程式修改 | **無** |
@@ -20,6 +20,22 @@
 > **Experimental Milestone 2-A prototype 已實作,default OFF。** 關掉時的行為與回傳 payload 與 rev.14 逐欄相同,99 項既有測試無一需要放寬。新增 73 項測試涵蓋 stage 標記、call ceiling、best-effort parsing、issue 驗證、deterministic selection、selective peer context、失敗回退與 evidence 不變式。這是量測用的 prototype,不是 production feature,尚未跑過任何 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 16 改了什麼(M2-A Pre-Live Finalization)
+
+1. **Deterministic chunk reference 取代 head slice** —— Round 1 輸出由 runtime 依空白行切成 `p1`、`p2`…,`sourceRef` 改成 `<agentId>:<chunkId>`。offset 全部由 runtime 產生並記錄,模型從不提供 offset,也沒有 fuzzy quote matching。`output.slice(0, limit)` 已移除:被挑戰的內容通常不在回答開頭,拿開頭充數會讓 Round 2 在回應一段不相關的文字。
+2. **bare `<agentId>` 只在無歧義時接受** —— 該專家的回答只有一個 chunk 時可用,否則拒絕並回報可用的 passage 清單。用「取開頭」來解歧義,正是這次要修掉的東西。
+3. **Gate 明示最多一個 peer challenge** —— 附錄加入「At most one … select only the one whose resolution would have the greatest effect on the final decision」。模型違規回多個時,runtime 用既有的固定排序取一個並記一條 note,**不新增 severity 評分呼叫、不建 ranking 子系統**(測試斷言違規情況下呼叫數仍是 N+4)。
+4. **Decision Synthesis 中立性守則** —— 明確要求「不得因為較新或屬於修訂版就視為較正確;revision、recency、專家彼此同意都不是證據」。同時保留:未解分歧可以明示、不強迫 consensus、peer agreement 不提升 evidence status(測試斷言 prompt 中不出現任何要求達成共識的措辭)。
+5. **Parser edge cases 補齊** —— 四種情境端到端驗證:結尾的一般 JSON 範例不被誤剝、合法區塊被解析且從使用者可見答案中移除、malformed 區塊仍交付 provisional 且報告記下 parse failure、只有區塊沒有答案時 graceful fallback。四種都斷言 `RunStatus` 不受影響。
+6. **frozen Round-1 replay** —— 新增 `replaySynthesis()` 與 `toRound1Snapshot()`。凍結同一份 Round 1,只重跑 synthesis,即可比較 B(既有 prompt)與 B′(gate prompt + Round 2 關閉)。它呼叫 live path 同一個 `runSynthesisStage()`,不是第二份實作 —— 否則 replay 量到的是另一個系統。
+7. **`disableRound2` 成為正式 config** —— 這就是 arm B′,live 與 replay 都能用。
+8. **provisionalAnswer 保存在每一次 gate 有跑的執行** —— 讓 `C_provisional` vs `C_final` 成為**同一個任務內**的配對比較。`chunkMap` 也一併保存,讓被拒絕的 sourceRef 可以事後稽核。
+9. **⚠️ 推翻我 rev.15 寫的識別策略** —— 用 SKIPPED vs COMPLETED 估計 peer interaction 效果有 selection bias,已停用。詳見第二十一節。
+10. **測試** —— 175 → 208(本輪新增 33)。0 failed。未跑 live。
+11. **未改動** —— `policy.ts`、`chief.ts`、`registry.ts`、`capabilities.ts`、`debate.ts`、`pipeline.ts` 與三個 provider adapter 全部 byte-identical;`RunStatus`、`EvidenceLabel`、retrieval、Step 7 的判定與快速路徑均未觸碰(以 `git diff` 驗證)。
+
+---
 
 ## rev. 15 改了什麼(Experimental Milestone 2-A Prototype)
 
@@ -1808,9 +1824,15 @@ Round 2 資格:`decisionSensitive === true && action === 'peer_challenge'`。`ne
 
 Round 2 只收到:original task、自己的 mission、自己的 Round 1 輸出、**一段** peer excerpt、**一條** challenge。測試明確斷言第三位專家的輸出**不在** prompt 內,provisional answer 也不在。沒有重用 `run_debate` 的 full-broadcast。
 
-Excerpt 由 **runtime** 從 `sourceRef` 的 Round 1 輸出擷取,記錄 `startChar` / `endChar` / `truncated` / `charLimit`。模型從不提供 character offset。
+**rev.16 起改為 deterministic chunk reference。** Round 1 輸出由 runtime 依空白行切成 `p1`、`p2`…,`sourceRef` 寫成 `<agentId>:<chunkId>`(例:`market_researcher:p2`)。gate 的附錄會列出所有可用的 reference。
 
-⚠️ **已知限制:** `sourceRef` 解析到 agent 而非段落,所以長答案只被引用開頭,被挑戰的段落可能落在窗口外。修這個需要 passage-level reference,而那需要「agent 層級引用不夠」的證據 —— 那個證據目前不存在。
+Runtime 負責四件事:deterministic segmentation、sourceRef validation、bounded chunk extraction、audit trail(`agentId` / `chunkId` / `chunkIndex` / `startChar` / `endChar` / `truncated` / `charLimit`,offsets 指向該專家的**完整**輸出,所以引文永遠可以回頭比對)。
+
+不使用:model-generated character offsets、fuzzy quote matching、full worker output broadcast。
+
+bare `<agentId>` 只在該專家的回答**只有一個 chunk** 時接受;多 chunk 時拒絕並回報可用清單 —— 用「取開頭」解歧義正是 rev.15 的缺陷。
+
+Round 2 同時收到 original peer chunk **與** targeted challenge,不是 challenge-only。
 
 `peerExcerptChars` 是 **configurable experimental parameter**,預設值沒有任何實測支持,每次執行都把實際用值寫進報告。
 
@@ -1864,17 +1886,30 @@ independent Chief Review、Judge、`run_debate()` nesting、full peer broadcast�
 
 所以 `C > B` 有可能**完全不是 peer interaction 造成的**,而是附錄造成的。
 
-目前的觀察是這個 confound **可以從既有資料拆開,不需要新程式**,因為報告已經記錄每次執行是否觸發:
+### ⚠️ 我 rev.15 提的拆法是錯的,已被推翻
+
+rev.15 我提議用「C 執行中 SKIPPED 的那些」當天然的 arm B′,和 COMPLETED 的那些比。**架構審查否決了這個做法,理由是 selection bias,而那個理由是對的** —— 觸發與否不是隨機分派,而是與任務本身相關(有跨專家分歧的任務才會觸發)。拿兩群不同的任務相減,量到的是任務差異,不是 peer interaction。
+
+我當時已經標注「可能不成立」,但仍然把它寫成主要方案。**正確的處理是:一個自己知道可能不成立的識別策略,不應該被寫成方案,應該被寫成待解問題。**
+
+**rev.16 採用的正確做法是 frozen Round-1 replay:**
 
 ```text
-C 執行中 status = SKIPPED   → 有附錄,無 peer interaction   ← 天然的 arm B′
-C 執行中 status = COMPLETED → 有附錄,有 peer interaction
+凍結同一份 Round 1 outputs,只重跑 synthesis:
 
-(B′ − B)  = 附錄本身的效果
-(C − B′)  = peer interaction 的效果
+B   = 既有 synthesis prompt
+B′  = gate synthesis prompt + Round 2 強制關閉
+
+(B′ − B) = 附錄本身的效果,同一批任務、同一份 Round 1,沒有分組問題
 ```
 
-⚠️ **但這個拆法可能不成立,尚未驗證。** 觸發與否本身可能與任務難度相關(難的任務才有分歧),那 B′ 與 C 就不是隨機分組,兩者的差可能只是任務難度差。這一題已列入給 GPT/Gemini 的實作審查包第 2 節,列為最高優先。
+peer interaction 的效果則用**同一次執行內**的配對比較:
+
+```text
+C_provisional  vs  C_final     ← 同一個任務、同一份 Round 1、同一次 gate 輸出
+```
+
+兩者都是 paired,不需要跨任務相減。`replaySynthesis()` 與 `CollaborationConfig.disableRound2` 就是為此而生。
 
 ## 是否已具備進入 A/B/C/D 評估的條件?
 
@@ -1888,9 +1923,21 @@ C 執行中 status = COMPLETED → 有附錄,有 peer interaction
 | 盲測 | ✅ `finalOutput = banner + text` 且 `buildOutputBanner` 是純函式,`finalOutput.slice(banner.length)` 可精確還原無標籤答案。已加測試 —— 沒有這個,只有 B/C 帶 banner,評分者看第一行就知道是哪個 arm |
 | Frozen Evidence Packet | ✅ 架構可支援:四個 arm 全部關檢索、把凍結證據放進 task 文字,即可得到 byte-identical evidence input。**未建置**,依指令第 18 條 |
 | 檢索對等(E1) | ⚠️ 未解 —— 只有 Gemini 的 `grounded_retrieval` 是 `enabledInRuntime: true`。現階段唯一乾淨作法是四個 arm 全關檢索,證據維度暫時離開實驗 |
+| 附錄效果隔離(B vs B′) | ✅ `replaySynthesis()` + `disableRound2`:凍結同一份 Round 1,只換 synthesis prompt |
+| Peer interaction 配對比較 | ✅ `collaboration.provisionalAnswer` 與 `finalOutput` 同時保存,`C_provisional` vs `C_final` 是同一次執行內的配對 |
 | 評分 rubric 與比較協定 | ❌ 不存在,依指令第 18 條本輪不建 |
 | **Gate 在真實任務上是否會產出 issue** | ❌ **完全未知 —— 從未跑過一次 live gate** |
 
-最後一項是最便宜也最該先做的:在寫任何評分系統之前,先確認 gate 在真實 DEEP 任務上到底會不會產出合格的 peer challenge。如果從不產出,C 與 B 在行為上就是同一個東西,後面的比較全部沒有意義 —— 但依第 14 條,那是**診斷結果**,不是自動的處決理由:也可能代表這批任務本來就沒有跨專家分歧。
+最後一項是最便宜也最該先做的:在寫任何評分系統之前,先確認 gate 在真實 DEEP 任務上到底會不會產出合格的 peer challenge,以及它產出的 `sourceRef` 是否真的用了 `<agentId>:<chunkId>` 形式。如果從不產出,C 與 B 在行為上就是同一個東西,後面的比較全部沒有意義 —— 但依第 14 條,那是**診斷結果**,不是自動的處決理由:也可能代表這批任務本來就沒有跨專家分歧。
 
-已停在此處,未自行開始任何 live A/B/C/D benchmark。
+## 首次 Live 應該先看什麼
+
+一次 DEEP 執行(`enabled: true`)就足以回答三個目前完全未知的問題,不需要 benchmark:
+
+1. gate 有沒有產出區塊?區塊有沒有通過 parse?
+2. `sourceRef` 是不是 `<agentId>:<chunkId>` 形式、而且指得到存在的 passage?(`chunkMap` 與 `issues.rejected` 會直接說)
+3. 模型有沒有遵守「最多一個」?(`issues.eligible > 1` 會留下 note)
+
+這三題的答案決定接下來要不要調 prompt,而它們都不需要評分系統。
+
+已停在此處,未自行開始任何 live 執行。

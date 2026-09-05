@@ -11,8 +11,12 @@ import {
   selectIssue,
   buildPeerExcerpt,
   isRound2Eligible,
+  segmentOutput,
+  segmentAll,
+  resolveSourceRef,
   DEFAULT_PEER_EXCERPT_CHARS,
 } from './dist/agents/collaboration.js';
+import { replaySynthesis } from './dist/modes/orchestrator.js';
 
 let passed = 0;
 let failed = 0;
@@ -52,7 +56,7 @@ const planFor = (ids, complexity = 'deep') => ({
 
 const issue = (over = {}) => ({
   targetAgentId: 'strategy',
-  sourceRef: 'risk',
+  sourceRef: 'risk:p1',
   challenge: 'The payback figure ignores the lease term.',
   decisionSensitive: true,
   action: 'peer_challenge',
@@ -79,6 +83,7 @@ async function run({
   collaboration,
   fail = {},
   peerExcerptChars,
+  disableRound2,
 } = {}) {
   const plan = planFor(ids, complexity);
   const calls = [];
@@ -102,7 +107,13 @@ async function run({
   const experimental =
     collaboration === undefined
       ? undefined
-      : { collaboration: { enabled: collaboration, ...(peerExcerptChars ? { peerExcerptChars } : {}) } };
+      : {
+          collaboration: {
+            enabled: collaboration,
+            ...(peerExcerptChars ? { peerExcerptChars } : {}),
+            ...(disableRound2 ? { disableRound2 } : {}),
+          },
+        };
 
   const result = await runOrchestrator({
     task: TASK,
@@ -264,10 +275,68 @@ await check('a malformed block in a live run still delivers the provisional answ
   assert.ok(!stages.includes('round2_worker'));
 });
 
+/* ================================================ parser edge cases (required) */
+console.log('\nParser edge cases, end to end');
+
+await check('EDGE 1: a user-facing JSON example at the end is not stripped', async () => {
+  const answer = PROVISIONAL + '\n\nUse this config:\n\n```json\n{"retries": 3, "timeout": 30}\n```';
+  const { result, stages } = await run({ collaboration: true, gateText: answer });
+  const banner = buildOutputBanner(result.report);
+  assert.equal(result.finalOutput.slice(banner.length), answer, 'the answer must survive intact');
+  assert.equal(result.collaboration.parse.status, 'absent');
+  assert.ok(!stages.includes('round2_worker'));
+});
+
+await check('EDGE 2: a valid block is parsed, removed from the answer, and acted on', async () => {
+  const { result, calls } = await run({ collaboration: true, gateText: PROVISIONAL + block([issue()]) });
+  assert.equal(result.collaboration.parse.status, 'parsed');
+  assert.equal(result.collaboration.provisionalAnswer, PROVISIONAL, 'answer preserved');
+  assert.ok(!result.collaboration.provisionalAnswer.includes('collaborationIssues'), 'block removed');
+  assert.ok(!result.finalOutput.includes('collaborationIssues'), 'block never reaches the user');
+  assert.equal(result.collaboration.issues.emitted, 1);
+  assert.equal(result.collaboration.issues.valid, 1);
+  assert.equal(result.collaboration.status, 'COMPLETED');
+  assert.ok(calls.some((c) => c.stage === 'round2_worker'));
+});
+
+await check('EDGE 3: a malformed collaboration-like block degrades without failing the run', async () => {
+  const { result, stages } = await run({
+    collaboration: true,
+    gateText: PROVISIONAL + '\n\n```json\n{"collaborationIssues": [{"targetAgentId": "strategy",,,\n```',
+  });
+  const banner = buildOutputBanner(result.report);
+  assert.equal(result.finalOutput.slice(banner.length), PROVISIONAL, 'provisional answer still delivered');
+  assert.ok(!stages.includes('round2_worker'), 'no Round 2');
+  assert.equal(result.collaboration.parse.status, 'malformed', 'parse failure recorded');
+  assert.ok(result.collaboration.parse.note.includes('not valid JSON'));
+  assert.equal(result.collaboration.status, 'SKIPPED');
+  assert.equal(result.collaboration.reason, 'block_malformed');
+  assert.equal(result.report.status, 'SUCCESS', 'the run itself is unaffected');
+});
+
+await check('EDGE 4: a block with no answer before it falls back gracefully', async () => {
+  const only = '```json\n{"collaborationIssues": [' + JSON.stringify(issue()) + ']}\n```';
+  const { result, stages } = await run({ collaboration: true, gateText: only });
+  const banner = buildOutputBanner(result.report);
+  assert.equal(result.finalOutput.slice(banner.length), only, 'the raw response is delivered, never an empty answer');
+  assert.notEqual(result.finalOutput.slice(banner.length).trim(), '');
+  assert.equal(result.collaboration.parse.status, 'schema_invalid');
+  assert.ok(result.collaboration.parse.note.includes('no answer before it'));
+  assert.ok(!stages.includes('round2_worker'));
+  assert.equal(result.report.status, 'SUCCESS');
+});
+
 /* ==================================================== issue schema validation */
 console.log('\nIssue validation');
 
-const ctx = { successfulAgentIds: ['strategy', 'risk', 'brand'] };
+const ctx = {
+  successfulAgentIds: ['strategy', 'risk', 'brand'],
+  chunksByAgent: segmentAll([
+    { agentId: 'strategy', output: OUTPUT.strategy },
+    { agentId: 'risk', output: OUTPUT.risk },
+    { agentId: 'brand', output: OUTPUT.brand },
+  ]),
+};
 const rejectionFor = (over) => validateIssues([issue(over)], ctx).rejected[0].reason;
 
 await check('a well-formed issue validates', () => {
@@ -281,11 +350,11 @@ await check('an unknown targetAgentId is rejected', () => {
 });
 
 await check('an unknown sourceRef is rejected', () => {
-  assert.match(rejectionFor({ sourceRef: 'nobody' }), /not a successful Round 1 specialist/);
+  assert.match(rejectionFor({ sourceRef: 'nobody:p1' }), /does not name a successful Round 1 specialist/);
 });
 
 await check('an agent challenging itself is rejected as self-review', () => {
-  assert.match(rejectionFor({ sourceRef: 'strategy' }), /self-review, not a peer challenge/);
+  assert.match(rejectionFor({ sourceRef: 'strategy:p1' }), /self-review, not a peer challenge/);
 });
 
 await check('an empty challenge is rejected', () => {
@@ -365,19 +434,30 @@ await check('no eligible issue selects nothing', () => {
 /* ============================================================== peer excerpt */
 console.log('\nPeer excerpt — bounded, deterministic, auditable');
 
-await check('an output within the limit is quoted whole', () => {
-  const e = buildPeerExcerpt('risk', 'short answer', 100);
+await check('a chunk within the limit is quoted whole', () => {
+  const [chunk] = segmentOutput('short answer');
+  const e = buildPeerExcerpt('risk', chunk, 100);
   assert.equal(e.text, 'short answer');
   assert.equal(e.truncated, false);
+  assert.equal(e.chunkId, 'p1');
   assert.deepEqual([e.startChar, e.endChar], [0, 'short answer'.length]);
 });
 
-await check('a longer output is truncated and says so', () => {
-  const e = buildPeerExcerpt('risk', 'x'.repeat(50), 10);
+await check('an over-long chunk is truncated and says so', () => {
+  const [chunk] = segmentOutput('x'.repeat(50));
+  const e = buildPeerExcerpt('risk', chunk, 10);
   assert.equal(e.text.length, 10);
   assert.equal(e.truncated, true);
   assert.equal(e.endChar, 10);
   assert.equal(e.charLimit, 10);
+});
+
+await check('excerpt offsets point into the peer\'s full output, not into the chunk', () => {
+  const output = 'first para\n\nsecond para that is challenged';
+  const chunks = segmentOutput(output);
+  const e = buildPeerExcerpt('risk', chunks[1], 500);
+  assert.equal(e.chunkId, 'p2');
+  assert.equal(output.slice(e.startChar, e.endChar), 'second para that is challenged');
 });
 
 await check('the excerpt limit is a recorded parameter, not a hidden constant', async () => {
@@ -653,6 +733,279 @@ await check('a skipped run still reports gate time and no round 2 time', async (
   assert.equal(typeof result.collaboration.timings.gateMs, 'number');
   assert.equal(result.collaboration.timings.round2Ms, undefined);
   assert.equal(result.collaboration.timings.decisionSynthesisMs, undefined);
+});
+
+/* ====================================================== chunk segmentation */
+console.log('\nDeterministic chunk references');
+
+const MULTI = {
+  strategy: 'S-A: expand in Q2.\n\nS-B: payback in 14 months.\n\nS-C: hire two editors.',
+  risk: 'R-A: the lease runs five years.\n\nR-B: revenue visibility is two quarters.',
+  brand: 'B-A: positioning stays intact.',
+};
+
+await check('paragraphs become p1..pn in document order', () => {
+  const chunks = segmentOutput(MULTI.strategy);
+  assert.deepEqual(chunks.map((c) => c.id), ['p1', 'p2', 'p3']);
+  assert.deepEqual(chunks.map((c) => c.index), [0, 1, 2]);
+  assert.equal(chunks[1].text, 'S-B: payback in 14 months.');
+});
+
+await check('chunk offsets index the original output exactly', () => {
+  for (const c of segmentOutput(MULTI.strategy)) {
+    assert.equal(MULTI.strategy.slice(c.startChar, c.endChar), c.text);
+  }
+});
+
+await check('segmentation is deterministic and free of empty chunks', () => {
+  const messy = '\n\n  first  \n\n\n\n   \n\n second \n\n';
+  const a = segmentOutput(messy);
+  assert.deepEqual(a, segmentOutput(messy));
+  assert.deepEqual(a.map((c) => c.text), ['first', 'second']);
+});
+
+await check('an answer with no blank line is a single chunk', () => {
+  const chunks = segmentOutput('one line only');
+  assert.equal(chunks.length, 1);
+  assert.equal(chunks[0].id, 'p1');
+});
+
+await check('an empty answer has no citable passage', () => {
+  assert.deepEqual(segmentOutput('   \n\n  '), []);
+});
+
+const multiChunks = segmentAll([
+  { agentId: 'strategy', output: MULTI.strategy },
+  { agentId: 'risk', output: MULTI.risk },
+  { agentId: 'brand', output: MULTI.brand },
+]);
+
+await check('a passage reference resolves to that passage', () => {
+  const r = resolveSourceRef('risk:p2', multiChunks);
+  assert.equal(r.ok, true);
+  assert.equal(r.agentId, 'risk');
+  assert.equal(r.chunk.text, 'R-B: revenue visibility is two quarters.');
+});
+
+await check('a bare agent id is rejected when the answer has several passages', () => {
+  const r = resolveSourceRef('risk', multiChunks);
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /names a specialist but no passage/);
+});
+
+await check('a bare agent id is accepted only when it is unambiguous', () => {
+  const r = resolveSourceRef('brand', multiChunks);
+  assert.equal(r.ok, true);
+  assert.equal(r.chunk.id, 'p1');
+});
+
+await check('a passage id that does not exist is rejected with the available ones', () => {
+  const r = resolveSourceRef('risk:p9', multiChunks);
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /available: p1, p2/);
+});
+
+await check('an unknown agent in a reference is rejected', () => {
+  assert.equal(resolveSourceRef('ghost:p1', multiChunks).ok, false);
+});
+
+await check('Round 2 receives the referenced passage, not the opening one', async () => {
+  const { calls, result } = await run({
+    collaboration: true,
+    outputs: MULTI,
+    gateText: PROVISIONAL + block([issue({ sourceRef: 'risk:p2' })]),
+  });
+  const prompt = calls.find((c) => c.stage === 'round2_worker').prompt;
+  assert.ok(prompt.includes('R-B: revenue visibility is two quarters.'), 'the cited passage must be quoted');
+  assert.ok(!prompt.includes('R-A: the lease runs five years.'), 'the opening passage must not be substituted');
+  assert.equal(result.collaboration.round2.peerExcerpt.chunkId, 'p2');
+});
+
+await check('the audit trail records which passage was quoted', async () => {
+  const { result } = await run({
+    collaboration: true,
+    outputs: MULTI,
+    gateText: PROVISIONAL + block([issue({ sourceRef: 'risk:p2' })]),
+  });
+  const e = result.collaboration.round2.peerExcerpt;
+  assert.deepEqual(
+    { agentId: e.agentId, chunkId: e.chunkId, chunkIndex: e.chunkIndex, truncated: e.truncated },
+    { agentId: 'risk', chunkId: 'p2', chunkIndex: 1, truncated: false }
+  );
+  assert.equal(MULTI.risk.slice(e.startChar, e.endChar), 'R-B: revenue visibility is two quarters.');
+});
+
+await check('the gate is shown the references it is allowed to use', async () => {
+  const { calls, result } = await run({ collaboration: true, outputs: MULTI });
+  const gate = calls.find((c) => c.stage === 'synthesis_gate').prompt;
+  for (const ref of ['strategy:p1', 'strategy:p2', 'strategy:p3', 'risk:p1', 'risk:p2', 'brand:p1']) {
+    assert.ok(gate.includes(ref), `gate prompt must offer ${ref}`);
+  }
+  assert.deepEqual(result.collaboration.chunkMap, {
+    strategy: ['p1', 'p2', 'p3'],
+    risk: ['p1', 'p2'],
+    brand: ['p1'],
+  });
+});
+
+/* ============================================== gate emits at most one challenge */
+console.log('\nAt most one peer challenge');
+
+await check('the gate is instructed to emit at most one peer challenge', async () => {
+  const { calls } = await run({ collaboration: true });
+  const gate = calls.find((c) => c.stage === 'synthesis_gate').prompt;
+  assert.ok(gate.includes('At most one "peer_challenge" may be emitted.'));
+  assert.ok(gate.includes('greatest effect on the final decision'));
+});
+
+await check('a gate that returns several is corrected deterministically and recorded', async () => {
+  const issues = [
+    issue({ targetAgentId: 'brand', sourceRef: 'risk:p1' }),
+    issue({ targetAgentId: 'risk', sourceRef: 'brand:p1' }),
+  ];
+  const { result, stages } = await run({ collaboration: true, gateText: PROVISIONAL + block(issues) });
+  assert.equal(stages.filter((s) => s === 'round2_worker').length, 1);
+  assert.equal(result.collaboration.issues.eligible, 2);
+  assert.ok(result.collaboration.notes.some((n) => n.includes('returned 2')));
+  assert.equal(result.collaboration.selectedIssue.targetAgentId, 'risk');
+});
+
+await check('correcting the violation costs no extra model call', async () => {
+  const issues = [issue({ targetAgentId: 'brand' }), issue({ targetAgentId: 'risk' }), issue()];
+  const { calls } = await run({ collaboration: true, gateText: PROVISIONAL + block(issues) });
+  assert.equal(calls.length, 3 + 4, 'no ranking call may be added');
+});
+
+/* =========================================== decision synthesis neutrality */
+console.log('\nDecision synthesis neutrality');
+
+await check('the decision contract refuses to privilege the revision', async () => {
+  const { calls } = await run({ collaboration: true, gateText: PROVISIONAL + block([issue()]) });
+  const prompt = calls.find((c) => c.stage === 'decision_synthesis').prompt;
+  assert.ok(prompt.includes('not as inherently more correct because it is newer or revised'));
+  assert.ok(prompt.includes('Revision, recency, or agreement between specialists is not evidence'));
+  assert.ok(prompt.includes('against the original reasoning, the peer challenge, and the task constraints'));
+});
+
+await check('unresolved disagreement is still allowed to stand', async () => {
+  const { calls } = await run({ collaboration: true, gateText: PROVISIONAL + block([issue()]) });
+  const prompt = calls.find((c) => c.stage === 'decision_synthesis').prompt;
+  assert.ok(prompt.includes('If the disagreement is unresolved, state it plainly'));
+  assert.ok(!prompt.match(/reach (a )?consensus/i), 'consensus must never be required');
+});
+
+/* ================================================ B-prime and frozen replay */
+console.log('\nArm B-prime and frozen Round 1 replay');
+
+await check('disableRound2 runs the gate but never the peer exchange', async () => {
+  const { result, stages } = await run({
+    collaboration: true,
+    gateText: PROVISIONAL + block([issue()]),
+    disableRound2: true,
+  });
+  assert.deepEqual(stages, ['planning', 'round1_worker', 'round1_worker', 'round1_worker', 'synthesis_gate']);
+  assert.equal(result.collaboration.status, 'SKIPPED');
+  assert.equal(result.collaboration.reason, 'round2_disabled');
+  assert.equal(result.collaboration.answerSource, 'round1_provisional');
+  assert.ok(result.finalOutput.endsWith(PROVISIONAL));
+});
+
+await check('B-prime still records the issue it would have acted on', async () => {
+  const { result } = await run({
+    collaboration: true,
+    gateText: PROVISIONAL + block([issue()]),
+    disableRound2: true,
+  });
+  assert.equal(result.collaboration.selectedIssue.targetAgentId, 'strategy');
+  assert.equal(result.collaboration.issues.eligible, 1);
+});
+
+// A frozen Round 1, replayed twice. Everything except the synthesis prompt is held still.
+const snapshot = {
+  task: TASK,
+  complexity: 'deep',
+  agentOrder: ['strategy', 'risk', 'brand'],
+  workers: ROSTER,
+  workerResults: ['strategy', 'risk', 'brand'].map((id) => ({
+    agentId: id,
+    provider: ROSTER.find((w) => w.id === id).provider,
+    mission: `Mission for ${id}`,
+    output: OUTPUT[id],
+  })),
+};
+
+const replay = async (collaboration) => {
+  const calls = [];
+  const result = await replaySynthesis(snapshot, {
+    synthesizer: { provider: 'openai', model: 'synth' },
+    collaboration,
+    call: async (provider, prompt, options) => {
+      calls.push({ stage: options.stage, prompt });
+      return { provider, model: options.model, text: PROVISIONAL + block([issue()]) };
+    },
+  });
+  return { result, calls };
+};
+
+await check('a replay spends exactly one model call', async () => {
+  const { calls } = await replay(undefined);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].stage, 'synthesis');
+});
+
+await check('B and B-prime replay the same Round 1 and differ only by the appendix', async () => {
+  const b = await replay(undefined);
+  const bPrime = await replay({ enabled: true, disableRound2: true });
+  assert.equal(bPrime.calls[0].stage, 'synthesis_gate');
+  assert.ok(bPrime.calls[0].prompt.startsWith(b.calls[0].prompt), 'B-prime must extend B, not rewrite it');
+  assert.ok(bPrime.calls[0].prompt.slice(b.calls[0].prompt.length).includes('collaborationIssues'));
+});
+
+await check('B-prime replay never fires a second round', async () => {
+  const { calls, result } = await replay({ enabled: true, disableRound2: true });
+  assert.equal(calls.length, 1);
+  assert.equal(result.collaboration.reason, 'round2_disabled');
+});
+
+await check('a replay reproduces the run report from the frozen results', async () => {
+  const { result } = await replay(undefined);
+  assert.equal(result.report.status, 'SUCCESS');
+  assert.equal(result.report.evidenceLabel, 'HYPOTHESIS');
+  assert.equal(result.report.successfulWorkers, 3);
+});
+
+/* ============================================ paired provisional vs final */
+console.log('\nPaired provisional / final capture');
+
+await check('a completed run keeps both answers from the same task', async () => {
+  const { result } = await run({ collaboration: true, gateText: PROVISIONAL + block([issue()]) });
+  const banner = buildOutputBanner(result.report);
+  assert.equal(result.collaboration.provisionalAnswer, PROVISIONAL);
+  assert.equal(result.finalOutput.slice(banner.length), DECISION);
+  assert.notEqual(result.collaboration.provisionalAnswer, result.finalOutput.slice(banner.length));
+});
+
+await check('a skipped run records the provisional answer it delivered', async () => {
+  const { result } = await run({ collaboration: true });
+  const banner = buildOutputBanner(result.report);
+  assert.equal(result.collaboration.provisionalAnswer, PROVISIONAL);
+  assert.equal(result.finalOutput.slice(banner.length), result.collaboration.provisionalAnswer);
+});
+
+await check('a failed round 2 records a provisional answer identical to what shipped', async () => {
+  const { result } = await run({
+    collaboration: true,
+    gateText: PROVISIONAL + block([issue()]),
+    fail: { round2_worker: new Error('boom') },
+  });
+  const banner = buildOutputBanner(result.report);
+  assert.equal(result.finalOutput.slice(banner.length), result.collaboration.provisionalAnswer);
+});
+
+await check('a run that never reached the gate has no provisional answer to record', async () => {
+  const { result } = await run({ ids: ['strategy', 'risk'], complexity: 'normal', collaboration: true });
+  assert.equal(result.collaboration.provisionalAnswer, undefined);
+  assert.equal(result.collaboration.chunkMap, undefined);
 });
 
 /* ============================================== control-arm prompt parity */

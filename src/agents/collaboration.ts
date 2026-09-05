@@ -19,9 +19,14 @@ export interface CollaborationIssue {
   /** The specialist whose work is challenged. Must be a successful Round 1 specialist. */
   targetAgentId: string;
   /**
-   * Where the challenge comes from. Agent granularity only: an agentId, never a character
-   * range. A model asked for offsets into another model's text will produce offsets that
-   * look precise and are not, and there is nothing to check them against.
+   * Where the challenge comes from, as `<agentId>:<chunkId>` — for example
+   * `market_researcher:p2`.
+   *
+   * Chunk ids are assigned by the runtime, so a reference either resolves to a passage
+   * that exists or is rejected. A model asked instead for character offsets into another
+   * model's text produces offsets that look precise, are not, and have nothing to check
+   * them against. A bare `<agentId>` is accepted only when that specialist's answer is a
+   * single chunk, because that is the one case where it is unambiguous.
    */
   sourceRef: string;
   challenge: string;
@@ -44,8 +49,22 @@ export type CollaborationStatus = 'NOT_TRIGGERED' | 'SKIPPED' | 'COMPLETED' | 'F
 /** Which call actually produced the delivered answer. */
 export type AnswerSource = 'round1_provisional' | 'round2_decision_synthesis';
 
+/** One deterministically segmented passage of a specialist's Round 1 answer. */
+export interface OutputChunk {
+  /** `p1`, `p2`, ... in document order. */
+  id: string;
+  index: number;
+  /** Offsets into that specialist's full Round 1 output. */
+  startChar: number;
+  endChar: number;
+  text: string;
+}
+
 export interface PeerExcerpt {
   agentId: string;
+  chunkId: string;
+  chunkIndex: number;
+  /** Offsets into the peer's full Round 1 output, so the quote can be checked against it. */
   startChar: number;
   endChar: number;
   truncated: boolean;
@@ -63,6 +82,16 @@ export interface CollaborationReport {
   status: CollaborationStatus;
   reason: string;
   answerSource: AnswerSource;
+  /**
+   * The gate's answer before any second round, kept on every triggered run.
+   *
+   * This is what makes a paired comparison possible: on one task, this answer and the
+   * final one differ only by the peer exchange, so they can be compared to each other
+   * instead of across tasks. Absent when the gate did not run.
+   */
+  provisionalAnswer?: string;
+  /** What `sourceRef` could have pointed at, so a rejected reference can be audited. */
+  chunkMap?: Record<string, string[]>;
   parse: { status: BlockParseStatus; note?: string };
   issues: {
     emitted: number;
@@ -100,6 +129,15 @@ export interface CollaborationConfig {
    * recorded in every CollaborationReport so no run's excerpt size has to be guessed later.
    */
   peerExcerptChars?: number;
+  /**
+   * Runs the gate but never fires Round 2.
+   *
+   * This is arm B-prime: the gate prompt with the peer exchange removed, which is the only
+   * way to separate what the appendix does to the answer from what the peer exchange does.
+   * Comparing triggered runs against skipped ones cannot do that job — whether a run
+   * triggers is not random, so the two groups are not comparable populations.
+   */
+  disableRound2?: boolean;
 }
 
 export const DEFAULT_PEER_EXCERPT_CHARS = 1000;
@@ -193,11 +231,118 @@ export function parseGateOutput(text: string): ParsedGateOutput {
   return { answer: cleaned, rawIssues: issues, status: 'parsed' };
 }
 
+/* ------------------------------------------------------------- segmentation */
+
+/** Blank-line separated passages, the same split a reader would make. */
+const CHUNK_SEPARATOR = /\r?\n[ \t]*\r?\n/g;
+
+/**
+ * Cuts a Round 1 answer into referenceable passages.
+ *
+ * Deterministic and offset-preserving: the ids the gate is offered are produced here, from
+ * the text, by a rule that does not consult a model. That is what makes a reference
+ * checkable — `market_researcher:p2` either names a passage that exists or it does not,
+ * and either way the runtime can say which without guessing.
+ *
+ * An answer with no blank line is one chunk. An empty answer has none, and a specialist
+ * with no chunks cannot be cited.
+ */
+export function segmentOutput(output: string): OutputChunk[] {
+  const chunks: OutputChunk[] = [];
+  let cursor = 0;
+
+  const push = (rawStart: number, rawEnd: number) => {
+    const raw = output.slice(rawStart, rawEnd);
+    const leading = raw.length - raw.trimStart().length;
+    const text = raw.trim();
+    if (text.length === 0) return;
+    const startChar = rawStart + leading;
+    chunks.push({
+      id: `p${chunks.length + 1}`,
+      index: chunks.length,
+      startChar,
+      endChar: startChar + text.length,
+      text,
+    });
+  };
+
+  CHUNK_SEPARATOR.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = CHUNK_SEPARATOR.exec(output)) !== null) {
+    push(cursor, match.index);
+    cursor = match.index + match[0].length;
+  }
+  push(cursor, output.length);
+
+  return chunks;
+}
+
+export function segmentAll(
+  results: ReadonlyArray<{ agentId: string; output?: string }>
+): Record<string, OutputChunk[]> {
+  const map: Record<string, OutputChunk[]> = {};
+  for (const r of results) {
+    if (typeof r.output === 'string') map[r.agentId] = segmentOutput(r.output);
+  }
+  return map;
+}
+
+export type SourceRefResolution =
+  | { ok: true; agentId: string; chunk: OutputChunk }
+  | { ok: false; reason: string };
+
+/**
+ * Resolves `<agentId>:<chunkId>` against what Round 1 actually produced.
+ *
+ * A bare `<agentId>` is accepted only when that specialist wrote a single chunk. Anywhere
+ * else it is ambiguous, and resolving ambiguity by taking the opening passage is exactly
+ * the failure this replaced: the challenged sentence is usually not the first one.
+ */
+export function resolveSourceRef(
+  ref: string,
+  chunksByAgent: Readonly<Record<string, OutputChunk[]>>
+): SourceRefResolution {
+  const separator = ref.indexOf(':');
+  const agentId = separator === -1 ? ref : ref.slice(0, separator);
+  const chunkId = separator === -1 ? undefined : ref.slice(separator + 1);
+
+  const chunks = chunksByAgent[agentId];
+  if (!chunks) {
+    return { ok: false, reason: `sourceRef "${ref}" does not name a successful Round 1 specialist` };
+  }
+  if (chunks.length === 0) {
+    return { ok: false, reason: `sourceRef "${ref}" names a specialist whose answer has no citable passage` };
+  }
+
+  if (chunkId === undefined) {
+    if (chunks.length === 1) return { ok: true, agentId, chunk: chunks[0] };
+    return {
+      ok: false,
+      reason:
+        `sourceRef "${ref}" names a specialist but no passage; ${agentId} has ` +
+        `${chunks.length} passages (${chunks.map((c) => c.id).join(', ')})`,
+    };
+  }
+
+  const chunk = chunks.find((c) => c.id === chunkId);
+  if (!chunk) {
+    return {
+      ok: false,
+      reason:
+        `sourceRef "${ref}" names no passage of ${agentId}; available: ` +
+        `${chunks.map((c) => c.id).join(', ')}`,
+    };
+  }
+  return { ok: true, agentId, chunk };
+}
+
 /* -------------------------------------------------------------- validation */
 
 export interface ValidationContext {
   /** Ids of Round 1 specialists that returned an answer, in assignment order. */
   successfulAgentIds: readonly string[];
+  /** Citable passages per specialist, as produced by `segmentAll`. */
+  chunksByAgent: Readonly<Record<string, OutputChunk[]>>;
 }
 
 export interface ValidationOutcome {
@@ -238,10 +383,9 @@ export function validateIssues(raw: unknown[], context: ValidationContext): Vali
     if (!known.has(e.targetAgentId)) {
       return reject(`targetAgentId "${e.targetAgentId}" is not a successful Round 1 specialist`);
     }
-    if (!known.has(e.sourceRef)) {
-      return reject(`sourceRef "${e.sourceRef}" is not a successful Round 1 specialist`);
-    }
-    if (e.sourceRef === e.targetAgentId) {
+    const resolved = resolveSourceRef(e.sourceRef, context.chunksByAgent);
+    if (!resolved.ok) return reject(resolved.reason);
+    if (resolved.agentId === e.targetAgentId) {
       return reject('sourceRef and targetAgentId are the same specialist; that is self-review, not a peer challenge');
     }
 
@@ -283,6 +427,8 @@ export function selectIssue(
     const i = agentOrder.indexOf(id);
     return i === -1 ? Number.MAX_SAFE_INTEGER : i;
   };
+  // `sourceRef` carries a passage id; ordering is by specialist, not by the id's text.
+  const peerOf = (ref: string) => (ref.includes(':') ? ref.slice(0, ref.indexOf(':')) : ref);
 
   const eligible = issues
     .map((issue, index) => ({ issue, index }))
@@ -292,7 +438,7 @@ export function selectIssue(
   eligible.sort((a, b) => {
     const target = rank(a.issue.targetAgentId) - rank(b.issue.targetAgentId);
     if (target !== 0) return target;
-    const source = rank(a.issue.sourceRef) - rank(b.issue.sourceRef);
+    const source = rank(peerOf(a.issue.sourceRef)) - rank(peerOf(b.issue.sourceRef));
     if (source !== 0) return source;
     return a.index - b.index;
   });
@@ -303,22 +449,23 @@ export function selectIssue(
 /* ----------------------------------------------------------------- excerpt */
 
 /**
- * Quotes a bounded, auditable slice of the peer's Round 1 output.
+ * Quotes the referenced passage, bounded and with its offsets recorded.
  *
- * Deterministic by construction: the runtime takes the slice, the model never supplies
- * offsets, and the offsets taken are recorded. Known limitation: `sourceRef` resolves to an
- * agent, not a passage, so a long peer answer is quoted from its head and the challenged
- * passage may fall outside the window. Fixing that needs passage-level references, which
- * needs evidence that agent-level quoting is insufficient. That evidence does not exist yet.
+ * The runtime takes the slice and the model never supplies offsets, so the quote can
+ * always be checked against the peer's stored answer. The bound still applies inside a
+ * chunk: a single very long paragraph is truncated rather than allowed to grow the Round 2
+ * prompt without limit, and `truncated` says when that happened.
  */
-export function buildPeerExcerpt(agentId: string, output: string, charLimit: number): PeerExcerpt {
+export function buildPeerExcerpt(agentId: string, chunk: OutputChunk, charLimit: number): PeerExcerpt {
   const limit = Math.max(1, Math.floor(charLimit));
-  const truncated = output.length > limit;
-  const text = truncated ? output.slice(0, limit) : output;
+  const truncated = chunk.text.length > limit;
+  const text = truncated ? chunk.text.slice(0, limit) : chunk.text;
   return {
     agentId,
-    startChar: 0,
-    endChar: text.length,
+    chunkId: chunk.id,
+    chunkIndex: chunk.index,
+    startChar: chunk.startChar,
+    endChar: chunk.startChar + text.length,
     truncated,
     charLimit: limit,
     text,
@@ -328,7 +475,14 @@ export function buildPeerExcerpt(agentId: string, output: string, charLimit: num
 /* ------------------------------------------------------------------ prompts */
 
 /** Appended to the synthesis prompt when the gate is active. The answer comes first, always. */
-export function buildGateAppendix(agentIds: readonly string[]): string {
+export function buildGateAppendix(
+  agentIds: readonly string[],
+  chunksByAgent: Readonly<Record<string, OutputChunk[]>>
+): string {
+  const references = agentIds
+    .map((id) => `  ${id}: ${(chunksByAgent[id] ?? []).map((c) => `${id}:${c.id}`).join(', ') || '(no citable passage)'}`)
+    .join('\n');
+
   return `
 
 Optional collaboration block
@@ -342,7 +496,10 @@ After the complete answer above, you may append one fenced block in exactly this
 If you include it:
 - The answer above must already be complete and usable on its own. This block is metadata, not part of the answer.
 - Raise an issue only where one specialist's work is materially challenged by another's, and where resolving it would change a decision in the answer.
-- "targetAgentId" is the specialist whose work is challenged. "sourceRef" is the different specialist the challenge comes from. They must not be the same id, and both must be one of: ${agentIds.join(', ')}.
+- At most one "peer_challenge" may be emitted. If several disagreements exist, select only the one whose resolution would have the greatest effect on the final decision.
+- "targetAgentId" is the specialist whose work is challenged, and must be one of: ${agentIds.join(', ')}.
+- "sourceRef" is the passage the challenge comes from, written as "<agentId>:<passageId>". It must belong to a different specialist from "targetAgentId". Passage ids number the blank-line-separated paragraphs of each specialist's Result above, in order. The available references are:
+${references}
 - "action" is "peer_challenge" when another specialist's work contradicts or undermines it, or "needs_evidence" when a claim needs external verification. Only "peer_challenge" is acted on in this run.
 - Prefer omitting the block entirely to inventing a disagreement. A manufactured issue is worse than none.`;
 }
@@ -363,8 +520,8 @@ ${input.mission}
 Your previous answer:
 ${input.previousOutput}
 
-A passage from another specialist (${input.excerpt.agentId})${
-    input.excerpt.truncated ? ', quoted from the start of their answer and truncated' : ''
+The passage from another specialist that the challenge comes from (${input.excerpt.agentId}:${input.excerpt.chunkId})${
+    input.excerpt.truncated ? ', truncated' : ''
   }:
 ${input.excerpt.text}
 
@@ -404,5 +561,6 @@ Decision contract:
 - Where the challenge changed the conclusion, use the revised position.
 - Where it did not, keep the original position and say briefly why the challenge did not change it.
 - If the disagreement is unresolved, state it plainly. Do not hide it inside a merged sentence.
+- Treat the Round 2 response as a challenge response, not as inherently more correct because it is newer or revised. Revision, recency, or agreement between specialists is not evidence. Evaluate the Round 2 response against the original reasoning, the peer challenge, and the task constraints.
 - The second round gathered no new external evidence. Do not describe anything as verified, confirmed or validated on the strength of the specialists agreeing with each other.`;
 }
