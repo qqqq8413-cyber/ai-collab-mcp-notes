@@ -848,6 +848,71 @@ await check('the gate is shown the references it is allowed to use', async () =>
   });
 });
 
+/* ============================================== pre-synthesis eligibility */
+console.log('\nPre-synthesis material disagreement contract');
+
+// These lock the delivered prompt contract and scripted runtime behavior, not LLM judgment.
+await check('a provisional compromise does not disqualify a material Round 1 conflict', async () => {
+  const compromise = 'Choose B + Kill Switch while the capacity assumption remains uncertain.';
+  const { calls, result } = await run({
+    ids: ['strategy', 'risk'],
+    collaboration: true,
+    outputs: { strategy: 'Choose B: bounded launch can preserve capacity.', risk: 'Choose C: even a bounded launch consumes the bottleneck.' },
+    gateText: compromise + block([issue({ challenge: 'Does the bounded launch actually isolate bottleneck capacity?' })]),
+  });
+  const gate = calls.find((c) => c.stage === 'synthesis_gate').prompt;
+  assert.ok(gate.includes('original Round 1 specialist outputs, before considering whether your provisional synthesis can reconcile'));
+  assert.ok(gate.includes('A disagreement must be material, cross-agent and decision-sensitive'));
+  assert.ok(gate.includes('a meaningful chance of changing, strengthening, falsifying, or materially qualifying the final decision'));
+  assert.ok(gate.includes('even if your provisional answer offers a compromise, conditional plan, Kill Switch, or reconciliation'));
+  assert.ok(!gate.includes('where resolving it would change a decision in the answer'));
+  assert.equal(result.collaboration.provisionalAnswer, compromise);
+  assert.equal(result.collaboration.status, 'COMPLETED');
+});
+
+await check('equivalent recommendations and non-material differences remain excluded', async () => {
+  const { calls, result } = await run({
+    ids: ['strategy', 'risk'],
+    collaboration: true,
+    outputs: { strategy: 'Choose B: emphasize scheduling.', risk: 'Choose B: emphasize implementation checklists.' },
+    gateText: 'Both recommend B; implementation emphasis differs.',
+  });
+  const gate = calls.find((c) => c.stage === 'synthesis_gate').prompt;
+  assert.ok(gate.includes('Do not emit a peer challenge for wording, style, minor emphasis, already equivalent recommendations'));
+  assert.ok(gate.includes('details that would not materially affect the decision'));
+  assert.ok(gate.includes('Prefer omitting the block entirely to inventing a disagreement.'));
+  assert.equal(result.collaboration.reason, 'no_issue_block');
+  assert.ok(!calls.some((c) => c.stage === 'round2_worker'));
+});
+
+await check('new eligibility retains max-one selection without an extra ranking call', async () => {
+  const { calls, result } = await run({
+    ids: ['strategy', 'risk'],
+    collaboration: true,
+    gateText: PROVISIONAL + block([issue(), issue({ targetAgentId: 'risk', sourceRef: 'strategy:p1' })]),
+  });
+  assert.ok(calls.find((c) => c.stage === 'synthesis_gate').prompt.includes('At most one "peer_challenge" may be emitted.'));
+  assert.equal(result.collaboration.issues.eligible, 2);
+  assert.equal(result.collaboration.selectedIssue.targetAgentId, 'strategy');
+  assert.equal(calls.filter((c) => c.stage === 'round2_worker').length, 1);
+  assert.equal(calls.length, 2 + 4);
+});
+
+await check('disabled payload, prompts, stages and final text remain byte-equivalent', async () => {
+  const now = Date.now;
+  Date.now = () => 1000;
+  try {
+    const omitted = await run();
+    const disabled = await run({ collaboration: false });
+    assert.equal(JSON.stringify(disabled), JSON.stringify(omitted));
+    assert.ok(disabled.calls.every((c) => !c.prompt.includes('original Round 1 specialist outputs')));
+    assert.deepEqual(disabled.stages, ['planning', 'round1_worker', 'round1_worker', 'round1_worker', 'synthesis']);
+    assert.equal(disabled.result.finalOutput, buildOutputBanner(disabled.result.report) + PROVISIONAL);
+  } finally {
+    Date.now = now;
+  }
+});
+
 /* ============================================== gate emits at most one challenge */
 console.log('\nAt most one peer challenge');
 

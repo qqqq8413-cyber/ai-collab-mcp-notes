@@ -495,7 +495,10 @@ After the complete answer above, you may append one fenced block in exactly this
 
 If you include it:
 - The answer above must already be complete and usable on its own. This block is metadata, not part of the answer.
-- Raise an issue only where one specialist's work is materially challenged by another's, and where resolving it would change a decision in the answer.
+- Evaluate peer-challenge eligibility from the original Round 1 specialist outputs, before considering whether your provisional synthesis can reconcile their disagreement.
+- A disagreement must be material, cross-agent and decision-sensitive: would a direct response by one specialist to another's specific argument have a meaningful chance of changing, strengthening, falsifying, or materially qualifying the final decision?
+- If so, emit a "peer_challenge" for the most decision-sensitive disagreement even if your provisional answer offers a compromise, conditional plan, Kill Switch, or reconciliation. Your ability to temporarily reconcile it does not remove the information value of a direct peer response.
+- Do not emit a peer challenge for wording, style, minor emphasis, already equivalent recommendations, or details that would not materially affect the decision.
 - At most one "peer_challenge" may be emitted. If several disagreements exist, select only the one whose resolution would have the greatest effect on the final decision.
 - "targetAgentId" is the specialist whose work is challenged, and must be one of: ${agentIds.join(', ')}.
 - "sourceRef" is the passage the challenge comes from, written as "<agentId>:<passageId>". It must belong to a different specialist from "targetAgentId". Passage ids number the blank-line-separated paragraphs of each specialist's Result above, in order. The available references are:
