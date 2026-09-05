@@ -1,16 +1,49 @@
 # M2-B EFFECTIVENESS EXPERIMENT DESIGN
 
 > **本文件只設計實驗,不實作。** 未修改 `src/`、prompts、tests、runtime,未執行任何 live call,
-> 未跑 B/C/D,未 merge main。完成後停止,交回 GPT Architecture Review。
+> 未跑 B/B′/C/D₁、未跑 temperature probe、未開始 harness implementation、未 merge main。
 >
 > | | |
 > |---|---|
-> | Protocol version | `M2B-PROTOCOL-0.1 (DRAFT)` |
-> | 撰寫依據 | `HANDOFF.md` rev.21 @ `16b6fb011d8678a6f74f015675fb056f95b19008` |
-| 治理依據 | `AI_COLLAB_WORKFLOW_RULES.md`(rev.21 基準版) |
-| 角色 | Claude — Experiment Design Mode(規則 §3.2) |
+> | Protocol version | `M2B-PROTOCOL-0.2` |
+> | Architecture status | **ACCEPTED WITH CORRECTIONS**(GPT Architecture Review of v0.1) |
+> | Live authorization | **NOT GRANTED** —— pilot 需先通過 GPT Harness Review |
+> | 撰寫依據 | `HANDOFF.md` rev.22 @ `339d700201ee493f592b6a9a56b3e96248bd6f8d` |
+> | 治理依據 | `AI_COLLAB_WORKFLOW_RULES.md`(rev.21 基準版) |
+> | 角色 | Claude — Experiment Design Mode(規則 §3.2) |
 > | Runtime 依據 | `experimental/m2a-peer-challenge` @ `4e34d89`(rev.20 production code) |
-> | 狀態 | **DESIGN ONLY / AWAITING ARCHITECTURE REVIEW** |
+> | 狀態 | **PROTOCOL v0.2 / HARNESS IMPLEMENTATION NEXT / LIVE PILOT NOT AUTHORIZED** |
+
+## v0.2 變更摘要(依 GPT Architecture Review)
+
+`[DECISION]` GPT Architecture Review 對 v0.1 的裁決是 **ACCEPT WITH ARCHITECTURE CORRECTIONS**。
+本版依其 13 項決策修訂,**未新增任何未被指示的架構**。
+
+| # | 決策 | 本版位置 |
+|---|---|---|
+| 1 | 保留 Phase 1 四臂 `B / B′ / C / D₁` 及全部既有設計 | §3、§5、§6、§7、§8、§9、§15 —— **未改** |
+| 2 | `C − D₁` 改稱 **Targeted Peer-Challenge Package** 的增量;F-01/F-02 定為 treatment components | **§4.1.1(新增)** |
+| 3 | 不在 Phase 1 新增 `D_gate`;登記為 conditional Phase 1.5 | **§4.4(新增)** |
+| 4 | Claims Ladder 拆成 **L2-P / L2-M**;L3 禁止 pure-peer 宣稱 | §22 |
+| 5 | Option 3′ 正式批准,附 claim boundary | §15.4 |
+| 6 | temperature probe 為 mandatory preflight;不支援則記錄,不改 runtime | §7.4 |
+| 7 | model drift 維持既有四項機制,不虛構 server-side version | §8.4 |
+| 8 | 流程插入 **GPT Harness Review** 關卡;live 尚未授權 | §25.3 |
+| 9 | harness 維持 `src/` zero-change,全部放 `experiments/m2b/` | §23.4 |
+| 10 | Confound Register 新增 **X16 / X17** | §19 |
+| 11 | Diagnostic #1 arithmetic defect 補進 HANDOFF factual history | 見下方說明 |
+| 12 | 更新 HANDOFF status | 見下方說明 |
+| 13 | protocolVersion → 0.2、commit、回報 | 本檔 |
+
+`[FACT]` 第 11、12 項屬於 `HANDOFF.md` 的變更,不在本檔案內 ——
+依協作規則 §46,工程狀態與歷史事實歸 HANDOFF,實驗設計歸本檔。
+第 11 項明確**不得稱為 runtime defect**(它是 Answer-Quality Defect,見 §26.1)。
+
+`[DECISION]` **v0.1 已凍結於 commit `734ad8e`,`GEMINI_M2B_REVIEW_PACKET.md` @ `14952c7`
+仍指向 v0.1,依 packet immutability 規則不回頭覆寫。** 若日後需要對 v0.2 再做一次
+外部 review,應建立 `GEMINI-M2B-PACKET-2`,而不是改舊 packet。
+
+---
 
 ## 證據標記
 
@@ -197,6 +230,10 @@ replaySynthesis(snapshot, { synthesizer, collaboration })
 `[DESIGN]` D₀ 保留為 **Phase 2 的選配 arm**。它回答的是另一個合法但次要的產品問題:
 「一個便宜的通用 self-review 是不是就夠了」。Phase 1 不跑。
 
+`[DECISION]` ⚠️ **D₁ 不是「完美對照」,也不宣稱是。** 它與 C 之間仍有兩項刻意保留的差異
+(挑戰的作者、以及「這是別人的質疑」這個框架),已登記為 **X16 / X17 treatment components**。
+因此 `C − D₁` 的正確讀法見 **§4.1.1**,拆解它們的唯一途徑見 **§4.4 Phase 1.5**。
+
 ## 3.3 D 必須匹配 C 的哪些欄位
 
 `[DESIGN]` 硬性匹配清單:
@@ -247,18 +284,51 @@ D 的中間輪收到  → 無任何 peer 資訊
 B′ − B   =  Gate 附錄效果
             （要求模型去找跨專家分歧，這件事本身如何改變答案）
 
-D  − B′  =  額外 reasoning 效果
+D₁ − B′  =  額外 reasoning 效果
             （再想一次 + 第二次 synthesis，無 peer 資訊）
 
-C  − D   =  ★ PEER INFORMATION 的 incremental value ★
-            （唯一變動：挑戰來自另一位 specialist 而非自己）
+C  − D₁  =  ★ Targeted Peer-Challenge Package 相對 Matched Self-Review
+              的 incremental value ★
+            （見 §4.1.1：這是一個「套件」的效果，不是純 peer 資訊的效果）
 
-C  − B′  =  整個第二輪的效果（peer + 額外 reasoning，合計）
+C  − B′  =  整個第二輪的效果（package + 額外 reasoning，合計）
 
 C  − B   =  對「今天出貨的東西」的總產品增量 = (B′−B) + (C−B′)
 ```
 
-`[DESIGN]` **`C − D` 是本實驗的主要估計量。** 其餘四項是解釋它所需的支撐。
+`[DECISION]` **`C − D₁` 是本實驗的主要估計量。** 其餘四項是解釋它所需的支撐。
+
+## 4.1.1 ⚠️ 主要估計量的正確名稱(GPT Architecture Review 修正)
+
+`[DECISION]` **v0.1 把 `C − D` 稱為「peer information 的 incremental value」。這個命名過寬,已被撤回。**
+
+Gemini 的 F-01(external-challenge framing)與 F-02(challenge-author capability difference)
+被接受為真實 concern。**修正方式是收窄 claim,不是新增 arm。**
+
+`C − D₁` 估計的是一個**套件**的效果。該套件在 Phase 1 明確包含五個成分:
+
+```
+Targeted Peer-Challenge Package
+  ①  peer passage                    （另一位 specialist 的 exact chunk）
+  ②  Gate 的 cross-agent issue selection（挑哪一組分歧、挑誰來答）
+  ③  Gate-authored challenge          （挑戰文字由 gate 模型撰寫）
+  ④  external-challenge framing       （「這是別人對你的質疑」這個框架）
+  ⑤  target revision                  （target 針對該挑戰所做的修正）
+```
+
+`[DECISION]` **①–⑤ 在 Phase 1 是 treatment components,不是未受控的 confound。**
+它們是被刻意一起施加的處理,而 D₁ 是缺少 ①–④ 的對照。
+因此 `C − D₁` 是**套件對照 matched self-review** 的差,不是任何單一成分的差。
+
+`[DECISION]` **禁止宣稱**(即使 `C > D₁` 成立):
+
+```
+❌ pure peer information itself has incremental value
+❌ 「是『另一個模型的資訊』本身造成的」
+❌ 多模型優於單模型
+```
+
+`[DESIGN]` 要拆解 ①–④ 各自的貢獻,需要 §4.4 的 Phase 1.5 ablation。
 
 ## 4.2 為什麼不能只跑 B/C/D
 
@@ -284,6 +354,35 @@ C − B = Gate 附錄效果 + 額外 reasoning 效果 + peer 資訊效果
 - 否決 Option A(B′ 只做 diagnostic):附錄 confound 是**主要**識別障礙,不是診斷細節。
 - 否決 Option C(B 做 secondary):B 是現況基準,產品問題就是「比今天出貨的好嗎」,
   它必須在主實驗裡。
+
+
+## 4.4 Phase 1.5 Conditional Ablation(不在 Phase 1 執行)
+
+`[DECISION]` **Phase 1 不新增 `D_gate`,也不新增 source-masked C。** 兩者登記為:
+
+```
+CONDITIONAL PHASE 1.5 ABLATION
+```
+
+| 候選 arm | 形狀 | 拆解的成分 |
+|---|---|---|
+| **D_gate** | gate 產出 issue → 但把 challenge 改寫成「自我質疑」交給同一 target | ④ external-challenge framing |
+| **source-masked C** | 給 peer chunk 與 gate-authored challenge,但不揭示來源身分 | ④ framing,同時保留 ①②③ |
+
+`[DECISION]` **執行條件是嚴格的:**
+
+```
+只有 Phase 1 觀察到 C > D₁ 才值得執行 Phase 1.5。
+若 C ≈ D₁ → 不執行 Phase 1.5。
+```
+
+`[DESIGN]` 理由:若套件整體都沒有超過 matched self-review,
+拆解套件內部成分是沒有意義的 —— 沒有效果可以歸因。
+先確認有東西可分,再去分它。
+
+`[DECISION]` Phase 1.5 是**唯一**有資格評估
+「pure peer information / gate diagnostic quality / source-framing effect 各自貢獻」的階段。
+在它執行並產出結果之前,這三者的任何歸因都被禁止。
 
 ---
 
@@ -483,8 +582,21 @@ Pilot 的**交付物不是效果量**,而是四件事:
 所以目前所有呼叫都跑在 provider 預設值。
 Harness 注入的 dispatcher 可以 `callProvider(provider, prompt, { ...options, temperature: 0 })`。
 
+`[DECISION]` **temperature 支援性 probe 是 pilot 前的 MANDATORY PREFLIGHT**
+(GPT Architecture Review 第 6 項)。處置規則:
+
+```
+支援 temperature=0    → pin 之，並記入 manifest
+不支援                → 記錄 unsupported
+                       ❌ 不得修改 provider runtime 去繞過
+                       ✅ 改以增加 repetitions 處理 variance
+```
+
+`[DECISION]` ⚠️ **本輪不執行 probe。** 依 §25.3 的新流程,probe 與 pilot 同屬
+「GPT Harness Review 之後」才被授權的動作。
+
 `[OPEN]` gpt-5 這類 reasoning model 是否接受 `temperature` 參數、以及設 0 是否真的降低變異,
-**必須在 pilot 第一步實測確認**,不得假設。若被拒絕,記錄下來並改以「增加 repetition」補償。
+在 probe 執行前仍然未知,不得假設。
 
 ## 7.5 執行順序
 
@@ -589,9 +701,19 @@ assert(result.model === manifest.pin[stage].model)   ← 每一次呼叫都驗
    `[DESIGN]` 建議硬性規則:**同一 (fixture, repetition) 的 6 次呼叫若跨越超過 2 小時,
    該 repetition 作廢重跑**,並記錄作廢事實(不是靜默丟棄)。
 
-`[OPEN]` 是否應在 Phase 1 避開 preview model?若 fixture 需要 Gemini target,
-就一定會用到 preview 通道。本文傾向**接受並記錄**,而非為了 pinning 純度排除 Gemini ——
-排除它會讓 `§25-E3`(cross-provider)永遠無法驗。留給 Architecture Review 拍板。
+`[DECISION]` ✅ **GPT Architecture Review 第 7 項已裁定:維持現有四項機制,不新增新機制。**
+
+```
+round-robin execution        （§7.5）
+exact requestedModel          （§8.3，五個位置全部明寫）
+resolvedModel assertion       （§8.2，逐呼叫比對）
+short experiment window       （§8.4，同一 repetition 2 小時內完成）
+
+⛔ 不得虛構無法取得的 server-side model version
+```
+
+`[DECISION]` 連帶裁定:Phase 1 **接受並記錄** preview 通道,不為了 pinning 純度排除 Gemini ——
+排除它會讓 `§25-E3`(cross-provider execution coverage)永遠無法驗。
 
 ## 8.5 Manifest 中的 model 欄位是否需要 hash
 
@@ -1124,6 +1246,14 @@ frozen Round 1 決定,不為了展示而膨脹。
 
 ## 15.4 Q14 的答案
 
+`[DECISION]` ✅ **Option 3′ 已由 GPT Architecture Review 正式批准。** 批准附帶兩條硬性約束:
+
+```
+必須維持：同一 fixture 內，C 與 D₁ 使用完全相同的 target provider + model
+Claim boundary：這只建立 cross-provider EXECUTION COVERAGE，
+                不建立 cross-provider GENERALIZATION EVIDENCE
+```
+
 `[DECISION]` **Q14: Phase 1 做 within-provider 因果研究,
 但用「固定合成器 + fixture 間輪換 target provider」取得 cross-provider 的 R2 live 覆蓋。
 真正的 cross-provider generalization study 留到 Phase 2,
@@ -1383,6 +1513,8 @@ Replay #4 就是這樣:runtime 是 `267ecff`,而 artifact 提交在 `4e34d89`。
 | **X13** | Arithmetic 變異淹沒 peer 效果 | 中高 | F7 排除算術重的 fixture(第 17 節下方) | 見 X13 說明 |
 | **X14** | Provider 與 fixture 共線 | 中 | Option 3′:合成器固定,provider 只在 target 輪換,且 C/D 配對內為常數 | 不足以宣稱泛化(已寫入 claims ladder) |
 | **X15** | 評估者疲勞 / 前後不一致 | 低中 | 每個 judge session 的配對數設上限;重複稽核偵測漂移 | — |
+| **X16** | **Decision Synthesis source framing** —— decision synthesis 知道修正來自「跨專家挑戰」,可能因此偏好採納 | — | **Phase 1 treatment component**(§4.1.1 成分 ④) | **限制 causal claim 至 peer-challenge package**;拆解需 §4.4 Phase 1.5 |
+| **X17** | **Challenge-author capability difference** —— C 的挑戰由 gate 模型撰寫,D₁ 的由 target 自己撰寫,兩者能力不同 | — | **Phase 1 treatment component**(§4.1.1 成分 ②③) | **Phase 1 不控制**;若 `C > D₁` 則觸發 §4.4 conditional Phase 1.5 ablation |
 
 `[DESIGN]` **X11 是本實驗最致命的威脅。** 若 D 拿到了 peer 的判斷,
 `C − D` 會趨近於零,而報告會說「peer information 沒有價值」——
@@ -1509,22 +1641,37 @@ fail 條件是 P1–P4;stop 條件是 S1–S6。全部為方向性判準,不含�
 |---|---|---|---|---|
 | **L0** | Mechanism runs | ✅ **已達成**(Replay #4) | 「完整機制在真實 provider call 下跑通一次」 | 任何品質相關的話 |
 | **L1** | Triggered outputs differ | 未達成 | 「C 的輸出與 B/B′ 不同」 | 「不同 = 更好」 |
-| **L2** | `C > B′` on matched fixtures | 未達成 | 「第二輪整體帶來可觀察的改善」 | 「改善來自 peer」(還沒排除 D) |
-| **L3** | `C > D` | 未達成 | 「peer information 具有超過 extra reasoning 的增量價值」 | 「多模型優於單模型」(D 也是同一模型) |
-| **L3.5** | `C > D` 且 Gate precision 可接受 | 未達成 | 「機制在該觸發時觸發,且觸發時有用」 | 「應該預設開啟」 |
+| **L2-P** | **Product Increment** `C > B` | 未達成 | 「完整 M2-A candidate 相對 Existing Orchestrator 有產品增量」 | 「增量來自第二輪」(未扣掉附錄效果) |
+| **L2-M** | **Mechanism Increment** `C > B′` | 未達成 | 「第二輪 peer-challenge package 相對 Gate-only 有增量」 | 「增量來自 peer」(還沒排除 D₁) |
+| **L3** | `C > D₁` | 未達成 | 「**Targeted Peer-Challenge Package** 相對 matched self-review 有 incremental value」 | ⛔ 「**pure peer information itself has incremental value**」<br>⛔ 多模型優於單模型 |
+| **L3.5** | `C > D₁` 且 Gate precision 可接受 | 未達成 | 「機制在該觸發時觸發,且觸發時有用」 | 「應該預設開啟」 |
 | **L4** | 跨 task type / provider 一致 | 未達成 | 「效果在多種衝突類型與 provider 上重現」 | 「對所有任務有效」 |
 | **L5** | Cost / latency tradeoff 可接受 | **被 Step 8 阻擋** | 「增量成本相對增量品質是划算的」 | 任何美元數字(無 pricing registry) |
 | **L6** | Productionization 決策 | 未達成 | 「應以 X 條件預設開啟」 | — |
 
 `[DESIGN]` **目前所有公開陳述必須停在 L0。**
 
-`[DESIGN]` 兩個特別容易被跨越的界線:
+`[DECISION]` **L2-P 與 L2-M 不是二選一,而是兩個不同層次的問題,兩者都要報告:**
 
-1. **L2 → L3 不可跳。** `C > B′` 很可能會成立(多一輪推理通常會讓答案更完整),
+```
+L2-P  C > B    產品問題：比今天出貨的好嗎？（含附錄效果，因為附錄也會一起出貨）
+L2-M  C > B′   機制問題：第二輪本身有效嗎？（扣掉附錄效果）
+```
+
+`[DESIGN]` 兩者可能給出不同方向。若 `C > B` 但 `C ≈ B′`,
+代表增量幾乎全部來自 gate 附錄,而不是第二輪 —— 那會指向一個
+**便宜得多**的產品形狀(只加附錄,不跑第二輪)。這正是分開報告的價值。
+
+`[DECISION]` 三個特別容易被跨越的界線:
+
+1. **L2-M → L3 不可跳。** `C > B′` 很可能會成立(多一輪推理通常會讓答案更完整),
    但那不支持任何關於 peer 的宣稱。**這是本實驗最可能被誤讀的地方。**
-2. **L3 ≠ 「多模型優於單模型」。** D 用的是同一個 target model。
-   `C > D` 支持的是「挑戰來自另一個 agent 比來自自己更有價值」,
-   **不是**「三個模型比一個模型好」—— 後者需要 arm A,而 arm A 不在 Phase 1。
+2. **L3 ≠ 「多模型優於單模型」。** D₁ 用的是同一個 target model。
+   後者需要 arm A,而 arm A 不在 Phase 1。
+3. **⛔ L3 ≠ 「pure peer information 有增量價值」。**
+   L3 支持的是**整個 Targeted Peer-Challenge Package**(§4.1.1 的 ①–⑤)的增量。
+   要把 ①–④ 拆開歸因,**只有 §4.4 的 Phase 1.5 ablation 有資格**。
+   在 Phase 1.5 執行前,這個宣稱一律禁止。
 
 ## 22.1 Q16 的答案
 
@@ -1606,6 +1753,14 @@ control runner            NC-1 的 16 組 disabled control（可直接沿用既�
 `[DECISION]` **Q17: 真正開始 live experiment 前,`src/` 需要的變更是「零」。
 唯一需要新寫的是 arm D 的兩個 prompt builder、一個洩漏斷言,以及 harness 工具 ——
 全部位於 `experiments/` 之下,不進 production code path。**
+`[DECISION]` ✅ **GPT Architecture Review 第 9 項已批准此結論,並定為下一輪的硬性約束:**
+
+```
+harness implementation 維持 src/ ZERO-CHANGE 原則
+arm D₁ 與所有實驗工具一律放 experiments/m2b/
+⛔ 不得修改 production src/
+```
+
 `[DESIGN]` **本輪不實作其中任何一項。**
 
 ---
@@ -1698,12 +1853,16 @@ Downside  殘留160萬      590萬          -160萬           430萬          27
 ## 25.1 主要推薦
 
 ```
-RECOMMEND:
+ARCHITECTURE STATUS: ACCEPTED WITH CORRECTIONS（GPT Architecture Review）
+LIVE AUTHORIZATION : NOT GRANTED —— 需先通過 GPT Harness Review
 
-  B / B′ / C / D  四臂、共用 frozen Round-1、共用 gate 呼叫的配對 pilot
+RECOMMEND（已批准的 Phase 1 形狀）:
+
+  B / B′ / C / D₁  四臂、共用 frozen Round-1、共用 gate 呼叫的配對 pilot
   4 fixtures（3 positive + 1 negative control）× 5 repetitions
   120 live calls
-  D 採 D₁（self-targeted challenge），harness-only，不動 src/
+  D 採 D₁（self-targeted challenge），harness-only，src/ zero-change
+  主要估計量 = Targeted Peer-Challenge Package vs Matched Self-Review（非 pure peer information）
   Phase 1 內 target provider 跨 fixture 輪換（Option 3′），合成器全程固定
   所有 arm retrieval 全關；所有 model 明確 pin 並逐呼叫斷言
   pilot 的交付物是「變異估計 + judge 信度」，不是 effectiveness 結論
@@ -1724,20 +1883,34 @@ RECOMMEND:
 
 `[DESIGN]`
 
+`[DECISION]` GPT Architecture Review 第 8 項已重寫流程,
+在 harness 與 live 之間**插入一道新的審查關卡**:
+
 ```
-1.  Architecture Review 拍板本 protocol（尤其 3.2 的 D₁、4.3 的四臂、15.3 的 Option 3′）
-2.  凍結 4 個 fixture + gold issues + conflict labels，commit + hash
-        ★ 必須全部早於任何 arm 執行 ★
-3.  實作 harness（arm D builders、recording dispatcher、normalizer、verify.mjs）
-4.  跑 NC-1（16 組 disabled control）確認 runtime 未漂移
-5.  跑 temperature 支援性探測（1–2 次呼叫，確認 gpt-5 是否接受）
-6.  跑 pilot（120 calls）
-7.  先評 judge 信度、leakage、變異；通過後才解讀 arm 比較
-8.  依觀察到的變異決定正式 N，回到 Architecture Review
+✅ ①  Architecture Review                  已完成（ACCEPT WITH CORRECTIONS）
+✅ ②  Protocol v0.2                        本輪
+──────────────────────────────────────────────  ↓ 以下尚未授權 ↓
+   ③  Freeze fixtures / gold issues / conflict labels
+          ★ 必須全部早於任何 arm 執行 ★
+   ④  Implement harness only               （§23，src/ zero-change）
+   ⑤  Offline + structural verification    （NC-1 / NC-2 / NC-3，零 live call）
+   ⑥  ★ GPT HARNESS REVIEW ★              ← v0.2 新增的關卡
+──────────────────────────────────────────────  ↓ 只有通過 ⑥ 才被授權 ↓
+   ⑦  temperature 支援性 probe
+   ⑧  120-call pilot
+   ⑨  先評 judge 信度、leakage、變異；通過後才解讀 arm 比較
+   ⑩  依觀察到的變異決定正式 N，回到 Architecture Review
 ```
 
-`[DESIGN]` 第 7 步的順序是紀律性的:**先確認工具可信,再看結果。**
+`[DECISION]` ⚠️ **本輪(Protocol v0.2)明確不做 ③–⑩ 的任何一項。**
+特別是:**不跑 temperature probe、不跑 120 calls、不呼叫任何 live API、不開始 harness implementation。**
+
+`[DESIGN]` 第 ⑨ 步的順序是紀律性的:**先確認工具可信,再看結果。**
 反過來做,就會在工具不可信時看見自己想看的東西。
+
+`[DESIGN]` 第 ⑥ 步是 v0.2 新增的。它的價值在於:harness 一旦寫錯 ——
+尤其 §19 的 **X11(D₁ 被 peer 資訊汙染)** —— pilot 會產出**方向確定的錯誤結論**,
+而且事後極難察覺。**把 harness 送審一次,比事後重跑 120 次呼叫便宜得多。**
 
 ## 25.4 本輪未做的事
 
@@ -1748,6 +1921,8 @@ RECOMMEND:
 未做 Finance Layer     未跑 live API           未跑 B/C/D
 未新增 self-review runtime                     未 productionize
 未 merge main          未修改 rev.20 tests     未觸碰 Replay #4 封印
+未跑 temperature probe  未跑 120-call pilot     未開始 harness implementation
+未凍結 fixtures         未寫 gold issues        未寫 conflict labels
 ```
 
 `[DESIGN]` 第 23 節提出的三個 builder 與 harness 工具**只是提案**,本輪一行都沒有實作。
@@ -1758,8 +1933,8 @@ RECOMMEND:
 
 | Q | 答案位置 | 一句話結論 |
 |---|---|---|
-| Q1 | 4.3 | **B / B′ / C / D**;B′ 最便宜卻解決最大 confound |
-| Q2 | 5.3 | 共用 gate 呼叫 + 全欄位匹配 + D₁ 同樣是「回應具體挑戰」 |
+| Q1 | 4.3 | **B / B′ / C / D₁**(已批准);B′ 最便宜卻解決最大 confound |
+| Q2 | 5.3 / 4.1.1 | 共用 gate 呼叫 + 全欄位匹配 + D₁ 同樣是「回應具體挑戰」;殘留差異定為 **treatment components**(X16/X17) |
 | Q3 | 6.3 | 所有 arm 共用同一 frozen Round 1,within-fixture 配對 |
 | Q4 | 7.6 | 先跑 pilot 量變異;正式 N 由變異決定,現在不指定 |
 | Q5 | 8.6 | 五個位置明確 pin;hash 整份 manifest;preview 版本以時間窗紀律緩解。**不需改 src/** |
@@ -1771,9 +1946,9 @@ RECOMMEND:
 | Q11 | 13.6 | 執行前凍結 + F4 與 gate 無關 + 不剔除 + negative control |
 | Q12 | 24.3 | 排除;且排除對 C 不利,是保守選擇 |
 | Q13 | 16.4 | 執行前凍結的 Independent Conflict Labelling + negative control,離線算 precision |
-| Q14 | 15.4 | Option 3′:合成器固定,target provider 跨 fixture 輪換;泛化留 Phase 2 |
+| Q14 | 15.4 | Option 3′ **已批准**:合成器固定,target provider 跨 fixture 輪換;只建立 execution coverage,泛化留 Phase 2 |
 | Q15 | 21.4 | 方向性 pass/fail/stop;「無可偵測差異」是合法結果 |
-| Q16 | 22.1 | 六層 ladder;L2 的證據不得說 L3 的話;L3 ≠ 多模型優越性 |
+| Q16 | 22.1 | ladder 含 **L2-P / L2-M**;L2 的證據不得說 L3 的話;**L3 ≠ pure peer information**,亦 ≠ 多模型優越性 |
 | Q17 | 23.4 | `src/` 變更為零;只需 harness 層的兩個 builder + 一個洩漏斷言 |
 
 ---
@@ -1810,7 +1985,12 @@ RECOMMEND:
 
 ## 26.2 需要 GPT 裁決的兩項偏離
 
-`[OPEN]` 本文件在兩處與治理規則的文字不同。**我不自行決定,列出供 Architecture Review 裁決。**
+`[DECISION]` ✅ **兩項偏離都已由 GPT Architecture Review 裁決,以下保留原始論證作為紀錄。**
+
+```
+偏離 1（Claims Ladder L2）→ 裁決：兩者都要，拆成 L2-P（C>B）與 L2-M（C>B′）。見 §22。
+偏離 2（Cross-Provider）  → 裁決：ACCEPT。Option 3′ 正式批准，附 claim boundary。見 §15.4。
+```
 
 ### 偏離 1 — Claims Ladder 的 L2 定義
 
@@ -1827,8 +2007,8 @@ RECOMMEND:
 `[DESIGN]` 但 `C > B` 仍是**產品問題本身**(比今天出貨的好嗎),所以它沒有消失,
 而是成為 §4.1 分解式裡的 `C − B = (B′−B) + (C−B′)`。
 
-`[OPEN]` **請 GPT 裁決:L2 應為 `C > B` 還是 `C > B′`,或兩者並列。**
-若採 `C > B`,本文件其餘設計不受影響 —— 只需改 ladder 的文字。
+`[DECISION]` ✅ **已裁決:兩者並列。** L2-P = `C > B`(產品增量),L2-M = `C > B′`(機制增量),
+兩者都要報告。§22 已改。
 
 ### 偏離 2 — Cross-Provider 覆蓋的時點
 
@@ -1843,9 +2023,9 @@ RECOMMEND:
 - Phase 1 只取得「機制在三個 provider 上都真的執行過」,`[DESIGN]` 這被明確寫入
   claims ladder 的 L4 界線:**每個 provider 只有 1 個 fixture,不足以宣稱泛化**
 
-`[OPEN]` **請 GPT 裁決:是否接受在不增加成本的前提下,把 cross-provider 的
-「執行覆蓋」(非「泛化證據」)納入 Phase 1。** 若不接受,
-改為全部 fixture 使用同一 target provider 即可,本文件其餘設計不受影響。
+`[DECISION]` ✅ **已裁決:ACCEPT。** Option 3′ 正式批准,附兩條硬性約束 ——
+同一 fixture 內 C 與 D₁ 必須用完全相同的 target provider/model;
+且只建立 execution coverage,不建立 generalization evidence。§15.4 已改。
 
 ## 26.3 其餘條目的稽核結果
 
@@ -1876,7 +2056,14 @@ RECOMMEND:
 
 ## What changed / reviewed
 
-`[FACT]` 本輪產出 `M2_EFFECTIVENESS_EXPERIMENT.md`(新檔),
+`[FACT]` **v0.2(本輪)** —— 依 GPT Architecture Review 的 13 項決策修訂:
+主要估計量改名為 Targeted Peer-Challenge Package(§4.1.1)、新增 §4.4 Phase 1.5 conditional ablation、
+Claims Ladder 拆成 L2-P / L2-M 並收窄 L3(§22)、Option 3′ 正式批准(§15.4)、
+temperature probe 定為 mandatory preflight(§7.4)、model drift 維持四項機制(§8.4)、
+Confound Register 新增 X16 / X17(§19)、流程插入 GPT Harness Review 關卡(§25.3)、
+§26.2 兩項偏離標記為已裁決。**未新增任何 GPT 未指示的架構。**
+
+`[FACT]` **v0.1** —— 產出 `M2_EFFECTIVENESS_EXPERIMENT.md`(新檔),
 並在讀過治理規則後補上第 26、27 節。
 **未修改 `src/`、tests、`HANDOFF.md`、任何 diagnostics 目錄或 Replay #4 封印。**
 `git status` 僅顯示一個 untracked 新檔。
@@ -1939,7 +2126,7 @@ L8  temperature 是否被 gpt-5 接受未經實測（§7.4 [OPEN]）
 
 ## Experiment concerns
 
-`[DESIGN]` 完整清單見第 19 節 Bias / Confound Register(X1–X15)。
+`[DESIGN]` 完整清單見第 19 節 Bias / Confound Register(X1–X17)。
 其中最致命的三項:
 
 ```
@@ -1956,10 +2143,11 @@ X3   模型隨機性 → 已由 Replay #3/#4 的 headline 翻轉直接證實
 M2-A improves quality
 Peer Challenge causes better decisions
 Multi-agent beats single-agent
-C > B  /  C > D
+C > B  /  C > B′  /  C > D₁
 NORMAL 應啟用 collaboration
 M2-A production ready
-「rev.20 的 wording 修正造成了 Replay #4 觸發」  ← 本文件新增，見 §2.3
+「rev.20 的 wording 修正造成了 Replay #4 觸發」        ← v0.1 新增，見 §2.3
+「pure peer information itself has incremental value」  ← v0.2 新增，見 §4.1.1
 ```
 
 `[DESIGN]` 最後一條是本文件新增的禁止項:`§25-E1` 顯示 gate 輸出本身會變,
@@ -1969,24 +2157,27 @@ n=1 vs n=1 無法歸因。**這條先前未被明文禁止。**
 ## Recommended next step
 
 ```
-1. Gemini 對本文件做 Independent Methodology Analysis（規則 §19）
-2. User 將本文件 + Gemini 分析一併交給 GPT
-3. GPT Architecture Review，至少裁決：
-     - §26.2 偏離 1：Claims Ladder 的 L2 定義
-     - §26.2 偏離 2：Cross-Provider 覆蓋的時點
-     - §3.2 D₁ vs D₀
-     - §4.3 四臂 vs 三臂
-     - §23 arm D 走 harness-only 而非改 src/
-4. 僅在 GPT 批准後，才進入 M2-B Minimal Experiment Harness
+✅ 已完成：Gemini Independent Methodology Analysis
+✅ 已完成：GPT Architecture Review → ACCEPT WITH ARCHITECTURE CORRECTIONS
+✅ 已完成：Protocol v0.2（本輪）
+
+下一步（尚未授權）：
+  ③ Freeze fixtures / gold issues / conflict labels
+  ④ Implement harness only（experiments/m2b/，src/ zero-change）
+  ⑤ Offline + structural verification
+  ⑥ ★ GPT HARNESS REVIEW ★
+  ⑦ 只有通過 ⑥ 之後，才授權 temperature probe + 120-call pilot
 ```
 
 ## Stop condition
 
 ```
-本輪已完成指定 deliverable。STOP。
+Protocol v0.2 已完成。STOP。
 
-不進行：implementation / live call / harness 撰寫 / fixture 凍結 /
+不進行：harness implementation / temperature probe / 120-call pilot /
+        任何 live API call / fixture 凍結 / gold issues / conflict labels /
         Gate 調整 / merge / 下一個 milestone。
 
-下一輪需由 Gemini 獨立分析 + GPT Architecture Review 重新授權。
+下一輪（harness implementation）需由 GPT 提供明確 scope 後才能開始；
+live pilot 需再通過 GPT Harness Review 才被授權。
 ```
