@@ -33,6 +33,9 @@ export const MANDATORY_FIELDS = Object.freeze([
   'promptSourceCommit',
   'chunkerVersion',
   'peerExcerptChars',
+  // H-04: a manifest with no seal cannot be bound to a run. Protocol v0.2 §18.3 already
+  // listed it; leaving it optional meant a run could claim pins nothing could check.
+  'manifestSha256',
 ]);
 
 export const ARMS = Object.freeze(['B', 'B_prime', 'C', 'D1']);
@@ -106,7 +109,10 @@ export function validateManifest(manifest) {
     if (!pin.requestedModel) problems.push(`pin for "${stage}" has no requestedModel (adapter default is not a pin)`);
   }
 
-  if (manifest.manifestSha256 !== undefined) {
+  // Present-and-correct, not present-or-skip. An unsealed manifest is invalid (H-04).
+  if (manifest.manifestSha256 === undefined) {
+    problems.push('missing manifestSha256; an unsealed manifest cannot be bound to a run');
+  } else {
     const expected = createHash('sha256').update(canonicalize(manifest)).digest('hex');
     if (manifest.manifestSha256 !== expected) {
       problems.push(`manifestSha256 does not match its contents (expected ${expected})`);

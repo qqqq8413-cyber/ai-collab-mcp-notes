@@ -49,9 +49,21 @@ export function buildRunArtifact({ experimentId, fixtureId, runIndex, snapshot, 
       B: armRecord(arms.B, normalized.B, null, null),
       B_prime: armRecord(arms.B_prime, normalized.B_prime, null, null),
       C: armRecord(arms.C, normalized.C, null, promptFor(seen, 'decision_synthesis', 0)),
+      // H-03: a skipped D1 is a legal shape, not a hole. It records what did NOT happen
+      // as raw fact so the verifier can insist nothing happened, rather than merely
+      // finding nothing.
       D1: arms.D1.skipped
         ? { skipped: true, reason: arms.D1.reason, calls: [] }
-        : armRecord(arms.D1, normalized.D1, promptFor(seen, 'self_review'), promptFor(seen, 'decision_synthesis', 1)),
+        : {
+            ...armRecord(arms.D1, normalized.D1, promptFor(seen, 'self_review'), promptFor(seen, 'decision_synthesis', 1)),
+            // H-04 §8.5: raw identity, so the verifier can compare it against the
+            // recomputed selectedIssue itself. Never a `targetMatched: true` field.
+            selfReview: {
+              agentId: arms.D1.result.selfReview.agentId,
+              provider: arms.D1.result.selfReview.provider,
+              promptSha256: arms.D1.result.selfReview.promptSha256,
+            },
+          },
     },
     blindPairs,
   };

@@ -469,7 +469,10 @@ await check('NEGATIVE: a tampered manifestSha256 is rejected', () => {
 /* ======================================== C / D1 non-treatment parity */
 console.log('\nC and D1 parity on non-treatment parts');
 
-await check('D1 ships the production Decision contract verbatim', () => {
+await check('D1 preserves the required non-treatment Decision contract invariants', () => {
+  // Not "verbatim": buildSelfReviewDecisionPrompt re-words the treatment-specific lines
+  // after extracting the contract. What must survive is the non-treatment content, which
+  // is what this asserts line by line.
   const prompt = buildSelfReviewDecisionPrompt({
     task: 'T', specialistBlock: 'S', degradedNote: '',
     targetAgentId: 'brand', selfObjection: 'O', revisedOutput: 'R',
@@ -541,9 +544,7 @@ await check('a gate that emits no issue leaves C equal to B-prime, and that is d
 /* ================================================================ verifier */
 console.log('\nArtifact verifier');
 
-async function syntheticArtifact() {
-  const stub = F.makeStub();
-  const run = await runAllArms({ ...base(), call: stub.call });
+function buildArtifact(run, stub, gateResponseText) {
   const manifest = (arm) => sealManifest({
     experimentId: 'm2b-offline-selftest', protocolVersion: 'M2B-PROTOCOL-0.2',
     fixtureId: 'synthetic-1', fixtureSha256: 'a'.repeat(64),
@@ -554,9 +555,15 @@ async function syntheticArtifact() {
   });
   return buildRunArtifact({
     experimentId: 'm2b-offline-selftest', fixtureId: 'synthetic-1', runIndex: 1,
-    snapshot: F.SNAPSHOT, run, seen: stub.seen, gateResponseText: F.GATE_TEXT,
+    snapshot: F.SNAPSHOT, run, seen: stub.seen, gateResponseText,
     manifests: { B: manifest('B'), B_prime: manifest('B_prime'), C: manifest('C'), D1: manifest('D1') },
   });
+}
+
+async function syntheticArtifact() {
+  const stub = F.makeStub();
+  const run = await runAllArms({ ...base(), call: stub.call });
+  return buildArtifact(run, stub, F.GATE_TEXT);
 }
 
 await check('the verifier passes every recomputation on a clean artifact', async () => {
@@ -564,21 +571,21 @@ await check('the verifier passes every recomputation on a clean artifact', async
   const failures = results.filter((r) => r.status === 'FAIL').map((r) => `${r.name}: ${r.detail}`);
   assert.deepEqual(failures, []);
   assert.equal(ok, true);
-  assert.equal(results.length, 12, 'all twelve recomputations must run');
+  assert.equal(results.length, 14, 'all fourteen recomputations must run');
 });
 
 await check('NEGATIVE: the verifier catches a tampered call count', async () => {
   const a = await syntheticArtifact();
   a.arms.C.calls = a.arms.C.calls.filter((c) => c.stage !== 'round2_worker');
   const { results } = verifyArtifact(a);
-  assert.equal(results.find((r) => r.name === 'arm call accounting').status, 'FAIL');
+  assert.equal(results.find((r) => r.name === 'trigger state and arm call accounting').status, 'FAIL');
 });
 
 await check('NEGATIVE: the verifier catches a resolvedModel that drifted off its pin', async () => {
   const a = await syntheticArtifact();
   a.arms.B.calls[0].resolvedModel = 'gpt-5';
   const { results } = verifyArtifact(a);
-  assert.equal(results.find((r) => r.name === 'model pins').status, 'FAIL');
+  assert.equal(results.find((r) => r.name === 'call / manifest pin binding').status, 'FAIL');
 });
 
 await check('NEGATIVE: the verifier catches retrieval appearing on a call', async () => {
@@ -592,7 +599,7 @@ await check('NEGATIVE: the verifier catches C and B-prime built on different gat
   const a = await syntheticArtifact();
   a.arms.C.provisionalAnswer = 'a different provisional';
   const { results } = verifyArtifact(a);
-  assert.equal(results.find((r) => r.name === 'C and D1 share one provisional').status, 'FAIL');
+  assert.equal(results.find((r) => r.name === 'C and B-prime share one gate sample').status, 'FAIL');
 });
 
 await check('NEGATIVE: the verifier catches a hand-edited normalized answer', async () => {
@@ -613,7 +620,7 @@ await check('NEGATIVE: the verifier catches peer content that reached a D1 promp
   const a = await syntheticArtifact();
   a.arms.D1.selfReviewPrompt += `\n\n${F.PEER_CHUNK_TEXT}`;
   const { results } = verifyArtifact(a);
-  assert.equal(results.find((r) => r.name === 'NC-3 D1 peer-leakage assertions').status, 'FAIL');
+  assert.equal(results.find((r) => r.name === 'NC-3 D1 peer-leakage diagnostic').status, 'FAIL');
 });
 
 await check('NEGATIVE: the verifier catches an arm label leaking into judge-facing pairs', async () => {
@@ -651,6 +658,190 @@ await check('NEGATIVE: the verifier catches a selectedIssue that production woul
   a.selectedIssue = { ...a.selectedIssue, targetAgentId: 'strategist' };
   const { results } = verifyArtifact(a);
   assert.equal(results.find((r) => r.name === 'gate parsing re-derived from the recorded response').status, 'FAIL');
+});
+
+/* ================================================= H-03 no-trigger path */
+console.log('\nH-03 no-trigger path');
+
+/** A repetition where the gate emits no issue block at all. A legal observation. */
+async function noTriggerArtifact() {
+  const stub = F.makeStub({ gateText: F.PROVISIONAL });
+  const run = await runAllArms({ ...base(), call: stub.call });
+  return { artifact: buildArtifact(run, stub, F.PROVISIONAL), run, stub };
+}
+
+await check('a no-trigger repetition costs two billable calls, not six', async () => {
+  const { run } = await noTriggerArtifact();
+  assert.deepEqual(run.accounting, { B: 1, sharedGate: 1, C: 0, D1: 0, totalBillable: 2, naiveWithoutSharedGate: 4 });
+});
+
+await check('a no-trigger repetition leaves C equal to B-prime and D1 skipped', async () => {
+  const { run } = await noTriggerArtifact();
+  assert.equal(run.arms.C.result.finalOutput, run.arms.B_prime.result.finalOutput);
+  assert.equal(run.arms.D1.skipped, true);
+  assert.equal(run.arms.D1.reason, 'no_selected_issue');
+  assert.deepEqual(run.arms.D1.calls, []);
+});
+
+await check('a no-trigger repetition produces no D1 normalized answer and no D1 pair', async () => {
+  const { artifact } = await noTriggerArtifact();
+  assert.equal(artifact.arms.D1.skipped, true);
+  assert.equal(artifact.arms.D1.normalized, undefined);
+  const d1Pairs = (artifact.blindPairs?.assignments ?? []).filter((x) => x.answerX === 'D1' || x.answerY === 'D1');
+  assert.deepEqual(d1Pairs, [], 'no placeholder D1 answer may be invented to keep the pair count');
+});
+
+await check('the verifier passes a valid triggered artifact', async () => {
+  const { results, ok } = verifyArtifact(await syntheticArtifact());
+  assert.deepEqual(results.filter((r) => r.status === 'FAIL').map((r) => `${r.name}: ${r.detail}`), []);
+  assert.equal(ok, true);
+  assert.match(results.find((r) => r.name === 'trigger state and arm call accounting').detail, /^TRIGGERED/);
+});
+
+await check('the verifier passes a valid no-trigger artifact', async () => {
+  const { artifact } = await noTriggerArtifact();
+  const { results, ok } = verifyArtifact(artifact);
+  assert.deepEqual(results.filter((r) => r.status === 'FAIL').map((r) => `${r.name}: ${r.detail}`), []);
+  assert.equal(ok, true);
+  assert.match(results.find((r) => r.name === 'trigger state and arm call accounting').detail, /^NOT TRIGGERED/);
+});
+
+await check('NEGATIVE: an untriggered C that ran round2_worker is caught', async () => {
+  const { artifact } = await noTriggerArtifact();
+  artifact.arms.C.calls.push({ seq: 2, stage: 'round2_worker', provider: 'openai', requestedModel: 'stub-brand-1', resolvedModel: 'stub-brand-1', retrievalRequested: null, retrievalResult: null, replayed: false });
+  const { results } = verifyArtifact(artifact);
+  assert.equal(results.find((r) => r.name === 'trigger state and arm call accounting').status, 'FAIL');
+});
+
+await check('NEGATIVE: an untriggered C that ran decision_synthesis is caught', async () => {
+  const { artifact } = await noTriggerArtifact();
+  artifact.arms.C.calls.push({ seq: 2, stage: 'decision_synthesis', provider: 'openai', requestedModel: 'stub-synth-1', resolvedModel: 'stub-synth-1', retrievalRequested: null, retrievalResult: null, replayed: false });
+  const { results } = verifyArtifact(artifact);
+  assert.equal(results.find((r) => r.name === 'trigger state and arm call accounting').status, 'FAIL');
+});
+
+await check('NEGATIVE: an untriggered D1 that ran self_review is caught', async () => {
+  const { artifact } = await noTriggerArtifact();
+  artifact.arms.D1 = { skipped: false, calls: [{ seq: 1, stage: 'self_review', provider: 'openai', requestedModel: 'stub-brand-1', resolvedModel: 'stub-brand-1', retrievalRequested: null, retrievalResult: null, replayed: false }] };
+  const { results } = verifyArtifact(artifact);
+  assert.equal(results.find((r) => r.name === 'trigger state and arm call accounting').status, 'FAIL');
+});
+
+await check('NEGATIVE: an untriggered D1 that ran decision_synthesis is caught', async () => {
+  const { artifact } = await noTriggerArtifact();
+  artifact.arms.D1 = { skipped: false, calls: [{ seq: 1, stage: 'decision_synthesis', provider: 'openai', requestedModel: 'stub-synth-1', resolvedModel: 'stub-synth-1', retrievalRequested: null, retrievalResult: null, replayed: false }] };
+  const { results } = verifyArtifact(artifact);
+  assert.equal(results.find((r) => r.name === 'trigger state and arm call accounting').status, 'FAIL');
+});
+
+await check('NEGATIVE: an untriggered C whose finalOutput differs from B-prime is caught', async () => {
+  const { artifact } = await noTriggerArtifact();
+  artifact.arms.C.finalOutput = artifact.arms.C.finalOutput + ' tampered';
+  const { results } = verifyArtifact(artifact);
+  assert.equal(results.find((r) => r.name === 'C and B-prime share one gate sample').status, 'FAIL');
+});
+
+await check('NEGATIVE: an untriggered D1 carrying a normalized answer is caught', async () => {
+  const { artifact } = await noTriggerArtifact();
+  artifact.arms.D1.normalized = { text: 'invented', sha256: 'x'.repeat(64), removedBannerChars: 0 };
+  const { results } = verifyArtifact(artifact);
+  assert.equal(results.find((r) => r.name === 'NC-2 evidence invariance').status, 'FAIL');
+});
+
+await check('NEGATIVE: an untriggered artifact carrying a D1 evaluation pair is caught', async () => {
+  const { artifact } = await noTriggerArtifact();
+  artifact.blindPairs = artifact.blindPairs ?? { pairs: [], assignments: [] };
+  artifact.blindPairs.pairs.push({ pairId: 'fake01', answerX: 'x', answerY: 'y' });
+  artifact.blindPairs.assignments.push({ pairId: 'fake01', fixtureId: 'synthetic-1', runIndex: 1, comparison: 'C vs D1', answerX: 'C', answerY: 'D1' });
+  const { results } = verifyArtifact(artifact);
+  assert.equal(results.find((r) => r.name === 'pair and assignment integrity').status, 'FAIL');
+});
+
+await check('NEGATIVE: an artifact claiming no-trigger while the gate response selects an issue is caught', async () => {
+  // The recorded gate response is the truth; the recorded shape claims otherwise.
+  const { artifact } = await noTriggerArtifact();
+  artifact.gateResponseText = F.GATE_TEXT;
+  const { results } = verifyArtifact(artifact);
+  assert.equal(results.find((r) => r.name === 'trigger state and arm call accounting').status, 'FAIL');
+});
+
+/* ============================================ H-04 manifest/runtime binding */
+console.log('\nH-04 manifest and runtime binding');
+
+await check('NEGATIVE: a manifest pinning a different model than the call used is caught', async () => {
+  const a = await syntheticArtifact();
+  a.manifests.C.pins = { ...a.manifests.C.pins, round2_worker: { provider: 'openai', requestedModel: 'some-other-model' } };
+  a.manifests.C = sealManifest({ ...a.manifests.C, manifestSha256: undefined });
+  const { results } = verifyArtifact(a);
+  assert.equal(results.find((r) => r.name === 'call / manifest pin binding').status, 'FAIL');
+});
+
+await check('NEGATIVE: a manifest pinning a different provider than the call used is caught', async () => {
+  const a = await syntheticArtifact();
+  a.manifests.B.pins = { ...a.manifests.B.pins, synthesis: { provider: 'claude', requestedModel: 'stub-synth-1' } };
+  a.manifests.B = sealManifest({ ...a.manifests.B, manifestSha256: undefined });
+  const { results } = verifyArtifact(a);
+  assert.equal(results.find((r) => r.name === 'call / manifest pin binding').status, 'FAIL');
+});
+
+await check('NEGATIVE: a missing manifestSha256 is caught', async () => {
+  const a = await syntheticArtifact();
+  delete a.manifests.C.manifestSha256;
+  const { results } = verifyArtifact(a);
+  assert.equal(results.find((r) => r.name === 'manifest integrity').status, 'FAIL');
+});
+
+for (const [field, value] of [['experimentId', 'other-experiment'], ['fixtureId', 'other-fixture'], ['runIndex', 99], ['snapshotSha256', 'f'.repeat(64)], ['evidenceLabelBaseline', 'PARTIALLY_GROUNDED']]) {
+  await check(`NEGATIVE: a manifest whose ${field} disagrees with the artifact is caught`, async () => {
+    const a = await syntheticArtifact();
+    a.manifests.C = sealManifest({ ...a.manifests.C, [field]: value, manifestSha256: undefined });
+    const { results } = verifyArtifact(a);
+    assert.equal(results.find((r) => r.name === 'manifest / artifact identity binding').status, 'FAIL');
+  });
+}
+
+await check('NEGATIVE: a manifest filed under the wrong arm key is caught', async () => {
+  const a = await syntheticArtifact();
+  a.manifests.C = sealManifest({ ...a.manifests.C, arm: 'D1', manifestSha256: undefined });
+  const { results } = verifyArtifact(a);
+  assert.equal(results.find((r) => r.name === 'manifest / artifact identity binding').status, 'FAIL');
+});
+
+for (const [what, mutate] of [
+  ['B-prime and C gate models differ', (a) => { a.manifests.C.pins = { ...a.manifests.C.pins, synthesis_gate: { provider: 'openai', requestedModel: 'other-gate-model' } }; }],
+  ['B-prime and C gate providers differ', (a) => { a.manifests.C.pins = { ...a.manifests.C.pins, synthesis_gate: { provider: 'claude', requestedModel: 'stub-synth-1' } }; }],
+  ['C round2 and D1 self-review providers differ', (a) => { a.manifests.D1.pins = { ...a.manifests.D1.pins, self_review: { provider: 'claude', requestedModel: 'stub-brand-1' } }; }],
+  ['C round2 and D1 self-review models differ', (a) => { a.manifests.D1.pins = { ...a.manifests.D1.pins, self_review: { provider: 'openai', requestedModel: 'other-target-model' } }; }],
+  ['C and D1 decision synthesizers differ', (a) => { a.manifests.D1.pins = { ...a.manifests.D1.pins, decision_synthesis: { provider: 'openai', requestedModel: 'other-synth' } }; }],
+]) {
+  await check(`NEGATIVE: ${what} is caught`, async () => {
+    const a = await syntheticArtifact();
+    mutate(a);
+    for (const arm of ['C', 'D1']) a.manifests[arm] = sealManifest({ ...a.manifests[arm], manifestSha256: undefined });
+    const { results } = verifyArtifact(a);
+    const failed = results.filter((r) => r.status === 'FAIL').map((r) => r.name);
+    assert.ok(
+      failed.includes('cross-arm pin and target matching') || failed.includes('call / manifest pin binding'),
+      `expected a pin-binding failure, got: ${failed.join(', ') || 'none'}`
+    );
+  });
+}
+
+await check('NEGATIVE: a D1 that reviewed a different specialist than the gate selected is caught', async () => {
+  const a = await syntheticArtifact();
+  a.arms.D1.selfReview = { ...a.arms.D1.selfReview, agentId: 'strategist' };
+  const { results } = verifyArtifact(a);
+  assert.equal(results.find((r) => r.name === 'cross-arm pin and target matching').status, 'FAIL');
+});
+
+await check('the artifact records raw identity, never a self-reported match', async () => {
+  const a = await syntheticArtifact();
+  const serialized = JSON.stringify(a);
+  for (const bad of ['targetMatched', 'modelPinMatched', 'pinMatched', 'triggered"']) {
+    assert.ok(!serialized.includes(bad), `artifact carries a self-reported conclusion field: ${bad}`);
+  }
+  assert.equal(a.arms.D1.selfReview.agentId, 'brand');
+  assert.equal(a.arms.D1.selfReview.provider, 'openai');
 });
 
 function mustThrowSync(fn, type) {

@@ -7,6 +7,7 @@
 > |---|---|
 > | Protocol version | `M2B-PROTOCOL-0.2` |
 > | Architecture status | **ACCEPTED WITH CORRECTIONS**(GPT Architecture Review of v0.1) |
+> | Harness status | **REVISED / AWAITING GPT HARNESS RE-REVIEW** —— H-01 / H-02 / H-03 / H-04 見下方 amendment |
 > | Live authorization | **NOT GRANTED** —— pilot 需先通過 GPT Harness Review |
 > | 撰寫依據 | `HANDOFF.md` rev.22 @ `339d700201ee493f592b6a9a56b3e96248bd6f8d` |
 > | 治理依據 | `AI_COLLAB_WORKFLOW_RULES.md`(rev.21 基準版) |
@@ -42,6 +43,42 @@
 `[DECISION]` **v0.1 已凍結於 commit `734ad8e`,`GEMINI_M2B_REVIEW_PACKET.md` @ `14952c7`
 仍指向 v0.1,依 packet immutability 規則不回頭覆寫。** 若日後需要對 v0.2 再做一次
 外部 review,應建立 `GEMINI-M2B-PACKET-2`,而不是改舊 packet。
+
+---
+
+## Harness Review Clarification(v0.2 amendment,無版本升級)
+
+`[DECISION]` GPT Harness Review 對 harness 的 verdict 是
+**REVISE — NARROW HARNESS CORRECTIONS ONLY**。以下四項為 amendment 記錄。
+**causal design、四臂、Phase 1 架構均未重開,protocol 維持 `M2B-PROTOCOL-0.2`。**
+
+| ID | Verdict | 內容 | 本文件受影響處 |
+|---|---|---|---|
+| **H-01** | **ACCEPTED** | peer chunk 出現在**兩個 arm 的** decision prompt 是 **evidence parity**,不是 leakage。NC-3 維持 stage-specific:middle round 全檢,decision prompt 只檢 challengeText / sourceRef | §14、§19 X11 |
+| **H-02** | **ACCEPTED WITH CLASSIFICATION CORRECTION** | 20/60 字元窗行為保留,但**降級為 Secondary Diagnostic Heuristic**;不得再稱 correctness invariant / structural guarantee / proof of no leakage | §14、§19 X11、§25.3 |
+| **H-03** | **FIXED** | no-trigger path 是**一等公民的合法形狀**:未觸發時 `C = B′`、`D₁ = SKIPPED`、該 repetition 只花 **2** 次呼叫。verifier 依重推的 trigger state 決定應有 topology | §7.2、§20.1 |
+| **H-04** | **FIXED** | manifest ↔ runtime binding:`manifestSha256` 改為 mandatory;逐呼叫綁 provider / requestedModel / resolvedModel;manifest ↔ artifact identity;cross-arm pin;target agentId | §18.3 |
+
+`[DECISION]` **`120 live calls` 一律讀作 upper bound。** 4 fixtures × 5 repetitions × **最多** 6 calls。
+未觸發的 repetition 只花 2 次,而**未觸發不是 invalid run,不得剔除**。
+實際總數是**觀察結果**,不是設計參數;pilot design(4 × 5)本身不變。
+
+`[DECISION]` **NC-3 的正確分層**(取代任何把字元窗當 correctness 的舊敘述):
+
+```
+PRIMARY STRUCTURAL CONTROLS
+  1. buildSelfReviewPrompt 簽章不接受 peer chunk / challenge / sourceRef
+  2. sourceRef      整串精確拒絕
+  3. challengeText  整串精確拒絕
+  4. chunkText      整串精確拒絕（middle round）
+  5. guard 在 provider call 之前執行
+
+SECONDARY DIAGNOSTIC HEURISTIC
+  連續字元窗（middle round 20 / decision prompt 60）
+
+RESIDUAL RISK —— 未解決，且不宣稱已解決
+  paraphrase · topic steering · semantic leakage · concept-level leakage
+```
 
 ---
 
@@ -536,11 +573,18 @@ for each fixture:
 ```
 fixtures      : 4   （3 positive + 1 negative control，見第 13 節）
 repetitions   : 5   （每 fixture 每 arm）
-live calls    : 4 fixtures × 5 reps × 6 calls = 120
+maximum live calls : 4 fixtures × 5 reps × max 6 calls = 120  ← UPPER BOUND, not a plan
+actual live calls  : 由觀察到的 trigger 結果決定，執行後記錄
 ```
 
+`[DECISION]` ⚠️ **120 是上限,不是預測值。** 每個 repetition 只有在 gate 觸發時才花 6 次;
+gate 未觸發時 C 退化成 B′、D₁ skipped,該 repetition 只花 **2 次**(§14 NC-3 下方的
+no-trigger path)。**未觸發不是 invalid run,不得剔除** —— 因此實際總數必然 ≤ 120,
+而它是**觀察結果,不是設計參數**。不得因此更動 4 fixtures × 5 repetitions。
+
 `[SIGNAL]` 依 Replay #4 的單次觀察(gate 46.7s / R2 42.7s / decision 69.0s),
-120 次呼叫的 wall time 量級約 1.5–3 小時,序列執行。**這是單次觀察外推的量級估計,不是預測。**
+在**全部觸發**的上限(120 次呼叫)下,wall time 量級約 1.5–3 小時,序列執行。
+**這是單次觀察外推的量級估計,不是預測;實際觸發較少時會更短。**
 
 `[DESIGN]` 每 (fixture, repetition) 的 6 次呼叫來自第 5.1 節的共用設計:
 `B` 1 次 + 共用 `gate` 1 次 + `C` 2 次 + `D` 2 次。
@@ -613,7 +657,8 @@ Harness 注入的 dispatcher 可以 `callProvider(provider, prompt, { ...options
 
 ## 7.6 Q4 的答案
 
-`[DECISION]` **Q4: 先跑 4 fixtures × 4 arms × 5 repetitions 的 pilot(120 live calls),
+`[DECISION]` **Q4: 先跑 4 fixtures × 4 arms × 5 repetitions 的 pilot(最多 120 live calls,
+未觸發的 repetition 只花 2 次),
 交付變異估計與 judge 信度;正式 N 由 pilot 觀察到的變異決定,現在不指定。**
 `[DESIGN]` 若要一個規劃用的量級錨點:正式研究預期落在
 **6–8 fixtures × 8–12 repetitions**,但這是**排程用的粗估,不是統計論證**,
@@ -1186,6 +1231,13 @@ F7  核心決策不依賴大量 deterministic arithmetic（見第 17 節）
 建議實作成 harness 的硬性 assert:D 的 prompt 必須不包含 peer chunk 文字的任何
 連續 20 字元子字串,也不包含 challenge 文字的任何連續 20 字元子字串。
 
+`[DECISION]` ⚠️ **Harness Review Clarification(H-02):字元窗是 Secondary Diagnostic
+Heuristic,不是 correctness invariant。** correctness 靠的是五項 primary structural
+controls:D₁ builder 的函式簽章不接受 peer 輸入、sourceRef / challengeText / chunkText
+的整串精確拒絕、以及 guard 在 provider call 之前執行。字元窗只是額外的 lexical 偵測器,
+**不構成「沒有洩漏」的證明**。paraphrase / topic steering / semantic / concept-level
+leakage 為 residual risk,未解決且不宣稱已解決。
+
 ---
 
 # 15. Cross-Provider Coverage
@@ -1508,7 +1560,7 @@ Replay #4 就是這樣:runtime 是 `267ecff`,而 artifact 提交在 `4e34d89`。
 | **X8** | Judge model-family affinity | 中 | 兩個不同家族的 judge;主 judge 與合成器不同家族 | judge 池本身有限 |
 | **X9** | Arm leakage(答案內容自曝) | 中 | Leakage Audit 量測(不得編輯內容) | **已 `[SIGNAL]` 觀察到,無法根除** |
 | **X10** | Model drift / preview 通道 | 中 | 交錯執行 + 2 小時時間窗 + 逐呼叫 `resolvedModel` 斷言 | 服務端版本不可得 |
-| **X11** | D 被 peer 資訊汙染 | **極高** | NC-3 自動斷言(20 字元子字串檢查) | 主題層級的間接洩漏難以自動偵測 |
+| **X11** | D 被 peer 資訊汙染 | **極高** | NC-3:五項 primary structural controls(簽章限制 + 三種整串精確拒絕 + call 前執行);字元窗為 secondary diagnostic | **未解決**:paraphrase / topic steering / semantic / concept-level leakage 無法由 lexical matching 證明不存在 |
 | **X12** | Gold issue 洩漏進 runtime | 高 | GI-1..GI-5,檔案系統層分離 | 需人為紀律維持 |
 | **X13** | Arithmetic 變異淹沒 peer 效果 | 中高 | F7 排除算術重的 fixture(第 17 節下方) | 見 X13 說明 |
 | **X14** | Provider 與 fixture 共線 | 中 | Option 3′:合成器固定,provider 只在 target 輪換,且 C/D 配對內為常數 | 不足以宣稱泛化(已寫入 claims ladder) |
@@ -1728,7 +1780,8 @@ buildSelfReviewDecisionPrompt({ task, specialistBlock, degradedNote, selfObjecti
     → Decision contract 五條逐字相同（含 neutrality guard）
 
 assertNoPeerLeakage(prompt, peerChunkText, challengeText)
-    → NC-3：任何 20 字元連續子字串命中即拋錯
+    → NC-3 primary：sourceRef / challengeText / chunkText 整串精確命中即拋錯
+      NC-3 diagnostic：連續字元窗命中亦拋錯（middle round 20 / decision prompt 60）
 ```
 
 `[FACT]` `buildDecisionSynthesisPrompt` 目前的簽章是
@@ -1860,7 +1913,7 @@ RECOMMEND（已批准的 Phase 1 形狀）:
 
   B / B′ / C / D₁  四臂、共用 frozen Round-1、共用 gate 呼叫的配對 pilot
   4 fixtures（3 positive + 1 negative control）× 5 repetitions
-  120 live calls
+  最多 120 live calls（upper bound；未觸發的 repetition 只花 2 次）
   D 採 D₁（self-targeted challenge），harness-only，src/ zero-change
   主要估計量 = Targeted Peer-Challenge Package vs Matched Self-Review（非 pure peer information）
   Phase 1 內 target provider 跨 fixture 輪換（Option 3′），合成器全程固定
@@ -1897,7 +1950,7 @@ RECOMMEND（已批准的 Phase 1 形狀）:
    ⑥  ★ GPT HARNESS REVIEW ★              ← v0.2 新增的關卡
 ──────────────────────────────────────────────  ↓ 只有通過 ⑥ 才被授權 ↓
    ⑦  temperature 支援性 probe
-   ⑧  120-call pilot
+   ⑧  pilot（最多 120 calls）
    ⑨  先評 judge 信度、leakage、變異；通過後才解讀 arm 比較
    ⑩  依觀察到的變異決定正式 N，回到 Architecture Review
 ```
@@ -1910,7 +1963,7 @@ RECOMMEND（已批准的 Phase 1 形狀）:
 
 `[DESIGN]` 第 ⑥ 步是 v0.2 新增的。它的價值在於:harness 一旦寫錯 ——
 尤其 §19 的 **X11(D₁ 被 peer 資訊汙染)** —— pilot 會產出**方向確定的錯誤結論**,
-而且事後極難察覺。**把 harness 送審一次,比事後重跑 120 次呼叫便宜得多。**
+而且事後極難察覺。**把 harness 送審一次,比事後重跑整批呼叫便宜得多。**
 
 ## 25.4 本輪未做的事
 
@@ -1921,7 +1974,7 @@ RECOMMEND（已批准的 Phase 1 形狀）:
 未做 Finance Layer     未跑 live API           未跑 B/C/D
 未新增 self-review runtime                     未 productionize
 未 merge main          未修改 rev.20 tests     未觸碰 Replay #4 封印
-未跑 temperature probe  未跑 120-call pilot     未開始 harness implementation
+未跑 temperature probe  未跑 pilot               未開始 harness implementation
 未凍結 fixtures         未寫 gold issues        未寫 conflict labels
 ```
 
@@ -2166,7 +2219,7 @@ n=1 vs n=1 無法歸因。**這條先前未被明文禁止。**
   ④ Implement harness only（experiments/m2b/，src/ zero-change）
   ⑤ Offline + structural verification
   ⑥ ★ GPT HARNESS REVIEW ★
-  ⑦ 只有通過 ⑥ 之後，才授權 temperature probe + 120-call pilot
+  ⑦ 只有通過 ⑥ 之後，才授權 temperature probe + pilot（最多 120 calls）
 ```
 
 ## Stop condition
@@ -2174,7 +2227,7 @@ n=1 vs n=1 無法歸因。**這條先前未被明文禁止。**
 ```
 Protocol v0.2 已完成。STOP。
 
-不進行：harness implementation / temperature probe / 120-call pilot /
+不進行：harness implementation / temperature probe / pilot /
         任何 live API call / fixture 凍結 / gold issues / conflict labels /
         Gate 調整 / merge / 下一個 milestone。
 

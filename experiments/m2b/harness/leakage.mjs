@@ -6,16 +6,31 @@
  * nothing" — a wrong answer, in a known direction, that nothing downstream would catch.
  * So the check runs before every D-1 call and throws rather than warns.
  *
- * What it can prove and what it cannot:
+ * ## What is a control and what is a diagnostic (harness review, H-02)
  *
- *   CAN   — that the peer chunk text, the challenge text and the sourceRef string do not
- *           appear in the prompt, verbatim or in any contiguous window of `windowChars`.
- *   CANNOT — that the prompt is free of *semantic* or *topic* leakage. A paraphrase of the
- *           peer's point, or a hint that steers D-1 toward the contested subject, passes
- *           this check. Protocol §19 X11 records that residual risk; this module does not
- *           claim to close it.
+ * These are not the same kind of claim, and the difference matters more than any
+ * threshold:
  *
- * Naming it after what it actually asserts is deliberate — HANDOFF §25 E4 is the
+ *   PRIMARY STRUCTURAL CONTROLS — these can be reasoned about, not merely sampled:
+ *     1. `buildSelfReviewPrompt` has no parameter for a peer chunk, a challenge or a
+ *        sourceRef. There is no argument through which any of them could arrive.
+ *     2. exact rejection of `sourceRef`
+ *     3. exact rejection of `challengeText`
+ *     4. exact rejection of `chunkText` in the middle round
+ *     5. the guard runs BEFORE the provider call, so a contaminated D-1 costs nothing
+ *
+ *   SECONDARY DIAGNOSTIC HEURISTIC — the contiguous substring window. It is an extra
+ *     lexical leak detector, nothing more. It is NOT a correctness invariant, NOT a
+ *     structural guarantee, and NOT a proof that no leakage occurred.
+ *
+ *   RESIDUAL RISK, unresolved and not claimed to be resolved:
+ *     paraphrase · topic steering · semantic leakage · concept-level leakage
+ *
+ * No window length can close that residual gap, so the window's exact value is a tuning
+ * choice inside a diagnostic, not the thing correctness rests on. Protocol §19 X11 records
+ * the residual risk and it stays recorded.
+ *
+ * Naming this after what it actually asserts is deliberate — HANDOFF §25 E4 is the
  * cautionary case, where an invariant named for a property it could not fail on was read
  * as evidence for that property.
  */
@@ -33,27 +48,27 @@ export class PeerLeakageDetected extends Error {
 }
 
 /**
- * Contiguous windows of this many characters are compared. Protocol §14 NC-3 specifies 20.
+ * Window for the middle round. Protocol §14 NC-3 specifies 20.
  *
- * 20 is right for the middle round, where none of the peer's text is legitimately present,
- * so any 20-character coincidence is worth stopping for.
+ * Diagnostic parameter, not a correctness threshold. It is usable here because none of the
+ * peer's text is legitimately present in a self-review prompt, so a coincidence at this
+ * length is worth surfacing.
  */
 export const DEFAULT_WINDOW_CHARS = 20;
 
 /**
- * The window used for the decision prompt, where Round 1 *is* legitimately present.
+ * Window for the decision prompt, where Round 1 *is* legitimately present.
  *
- * ⚠️ FINDING FOR HARNESS REVIEW. Protocol §14 fixes the window at 20 characters. Building
- * this guard showed 20 is unusable against `challengeText` in the decision prompt: a
- * gate-authored challenge is written *about* a Round 1 passage, so it reuses that
- * passage's vocabulary, and the shared Round 1 block then trips a 20-character match that
- * is not leakage. The synthetic fixture reproduces it — " the same senior edi" is common
- * to the challenge and to the strategist's answer.
+ * Also a diagnostic parameter. 20 is unusable here: a gate-authored challenge is written
+ * *about* a Round 1 passage, so it reuses that passage's vocabulary, and the shared Round 1
+ * block then trips a 20-character match that is not leakage at all. The synthetic fixture
+ * reproduces it — " the same senior edi" is common to the challenge and to the strategist's
+ * Round 1 answer.
  *
- * The guard therefore uses a longer window here, plus an exact full-string test that
- * catches the failure actually worth catching: a whole challenge string transplanted into
- * a D-1 prompt by a harness bug. That is a deviation from the protocol's stated number and
- * is flagged rather than applied silently.
+ * 60 is not a better threshold in any principled sense; it is a less noisy setting for a
+ * heuristic. Correctness here rests on the exact-string rejections above, which catch the
+ * failure that actually threatens the experiment: a whole challenge or sourceRef
+ * transplanted into a D-1 prompt by a harness bug.
  */
 export const DECISION_WINDOW_CHARS = 60;
 
