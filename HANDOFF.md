@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-06, rev. 21)
+# ai-collab-mcp — Progress Report (2026-09-06, rev. 22)
 
 > ## 交接狀態
 >
@@ -15,6 +15,7 @@
 > | **M2-A Controlled Replay #3** | **NOT EXERCISED —— gate 首次真正執行,但認出分歧後選擇在答案內解決,未輸出區塊,詳見第二十三節** |
 > | **M2-A Controlled Replay #4** | **FULL MECHANISM RUNTIME PASS —— 一次自然 valid issue → R2 → Decision Synthesis,不代表品質或產品價值已驗證** |
 > | **rev.20 Independent Code Review** | **ACCEPT WITH DOCUMENTATION CORRECTION —— 無 runtime defect;3 項文件/命名修正 + 1 項規格 concern 待 review,詳見第二十五節** |
+> | **M2-B Effectiveness Experiment Design** | **DELIVERED / AWAITING GEMINI + GPT REVIEW —— 見 `M2_EFFECTIVENESS_EXPERIMENT.md` @ `734ad8e`。protocol 已產出,尚未 ACCEPT,尚未 implementation,尚未 live experiment** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
 > | **目前離線測試** | **212 項全過 = rev.19 的 208 + Gate semantics 新增 4** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
@@ -24,6 +25,29 @@
 > **Experimental Milestone 2-A 已完成本輪限定工程,現在 STOPPED / AWAITING ARCHITECTURE REVIEW,default OFF。** 使用者批准 Gate eligibility 由 post-synthesis unresolved conflict 改成 pre-synthesis material disagreement;唯一一次 Replay #4 使用與 #3 byte-identical 的 fixture,自然跑通 valid issue、sourceRef、Targeted R2 與 Decision Synthesis。212 項離線測試通過,既有 assertions 未放寬,16 組修改前/後 control capture byte-identical。這是機制驗證,尚未執行品質比較或 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 22 改了什麼(只加狀態指標 —— 無 code、無設計內容)
+
+**rev.22 = rev.21 的 code + 一列狀態指標。`src/` 一個 byte 都沒動,離線測試仍是 212 項。**
+
+1. **本輪唯一變更** —— 交接狀態表新增一列,指向 `M2_EFFECTIVENESS_EXPERIMENT.md`
+   (commit `734ad8e`,1992 行)。**M2-B 的設計內容一律不抄進 HANDOFF**;
+   依協作規則 §46,實驗設計屬於該文件,HANDOFF 只記工程狀態。
+2. **Claim boundary(必須維持)** ——
+
+   ```
+   ✅ M2-B protocol 已產出
+   ❌ 尚未經 Gemini independent review
+   ❌ 尚未經 GPT Architecture Review
+   ❌ 尚未 ACCEPT
+   ❌ 尚未 implementation
+   ❌ 尚未 live experiment
+   ```
+
+3. **M2-A 狀態未變** —— 仍是 STOPPED / AWAITING ARCHITECTURE REVIEW / DEFAULT OFF。
+   本輪未跑 live call、未改 Gate、未動 Replay #4 封印、未 merge main。
+
+---
 
 ## rev. 21 改了什麼(rev.20 獨立審查紀錄 —— 無 production code 變更)
 
