@@ -2,15 +2,17 @@
 // The injected dispatcher is a pass-through recorder: identical arguments forwarded to the
 // real callProvider, with the constructed prompt stored so section 9 can be answered from
 // an artifact rather than from reading the source.
+// Paths were parameterised after the run so the published record carries no local
+// username. Nothing else changed; the artifact beside this file is the original output.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-const BASE = '/private/tmp/claude-501/-Users-Dawn-Desktop-Project-AI-Agent/60b5a0c1-eb58-41d7-9cb8-3e6a7d0f7f87/scratchpad';
+const BASE = new URL('../../..', import.meta.url).pathname.replace(/\/$/, '');
 const { runOrchestrator, buildRunReport, buildOutputBanner } = await import(`${BASE}/m2/dist/modes/orchestrator.js`);
 const { callProvider } = await import(`${BASE}/m2/dist/providers/index.js`);
 const { resolveRoster } = await import(`${BASE}/m2/dist/agents/registry.js`);
 const { segmentAll } = await import(`${BASE}/m2/dist/agents/collaboration.js`);
 
-const TASK = readFileSync(`${BASE}/diag2/fixture.txt`, 'utf-8');
+const TASK = readFileSync(`${BASE}/diagnostics/m2a-live/run2-planning-reachable/fixture.txt`, 'utf-8');
 const taskSha = createHash('sha256').update(TASK).digest('hex');
 console.log('fixture chars:', TASK.length, 'sha256:', taskSha);
 
@@ -60,7 +62,7 @@ const result = await runOrchestrator({
 const recomputed = buildRunReport(result.plan.complexity, roster.workers, result.workerResults);
 const chunks = segmentAll(result.workerResults.filter((r) => r.output !== undefined));
 
-writeFileSync(`${BASE}/diag2/artifact.json`, JSON.stringify({
+writeFileSync(`${BASE}/diagnostics/m2a-live/run2-planning-reachable/artifact.json`, JSON.stringify({
   startedAt,
   finishedAt: new Date().toISOString(),
   taskSha256: taskSha,
@@ -97,4 +99,4 @@ console.log('issues          :', JSON.stringify({ raw: result.collaboration?.iss
 console.log('chunk counts    :', JSON.stringify(Object.fromEntries(Object.entries(chunks).map(([k, v]) => [k, v.length]))));
 console.log('timings         :', JSON.stringify(result.timings));
 console.log('collab timings  :', JSON.stringify(result.collaboration?.timings));
-console.log('\nartifact -> diag2/artifact.json');
+console.log('\nartifact -> written next to this harness.');

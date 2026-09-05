@@ -1,0 +1,22 @@
+{
+  "task.txt": {
+    "chars": 487,
+    "sha256": "22bf40a1407d6349c95d83ae699460c68451c2826eb367dc97b8cbf079a58c02"
+  },
+  "mission-business_strategist.txt": {
+    "chars": 77,
+    "sha256": "4b8711789c06d84eb1beb3e4dec53078c067fc6191c5166bee25212fc7baa3ea"
+  },
+  "mission-brand_creative.txt": {
+    "chars": 70,
+    "sha256": "d73bbed7da14a6bed779e2f80739e40cde7aec79f43c0276cae28774a986b85a"
+  },
+  "round1-business_strategist.md": {
+    "chars": 570,
+    "sha256": "15eaf46ce3e5fbd941dfce29ac21b2a6cccabce7a026f87c4988c53af23364b8"
+  },
+  "round1-brand_creative.md": {
+    "chars": 712,
+    "sha256": "8faf6c050ec540fa4db6524d267c688a90b86e6059f514b5546b1a32a2e94a67"
+  }
+}

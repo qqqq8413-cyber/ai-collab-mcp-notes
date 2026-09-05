@@ -4,11 +4,15 @@
 // recorder: it forwards every argument to the real callProvider unchanged and stores the
 // constructed prompt, so section 7's "captured prompt, not inferred from code" can be
 // answered from an artifact rather than from reading the source.
+// Paths were parameterised after the run so the published record carries no local
+// username. Nothing else changed; the artifact beside this file is the original output.
 import { writeFileSync } from 'node:fs';
-import { runOrchestrator, buildRunReport, buildOutputBanner } from '/private/tmp/claude-501/-Users-Dawn-Desktop-Project-AI-Agent/60b5a0c1-eb58-41d7-9cb8-3e6a7d0f7f87/scratchpad/m2/dist/modes/orchestrator.js';
-import { callProvider } from '/private/tmp/claude-501/-Users-Dawn-Desktop-Project-AI-Agent/60b5a0c1-eb58-41d7-9cb8-3e6a7d0f7f87/scratchpad/m2/dist/providers/index.js';
-import { resolveRoster } from '/private/tmp/claude-501/-Users-Dawn-Desktop-Project-AI-Agent/60b5a0c1-eb58-41d7-9cb8-3e6a7d0f7f87/scratchpad/m2/dist/agents/registry.js';
-import { segmentAll } from '/private/tmp/claude-501/-Users-Dawn-Desktop-Project-AI-Agent/60b5a0c1-eb58-41d7-9cb8-3e6a7d0f7f87/scratchpad/m2/dist/agents/collaboration.js';
+
+const BASE = new URL('../../..', import.meta.url).pathname.replace(/\/$/, '');
+const { runOrchestrator, buildRunReport, buildOutputBanner } = await import(`${BASE}/dist/modes/orchestrator.js`);
+const { callProvider } = await import(`${BASE}/dist/providers/index.js`);
+const { resolveRoster } = await import(`${BASE}/dist/agents/registry.js`);
+const { segmentAll } = await import(`${BASE}/dist/agents/collaboration.js`);
 
 const TASK = `我們是一家 12 人的影像製作公司,主要收入來自品牌形象影片與電商產品影片。去年營收約新台幣 4,800 萬,毛利率約 38%,手上現金約 900 萬。
 
@@ -100,7 +104,7 @@ const artifact = {
   calls,
 };
 
-writeFileSync('/private/tmp/claude-501/-Users-Dawn-Desktop-Project-AI-Agent/60b5a0c1-eb58-41d7-9cb8-3e6a7d0f7f87/scratchpad/diag/artifact.json', JSON.stringify(artifact, null, 2));
+writeFileSync(`${BASE}/diagnostics/m2a-live/run1-not-exercised/artifact.json`, JSON.stringify(artifact, null, 2));
 
 console.log('\n=== SUMMARY ===');
 console.log('complexity      :', result.plan.complexity);
@@ -113,4 +117,4 @@ console.log('collaboration   :', result.collaboration?.status, '/', result.colla
 console.log('answerSource    :', result.collaboration?.answerSource);
 console.log('timings         :', JSON.stringify(result.timings));
 console.log('collab timings  :', JSON.stringify(result.collaboration?.timings));
-console.log('\nartifact written to diag/artifact.json');
+console.log('\nartifact written next to this harness.');

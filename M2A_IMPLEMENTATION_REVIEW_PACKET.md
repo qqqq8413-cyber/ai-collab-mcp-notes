@@ -14,16 +14,21 @@
 
 ---
 
-## 0.1 ⚠️ 兩次 diagnostic live 的結果:機制仍未被執行
+## 0.1 ⚠️ 三次 diagnostic live 的結果:機制後半段仍未被執行
 
 程式碼未變(仍是本包所述的版本),但已經跑過兩次真實執行,**兩次都沒有讓 gate 運作**:
 
-| | complexity | N | 阻擋點 | logical calls |
-|---|---|---|---|---|
-| #1 重大投資決策(五年租約 + 650 萬 capex) | `deep` | 1 | `single_specialist_no_peer` | 3 |
-| #2 新服務決策(含商業/市場/品牌三種資訊) | **`normal`** | 2 | `complexity_not_deep (normal)` | 4 |
+| | 性質 | complexity | N | 阻擋點 | live calls |
+|---|---|---|---|---|---|
+| #1 | 自然任務 | `deep` | 1 | `single_specialist_no_peer` | 3 |
+| #2 | 自然任務 | **`normal`** | 2 | `complexity_not_deep` | 4 |
+| #3 | **controlled frozen replay** | `deep` | 2 | **`no_issue_block`(gate 已執行)** | 1 |
 
-gate 需要**同時**滿足 `deep` 且至少 2 位成功專家。兩次各自缺一個條件,**修掉其中一個不會讓另一個消失**。
+前兩次卡在 gate 之前,第三次卡在 gate 之內。**每次阻擋點都不同,修掉任何一個都不會讓其他兩個消失。**
+
+**#3 最重要:** gate 第一次真正執行(附錄、40 個 deterministic reference、max-one 規則都以 captured prompt 驗證送達),但沒有輸出區塊 —— 而它的回答裡有一段標題叫「專家分歧與如何處理」,**精準認出了 fixture 設計的 B vs C 衝突,然後在答案內解決掉了**。依附錄自己的規則(「只在解決它會改變答案裡的決策時才提報」),省略區塊是正確的。
+
+**這不是 recall 問題,是通道問題:** 同一次呼叫同時被要求「產出完整答案」(必須解決衝突)與「回報未解決的衝突」(需要衝突還在),做好前者就消滅了做後者的理由。
 
 兩次都沒有 runtime defect:gate 未啟動時 synthesis prompt 不含附錄(以 captured prompt 驗證)、`finalOutput` 逐字元等於 `banner + synthesis 原文`、evidence label 以 Round 1 獨立重算一致、所有呼叫皆無 retrieval、call ceiling 皆為 `1 + N + 1`。
 
@@ -32,7 +37,7 @@ gate 需要**同時**滿足 `deep` 且至少 2 位成功專家。兩次各自缺
 這對你的審查有兩個影響:
 
 1. **本包第 5 節的九個挑戰點仍然全部有效**,因為沒有任何一項被實測推翻或證實。
-2. **多了一個新問題**:目前驗證機制的唯一辦法是跑真實任務等它自然觸發,兩次都沒中。這既慢又貴,也無法保證下次會中。**是否需要一個能穩定觸發 gate 的方式來驗證機制本身?** 請一併回答。
+2. **多了一個新問題**:#3 已證明用既有 `replaySynthesis()` 就能讓合法 snapshot 進入真實 downstream path,不需要任何 bypass flag —— 所以「怎麼觸發 gate」已經解決。**真正待解的是第 5 節第 2 題的加強版:附錄要如何寫,才能讓一個已經認出分歧的 synthesizer 有理由用機器可讀通道回報,而不是直接在答案裡解決掉?** 或者這兩個責任根本不該放在同一次呼叫?請一併回答。
 
 ---
 

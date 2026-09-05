@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-05, rev. 17)
+# ai-collab-mcp — Progress Report (2026-09-05, rev. 18)
 
 > ## 交接狀態
 >
@@ -11,7 +11,8 @@
 > | **Step 7.1 E2E Runtime Acceptance** | **DONE —— Test A PASS / Test B PASS,詳見第十八節** |
 > | **Milestone 2 scope analysis** | **DONE —— 見 `MILESTONE2_SCOPE_ANALYSIS.md`、第二十節** |
 > | **Experimental Milestone 2-A Prototype** | **PRE-LIVE FINALIZED / DEFAULT OFF —— 詳見第二十一節** |
-> | **M2-A Diagnostic Live #1 / #2** | **兩次皆 NOT EXERCISED —— 機制從未被真正執行,阻擋點各不相同,詳見第二十二節** |
+> | **M2-A Diagnostic Live #1 / #2** | **兩次皆 NOT EXERCISED —— 被兩個不同條件擋在 gate 之前,詳見第二十二節** |
+> | **M2-A Controlled Replay #3** | **NOT EXERCISED —— gate 首次真正執行,但認出分歧後選擇在答案內解決,未輸出區塊,詳見第二十三節** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
 > | **目前離線測試** | **208 項全過 = rev.14 的 99 + M2-A 累計 109** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
@@ -21,6 +22,20 @@
 > **Experimental Milestone 2-A prototype 已實作,default OFF。** 關掉時的行為與回傳 payload 與 rev.14 逐欄相同,99 項既有測試無一需要放寬。新增 73 項測試涵蓋 stage 標記、call ceiling、best-effort parsing、issue 驗證、deterministic selection、selective peer context、失敗回退與 evidence 不變式。這是量測用的 prototype,不是 production feature,尚未跑過任何 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 18 改了什麼(Controlled Frozen Round-1 Replay)
+
+1. **不再靠自然任務碰運氣** —— 改用 controlled frozen Round-1 replay,直接把一份合法的 `deep` / `SUCCESS` / N=2 / 帶明確 B vs C 衝突的 synthetic snapshot 送進真實 downstream path。
+2. **不需要任何 bypass flag** —— 既有的 `replaySynthesis()` 就足以讓合法 snapshot 進入 `runSynthesisStage()`,也就是 live 路徑本身。沒有新增 `forceCollaborationGate` 之類的 runtime trigger,production execution semantics 未被污染。
+3. **gate 第一次真正執行了** —— 附錄、40 個 deterministic reference(`business_strategist:p1…p18`、`brand_creative:p1…p22`)、max-one 規則都以 captured prompt 驗證確實送達模型。
+4. **但仍是 `NOT EXERCISED`** —— `SKIPPED / no_issue_block`,`issues.emitted = 0`。
+5. **⚠️ 失敗的原因與預期完全不同** —— gate **認出了**那個分歧。它的回答裡有一段標題是「專家分歧與如何處理」,精準點名 B vs C 與雙方論據,然後把 C 當作 Kill Switch 整合進 B 的方案裡。**它在答案內解決了衝突,因此依附錄自己的規則不該提報。** 這不是 recall 問題,是通道問題,兩者修法完全不同。
+6. **新增一條工程原則** —— 見第十五節:同一次呼叫同時被要求「解決衝突」與「回報未解決的衝突」,做好前者就消滅了做後者的理由。
+7. **未觸發路徑在真實執行中再次成立** —— provisional answer 完整交付且與 gate 回應逐字元相同、`finalOutput == banner + gate 回應`、evidence label 以凍結 Round 1 獨立重算一致、唯一一次呼叫無 retrieval。
+8. **證據保存** —— `diagnostics/m2a-live/controlled-replay/`,含逐字 fixture(task、兩份 mission、兩份 synthetic Round 1)、fixture hash、harness、完整 artifact(gate prompt 與回應原文)。
+9. **未修改任何程式** —— `src/` 與 `d1d1d28` 逐位元組相同,`npm test` 208 passed / 0 failed。本次 commit 只新增 diagnostics 與文件。
+
+---
 
 ## rev. 17 改了什麼(兩次 Diagnostic Live 的結果)
 
@@ -1361,6 +1376,12 @@ ExecutionPolicy must not depend on ProviderName.
 
 # 十五、本專案累積的工程原則
 
+rev. 18 新增:
+
+> **A call asked both to resolve a conflict and to report unresolved conflicts will resolve it. Doing the first job well destroys the reason to do the second.**
+
+這條是實測換來的。Controlled replay 給 gate 一組明確的 B vs C 跨專家衝突,gate **認出來了** —— 回答裡有一段標題就叫「專家分歧與如何處理」—— 然後把它整合進答案,因此依附錄自己的規則(「只在解決它會改變答案裡的決策時才提報」)正確地省略了區塊。模型沒有失誤,是兩個責任互相抵消。
+
 rev. 15 新增:
 
 > **A rate is not an outcome. How often a mechanism fires says nothing about whether the times it fired were worth it.**
@@ -2062,3 +2083,118 @@ Chief 原文理由:
 | R-4 | Chunk 切法在 40 個 reference 的規模下是否足夠精準?(目前無證據,不宜先改) |
 
 **R-3 是關鍵。** 目前驗證機制的唯一辦法是不斷跑真實任務、等它自然觸發,而兩次都沒中。這既慢又貴,而且無法保證下一次會中。
+
+---
+
+# 二十三、M2-A Controlled Frozen Round-1 Replay(#3)—— gate 首次執行,仍 NOT EXERCISED
+
+證據:[`diagnostics/m2a-live/controlled-replay/`](diagnostics/m2a-live/controlled-replay/),含逐字 fixture、fixture hash、harness 與完整 artifact(gate prompt 與回應原文)。
+
+## 為什麼改用 replay
+
+#1 與 #2 都被擋在 gate 之前(`single_specialist_no_peer`、`complexity_not_deep`),共花約 16.5 分鐘與 7 次 model call,換到的只有「還是沒觸發」。繼續跑自然任務,期望值不會更好。
+
+改用 controlled frozen Round-1 replay:凍結一份**合法**的 snapshot(`deep` / `SUCCESS` / N=2 / 兩份來源不同、帶明確 B vs C 衝突的 Round 1 輸出),只讓 synthesis 之後的路徑走真實 live 呼叫。
+
+**Planning 與 Round 1 是 synthetic fixture,不在測試範圍內;gate 之後全部是真實 provider call。** 這不是一次自然的 production run,文件與 artifact 都明確標記。
+
+## 架構邊界:不需要 bypass flag
+
+沒有新增 `forceCollaborationGate` / `forceRound2` / `diagnosticMode` 之類的 runtime trigger。既有的 `replaySynthesis()` 就足夠 —— 它委派給 `runSynthesisStage()`,也就是 live orchestrator 用的同一份實作。
+
+harness 沒有自行重寫 gate、parser、chunk resolver、Round 2 builder 或 decision synthesis;重寫了就是在測第二份實作。
+
+## Gate 確實執行了
+
+以 captured prompt 驗證(非推論):
+
+| 項目 | 結果 |
+|---|---|
+| 附錄實際送達 | ✅ `Optional collaboration block` 在 prompt 中 |
+| chunk map 送達 | ✅ 40 個 reference:`business_strategist:p1…p18`、`brand_creative:p1…p22` |
+| max-one 規則送達 | ✅ `At most one "peer_challenge" may be emitted.` |
+| 保守措辭送達 | ✅ `Prefer omitting the block entirely to inventing a disagreement.` |
+
+Gate prompt 4,513 字元,openai / gpt-5,耗時 68.2 秒。
+
+## 結果:`SKIPPED / no_issue_block`
+
+```
+issues.emitted / valid / eligible / rejected : 0 / 0 / 0 / 0
+parse.status : absent
+```
+
+## ⚠️ 但「gate 沒認出分歧」這個描述是錯的
+
+Architecture Review 預設的失敗敘述是「gate failed to identify the fixture's explicit decision-sensitive disagreement」。**實測不是這樣。**
+
+gate 的回答裡有一段標題明確寫著「**專家分歧與如何處理**」:
+
+> 分歧焦點:是否應「暫不推出」(C)以避免產能/毛利風險,或以「品牌隔離+容量控制」先小規模推出(B)。
+> 我們的處理:採 B 的同時,把 C 當成即刻可執行的 Kill Switch。
+
+**它精準認出了 fixture 設計的那個衝突,點名雙方論據,然後在答案裡把它解決掉了。**
+
+而依附錄自己的規則,省略區塊是**正確**的:
+
+> Raise an issue only where … **resolving it would change a decision in the answer**.
+
+分歧已在答案內解決,所以那個條件不成立。**模型遵守了指示,沒有失誤。**
+
+## 這暴露的是責任對立,不是模型缺陷
+
+同一次呼叫被交付兩個互相拉扯的責任:
+
+```
+產出一份完整可用的答案   →  必須把衝突處理掉
+回報未解決的跨專家衝突   →  需要衝突還沒被處理掉
+```
+
+**做好第一件事,就消滅了做第二件事的理由。** 一個把分歧整合進答案的 synthesizer,依定義沒有 issue 可報。
+
+這把 R-3 的問題重新定位:**不是「gate 找不到分歧」的 recall 問題,而是「gate 找到了卻沒有理由用機器可讀通道回報」的通道問題。** 兩者修法完全不同 —— recall 問題要調偵測靈敏度,通道問題要調責任分配。
+
+依指示未修 prompt、未重跑、未人工插入 issue。這是給 Architecture Review 的材料,不是本輪的決定。
+
+## 真實執行中再次成立的不變式
+
+| 檢查 | 結果 |
+|---|---|
+| `collaboration.provisionalAnswer` 保存 | ✅ 2,565 字元,與 gate 回應逐字元相同 |
+| `finalOutput == banner + gate 回應` | ✅ 逐字元相同 |
+| EvidenceLabel before / after | ✅ HYPOTHESIS / HYPOTHESIS,以凍結 Round 1 獨立重算亦相同 |
+| grounding banner before / after | ✅ 完全相同 |
+| retrieval | ✅ 唯一一次呼叫 requested 與 result 皆為 null |
+| RunStatus | ✅ SUCCESS |
+| live call 數 | ✅ 1(gate 未觸發時的預期值) |
+
+**無 runtime defect。**
+
+## 仍然零次真實執行的部分
+
+```
+parser 成功路徑
+sourceRef 解析
+chunk 擷取
+max-one deterministic selection
+Round 2
+Decision Synthesis
+```
+
+三次 live 之後,機制的後半段**一次也沒有被執行過**。
+
+## 三次 live 的完整圖像
+
+| | 性質 | complexity | N | 阻擋點 | live calls |
+|---|---|---|---|---|---|
+| #1 | 自然任務 | `deep` | 1 | `single_specialist_no_peer` | 3 |
+| #2 | 自然任務 | `normal` | 2 | `complexity_not_deep` | 4 |
+| #3 | **controlled replay** | `deep` | 2 | **`no_issue_block`(gate 已執行)** | 1 |
+
+前兩次卡在 gate 之前,第三次卡在 gate 之內。**每一次的阻擋點都不同,而且修掉任何一個都不會讓其他兩個消失。**
+
+## 本輪不宣稱
+
+M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型、B 比 C 正確、gate recall 不足、NORMAL 應啟用 M2-A、應 productionize、latency/cost 值得。
+
+**#3 只證明了一件事:當合法前置條件存在時,gate 會執行,而它在這一次選擇不提報。**
