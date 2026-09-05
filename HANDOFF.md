@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-06, rev. 23)
+# ai-collab-mcp — Progress Report (2026-09-06, rev. 24)
 
 > ## 交接狀態
 >
@@ -16,6 +16,7 @@
 > | **M2-A Controlled Replay #4** | **FULL MECHANISM RUNTIME PASS —— 一次自然 valid issue → R2 → Decision Synthesis,不代表品質或產品價值已驗證** |
 > | **rev.20 Independent Code Review** | **ACCEPT WITH DOCUMENTATION CORRECTION —— 無 runtime defect;3 項文件/命名修正 + 1 項規格 concern 待 review,詳見第二十五節** |
 > | **M2-B Protocol** | **ARCHITECTURE ACCEPTED / HARNESS IMPLEMENTATION NEXT / LIVE PILOT NOT AUTHORIZED —— `M2_EFFECTIVENESS_EXPERIMENT.md` v0.2 @ `a308bc8`** |
+> | **M2-B Harness** | **IMPLEMENTED / AWAITING GPT HARNESS REVIEW / NO LIVE AUTHORIZATION —— `experiments/m2b/`,65 項離線測試,`src/` diff 為空** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
 > | **目前離線測試** | **212 項全過 = rev.19 的 208 + Gate semantics 新增 4** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
@@ -25,6 +26,41 @@
 > **Experimental Milestone 2-A 已完成本輪限定工程,現在 STOPPED / AWAITING ARCHITECTURE REVIEW,default OFF。** 使用者批准 Gate eligibility 由 post-synthesis unresolved conflict 改成 pre-synthesis material disagreement;唯一一次 Replay #4 使用與 #3 byte-identical 的 fixture,自然跑通 valid issue、sourceRef、Targeted R2 與 Decision Synthesis。212 項離線測試通過,既有 assertions 未放寬,16 組修改前/後 control capture byte-identical。這是機制驗證,尚未執行品質比較或 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 24 改了什麼(M2-B Harness —— experiments/ only,src/ zero-change)
+
+**`src/` diff 為空。production 離線測試仍是 212 項全過,Replay #4 封印仍 VERIFIED。**
+
+1. **新增 `experiments/m2b/`** —— B / B′ / C / D₁ 四個 arm runner、recording dispatcher、
+   D₁ 的兩個 harness-only prompt builder、NC-2 / NC-3 guard、normalizer、blind pair builder、
+   manifest validator、`verify.mjs`(12 項 recomputation)。**65 項離線測試,0 失敗。**
+2. **結構上無法 live call** —— `experiments/m2b/` 從未 import `callProvider`,
+   也從未讀取任何 API key;dispatcher 由呼叫端注入,離線測試注入 deterministic stub。
+3. **call accounting = 6,不是 8** —— B 1 + 共用 gate 1 + C 2 + D₁ 2。
+   共用 gate 首先是為了把 gate 抽樣變異移出 `C − D₁`,省呼叫是副作用。
+4. **NC-2 取代 Replay #4 的弱代理** —— 以 production `buildRunReport` 從 frozen Round 1
+   重算 report 再逐欄比對,**有 negative test 證明它會失敗**。不再使用 `noRound2Leak`。
+5. **兩個實作時才浮現的設計問題已記錄,未自行拍板** —— H-01(NC-3 不能套用在 decision
+   prompt 的 peer chunk 上,那是 evidence parity)與 H-02(protocol §14 的 20 字元窗在
+   decision prompt 上會誤判)。**H-02 是對 protocol 明訂數字的偏離,列出送審。**
+   詳見 `experiments/m2b/README.md`。
+6. **Claim boundary(必須維持)** ——
+
+   ```
+   ✅ harness 已實作，離線與結構驗證通過
+   ❌ 尚未經 GPT Harness Review
+   ❌ 尚未 freeze 實驗 fixtures / gold issues / conflict labels
+   ❌ 尚未 temperature probe
+   ❌ 尚未 live pilot（NO LIVE AUTHORIZATION）
+   ❌ 尚未有任何 effectiveness 證據
+   ```
+
+   **不得寫成 VALIDATED / EFFECTIVE / PILOT READY。**
+7. **未動** —— `src/`、production prompts、provider adapters、planner、Gate semantics、
+   chunker、retrieval、Step 8、Replay #4 sealed artifacts、既有 M2-A production tests 的語意。
+   未 merge main,未跑任何 live call。
+
+---
 
 ## rev. 23 改了什麼(M2-B Architecture Review 結果 + 一項既有事實補記 —— 無 code)
 
