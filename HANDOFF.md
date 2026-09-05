@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-06, rev. 19)
+# ai-collab-mcp — Progress Report (2026-09-06, rev. 20)
 
 > ## 交接狀態
 >
@@ -10,18 +10,31 @@
 > | **Step 7 V1 Complexity Router** | **CODE + RUNTIME ACCEPTED —— 有界 SIMPLE direct delivery** |
 > | **Step 7.1 E2E Runtime Acceptance** | **DONE —— Test A PASS / Test B PASS,詳見第十八節** |
 > | **Milestone 2 scope analysis** | **DONE —— 見 `MILESTONE2_SCOPE_ANALYSIS.md`、第二十節** |
-> | **Experimental Milestone 2-A Prototype** | **PRE-LIVE FINALIZED / DEFAULT OFF —— 詳見第二十一節** |
+> | **Experimental Milestone 2-A Prototype** | **STOPPED / AWAITING ARCHITECTURE REVIEW / DEFAULT OFF —— 詳見第二十四節** |
 > | **M2-A Diagnostic Live #1 / #2** | **兩次皆 NOT EXERCISED —— 被兩個不同條件擋在 gate 之前,詳見第二十二節** |
 > | **M2-A Controlled Replay #3** | **NOT EXERCISED —— gate 首次真正執行,但認出分歧後選擇在答案內解決,未輸出區塊,詳見第二十三節** |
+> | **M2-A Controlled Replay #4** | **FULL MECHANISM RUNTIME PASS —— 一次自然 valid issue → R2 → Decision Synthesis,不代表品質或產品價值已驗證** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
-> | **目前離線測試** | **208 項全過 = rev.14 的 99 + M2-A 累計 109** |
+> | **目前離線測試** | **212 項全過 = rev.19 的 208 + Gate semantics 新增 4** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
 > | **Step 8 Implementation** | **DEFERRED —— Milestone 2 驗證後再回來** |
 > | 未完成的程式修改 | **無** |
 >
-> **Experimental Milestone 2-A prototype 已實作,default OFF。** 關掉時的行為與回傳 payload 與 rev.14 逐欄相同,99 項既有測試無一需要放寬。新增 73 項測試涵蓋 stage 標記、call ceiling、best-effort parsing、issue 驗證、deterministic selection、selective peer context、失敗回退與 evidence 不變式。這是量測用的 prototype,不是 production feature,尚未跑過任何 live A/B/C/D。
+> **Experimental Milestone 2-A 已完成本輪限定工程,現在 STOPPED / AWAITING ARCHITECTURE REVIEW,default OFF。** 使用者批准 Gate eligibility 由 post-synthesis unresolved conflict 改成 pre-synthesis material disagreement;唯一一次 Replay #4 使用與 #3 byte-identical 的 fixture,自然跑通 valid issue、sourceRef、Targeted R2 與 Decision Synthesis。212 項離線測試通過,既有 assertions 未放寬,16 組修改前/後 control capture byte-identical。這是機制驗證,尚未執行品質比較或 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 20 改了什麼(Gate Eligibility Specification / Controlled Replay #4)
+
+1. **授權與起點** —— 使用者先明確停止 M2-A 等 architecture review,其後批准本次限定 Gate semantics 修正與一次 Replay #4。實際起點為 rev.19 / `aedc9efe0ff1f4acf7d5a36d9a1b3ab87e5b9af8`,不是較舊的 rev.18。第二十三節的設計對立仍是設計 observation,未改稱 parser、chunker 或 planner bug。
+2. **唯一 production diff** —— `src/agents/collaboration.ts::buildGateAppendix()` 改為先看原始 Round 1 的 material、cross-agent、decision-sensitive disagreement。Provisional 能折衷不再自動取消 issue 資格;wording/style/minor emphasis/equivalent recommendations 仍排除,max-one 與不捏造分歧保留。沒有新增 call、flag 或調整其他 runtime。
+3. **離線驗證** —— `npm test` 208 → 212,0 failed。新增四項 contract/runtime tests;另以固定 offline clock 保存16組 disabled/omitted control,修改前後 payload、prompt、stage sequence、finalOutput 完全 byte-identical。LLM 判斷由 live observation 驗證,不以 mock 取代。
+4. **Replay #4 FULL MECHANISM RUNTIME PASS** —— 一次 Gate → R2 → Decision Synthesis,三次皆 openai / gpt-5。parse=parsed;emitted/valid/rejected/eligible/selected=1/1/0/1/1;target=brand_creative;sourceRef=business_strategist:p5,精確引用40字元,與 challenge 直接相關。未重跑 Planning/Workers或人工插入 issue。
+5. **Evidence 與 failure 邊界** —— HYPOTHESIS → HYPOTHESIS、SUCCESS → SUCCESS、banner/retrieval summary 不變,所有 live calls retrieval request/result 均 null。Provisional/R2/final 原文完整保存。成功路徑為 live evidence;R2/Decision failure fallback 與多 issue 防護本輪由 offline tests 驗證,未額外 live 注入失敗。
+6. **Timing 與完整性** —— Gate 46729ms、R2 42713ms、Decision 68965ms、replay total 158408ms。五份 fixture hashes、snapshot/order/status/roster/chunks 皆與 #3 相同,詳見 `diagnostics/m2a-live/controlled-replay-4/`。Single replay observation 不作 latency distribution 或 quality comparison。
+7. **提交與停止** —— Prompt/tests 獨立 commit `267ecffb2eebbb8fe4d42333469ad8d10b0362f4`;diagnostic evidence/HANDOFF 另外提交於 `experimental/m2a-peer-challenge`。本輪未確認 production runtime defect;離線 verifier 的 undefined/JSON serialization 比對修正已記錄。完成後停止,等待 Architecture Review。rev.19 BENCHMARK RESET 仍有效,未做 B vs B′、self-review、A/B/C/D、NORMAL eligibility、Finance Layer 或 productionization。
+
+---
 
 ## rev. 19 改了什麼(去識別化與 benchmark reset)
 
@@ -2209,3 +2222,79 @@ Decision Synthesis
 M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型、B 比 C 正確、gate recall 不足、NORMAL 應啟用 M2-A、應 productionize、latency/cost 值得。
 
 **#3 只證明了一件事:當合法前置條件存在時,gate 會執行,而它在這一次選擇不提報。**
+
+---
+
+# 二十四、Controlled Replay #4 — FULL MECHANISM RUNTIME PASS / STOPPED
+
+完整驗收與原始證據見 [evaluation.md](diagnostics/m2a-live/controlled-replay-4/evaluation.md)
+及 [artifact.json](diagnostics/m2a-live/controlled-replay-4/artifact.json)。
+本輪只執行一次 controlled frozen Round-1 replay;Planning/Workers 是原 synthetic fixture,
+後三個 stage 為真實 provider calls。此處只驗證 mechanism,不判 B/C 商業正確性。
+
+## 已批准的語義修正
+
+由「synthesis 完後仍未解決的 conflict」改為「原始 Round 1 是否存在 material、
+cross-agent、decision-sensitive disagreement,其直接回應是否可能 materially 改變/強化/
+推翻/限縮 final decision」。即使 provisional 可提出折衷或 Kill Switch,仍可提報。
+不滿足條件時依然可以省略區塊;max-one、sourceRef/schema/selection/runtime flags 全部未改。
+這是對第二十三節設計對立的 specification decision,不是通用 force-trigger。
+
+## Fixture 與驗收
+
+#3/#4 的 Original Task、missions、synthetic outputs、complexity、assignment order、
+status 與 chunkMap 都相同。逐檔 hash 見 preflight;聚合 snapshot hash 都為:
+
+`cb5e9c309a8b64cac1b688d9de4ff4a9b26fc504d40d3ccb5ff412bcb4965a4b`
+
+此 hash 定義為原 #3 snapshot 形狀的 `SHA256(JSON.stringify(snapshot))`。
+Status 另由 buildRunReport 重算,仍是 SUCCESS。未使用 rev.19 reset 後的 BENCHMARK_TASK
+替換此 fixture,因此不混用舊/新年度策略 benchmark 數字。
+
+| 檢查 | 結果 |
+|---|---|
+| Gate Live Reachability / Disagreement Recognition | PASS / PASS |
+| parse.status | parsed |
+| issues.emitted / valid / rejected / eligible | 1 / 1 / 0 / 1 |
+| selected issue | brand_creative ← business_strategist:p5 |
+| action / decisionSensitive | peer_challenge / true |
+| sourceRef / deterministic selection | PASS / PASS;selected=1;fallback used=false |
+| Targeted R2 / Decision Synthesis | PASS / PASS |
+| R2 actual prompt context | task、target mission/output、exact peer chunk、challenge 逐字一致 |
+| R2 retrieval request/result | null / null |
+| EvidenceLabel / RunStatus | HYPOTHESIS / SUCCESS,前後相同 |
+| banner / retrieval summary / frozen snapshot | 前後一致 |
+| provisional / R2 / final raw text | 完整保存 |
+| runtime fingerprint before/after | 相同 |
+
+Resolved chunk: `business_strategist:p5`,offset [175,215),未截短。
+
+> 在公司沒有足夠資源同時擴編兩條產品線的條件下，我不建議現在投入新的固定服務承諾。
+
+**Chunk relevance=YES。** Challenge 要求品牌 specialist 直接回應資源不足下的交付與毛利
+前提;R2 回應該論點並條件化其建議。Actual R2 contract 允許反駁、維持立場與部分修正,
+沒有強迫 consensus。Decision contract 保留 revision/recency/agreement 不等於 evidence。
+
+## Calls、Timing 與限制
+
+實際 live logical calls=3,皆 openai / gpt-5:
+
+| Stage | Runtime phase |
+|---|---:|
+| synthesis_gate | 46729ms |
+| round2_worker | 42713ms |
+| decision_synthesis | 68965ms |
+| replay total | 158408ms |
+
+未重跑 Planning/Workers,不可宣稱實際花了 N+4 次。N=2 的完整 runtime ceiling 仍是6。
+SDK HTTP retries、tokens/cost 未計量。這次是跨 specialist 的 mechanism replay,
+不是兩個不同 provider 都 live 產出後的 end-to-end 品質測試。
+
+Failure fallback 與模型違規產出多 issue 的分支仍有 offline tests,本次未 live exercised。
+Verifier 曾因 undefined 欄位在 JSON 中省略而誤判,只修比較表示方式後通過,
+未修改 live artifact 或再次執行。未確認需修復的 production runtime defect。
+模型輸出中的工時/毛利/價格等假設不當作已驗證資料或 pricing registry。
+
+**狀態:STOPPED / AWAITING ARCHITECTURE REVIEW。**
+PASS 只代表 downstream mechanism 在真實 provider calls 下跑通一次。
+未證明 peer challenge 的品質增益或多模型優勢,未批准 productionization 或後續實驗。

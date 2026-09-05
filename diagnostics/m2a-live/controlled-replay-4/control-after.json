@@ -1,0 +1,1560 @@
+[
+  {
+    "complexity": "simple",
+    "config": "omitted",
+    "status": "SUCCESS",
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nCompare the options using only supplied facts.\n\nAvailable specialists:\n- agentId: a | role: a\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "offline",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate a\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "a",
+          "stage": "round1_worker"
+        }
+      }
+    ],
+    "result": {
+      "plan": {
+        "complexity": "simple",
+        "requiredCapabilities": [],
+        "assignments": [
+          {
+            "agentId": "a",
+            "mission": "Evaluate a",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline control"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "a",
+          "provider": "openai",
+          "mission": "Evaluate a",
+          "output": "  Unchanged answer\nwith whitespace.\n"
+        }
+      ],
+      "report": {
+        "status": "SUCCESS",
+        "requestedWorkers": 1,
+        "successfulWorkers": 1,
+        "failedWorkers": 0,
+        "failures": [],
+        "synthesisAllowed": true,
+        "evidenceLabel": "NOT_APPLICABLE",
+        "notes": [
+          "Synthesis skipped: simple_single_specialist_direct_delivery."
+        ],
+        "policy": {
+          "topology": "single",
+          "synthesize": false,
+          "reason": "simple_single_specialist_direct_delivery"
+        }
+      },
+      "finalOutput": "  Unchanged answer\nwith whitespace.\n",
+      "timings": {
+        "planningMs": 0,
+        "workersMs": 0,
+        "synthesisMs": 0,
+        "totalMs": 0
+      }
+    }
+  },
+  {
+    "complexity": "simple",
+    "config": "omitted",
+    "status": "FAILED",
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nCompare the options using only supplied facts.\n\nAvailable specialists:\n- agentId: a | role: a\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "offline",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate a\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "a",
+          "stage": "round1_worker"
+        }
+      }
+    ],
+    "result": {
+      "plan": {
+        "complexity": "simple",
+        "requiredCapabilities": [],
+        "assignments": [
+          {
+            "agentId": "a",
+            "mission": "Evaluate a",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline control"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "a",
+          "provider": "openai",
+          "mission": "Evaluate a",
+          "error": "Error: Offline worker failure"
+        }
+      ],
+      "report": {
+        "status": "FAILED",
+        "requestedWorkers": 1,
+        "successfulWorkers": 0,
+        "failedWorkers": 1,
+        "failures": [
+          {
+            "agentId": "a",
+            "provider": "openai",
+            "error": "Error: Offline worker failure"
+          }
+        ],
+        "synthesisAllowed": false,
+        "evidenceLabel": "NOT_APPLICABLE",
+        "notes": [
+          "No specialist returned a result; synthesis was skipped.",
+          "Synthesis skipped: no_successful_workers."
+        ],
+        "policy": {
+          "topology": "single",
+          "synthesize": false,
+          "reason": "no_successful_workers"
+        }
+      },
+      "finalOutput": null,
+      "timings": {
+        "planningMs": 0,
+        "workersMs": 0,
+        "synthesisMs": 0,
+        "totalMs": 0
+      }
+    }
+  },
+  {
+    "complexity": "simple",
+    "config": "disabled",
+    "status": "SUCCESS",
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nCompare the options using only supplied facts.\n\nAvailable specialists:\n- agentId: a | role: a\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "offline",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate a\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "a",
+          "stage": "round1_worker"
+        }
+      }
+    ],
+    "result": {
+      "plan": {
+        "complexity": "simple",
+        "requiredCapabilities": [],
+        "assignments": [
+          {
+            "agentId": "a",
+            "mission": "Evaluate a",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline control"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "a",
+          "provider": "openai",
+          "mission": "Evaluate a",
+          "output": "  Unchanged answer\nwith whitespace.\n"
+        }
+      ],
+      "report": {
+        "status": "SUCCESS",
+        "requestedWorkers": 1,
+        "successfulWorkers": 1,
+        "failedWorkers": 0,
+        "failures": [],
+        "synthesisAllowed": true,
+        "evidenceLabel": "NOT_APPLICABLE",
+        "notes": [
+          "Synthesis skipped: simple_single_specialist_direct_delivery."
+        ],
+        "policy": {
+          "topology": "single",
+          "synthesize": false,
+          "reason": "simple_single_specialist_direct_delivery"
+        }
+      },
+      "finalOutput": "  Unchanged answer\nwith whitespace.\n",
+      "timings": {
+        "planningMs": 0,
+        "workersMs": 0,
+        "synthesisMs": 0,
+        "totalMs": 0
+      }
+    }
+  },
+  {
+    "complexity": "simple",
+    "config": "disabled",
+    "status": "FAILED",
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nCompare the options using only supplied facts.\n\nAvailable specialists:\n- agentId: a | role: a\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "offline",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate a\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "a",
+          "stage": "round1_worker"
+        }
+      }
+    ],
+    "result": {
+      "plan": {
+        "complexity": "simple",
+        "requiredCapabilities": [],
+        "assignments": [
+          {
+            "agentId": "a",
+            "mission": "Evaluate a",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline control"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "a",
+          "provider": "openai",
+          "mission": "Evaluate a",
+          "error": "Error: Offline worker failure"
+        }
+      ],
+      "report": {
+        "status": "FAILED",
+        "requestedWorkers": 1,
+        "successfulWorkers": 0,
+        "failedWorkers": 1,
+        "failures": [
+          {
+            "agentId": "a",
+            "provider": "openai",
+            "error": "Error: Offline worker failure"
+          }
+        ],
+        "synthesisAllowed": false,
+        "evidenceLabel": "NOT_APPLICABLE",
+        "notes": [
+          "No specialist returned a result; synthesis was skipped.",
+          "Synthesis skipped: no_successful_workers."
+        ],
+        "policy": {
+          "topology": "single",
+          "synthesize": false,
+          "reason": "no_successful_workers"
+        }
+      },
+      "finalOutput": null,
+      "timings": {
+        "planningMs": 0,
+        "workersMs": 0,
+        "synthesisMs": 0,
+        "totalMs": 0
+      }
+    }
+  },
+  {
+    "complexity": "normal",
+    "config": "omitted",
+    "status": "SUCCESS",
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nCompare the options using only supplied facts.\n\nAvailable specialists:\n- agentId: a | role: a\n- agentId: b | role: b\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "offline",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate a\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "a",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate b\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "b",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nResults from each specialist:\n### a\nMission: Evaluate a\nResult:   Unchanged answer\nwith whitespace.\n\n\n### b\nMission: Evaluate b\nResult:   Unchanged answer\nwith whitespace.\n\n\nSynthesize these results into a single, coherent final answer to the original task.",
+        "options": {
+          "model": "offline",
+          "stage": "synthesis"
+        }
+      }
+    ],
+    "result": {
+      "plan": {
+        "complexity": "normal",
+        "requiredCapabilities": [],
+        "assignments": [
+          {
+            "agentId": "a",
+            "mission": "Evaluate a",
+            "priority": "high"
+          },
+          {
+            "agentId": "b",
+            "mission": "Evaluate b",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline control"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "a",
+          "provider": "openai",
+          "mission": "Evaluate a",
+          "output": "  Unchanged answer\nwith whitespace.\n"
+        },
+        {
+          "agentId": "b",
+          "provider": "openai",
+          "mission": "Evaluate b",
+          "output": "  Unchanged answer\nwith whitespace.\n"
+        }
+      ],
+      "report": {
+        "status": "SUCCESS",
+        "requestedWorkers": 2,
+        "successfulWorkers": 2,
+        "failedWorkers": 0,
+        "failures": [],
+        "synthesisAllowed": true,
+        "evidenceLabel": "NOT_APPLICABLE",
+        "notes": [],
+        "policy": {
+          "topology": "collaborative",
+          "synthesize": true,
+          "reason": "non_simple_execution"
+        }
+      },
+      "finalOutput": "  Unchanged answer\nwith whitespace.\n",
+      "timings": {
+        "planningMs": 0,
+        "workersMs": 0,
+        "synthesisMs": 0,
+        "totalMs": 0
+      }
+    }
+  },
+  {
+    "complexity": "normal",
+    "config": "omitted",
+    "status": "DEGRADED",
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nCompare the options using only supplied facts.\n\nAvailable specialists:\n- agentId: a | role: a\n- agentId: b | role: b\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "offline",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate a\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "a",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate b\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "b",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nResults from each specialist:\n### a\nMission: Evaluate a\nResult:   Unchanged answer\nwith whitespace.\n\n\nNote: 1 specialist(s) failed and are missing from the above (b). Do not invent their contribution. Answer from what is present, and say plainly where the answer is thin because of it.\n\nSynthesize these results into a single, coherent final answer to the original task.",
+        "options": {
+          "model": "offline",
+          "stage": "synthesis"
+        }
+      }
+    ],
+    "result": {
+      "plan": {
+        "complexity": "normal",
+        "requiredCapabilities": [],
+        "assignments": [
+          {
+            "agentId": "a",
+            "mission": "Evaluate a",
+            "priority": "high"
+          },
+          {
+            "agentId": "b",
+            "mission": "Evaluate b",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline control"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "a",
+          "provider": "openai",
+          "mission": "Evaluate a",
+          "output": "  Unchanged answer\nwith whitespace.\n"
+        },
+        {
+          "agentId": "b",
+          "provider": "openai",
+          "mission": "Evaluate b",
+          "error": "Error: Offline worker failure"
+        }
+      ],
+      "report": {
+        "status": "DEGRADED",
+        "requestedWorkers": 2,
+        "successfulWorkers": 1,
+        "failedWorkers": 1,
+        "failures": [
+          {
+            "agentId": "b",
+            "provider": "openai",
+            "error": "Error: Offline worker failure"
+          }
+        ],
+        "synthesisAllowed": true,
+        "evidenceLabel": "NOT_APPLICABLE",
+        "notes": [
+          "1 of 2 specialists failed (b); the answer was built from a partial team."
+        ],
+        "policy": {
+          "topology": "collaborative",
+          "synthesize": true,
+          "reason": "non_simple_execution"
+        }
+      },
+      "finalOutput": "> **DEGRADED — 1/2 specialists returned.**\n> Missing: b.\n\n  Unchanged answer\nwith whitespace.\n",
+      "timings": {
+        "planningMs": 0,
+        "workersMs": 0,
+        "synthesisMs": 0,
+        "totalMs": 0
+      }
+    }
+  },
+  {
+    "complexity": "normal",
+    "config": "omitted",
+    "status": "FAILED",
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nCompare the options using only supplied facts.\n\nAvailable specialists:\n- agentId: a | role: a\n- agentId: b | role: b\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "offline",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate a\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "a",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate b\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "b",
+          "stage": "round1_worker"
+        }
+      }
+    ],
+    "result": {
+      "plan": {
+        "complexity": "normal",
+        "requiredCapabilities": [],
+        "assignments": [
+          {
+            "agentId": "a",
+            "mission": "Evaluate a",
+            "priority": "high"
+          },
+          {
+            "agentId": "b",
+            "mission": "Evaluate b",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline control"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "a",
+          "provider": "openai",
+          "mission": "Evaluate a",
+          "error": "Error: Offline worker failure"
+        },
+        {
+          "agentId": "b",
+          "provider": "openai",
+          "mission": "Evaluate b",
+          "error": "Error: Offline worker failure"
+        }
+      ],
+      "report": {
+        "status": "FAILED",
+        "requestedWorkers": 2,
+        "successfulWorkers": 0,
+        "failedWorkers": 2,
+        "failures": [
+          {
+            "agentId": "a",
+            "provider": "openai",
+            "error": "Error: Offline worker failure"
+          },
+          {
+            "agentId": "b",
+            "provider": "openai",
+            "error": "Error: Offline worker failure"
+          }
+        ],
+        "synthesisAllowed": false,
+        "evidenceLabel": "NOT_APPLICABLE",
+        "notes": [
+          "No specialist returned a result; synthesis was skipped.",
+          "Synthesis skipped: no_successful_workers."
+        ],
+        "policy": {
+          "topology": "collaborative",
+          "synthesize": false,
+          "reason": "no_successful_workers"
+        }
+      },
+      "finalOutput": null,
+      "timings": {
+        "planningMs": 0,
+        "workersMs": 0,
+        "synthesisMs": 0,
+        "totalMs": 0
+      }
+    }
+  },
+  {
+    "complexity": "normal",
+    "config": "disabled",
+    "status": "SUCCESS",
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nCompare the options using only supplied facts.\n\nAvailable specialists:\n- agentId: a | role: a\n- agentId: b | role: b\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "offline",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate a\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "a",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate b\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "b",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nResults from each specialist:\n### a\nMission: Evaluate a\nResult:   Unchanged answer\nwith whitespace.\n\n\n### b\nMission: Evaluate b\nResult:   Unchanged answer\nwith whitespace.\n\n\nSynthesize these results into a single, coherent final answer to the original task.",
+        "options": {
+          "model": "offline",
+          "stage": "synthesis"
+        }
+      }
+    ],
+    "result": {
+      "plan": {
+        "complexity": "normal",
+        "requiredCapabilities": [],
+        "assignments": [
+          {
+            "agentId": "a",
+            "mission": "Evaluate a",
+            "priority": "high"
+          },
+          {
+            "agentId": "b",
+            "mission": "Evaluate b",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline control"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "a",
+          "provider": "openai",
+          "mission": "Evaluate a",
+          "output": "  Unchanged answer\nwith whitespace.\n"
+        },
+        {
+          "agentId": "b",
+          "provider": "openai",
+          "mission": "Evaluate b",
+          "output": "  Unchanged answer\nwith whitespace.\n"
+        }
+      ],
+      "report": {
+        "status": "SUCCESS",
+        "requestedWorkers": 2,
+        "successfulWorkers": 2,
+        "failedWorkers": 0,
+        "failures": [],
+        "synthesisAllowed": true,
+        "evidenceLabel": "NOT_APPLICABLE",
+        "notes": [],
+        "policy": {
+          "topology": "collaborative",
+          "synthesize": true,
+          "reason": "non_simple_execution"
+        }
+      },
+      "finalOutput": "  Unchanged answer\nwith whitespace.\n",
+      "timings": {
+        "planningMs": 0,
+        "workersMs": 0,
+        "synthesisMs": 0,
+        "totalMs": 0
+      }
+    }
+  },
+  {
+    "complexity": "normal",
+    "config": "disabled",
+    "status": "DEGRADED",
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nCompare the options using only supplied facts.\n\nAvailable specialists:\n- agentId: a | role: a\n- agentId: b | role: b\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "offline",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate a\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "a",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate b\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "b",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nResults from each specialist:\n### a\nMission: Evaluate a\nResult:   Unchanged answer\nwith whitespace.\n\n\nNote: 1 specialist(s) failed and are missing from the above (b). Do not invent their contribution. Answer from what is present, and say plainly where the answer is thin because of it.\n\nSynthesize these results into a single, coherent final answer to the original task.",
+        "options": {
+          "model": "offline",
+          "stage": "synthesis"
+        }
+      }
+    ],
+    "result": {
+      "plan": {
+        "complexity": "normal",
+        "requiredCapabilities": [],
+        "assignments": [
+          {
+            "agentId": "a",
+            "mission": "Evaluate a",
+            "priority": "high"
+          },
+          {
+            "agentId": "b",
+            "mission": "Evaluate b",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline control"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "a",
+          "provider": "openai",
+          "mission": "Evaluate a",
+          "output": "  Unchanged answer\nwith whitespace.\n"
+        },
+        {
+          "agentId": "b",
+          "provider": "openai",
+          "mission": "Evaluate b",
+          "error": "Error: Offline worker failure"
+        }
+      ],
+      "report": {
+        "status": "DEGRADED",
+        "requestedWorkers": 2,
+        "successfulWorkers": 1,
+        "failedWorkers": 1,
+        "failures": [
+          {
+            "agentId": "b",
+            "provider": "openai",
+            "error": "Error: Offline worker failure"
+          }
+        ],
+        "synthesisAllowed": true,
+        "evidenceLabel": "NOT_APPLICABLE",
+        "notes": [
+          "1 of 2 specialists failed (b); the answer was built from a partial team."
+        ],
+        "policy": {
+          "topology": "collaborative",
+          "synthesize": true,
+          "reason": "non_simple_execution"
+        }
+      },
+      "finalOutput": "> **DEGRADED — 1/2 specialists returned.**\n> Missing: b.\n\n  Unchanged answer\nwith whitespace.\n",
+      "timings": {
+        "planningMs": 0,
+        "workersMs": 0,
+        "synthesisMs": 0,
+        "totalMs": 0
+      }
+    }
+  },
+  {
+    "complexity": "normal",
+    "config": "disabled",
+    "status": "FAILED",
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nCompare the options using only supplied facts.\n\nAvailable specialists:\n- agentId: a | role: a\n- agentId: b | role: b\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "offline",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate a\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "a",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate b\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "b",
+          "stage": "round1_worker"
+        }
+      }
+    ],
+    "result": {
+      "plan": {
+        "complexity": "normal",
+        "requiredCapabilities": [],
+        "assignments": [
+          {
+            "agentId": "a",
+            "mission": "Evaluate a",
+            "priority": "high"
+          },
+          {
+            "agentId": "b",
+            "mission": "Evaluate b",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline control"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "a",
+          "provider": "openai",
+          "mission": "Evaluate a",
+          "error": "Error: Offline worker failure"
+        },
+        {
+          "agentId": "b",
+          "provider": "openai",
+          "mission": "Evaluate b",
+          "error": "Error: Offline worker failure"
+        }
+      ],
+      "report": {
+        "status": "FAILED",
+        "requestedWorkers": 2,
+        "successfulWorkers": 0,
+        "failedWorkers": 2,
+        "failures": [
+          {
+            "agentId": "a",
+            "provider": "openai",
+            "error": "Error: Offline worker failure"
+          },
+          {
+            "agentId": "b",
+            "provider": "openai",
+            "error": "Error: Offline worker failure"
+          }
+        ],
+        "synthesisAllowed": false,
+        "evidenceLabel": "NOT_APPLICABLE",
+        "notes": [
+          "No specialist returned a result; synthesis was skipped.",
+          "Synthesis skipped: no_successful_workers."
+        ],
+        "policy": {
+          "topology": "collaborative",
+          "synthesize": false,
+          "reason": "no_successful_workers"
+        }
+      },
+      "finalOutput": null,
+      "timings": {
+        "planningMs": 0,
+        "workersMs": 0,
+        "synthesisMs": 0,
+        "totalMs": 0
+      }
+    }
+  },
+  {
+    "complexity": "deep",
+    "config": "omitted",
+    "status": "SUCCESS",
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nCompare the options using only supplied facts.\n\nAvailable specialists:\n- agentId: a | role: a\n- agentId: b | role: b\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "offline",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate a\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "a",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate b\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "b",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nResults from each specialist:\n### a\nMission: Evaluate a\nResult:   Unchanged answer\nwith whitespace.\n\n\n### b\nMission: Evaluate b\nResult:   Unchanged answer\nwith whitespace.\n\n\nSynthesize these results into a single, coherent final answer to the original task.",
+        "options": {
+          "model": "offline",
+          "stage": "synthesis"
+        }
+      }
+    ],
+    "result": {
+      "plan": {
+        "complexity": "deep",
+        "requiredCapabilities": [],
+        "assignments": [
+          {
+            "agentId": "a",
+            "mission": "Evaluate a",
+            "priority": "high"
+          },
+          {
+            "agentId": "b",
+            "mission": "Evaluate b",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline control"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "a",
+          "provider": "openai",
+          "mission": "Evaluate a",
+          "output": "  Unchanged answer\nwith whitespace.\n"
+        },
+        {
+          "agentId": "b",
+          "provider": "openai",
+          "mission": "Evaluate b",
+          "output": "  Unchanged answer\nwith whitespace.\n"
+        }
+      ],
+      "report": {
+        "status": "SUCCESS",
+        "requestedWorkers": 2,
+        "successfulWorkers": 2,
+        "failedWorkers": 0,
+        "failures": [],
+        "synthesisAllowed": true,
+        "evidenceLabel": "HYPOTHESIS",
+        "notes": [
+          "Deep task, but no evidence-gathering specialist was recruited. External facts in this answer (market size, pricing, competitor behaviour, growth rates) come from what the models already believed, not from gathered evidence."
+        ],
+        "policy": {
+          "topology": "collaborative",
+          "synthesize": true,
+          "reason": "non_simple_execution"
+        }
+      },
+      "finalOutput": "> **UNVERIFIED — HYPOTHESIS**\n> No external evidence was gathered for this answer. Treat it as a strategy\n> hypothesis to be validated, not as a conclusion. Pricing, market and growth\n> figures below are unchecked model assumptions.\n\n  Unchanged answer\nwith whitespace.\n",
+      "timings": {
+        "planningMs": 0,
+        "workersMs": 0,
+        "synthesisMs": 0,
+        "totalMs": 0
+      }
+    }
+  },
+  {
+    "complexity": "deep",
+    "config": "omitted",
+    "status": "DEGRADED",
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nCompare the options using only supplied facts.\n\nAvailable specialists:\n- agentId: a | role: a\n- agentId: b | role: b\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "offline",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate a\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "a",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate b\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "b",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nResults from each specialist:\n### a\nMission: Evaluate a\nResult:   Unchanged answer\nwith whitespace.\n\n\nNote: 1 specialist(s) failed and are missing from the above (b). Do not invent their contribution. Answer from what is present, and say plainly where the answer is thin because of it.\n\nSynthesize these results into a single, coherent final answer to the original task.",
+        "options": {
+          "model": "offline",
+          "stage": "synthesis"
+        }
+      }
+    ],
+    "result": {
+      "plan": {
+        "complexity": "deep",
+        "requiredCapabilities": [],
+        "assignments": [
+          {
+            "agentId": "a",
+            "mission": "Evaluate a",
+            "priority": "high"
+          },
+          {
+            "agentId": "b",
+            "mission": "Evaluate b",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline control"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "a",
+          "provider": "openai",
+          "mission": "Evaluate a",
+          "output": "  Unchanged answer\nwith whitespace.\n"
+        },
+        {
+          "agentId": "b",
+          "provider": "openai",
+          "mission": "Evaluate b",
+          "error": "Error: Offline worker failure"
+        }
+      ],
+      "report": {
+        "status": "DEGRADED",
+        "requestedWorkers": 2,
+        "successfulWorkers": 1,
+        "failedWorkers": 1,
+        "failures": [
+          {
+            "agentId": "b",
+            "provider": "openai",
+            "error": "Error: Offline worker failure"
+          }
+        ],
+        "synthesisAllowed": true,
+        "evidenceLabel": "HYPOTHESIS",
+        "notes": [
+          "1 of 2 specialists failed (b); the answer was built from a partial team.",
+          "Deep task, but no evidence-gathering specialist was recruited. External facts in this answer (market size, pricing, competitor behaviour, growth rates) come from what the models already believed, not from gathered evidence."
+        ],
+        "policy": {
+          "topology": "collaborative",
+          "synthesize": true,
+          "reason": "non_simple_execution"
+        }
+      },
+      "finalOutput": "> **UNVERIFIED — HYPOTHESIS**\n> No external evidence was gathered for this answer. Treat it as a strategy\n> hypothesis to be validated, not as a conclusion. Pricing, market and growth\n> figures below are unchecked model assumptions.\n>\n> **DEGRADED — 1/2 specialists returned.**\n> Missing: b.\n\n  Unchanged answer\nwith whitespace.\n",
+      "timings": {
+        "planningMs": 0,
+        "workersMs": 0,
+        "synthesisMs": 0,
+        "totalMs": 0
+      }
+    }
+  },
+  {
+    "complexity": "deep",
+    "config": "omitted",
+    "status": "FAILED",
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nCompare the options using only supplied facts.\n\nAvailable specialists:\n- agentId: a | role: a\n- agentId: b | role: b\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "offline",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate a\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "a",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate b\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "b",
+          "stage": "round1_worker"
+        }
+      }
+    ],
+    "result": {
+      "plan": {
+        "complexity": "deep",
+        "requiredCapabilities": [],
+        "assignments": [
+          {
+            "agentId": "a",
+            "mission": "Evaluate a",
+            "priority": "high"
+          },
+          {
+            "agentId": "b",
+            "mission": "Evaluate b",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline control"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "a",
+          "provider": "openai",
+          "mission": "Evaluate a",
+          "error": "Error: Offline worker failure"
+        },
+        {
+          "agentId": "b",
+          "provider": "openai",
+          "mission": "Evaluate b",
+          "error": "Error: Offline worker failure"
+        }
+      ],
+      "report": {
+        "status": "FAILED",
+        "requestedWorkers": 2,
+        "successfulWorkers": 0,
+        "failedWorkers": 2,
+        "failures": [
+          {
+            "agentId": "a",
+            "provider": "openai",
+            "error": "Error: Offline worker failure"
+          },
+          {
+            "agentId": "b",
+            "provider": "openai",
+            "error": "Error: Offline worker failure"
+          }
+        ],
+        "synthesisAllowed": false,
+        "evidenceLabel": "HYPOTHESIS",
+        "notes": [
+          "No specialist returned a result; synthesis was skipped.",
+          "Deep task, but no evidence-gathering specialist was recruited. External facts in this answer (market size, pricing, competitor behaviour, growth rates) come from what the models already believed, not from gathered evidence.",
+          "Synthesis skipped: no_successful_workers."
+        ],
+        "policy": {
+          "topology": "collaborative",
+          "synthesize": false,
+          "reason": "no_successful_workers"
+        }
+      },
+      "finalOutput": null,
+      "timings": {
+        "planningMs": 0,
+        "workersMs": 0,
+        "synthesisMs": 0,
+        "totalMs": 0
+      }
+    }
+  },
+  {
+    "complexity": "deep",
+    "config": "disabled",
+    "status": "SUCCESS",
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nCompare the options using only supplied facts.\n\nAvailable specialists:\n- agentId: a | role: a\n- agentId: b | role: b\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "offline",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate a\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "a",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate b\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "b",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nResults from each specialist:\n### a\nMission: Evaluate a\nResult:   Unchanged answer\nwith whitespace.\n\n\n### b\nMission: Evaluate b\nResult:   Unchanged answer\nwith whitespace.\n\n\nSynthesize these results into a single, coherent final answer to the original task.",
+        "options": {
+          "model": "offline",
+          "stage": "synthesis"
+        }
+      }
+    ],
+    "result": {
+      "plan": {
+        "complexity": "deep",
+        "requiredCapabilities": [],
+        "assignments": [
+          {
+            "agentId": "a",
+            "mission": "Evaluate a",
+            "priority": "high"
+          },
+          {
+            "agentId": "b",
+            "mission": "Evaluate b",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline control"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "a",
+          "provider": "openai",
+          "mission": "Evaluate a",
+          "output": "  Unchanged answer\nwith whitespace.\n"
+        },
+        {
+          "agentId": "b",
+          "provider": "openai",
+          "mission": "Evaluate b",
+          "output": "  Unchanged answer\nwith whitespace.\n"
+        }
+      ],
+      "report": {
+        "status": "SUCCESS",
+        "requestedWorkers": 2,
+        "successfulWorkers": 2,
+        "failedWorkers": 0,
+        "failures": [],
+        "synthesisAllowed": true,
+        "evidenceLabel": "HYPOTHESIS",
+        "notes": [
+          "Deep task, but no evidence-gathering specialist was recruited. External facts in this answer (market size, pricing, competitor behaviour, growth rates) come from what the models already believed, not from gathered evidence."
+        ],
+        "policy": {
+          "topology": "collaborative",
+          "synthesize": true,
+          "reason": "non_simple_execution"
+        }
+      },
+      "finalOutput": "> **UNVERIFIED — HYPOTHESIS**\n> No external evidence was gathered for this answer. Treat it as a strategy\n> hypothesis to be validated, not as a conclusion. Pricing, market and growth\n> figures below are unchecked model assumptions.\n\n  Unchanged answer\nwith whitespace.\n",
+      "timings": {
+        "planningMs": 0,
+        "workersMs": 0,
+        "synthesisMs": 0,
+        "totalMs": 0
+      }
+    }
+  },
+  {
+    "complexity": "deep",
+    "config": "disabled",
+    "status": "DEGRADED",
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nCompare the options using only supplied facts.\n\nAvailable specialists:\n- agentId: a | role: a\n- agentId: b | role: b\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "offline",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate a\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "a",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate b\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "b",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nResults from each specialist:\n### a\nMission: Evaluate a\nResult:   Unchanged answer\nwith whitespace.\n\n\nNote: 1 specialist(s) failed and are missing from the above (b). Do not invent their contribution. Answer from what is present, and say plainly where the answer is thin because of it.\n\nSynthesize these results into a single, coherent final answer to the original task.",
+        "options": {
+          "model": "offline",
+          "stage": "synthesis"
+        }
+      }
+    ],
+    "result": {
+      "plan": {
+        "complexity": "deep",
+        "requiredCapabilities": [],
+        "assignments": [
+          {
+            "agentId": "a",
+            "mission": "Evaluate a",
+            "priority": "high"
+          },
+          {
+            "agentId": "b",
+            "mission": "Evaluate b",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline control"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "a",
+          "provider": "openai",
+          "mission": "Evaluate a",
+          "output": "  Unchanged answer\nwith whitespace.\n"
+        },
+        {
+          "agentId": "b",
+          "provider": "openai",
+          "mission": "Evaluate b",
+          "error": "Error: Offline worker failure"
+        }
+      ],
+      "report": {
+        "status": "DEGRADED",
+        "requestedWorkers": 2,
+        "successfulWorkers": 1,
+        "failedWorkers": 1,
+        "failures": [
+          {
+            "agentId": "b",
+            "provider": "openai",
+            "error": "Error: Offline worker failure"
+          }
+        ],
+        "synthesisAllowed": true,
+        "evidenceLabel": "HYPOTHESIS",
+        "notes": [
+          "1 of 2 specialists failed (b); the answer was built from a partial team.",
+          "Deep task, but no evidence-gathering specialist was recruited. External facts in this answer (market size, pricing, competitor behaviour, growth rates) come from what the models already believed, not from gathered evidence."
+        ],
+        "policy": {
+          "topology": "collaborative",
+          "synthesize": true,
+          "reason": "non_simple_execution"
+        }
+      },
+      "finalOutput": "> **UNVERIFIED — HYPOTHESIS**\n> No external evidence was gathered for this answer. Treat it as a strategy\n> hypothesis to be validated, not as a conclusion. Pricing, market and growth\n> figures below are unchecked model assumptions.\n>\n> **DEGRADED — 1/2 specialists returned.**\n> Missing: b.\n\n  Unchanged answer\nwith whitespace.\n",
+      "timings": {
+        "planningMs": 0,
+        "workersMs": 0,
+        "synthesisMs": 0,
+        "totalMs": 0
+      }
+    }
+  },
+  {
+    "complexity": "deep",
+    "config": "disabled",
+    "status": "FAILED",
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nCompare the options using only supplied facts.\n\nAvailable specialists:\n- agentId: a | role: a\n- agentId: b | role: b\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "offline",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate a\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "a",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nCompare the options using only supplied facts.\n\nAssigned mission:\nEvaluate b\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "offline",
+          "system": "b",
+          "stage": "round1_worker"
+        }
+      }
+    ],
+    "result": {
+      "plan": {
+        "complexity": "deep",
+        "requiredCapabilities": [],
+        "assignments": [
+          {
+            "agentId": "a",
+            "mission": "Evaluate a",
+            "priority": "high"
+          },
+          {
+            "agentId": "b",
+            "mission": "Evaluate b",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline control"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "a",
+          "provider": "openai",
+          "mission": "Evaluate a",
+          "error": "Error: Offline worker failure"
+        },
+        {
+          "agentId": "b",
+          "provider": "openai",
+          "mission": "Evaluate b",
+          "error": "Error: Offline worker failure"
+        }
+      ],
+      "report": {
+        "status": "FAILED",
+        "requestedWorkers": 2,
+        "successfulWorkers": 0,
+        "failedWorkers": 2,
+        "failures": [
+          {
+            "agentId": "a",
+            "provider": "openai",
+            "error": "Error: Offline worker failure"
+          },
+          {
+            "agentId": "b",
+            "provider": "openai",
+            "error": "Error: Offline worker failure"
+          }
+        ],
+        "synthesisAllowed": false,
+        "evidenceLabel": "HYPOTHESIS",
+        "notes": [
+          "No specialist returned a result; synthesis was skipped.",
+          "Deep task, but no evidence-gathering specialist was recruited. External facts in this answer (market size, pricing, competitor behaviour, growth rates) come from what the models already believed, not from gathered evidence.",
+          "Synthesis skipped: no_successful_workers."
+        ],
+        "policy": {
+          "topology": "collaborative",
+          "synthesize": false,
+          "reason": "no_successful_workers"
+        }
+      },
+      "finalOutput": null,
+      "timings": {
+        "planningMs": 0,
+        "workersMs": 0,
+        "synthesisMs": 0,
+        "totalMs": 0
+      }
+    }
+  }
+]

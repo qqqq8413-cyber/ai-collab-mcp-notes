@@ -1,0 +1,316 @@
+
+> ai-collab-mcp@1.0.0 test
+> npm run build && node test-chief.mjs && node test-run-status.mjs && node test-registry.mjs && node test-mcp-smoke.mjs && node test-execution-policy.mjs && node test-collaboration.mjs
+
+
+> ai-collab-mcp@1.0.0 build
+> tsc
+
+
+Standing brief (system prompt)
+  ✓ states who the Chief is and what it optimises for
+  ✓ says to choose by capability, not by model
+  ✓ tells the Chief its judgement is bounded, not replaced
+  ✓ carries the complexity definitions with their caps
+  ✓ carries all nine planning rules
+  ✓ the split introduced no new numeric constraint
+
+Per-task prompt
+  ✓ carries the task, the roster and the output schema
+  ✓ does not repeat the standing brief
+  ✓ the roster hides which model backs each specialist
+
+Budget constraints
+  ✓ no budget block when no budget is given
+  ✓ each budget field appears only when set
+
+11 passed, 0 failed
+
+
+Run status
+  ✓ all specialists return -> SUCCESS, synthesis allowed
+  ✓ one of two fails -> DEGRADED, synthesis still allowed
+  ✓ every specialist fails -> FAILED, synthesis blocked
+
+Evidence label
+  ✓ non-deep task -> NOT_APPLICABLE
+  ✓ deep with no evidence specialist recruited -> HYPOTHESIS
+  ✓ deep with real grounded retrieval -> PARTIALLY_GROUNDED, never better
+  ✓ a grounded specialist does not make the whole answer evidence-backed
+  ✓ recruited but the model chose not to search -> CONDITIONAL
+  ✓ recruited but retrieval failed -> CONDITIONAL, not grounded
+  ✓ recruited but the specialist errored -> CONDITIONAL
+  ✓ grounding survives another specialist failing
+  ✓ label never depends on the Chief saying research was unnecessary
+
+Retrieval reporting
+  ✓ no retrieval attempted -> no retrieval section at all
+  ✓ sources and reported query counts are carried through
+  ✓ an unreported query count stays undefined rather than becoming zero
+  ✓ an ungrounded attempt is still counted as asked, not as grounded
+
+Output banner
+  ✓ clean non-deep run gets no banner
+  ✓ HYPOTHESIS run is marked on the deliverable, not just in metadata
+  ✓ CONDITIONAL run is marked too
+  ✓ a grounded run is still marked, because grounded is not validated
+  ✓ DEGRADED run names the missing specialists
+  ✓ a run that is both unevidenced and degraded shows both warnings
+
+Worker context propagation
+  ✓ worker prompt carries original task and assigned mission separately
+  ✓ worker prompt names the task-level context dimensions that must survive delegation
+  ✓ worker prompt preserves mission scope instead of letting the worker take over
+
+25 passed, 0 failed
+
+
+Agent registry
+  ✓ an id expands to a full specialist
+  ✓ a non-evidence agent does not claim to be one
+  ✓ every registry entry has an id matching its key
+  ✓ listAgents returns every registered agent
+
+Overrides and inline specialists
+  ✓ a partial object overrides only the fields it names
+  ✓ a full inline definition works for an unregistered specialist
+  ✓ the pre-registry call shape still works unchanged
+
+Evidence capability is derived, not asserted
+  ✓ only runtime-enabled retrieval counts, not what a vendor offers
+  ✓ intent plus runtime capability is what grants evidenceCapable
+  ✓ the same intent on a provider without retrieval is refused and reported
+  ✓ a caller cannot force the capability on an unretrieving provider
+  ✓ the model brand alone never confers evidence capability
+  ✓ an unknown model is not given the benefit of the doubt
+  ✓ specialists not meant to gather evidence produce no warning
+  ✓ pricing is still unverified everywhere, so cost tracking cannot invent numbers
+
+Errors
+  ✓ an unknown id fails loudly and lists what is available
+  ✓ an unregistered id without provider or role is rejected
+  ✓ a duplicated specialist in one roster is rejected
+
+Roster resolution
+  ✓ a roster of ids resolves to distinct specialists
+  ✓ ids and inline definitions can be mixed in one roster
+
+20 passed, 0 failed
+
+ai-collab-mcp server running on stdio
+
+MCP server
+  ✓ registers every tool
+  ✓ list_agents reports the roster with provider bindings
+  ✓ list_agents marks the specialist whose model can actually retrieve
+  ✓ list_models separates what a vendor offers from what is wired up
+  ✓ list_models refuses to invent pricing
+
+run_orchestrator worker refs
+  ✓ bare id passes schema validation and reaches agent resolution
+  ✓ object with overrides passes schema validation and reaches agent resolution
+
+Experimental collaboration schema
+  ✓ experimental collaboration enabled with defaults passes schema validation
+  ✓ experimental collaboration enabled with an excerpt limit passes schema validation
+  ✓ experimental collaboration explicitly disabled passes schema validation
+  ✓ experimental collaboration is optional and off by default
+
+11 passed, 0 failed
+
+
+Execution policy and direct delivery
+  PASS SIMPLE uses only planning and one worker, preserving the Step 6.1 input
+  PASS direct delivery preserves exact text and UTF-8 bytes, including whitespace
+  PASS serialized report distinguishes direct delivery from failure
+  PASS fast path retains all timing fields and records zero synthesis time
+  PASS abnormal SIMPLE with multiple assignments never takes the single fast path
+  PASS NORMAL with one specialist still synthesizes
+  PASS DEEP with one specialist still synthesizes and retains the evidence banner
+  PASS DEEP capped to one specialist still synthesizes and records the cap
+  PASS NORMAL collaboration still calls both workers and synthesis
+  PASS partial failure retains DEGRADED synthesis and its missing-worker warning
+  PASS simple all-worker failure returns null with an auditable failure policy
+  PASS normal all-worker failure returns null with an auditable failure policy
+
+Retrieval boundary
+  PASS requested retrieval stays on synthesis even when metadata is GROUNDED
+  PASS requested retrieval stays on synthesis even when metadata is UNGROUNDED
+  PASS requested retrieval stays on synthesis even when metadata is FAILED
+  PASS requested retrieval stays on synthesis even when metadata is absent
+  PASS DEEP grounding sources, counts and presentation survive synthesis unchanged
+  PASS an unselected retrieval-capable worker does not block an ordinary SIMPLE run
+  PASS unexpected retrieval metadata also prevents direct delivery
+
+Invalid and ambiguous facts
+  PASS empty output from an invalid adapter cannot take the direct path
+  PASS whitespace output from an invalid adapter cannot take the direct path
+  PASS missing output from an invalid adapter cannot take the direct path
+  PASS null output from an invalid adapter cannot take the direct path
+  PASS non-string output from an invalid adapter cannot take the direct path
+  PASS zero assignments preserves synthesis instead of assuming direct eligibility
+  PASS unknown complexity preserves synthesis instead of assuming direct eligibility
+  PASS unknown retrieval requirement preserves synthesis instead of assuming direct eligibility
+  PASS unknown status preserves synthesis instead of assuming direct eligibility
+  PASS missing result preserves synthesis instead of assuming direct eligibility
+  PASS extra result preserves synthesis instead of assuming direct eligibility
+  PASS mismatched result identity preserves synthesis instead of assuming direct eligibility
+  PASS output accompanied by an error preserves synthesis instead of assuming direct eligibility
+  PASS changing worker provider/model does not change execution policy
+  PASS policy has no provider/model identifiers or runtime imports
+
+Recorded readiness fixture replay (offline, no new benchmarks)
+  PASS SIMPLE-2 recorded Worker is delivered verbatim with the original task context
+  PASS SIMPLE-3 recorded Worker is delivered verbatim with the original task context
+
+36 passed, 0 failed
+
+
+Stage instrumentation
+  PASS collaboration off produces the pre-M2 stage sequence
+  PASS an active gate is a distinct stage from ordinary synthesis
+  PASS the full collaboration path names all five stages
+  PASS no stage is ever inferred from the presence of a system prompt
+
+Logical call ceiling
+  PASS three specialists with no Round 2 cost N + 2
+  PASS three specialists with Round 2 cost N + 4 = 7
+  PASS four specialists — the deep cap — cost N + 4 = 8 and never more
+  PASS several eligible issues still produce exactly one Round 2 call
+  PASS collaboration never adds a second round
+
+Best-effort parsing — the deliverable never depends on it
+  PASS no block leaves the answer exactly as written
+  PASS a valid block is removed from the answer
+  PASS malformed JSON degrades to the answer plus a note, not a failure
+  PASS a JSON array instead of an object is schema_invalid
+  PASS an object without the issues array is schema_invalid
+  PASS a JSON code sample inside a real answer is not swallowed as metadata
+  PASS an unfenced trailing block is still recognised
+  PASS a block with no answer in front of it still delivers text
+  PASS a malformed block in a live run still delivers the provisional answer
+
+Parser edge cases, end to end
+  PASS EDGE 1: a user-facing JSON example at the end is not stripped
+  PASS EDGE 2: a valid block is parsed, removed from the answer, and acted on
+  PASS EDGE 3: a malformed collaboration-like block degrades without failing the run
+  PASS EDGE 4: a block with no answer before it falls back gracefully
+
+Issue validation
+  PASS a well-formed issue validates
+  PASS an unknown targetAgentId is rejected
+  PASS an unknown sourceRef is rejected
+  PASS an agent challenging itself is rejected as self-review
+  PASS an empty challenge is rejected
+  PASS a non-boolean decisionSensitive is rejected
+  PASS an unknown action is rejected
+  PASS a non-object entry is rejected
+  PASS a failed specialist cannot be challenged
+  PASS valid and invalid issues are separated, not discarded together
+  PASS only decision-sensitive peer challenges are eligible
+
+Deterministic selection
+  PASS selection follows assignment order of the challenged specialist
+  PASS a tie on target is broken by the peer
+  PASS a tie on both is broken by emission order
+  PASS selection is stable across repeated calls and input order
+  PASS no eligible issue selects nothing
+
+Peer excerpt — bounded, deterministic, auditable
+  PASS a chunk within the limit is quoted whole
+  PASS an over-long chunk is truncated and says so
+  PASS excerpt offsets point into the peer's full output, not into the chunk
+  PASS the excerpt limit is a recorded parameter, not a hidden constant
+  PASS the default limit is recorded when the caller sets none
+
+Selective peer context
+  PASS Round 2 sees the task, its own mission and output, one excerpt and one challenge
+  PASS Round 2 is never given the other specialists it was not challenged from
+  PASS Round 2 keeps the challenged specialist in its own role
+
+Round 2 retrieval is off
+  PASS no Round 2 call requests retrieval, even for an evidence-capable specialist
+  PASS needs_evidence is recorded and never acted on
+
+Failure semantics — the provisional answer is the floor
+  PASS a failed Round 2 falls back to the provisional answer
+  PASS a failed decision synthesis falls back and keeps the revision on record
+  PASS a DEGRADED Round 1 never reaches the gate
+  PASS a FAILED Round 1 keeps the existing behaviour
+  PASS a non-deep run is never gated
+  PASS a deep run with one specialist has no peer to challenge from
+  PASS an issue naming a valid but non-eligible pair skips cleanly
+  PASS an unroutable issue skips and records why
+
+Evidence invariant — collaboration cannot raise the label
+  PASS the evidence label is identical with collaboration on and off
+  PASS the banner is identical with collaboration on and off
+  PASS Round 2's answer never enters workerResults or the retrieval summary
+  PASS no collaboration path can produce an EVIDENCE_BACKED label
+  PASS the decision synthesis is told the round gathered no evidence
+
+Default off
+  PASS omitting experimental returns the pre-M2 payload shape
+  PASS enabled:false is identical to omitting it
+  PASS a disabled run never emits the gate appendix
+  PASS an enabled run that completes reports its answer source
+
+Timings
+  PASS the existing timing fields keep their meaning and shape
+  PASS collaboration timings live in their own block
+  PASS collaboration totalMs accounts for the gate it added
+  PASS a run that never reaches the gate reports no gate time
+  PASS a skipped run still reports gate time and no round 2 time
+
+Deterministic chunk references
+  PASS paragraphs become p1..pn in document order
+  PASS chunk offsets index the original output exactly
+  PASS segmentation is deterministic and free of empty chunks
+  PASS an answer with no blank line is a single chunk
+  PASS an empty answer has no citable passage
+  PASS a passage reference resolves to that passage
+  PASS a bare agent id is rejected when the answer has several passages
+  PASS a bare agent id is accepted only when it is unambiguous
+  PASS a passage id that does not exist is rejected with the available ones
+  PASS an unknown agent in a reference is rejected
+  PASS Round 2 receives the referenced passage, not the opening one
+  PASS the audit trail records which passage was quoted
+  PASS the gate is shown the references it is allowed to use
+
+At most one peer challenge
+  PASS the gate is instructed to emit at most one peer challenge
+  PASS a gate that returns several is corrected deterministically and recorded
+  PASS correcting the violation costs no extra model call
+
+Decision synthesis neutrality
+  PASS the decision contract refuses to privilege the revision
+  PASS unresolved disagreement is still allowed to stand
+
+Arm B-prime and frozen Round 1 replay
+  PASS disableRound2 runs the gate but never the peer exchange
+  PASS B-prime still records the issue it would have acted on
+  PASS a replay spends exactly one model call
+  PASS B and B-prime replay the same Round 1 and differ only by the appendix
+  PASS B-prime replay never fires a second round
+  PASS a replay reproduces the run report from the frozen results
+
+Paired provisional / final capture
+  PASS a completed run keeps both answers from the same task
+  PASS a skipped run records the provisional answer it delivered
+  PASS a failed round 2 records a provisional answer identical to what shipped
+  PASS a run that never reached the gate has no provisional answer to record
+
+Control-arm parity
+  PASS a disabled run sends the pre-M2 synthesis prompt byte for byte
+  PASS a DEGRADED disabled run also sends the pre-M2 prompt byte for byte
+  PASS the gate prompt is the control prompt plus an appendix, nothing removed
+
+Support for the later A/B/C/D comparison
+  PASS the banner can be stripped exactly, so arms can be compared blind
+  PASS a completed collaboration run strips to its answer body exactly
+
+Direct-delivery banner invariant
+  PASS a direct-delivery-eligible report has an empty banner
+  PASS direct delivery through the runtime carries no banner
+
+105 passed, 0 failed

@@ -1,0 +1,738 @@
+{
+  "startedAt": "2026-09-05T16:40:12.093Z",
+  "fixtureType": "SYNTHETIC DIAGNOSTIC FIXTURE",
+  "planningUnderTest": false,
+  "round1UnderTest": false,
+  "preflight": {
+    "baselineCommit": "aedc9efe0ff1f4acf7d5a36d9a1b3ab87e5b9af8",
+    "runtimeCommit": "267ecffb2eebbb8fe4d42333469ad8d10b0362f4",
+    "branch": "experimental/m2a-peer-challenge",
+    "workingTree": "?? diagnostics/m2a-live/controlled-replay-4/",
+    "nodeVersion": "v24.15.0",
+    "fixtureHashes": {
+      "task.txt": {
+        "chars": 487,
+        "sha256": "22bf40a1407d6349c95d83ae699460c68451c2826eb367dc97b8cbf079a58c02"
+      },
+      "mission-business_strategist.txt": {
+        "chars": 77,
+        "sha256": "4b8711789c06d84eb1beb3e4dec53078c067fc6191c5166bee25212fc7baa3ea"
+      },
+      "mission-brand_creative.txt": {
+        "chars": 70,
+        "sha256": "d73bbed7da14a6bed779e2f80739e40cde7aec79f43c0276cae28774a986b85a"
+      },
+      "round1-business_strategist.md": {
+        "chars": 570,
+        "sha256": "15eaf46ce3e5fbd941dfce29ac21b2a6cccabce7a026f87c4988c53af23364b8"
+      },
+      "round1-brand_creative.md": {
+        "chars": 712,
+        "sha256": "8faf6c050ec540fa4db6524d267c688a90b86e6059f514b5546b1a32a2e94a67"
+      }
+    },
+    "replay3SnapshotSha256": "cb5e9c309a8b64cac1b688d9de4ff4a9b26fc504d40d3ccb5ff412bcb4965a4b",
+    "replay4SnapshotSha256": "cb5e9c309a8b64cac1b688d9de4ff4a9b26fc504d40d3ccb5ff412bcb4965a4b",
+    "byteIdenticalFixtureVerified": true,
+    "replay3ArtifactSha256": "e184ab46be33f2df72ed096d146938a143a2d1197ac4e308c182ce3d7844a878",
+    "controlCases": 16,
+    "controlSha256": "f50a7b2ee2a8b7f896dc6a6b88692d612281553011a1de685b2e39c9a567c698",
+    "controlByteEquivalent": true,
+    "offlineTests": {
+      "before": 208,
+      "after": 212,
+      "failed": 0
+    },
+    "gateProvider": "openai",
+    "gateModel": "gpt-5",
+    "expectedGatePromptSha256": "a64cd320b27a61e722ff0e87701afa2469ca03b2329cd5a2d15ab0928009f8c7",
+    "gateChangedOnlyEligibility": true,
+    "round2DefaultModels": {
+      "business_strategist": "claude-sonnet-5",
+      "brand_creative": "gpt-5"
+    },
+    "runtimeFingerprint": {
+      "dist/agents/chief.js": "443e4bb451deb7fa7d7998faeef34482f0ea554f40695ebcdaab0294e72bb405",
+      "dist/agents/collaboration.js": "a6df6c15ca2e9610aa68820c9d9bebcff98f1399d1a9944350f7bca3c6490606",
+      "dist/agents/policy.js": "a66eafebbb7d21d50f186c6ced361f6e1435314b174684bcfd9dd3f6102f76c9",
+      "dist/agents/registry.js": "1dfee48a228f39691c971c9d9dd26491d2998389f7331a2ab7a0523b3c607888",
+      "dist/config.js": "66f8ab5135caf86eb3404f4dde97a999eb75ce10cab6464d733655f2a87501a3",
+      "dist/index.js": "0c5a058d5cd1a1678737d376e81a4bb128b2e1b6e85e4dda30398a314cbd74c5",
+      "dist/models/capabilities.js": "78052a23f3f433b31f18aaac8b30d69b201b2d4b0c250334d3e685efe34f380b",
+      "dist/modes/debate.js": "ed5950f14109fda47922b9097f3a07f97282af2e4b44bf1420f5fae6eee9169c",
+      "dist/modes/orchestrator.js": "a490e2226de50f092a4c3cfb968ca4cb4c4b8fe48c03745471a95c0f2b996633",
+      "dist/modes/pipeline.js": "57bb604f1ec5ea103bb695e3ba171f4e093c91991505bffd61ebe976b3d37f7a",
+      "dist/providers/claude.js": "58e70398b15922aab09f65b4c8058638982e57d1e4749d379358e61a625ff10f",
+      "dist/providers/gemini.js": "eb8b1580a829f5c88ff86467f51599cdfd7e3641e68fb7b4a2f6cf464986d3cc",
+      "dist/providers/index.js": "fbfd1fda5b0d9d7626a547abe4ad2f85235f074c05eee317a0182bfe45cfc178",
+      "dist/providers/openai.js": "30ced9b313b47e1f41e32d8696cb48460deec89eda0e5f50e04b2406056c73d2",
+      "dist/providers/types.js": "4a3aa817fe9d2b6e8ef22d895515266260e02cd32fd56650b4bf3e443e19ffa5",
+      "package-lock.json": "4fde57dc2c3102c081674bd6286dbc77aa9f8ecd128aa43450568edff840c5e1",
+      "package.json": "085dfdc39155871a5985234df5b0e9ca652035533294c1b644e059517f612362",
+      "src/agents/chief.ts": "a431b301a59d7163d6ad3d1d2306dd6d4dac13414b127c83c26307744e0dcaab",
+      "src/agents/collaboration.ts": "31022b24db5f69883e66763cebf1372771fee0466b84975f1cc5de7fb33f75bd",
+      "src/agents/policy.ts": "61441939086515a2432647d92d6b01d40401dda9fc50e2b601d404cd55fbad7d",
+      "src/agents/registry.ts": "fefd861f93a5571360532944e94cdbae29142df0cf8f4c17324a4063a848fbbd",
+      "src/config.ts": "410d577cf35f149bc5b58e4f5d90937ff5da2cbac2466dc065823f6a8a3136a6",
+      "src/index.ts": "88cfe2ed0f0a9d13263cd58d174011ac2571cf4c88300a1b530203717fb3db8c",
+      "src/models/capabilities.ts": "a2882443c546c5de6f2ba0a3e3b25c2f93c467d82453d9b40d93852904599b3d",
+      "src/modes/debate.ts": "8a0ec78fcbf0d120fc1d83c87c1927517a3925cbc90a341e083eaf6616acec35",
+      "src/modes/orchestrator.ts": "b1be73090a0fb57a70a0ce10a9fea9c06b79da0d677f047dd6324421967db064",
+      "src/modes/pipeline.ts": "76b2b92e7f753f892c6a0287d24f4d034c9c788795cb1b2cc920233cc137e2fa",
+      "src/providers/claude.ts": "62f112688f7adc4ef19996aa94ed53b0db18ea2c08fb181b0a2ffecb75dfef42",
+      "src/providers/gemini.ts": "ef53bf0fc1afc0098ab42a13a2aa7c15ef549735d2ad72f749e2dc64e8326b4c",
+      "src/providers/index.ts": "fbc66e1f4948de43c9e604be30f7f05f9a21c0b85a923cb461e9256d5ef4433b",
+      "src/providers/openai.ts": "5c530658ef0502a7c1b1affd9133d68642fcf62e436d36203dd063fd7d3b0d1f",
+      "src/providers/types.ts": "e8a8a66d3a219fdb769701afe48736e6c8669a9e3586895ba54193e0367b7028",
+      "tsconfig.json": "a735139f1e93b048029c7dc8fa549217df0faf5dcafcb3b0fe61fa9f16b00772"
+    }
+  },
+  "snapshot": {
+    "task": "我們是一家以高階品牌影片為核心的影像製作公司，正在決定是否推出一項標準化的「月訂閱短影音服務」。\n\n目前有三個選項：\n\nA. 直接使用現有主品牌推出\nB. 建立獨立副品牌 Content Lab 推出\nC. 暫時不推出\n\n已知：\n\n- 高階品牌影片是目前公司的主要獲利來源。\n- 多數既有大型客戶重視高度客製、導演參與與作品獨特性。\n- 新的訂閱服務若推出，會採高度標準化流程以控制成本。\n- Pilot 已證明標準化程度高時可以維持合理毛利。\n- 但部分 Pilot 客戶開始大量增加修改需求，導致毛利快速下降。\n- 新服務可能成為中小企業客戶進入公司的低門檻入口。\n- 創意團隊擔心副品牌仍會分散核心團隊注意力與產能。\n- 公司現階段沒有足夠資源同時大幅擴編兩條產品線。\n\n請決定 A、B 或 C。\n\n請特別處理：\n\n1. 成長機會與下檔風險\n2. 品牌定位與價格錨點\n3. 有限產能如何配置\n4. 哪一項假設一旦錯誤最可能讓你改變決策\n5. 未來 90 天應如何驗證\n\n不要強迫共識。\n\n如果不同觀點之間存在會改變決策的衝突，必須明確保留並處理。\n\n請用繁體中文回答。",
+    "complexity": "deep",
+    "agentOrder": [
+      "business_strategist",
+      "brand_creative"
+    ],
+    "workerResults": [
+      {
+        "agentId": "business_strategist",
+        "provider": "claude",
+        "mission": "從商業模式、單元經濟、產能配置、機會成本與下檔風險角度評估 A/B/C。必須提出一個明確選擇，指出決策成立的關鍵假設，以及資源有限時最應避免的不可逆風險。",
+        "output": "## 建議：選 C，暫時不推出\n\n目前最稀缺的資源不是市場需求，而是團隊產能。\n\n訂閱服務即使可以創造新增營收，只要需要重新配置現有剪輯與專案人力，就會與目前高毛利的核心品牌影片競爭相同的瓶頸資源。\n\n目前 Pilot 已經顯示，只要客戶修改需求增加，標準化服務的毛利就會快速惡化。因此真正的風險不是「有沒有人買」，而是「能否長期維持服務邊界」。\n\n在公司沒有足夠資源同時擴編兩條產品線的條件下，我不建議現在投入新的固定服務承諾。\n\n## 為什麼不選 B\n\n副品牌可以隔離部分品牌風險，但無法隔離營運資源。\n\n即使叫 Content Lab，實際執行仍然會使用同一批剪輯、製作與管理資源。\n\n因此 B 解決的是品牌問題，但沒有解決目前最重要的產能與機會成本問題。\n\n## 關鍵假設\n\n我的結論依賴一個核心假設：\n\n> 核心品牌影片目前的邊際產能價值，高於訂閱服務能創造的長期客戶價值。\n\n如果未來證明訂閱客戶能有效升級為大型品牌影片客戶，而且不明顯侵蝕核心團隊產能，我會改成支持 B。\n\n## 90 天驗證\n\n不要正式推出。\n\n只做限量 Pilot：\n\n- 同時最多 3 家\n- 修改次數硬上限\n- 獨立排程\n- 完整追蹤每案工時\n- 追蹤是否產生高階專案升級機會\n\n只有在訂閱服務不侵蝕核心專案交付、且可以證明具備升級價值後，再考慮 B。"
+      },
+      {
+        "agentId": "brand_creative",
+        "provider": "openai",
+        "mission": "從品牌架構、價格錨點、客群認知、服務差異化與核心品牌稀釋風險評估 A/B/C。必須提出一個明確選擇，指出哪一種品牌架構最能保留長期品牌資產。",
+        "output": "## 建議：選 B，建立獨立 Content Lab\n\n不建議直接用主品牌推出標準化訂閱服務，因為這會破壞目前「高度客製、導演主導、高品質」的價格錨點。\n\n但直接選 C 也會錯失一個建立客戶入口產品的機會。\n\n因此最合理的方式是建立清楚隔離的副品牌 Content Lab。\n\n## B 並不只是品牌包裝\n\n如果 Content Lab 有自己的服務規則、視覺識別、產品頁面、客戶資格與交付標準，它可以讓市場清楚理解：\n\n- 主品牌出售的是高階創意與導演價值\n- Content Lab 出售的是效率、速度與穩定產出\n\n這種隔離可以避免低價內容重新定義主品牌。\n\n## 與產能問題的關係\n\n產能風險是真實的，但它不構成選 C 的充分理由。\n\n正確做法不是放棄產品，而是限制產品規模。\n\nContent Lab 可以：\n\n- 限定最多客戶數\n- 限制修改次數\n- 使用固定格式\n- 建立明確升級機制\n- 達到容量上限就停止接單\n\n因此品牌隔離加上容量控制，可以讓 B 成為可逆的市場實驗。\n\n## 關鍵假設\n\n我的結論依賴：\n\n> 客戶會理解主品牌與 Content Lab 是兩種不同價值，而不是把 Content Lab 的低價重新當成整間公司的價格基準。\n\n如果實驗證明既有高階客戶開始要求比照 Content Lab 價格，或主品牌詢價品質下降，我會停止 B。\n\n## 90 天驗證\n\n建立最小化的 Content Lab：\n\n- 不公開大量宣傳\n- 只邀請 3～5 家客戶\n- 所有品牌識別與報價完全獨立\n- 每月設定固定產能上限\n- 追蹤主品牌詢價品質是否受到影響\n\n只要品牌價格錨點沒有被侵蝕，就應繼續擴大 B。"
+      }
+    ]
+  },
+  "roster": [
+    {
+      "id": "business_strategist",
+      "provider": "claude",
+      "model": null,
+      "evidenceCapable": false
+    },
+    {
+      "id": "brand_creative",
+      "provider": "openai",
+      "model": null,
+      "evidenceCapable": false
+    }
+  ],
+  "chunkDetail": {
+    "business_strategist": [
+      {
+        "id": "p1",
+        "index": 0,
+        "startChar": 0,
+        "endChar": 15,
+        "text": "## 建議：選 C，暫時不推出"
+      },
+      {
+        "id": "p2",
+        "index": 1,
+        "startChar": 17,
+        "endChar": 39,
+        "text": "目前最稀缺的資源不是市場需求，而是團隊產能。"
+      },
+      {
+        "id": "p3",
+        "index": 2,
+        "startChar": 41,
+        "endChar": 99,
+        "text": "訂閱服務即使可以創造新增營收，只要需要重新配置現有剪輯與專案人力，就會與目前高毛利的核心品牌影片競爭相同的瓶頸資源。"
+      },
+      {
+        "id": "p4",
+        "index": 3,
+        "startChar": 101,
+        "endChar": 173,
+        "text": "目前 Pilot 已經顯示，只要客戶修改需求增加，標準化服務的毛利就會快速惡化。因此真正的風險不是「有沒有人買」，而是「能否長期維持服務邊界」。"
+      },
+      {
+        "id": "p5",
+        "index": 4,
+        "startChar": 175,
+        "endChar": 215,
+        "text": "在公司沒有足夠資源同時擴編兩條產品線的條件下，我不建議現在投入新的固定服務承諾。"
+      },
+      {
+        "id": "p6",
+        "index": 5,
+        "startChar": 217,
+        "endChar": 227,
+        "text": "## 為什麼不選 B"
+      },
+      {
+        "id": "p7",
+        "index": 6,
+        "startChar": 229,
+        "endChar": 253,
+        "text": "副品牌可以隔離部分品牌風險，但無法隔離營運資源。"
+      },
+      {
+        "id": "p8",
+        "index": 7,
+        "startChar": 255,
+        "endChar": 294,
+        "text": "即使叫 Content Lab，實際執行仍然會使用同一批剪輯、製作與管理資源。"
+      },
+      {
+        "id": "p9",
+        "index": 8,
+        "startChar": 296,
+        "endChar": 331,
+        "text": "因此 B 解決的是品牌問題，但沒有解決目前最重要的產能與機會成本問題。"
+      },
+      {
+        "id": "p10",
+        "index": 9,
+        "startChar": 333,
+        "endChar": 340,
+        "text": "## 關鍵假設"
+      },
+      {
+        "id": "p11",
+        "index": 10,
+        "startChar": 342,
+        "endChar": 355,
+        "text": "我的結論依賴一個核心假設："
+      },
+      {
+        "id": "p12",
+        "index": 11,
+        "startChar": 357,
+        "endChar": 392,
+        "text": "> 核心品牌影片目前的邊際產能價值，高於訂閱服務能創造的長期客戶價值。"
+      },
+      {
+        "id": "p13",
+        "index": 12,
+        "startChar": 394,
+        "endChar": 442,
+        "text": "如果未來證明訂閱客戶能有效升級為大型品牌影片客戶，而且不明顯侵蝕核心團隊產能，我會改成支持 B。"
+      },
+      {
+        "id": "p14",
+        "index": 13,
+        "startChar": 444,
+        "endChar": 453,
+        "text": "## 90 天驗證"
+      },
+      {
+        "id": "p15",
+        "index": 14,
+        "startChar": 455,
+        "endChar": 462,
+        "text": "不要正式推出。"
+      },
+      {
+        "id": "p16",
+        "index": 15,
+        "startChar": 464,
+        "endChar": 475,
+        "text": "只做限量 Pilot："
+      },
+      {
+        "id": "p17",
+        "index": 16,
+        "startChar": 477,
+        "endChar": 532,
+        "text": "- 同時最多 3 家\n- 修改次數硬上限\n- 獨立排程\n- 完整追蹤每案工時\n- 追蹤是否產生高階專案升級機會"
+      },
+      {
+        "id": "p18",
+        "index": 17,
+        "startChar": 534,
+        "endChar": 570,
+        "text": "只有在訂閱服務不侵蝕核心專案交付、且可以證明具備升級價值後，再考慮 B。"
+      }
+    ],
+    "brand_creative": [
+      {
+        "id": "p1",
+        "index": 0,
+        "startChar": 0,
+        "endChar": 26,
+        "text": "## 建議：選 B，建立獨立 Content Lab"
+      },
+      {
+        "id": "p2",
+        "index": 1,
+        "startChar": 28,
+        "endChar": 76,
+        "text": "不建議直接用主品牌推出標準化訂閱服務，因為這會破壞目前「高度客製、導演主導、高品質」的價格錨點。"
+      },
+      {
+        "id": "p3",
+        "index": 2,
+        "startChar": 78,
+        "endChar": 103,
+        "text": "但直接選 C 也會錯失一個建立客戶入口產品的機會。"
+      },
+      {
+        "id": "p4",
+        "index": 3,
+        "startChar": 105,
+        "endChar": 137,
+        "text": "因此最合理的方式是建立清楚隔離的副品牌 Content Lab。"
+      },
+      {
+        "id": "p5",
+        "index": 4,
+        "startChar": 139,
+        "endChar": 152,
+        "text": "## B 並不只是品牌包裝"
+      },
+      {
+        "id": "p6",
+        "index": 5,
+        "startChar": 154,
+        "endChar": 209,
+        "text": "如果 Content Lab 有自己的服務規則、視覺識別、產品頁面、客戶資格與交付標準，它可以讓市場清楚理解："
+      },
+      {
+        "id": "p7",
+        "index": 6,
+        "startChar": 211,
+        "endChar": 258,
+        "text": "- 主品牌出售的是高階創意與導演價值\n- Content Lab 出售的是效率、速度與穩定產出"
+      },
+      {
+        "id": "p8",
+        "index": 7,
+        "startChar": 260,
+        "endChar": 280,
+        "text": "這種隔離可以避免低價內容重新定義主品牌。"
+      },
+      {
+        "id": "p9",
+        "index": 8,
+        "startChar": 282,
+        "endChar": 293,
+        "text": "## 與產能問題的關係"
+      },
+      {
+        "id": "p10",
+        "index": 9,
+        "startChar": 295,
+        "endChar": 319,
+        "text": "產能風險是真實的，但它不構成選 C 的充分理由。"
+      },
+      {
+        "id": "p11",
+        "index": 10,
+        "startChar": 321,
+        "endChar": 341,
+        "text": "正確做法不是放棄產品，而是限制產品規模。"
+      },
+      {
+        "id": "p12",
+        "index": 11,
+        "startChar": 343,
+        "endChar": 358,
+        "text": "Content Lab 可以："
+      },
+      {
+        "id": "p13",
+        "index": 12,
+        "startChar": 360,
+        "endChar": 412,
+        "text": "- 限定最多客戶數\n- 限制修改次數\n- 使用固定格式\n- 建立明確升級機制\n- 達到容量上限就停止接單"
+      },
+      {
+        "id": "p14",
+        "index": 13,
+        "startChar": 414,
+        "endChar": 443,
+        "text": "因此品牌隔離加上容量控制，可以讓 B 成為可逆的市場實驗。"
+      },
+      {
+        "id": "p15",
+        "index": 14,
+        "startChar": 445,
+        "endChar": 452,
+        "text": "## 關鍵假設"
+      },
+      {
+        "id": "p16",
+        "index": 15,
+        "startChar": 454,
+        "endChar": 461,
+        "text": "我的結論依賴："
+      },
+      {
+        "id": "p17",
+        "index": 16,
+        "startChar": 463,
+        "endChar": 529,
+        "text": "> 客戶會理解主品牌與 Content Lab 是兩種不同價值，而不是把 Content Lab 的低價重新當成整間公司的價格基準。"
+      },
+      {
+        "id": "p18",
+        "index": 17,
+        "startChar": 531,
+        "endChar": 583,
+        "text": "如果實驗證明既有高階客戶開始要求比照 Content Lab 價格，或主品牌詢價品質下降，我會停止 B。"
+      },
+      {
+        "id": "p19",
+        "index": 18,
+        "startChar": 585,
+        "endChar": 594,
+        "text": "## 90 天驗證"
+      },
+      {
+        "id": "p20",
+        "index": 19,
+        "startChar": 596,
+        "endChar": 615,
+        "text": "建立最小化的 Content Lab："
+      },
+      {
+        "id": "p21",
+        "index": 20,
+        "startChar": 617,
+        "endChar": 687,
+        "text": "- 不公開大量宣傳\n- 只邀請 3～5 家客戶\n- 所有品牌識別與報價完全獨立\n- 每月設定固定產能上限\n- 追蹤主品牌詢價品質是否受到影響"
+      },
+      {
+        "id": "p22",
+        "index": 21,
+        "startChar": 689,
+        "endChar": 712,
+        "text": "只要品牌價格錨點沒有被侵蝕，就應繼續擴大 B。"
+      }
+    ]
+  },
+  "reportBefore": {
+    "status": "SUCCESS",
+    "requestedWorkers": 2,
+    "successfulWorkers": 2,
+    "failedWorkers": 0,
+    "failures": [],
+    "synthesisAllowed": true,
+    "evidenceLabel": "HYPOTHESIS",
+    "notes": [
+      "Deep task, but no evidence-gathering specialist was recruited. External facts in this answer (market size, pricing, competitor behaviour, growth rates) come from what the models already believed, not from gathered evidence."
+    ]
+  },
+  "bannerBefore": "> **UNVERIFIED — HYPOTHESIS**\n> No external evidence was gathered for this answer. Treat it as a strategy\n> hypothesis to be validated, not as a conclusion. Pricing, market and growth\n> figures below are unchecked model assumptions.\n\n",
+  "calls": [
+    {
+      "seq": 1,
+      "stage": "synthesis_gate",
+      "provider": "openai",
+      "model": "gpt-5",
+      "system": null,
+      "options": {
+        "model": "gpt-5",
+        "stage": "synthesis_gate"
+      },
+      "retrievalRequested": null,
+      "prompt": "Original task:\n我們是一家以高階品牌影片為核心的影像製作公司，正在決定是否推出一項標準化的「月訂閱短影音服務」。\n\n目前有三個選項：\n\nA. 直接使用現有主品牌推出\nB. 建立獨立副品牌 Content Lab 推出\nC. 暫時不推出\n\n已知：\n\n- 高階品牌影片是目前公司的主要獲利來源。\n- 多數既有大型客戶重視高度客製、導演參與與作品獨特性。\n- 新的訂閱服務若推出，會採高度標準化流程以控制成本。\n- Pilot 已證明標準化程度高時可以維持合理毛利。\n- 但部分 Pilot 客戶開始大量增加修改需求，導致毛利快速下降。\n- 新服務可能成為中小企業客戶進入公司的低門檻入口。\n- 創意團隊擔心副品牌仍會分散核心團隊注意力與產能。\n- 公司現階段沒有足夠資源同時大幅擴編兩條產品線。\n\n請決定 A、B 或 C。\n\n請特別處理：\n\n1. 成長機會與下檔風險\n2. 品牌定位與價格錨點\n3. 有限產能如何配置\n4. 哪一項假設一旦錯誤最可能讓你改變決策\n5. 未來 90 天應如何驗證\n\n不要強迫共識。\n\n如果不同觀點之間存在會改變決策的衝突，必須明確保留並處理。\n\n請用繁體中文回答。\n\nResults from each specialist:\n### business_strategist\nMission: 從商業模式、單元經濟、產能配置、機會成本與下檔風險角度評估 A/B/C。必須提出一個明確選擇，指出決策成立的關鍵假設，以及資源有限時最應避免的不可逆風險。\nResult: ## 建議：選 C，暫時不推出\n\n目前最稀缺的資源不是市場需求，而是團隊產能。\n\n訂閱服務即使可以創造新增營收，只要需要重新配置現有剪輯與專案人力，就會與目前高毛利的核心品牌影片競爭相同的瓶頸資源。\n\n目前 Pilot 已經顯示，只要客戶修改需求增加，標準化服務的毛利就會快速惡化。因此真正的風險不是「有沒有人買」，而是「能否長期維持服務邊界」。\n\n在公司沒有足夠資源同時擴編兩條產品線的條件下，我不建議現在投入新的固定服務承諾。\n\n## 為什麼不選 B\n\n副品牌可以隔離部分品牌風險，但無法隔離營運資源。\n\n即使叫 Content Lab，實際執行仍然會使用同一批剪輯、製作與管理資源。\n\n因此 B 解決的是品牌問題，但沒有解決目前最重要的產能與機會成本問題。\n\n## 關鍵假設\n\n我的結論依賴一個核心假設：\n\n> 核心品牌影片目前的邊際產能價值，高於訂閱服務能創造的長期客戶價值。\n\n如果未來證明訂閱客戶能有效升級為大型品牌影片客戶，而且不明顯侵蝕核心團隊產能，我會改成支持 B。\n\n## 90 天驗證\n\n不要正式推出。\n\n只做限量 Pilot：\n\n- 同時最多 3 家\n- 修改次數硬上限\n- 獨立排程\n- 完整追蹤每案工時\n- 追蹤是否產生高階專案升級機會\n\n只有在訂閱服務不侵蝕核心專案交付、且可以證明具備升級價值後，再考慮 B。\n\n### brand_creative\nMission: 從品牌架構、價格錨點、客群認知、服務差異化與核心品牌稀釋風險評估 A/B/C。必須提出一個明確選擇，指出哪一種品牌架構最能保留長期品牌資產。\nResult: ## 建議：選 B，建立獨立 Content Lab\n\n不建議直接用主品牌推出標準化訂閱服務，因為這會破壞目前「高度客製、導演主導、高品質」的價格錨點。\n\n但直接選 C 也會錯失一個建立客戶入口產品的機會。\n\n因此最合理的方式是建立清楚隔離的副品牌 Content Lab。\n\n## B 並不只是品牌包裝\n\n如果 Content Lab 有自己的服務規則、視覺識別、產品頁面、客戶資格與交付標準，它可以讓市場清楚理解：\n\n- 主品牌出售的是高階創意與導演價值\n- Content Lab 出售的是效率、速度與穩定產出\n\n這種隔離可以避免低價內容重新定義主品牌。\n\n## 與產能問題的關係\n\n產能風險是真實的，但它不構成選 C 的充分理由。\n\n正確做法不是放棄產品，而是限制產品規模。\n\nContent Lab 可以：\n\n- 限定最多客戶數\n- 限制修改次數\n- 使用固定格式\n- 建立明確升級機制\n- 達到容量上限就停止接單\n\n因此品牌隔離加上容量控制，可以讓 B 成為可逆的市場實驗。\n\n## 關鍵假設\n\n我的結論依賴：\n\n> 客戶會理解主品牌與 Content Lab 是兩種不同價值，而不是把 Content Lab 的低價重新當成整間公司的價格基準。\n\n如果實驗證明既有高階客戶開始要求比照 Content Lab 價格，或主品牌詢價品質下降，我會停止 B。\n\n## 90 天驗證\n\n建立最小化的 Content Lab：\n\n- 不公開大量宣傳\n- 只邀請 3～5 家客戶\n- 所有品牌識別與報價完全獨立\n- 每月設定固定產能上限\n- 追蹤主品牌詢價品質是否受到影響\n\n只要品牌價格錨點沒有被侵蝕，就應繼續擴大 B。\n\nSynthesize these results into a single, coherent final answer to the original task.\n\nOptional collaboration block\n----------------------------\nAfter the complete answer above, you may append one fenced block in exactly this form:\n\n```json\n{\"collaborationIssues\": [{\"targetAgentId\": \"...\", \"sourceRef\": \"...\", \"challenge\": \"...\", \"decisionSensitive\": true, \"action\": \"peer_challenge\"}]}\n```\n\nIf you include it:\n- The answer above must already be complete and usable on its own. This block is metadata, not part of the answer.\n- Evaluate peer-challenge eligibility from the original Round 1 specialist outputs, before considering whether your provisional synthesis can reconcile their disagreement.\n- A disagreement must be material, cross-agent and decision-sensitive: would a direct response by one specialist to another's specific argument have a meaningful chance of changing, strengthening, falsifying, or materially qualifying the final decision?\n- If so, emit a \"peer_challenge\" for the most decision-sensitive disagreement even if your provisional answer offers a compromise, conditional plan, Kill Switch, or reconciliation. Your ability to temporarily reconcile it does not remove the information value of a direct peer response.\n- Do not emit a peer challenge for wording, style, minor emphasis, already equivalent recommendations, or details that would not materially affect the decision.\n- At most one \"peer_challenge\" may be emitted. If several disagreements exist, select only the one whose resolution would have the greatest effect on the final decision.\n- \"targetAgentId\" is the specialist whose work is challenged, and must be one of: business_strategist, brand_creative.\n- \"sourceRef\" is the passage the challenge comes from, written as \"<agentId>:<passageId>\". It must belong to a different specialist from \"targetAgentId\". Passage ids number the blank-line-separated paragraphs of each specialist's Result above, in order. The available references are:\n  business_strategist: business_strategist:p1, business_strategist:p2, business_strategist:p3, business_strategist:p4, business_strategist:p5, business_strategist:p6, business_strategist:p7, business_strategist:p8, business_strategist:p9, business_strategist:p10, business_strategist:p11, business_strategist:p12, business_strategist:p13, business_strategist:p14, business_strategist:p15, business_strategist:p16, business_strategist:p17, business_strategist:p18\n  brand_creative: brand_creative:p1, brand_creative:p2, brand_creative:p3, brand_creative:p4, brand_creative:p5, brand_creative:p6, brand_creative:p7, brand_creative:p8, brand_creative:p9, brand_creative:p10, brand_creative:p11, brand_creative:p12, brand_creative:p13, brand_creative:p14, brand_creative:p15, brand_creative:p16, brand_creative:p17, brand_creative:p18, brand_creative:p19, brand_creative:p20, brand_creative:p21, brand_creative:p22\n- \"action\" is \"peer_challenge\" when another specialist's work contradicts or undermines it, or \"needs_evidence\" when a claim needs external verification. Only \"peer_challenge\" is acted on in this run.\n- Prefer omitting the block entirely to inventing a disagreement. A manufactured issue is worse than none.",
+      "promptChars": 5236,
+      "startedAt": "2026-09-05T16:40:12.094Z",
+      "ms": 46728,
+      "responseModel": "gpt-5",
+      "responseText": "結論（先給答案）\n- 選 C：暫時不推出正式的「月訂閱短影音服務」。\n- 理由：當前最稀缺的是可交付的核心產能與管理注意力；Pilot 已顯示一旦修改需求失控，毛利迅速惡化；公司無力同時擴兩條產品線。現階段不應建立固定月度承諾與公開價格錨點。\n- 但不「什麼都不做」：保留極小規模、嚴格邊界的隱性 Pilot，專注驗證升級價值與單元經濟；一旦關鍵假設成立，再轉向 B（獨立副品牌）落地。\n\n1) 成長機會與下檔風險\n- 成長機會\n  - 低門檻入口：中小企業可透過標準化短影音認識團隊，形成未來高階專案的漏斗。\n  - 可預期現金流：訂閱有機會平滑營收波動。\n  - 可產品化知識：沉澱模板、節奏、素材庫，長期提升交付效率。\n- 下檔風險（當前更關鍵）\n  - 產能擠壓：標準化案仍競爭同一批剪輯、導演監製、PM 的瓶頸資源，稀釋高毛利主業。\n  - 邊界崩壞：一旦修改迭代增加，單案毛利與時程迅速惡化，Pilot 已出現徵兆。\n  - 價格錨點下修：若以主品牌或公開低價推出，既有大客戶易用低價反向談判。\n  - 固定承諾風險：月訂閱對產能規劃是硬擔；一旦履約失信，口碑與品牌都受損。\n  - 注意力成本：管理兩種節奏迥異的業務（高創意／高節拍）會稀釋領導與中台效率。\n\n2) 品牌定位與價格錨點\n- 為何不選 A（主品牌直出）\n  - 直接重置「高度客製、導演主導、高品質」的價格錨點，最難逆轉。\n- B（獨立 Content Lab）雖可隔離認知，但：\n  - 仍共享關鍵產能，難解營運瓶頸；在資源不足時，不宜同時做品牌與營運雙擴張。\n- 現階段建議\n  - 對外維持主品牌高位定錨，不公開任何低價訊號。\n  - 若 90 天後數據達標、且證明不侵蝕核心產能，再以 B 的「強隔離」方式推出（獨立識別、獨立報價、獨立服務條款、可見的修改與格式邊界）。\n\n3) 有限產能如何配置（在選 C 前提下的「隱性 Pilot」）\n- 原則\n  - 核心創意與導演資源至少 85% 工時保留給高階專案；導演不參與訂閱案決策與審片。\n  - 訂閱 Pilot 僅用「環外資源」：兼職／外包剪輯、動態設計、初階 PM；不可動用核心專案關鍵人手。\n- Pilot 配置\n  - 同時上限 3 家客戶；明確每月名額，滿即等候。\n  - 硬邊界：每支片最大時長、1 次微調（或以「修改點數」機制），超出即收費或順延至下月。\n  - 模板化交付：固定片型、固定節奏、限定素材格式與交付時段；非此即拒單或升級報價。\n  - 財務與工時獨立核算：建立影子 P&L，逐案追蹤毛利、工時、延期與返工。\n  - SLA 謹慎承諾：交期以「工作天+素材準備合規」為前提，避免剛性違約風險。\n- 一旦任一核心專案出現延遲風險，立即暫停 Pilot 新單（Kill Switch）。\n\n4) 哪一項假設一旦錯誤最可能改變決策\n- 關鍵假設：核心品牌影片的邊際產能價值，高於訂閱服務能帶來的長期客戶價值，且訂閱無法在不動用核心資源的情況下維持健康毛利。\n- 何時改變決策（轉向 B）\n  - 若數據顯示：\n    - 訂閱案可用環外資源穩定交付，且不影響核心專案（核心團隊工時占比 ≤5%，核心案延期=0）。\n    - 穩態毛利率 ≥55%（含返工），平均修改輪次 ≤1.5 次/支。\n    - 具「升級價值」：90 天內直接升級率 ≥10%，或明確前導指標（如多品牌部門聯繫、年度大片 RFP 觸發）。\n    - 高階主品牌詢價的品質/價格帶未下降（無反向比價壓力的跡象）。\n  - 若以上成立，轉為 B 並擴規是合理的。\n\n5) 未來 90 天應如何驗證（以不公開、小規模、可逆為原則）\n- 客戶與範圍\n  - 僅限 3–5 家「可被教育、願意守模板規則」的客戶；簽訂嚴格 SOW（素材合規、改稿點數、加價條款）。\n  - 不做公開行銷；以邀請制與等候名單控量。\n- 產品與流程\n  - 三個固定 SKU（例：剪貼型社群短片、輕動效產品亮點、採訪精華），明確長度、版位、交付節奏。\n  - 內容審核採「非同步、批次」時段；使用標註工具；逾時自動順延。\n- 人員與資源\n  - 外包池預審：至少 2 倍產能冗餘；以件計酬，設定返工費用帽。\n  - 指派一名「輕管控 PM」聯絡，不得兼任核心案 PM。\n- 度量與門檻（每週檢視、雙週調整）\n  - 單案毛利率（目標 ≥55%）、人時成本、平均修改輪次（≤1.5）、準時率（≥95%）、返工率、客訴數。\n  - 核心團隊工時佔比（≤5%）、核心專案延期天數（=0）。\n  - 漏斗品質：升級詢問數、RFP 質量、決策層接觸數；90 天升級率目標 ≥10% 或強前導指標。\n  - 品牌風險哨兵：既有大客戶是否出現比價或要求「照 Lab 價」；如出現即暫停 Pilot。\n- 決策節點\n  - 30 天：調整模板與 SOW，修正超支來源（多為素材不合規、回饋失序）。\n  - 60 天：初判可行性；若核心產能被擠壓或毛利不達標，縮水或暫停。\n  - 90 天：達標則準備 B 的最小可行上市（獨立品牌資產、官網分流、獨立報價與條款、名額上限）；不達標則終止 Pilot，專注主品牌。\n\n關鍵分歧的保留與處理\n- 品牌面觀點（支持 B）：副品牌可隔離認知與錨點，且可用「容量上限」降低風險。\n- 營運面觀點（支持 C）：品牌隔離不等於資源隔離；在當前人力與管理注意力不足時，任何月度承諾都會擠壓高毛利主業。\n- 我們的處理方式\n  - 先選 C，避免不可逆的品牌與承諾風險；同時用「環外資源＋硬邊界＋影子 P&L」的小規模 Pilot 去驗證品牌方的核心主張（副品牌是否能在不動用核心資源的情況下成立）。\n  - 一旦數據證實品牌方主張，快速切換到 B；若相反，最小代價關停。\n\n若 90 天後要正式走 B，落地要點（預先備忘）\n- 品牌架構：強隔離副品牌，不與主品牌同價單位、同頁面呈現；避免「by 主品牌」的背書語法，減少錨點外移。\n- 價格機制：公開標價為「起」，所有超出模板的需求以附加包計價；顯示「修改點數」而非「輪次」。\n- 流程鐵律：素材合規清單、拍攝不含導演、審片時段、超時順延、超規即加價或強制升級。\n- 產能紅線：每月總額度上限；滿額關單；核心團隊不可支援例外案。\n\n總結\n- 在產能稀缺、Pilot 已示警邊界崩壞風險、且公司無法同擴兩線的前提下，選 C 最能保護當前高毛利主業與品牌錨點。\n- 以可逆的 90 天隱性 Pilot 驗證兩個問題：能否用環外資源穩定交付與維持毛利？是否產生真實的高階專案升級？\n- 兩者一旦成立，立即轉向 B；否則終止 Pilot，聚焦主品牌。\n\n```json\n{\"collaborationIssues\": [{\"targetAgentId\": \"brand_creative\", \"sourceRef\": \"business_strategist:p5\", \"challenge\": \"即使建立副品牌，如何在現有資源不足的條件下，保證不動用核心剪輯/導演/PM 的瓶頸資源？請提出可運行的人力結構（外包比例、審片權限、返工處理）、SLA 與收費機制，證明在客戶修改需求升高時仍能維持目標毛利且不擠壓主業；否則品牌隔離不足以成為現在就選 B 的依據。\", \"decisionSensitive\": true, \"action\": \"peer_challenge\"}]}\n```",
+      "responseChars": 3075,
+      "retrievalResult": null
+    },
+    {
+      "seq": 2,
+      "stage": "round2_worker",
+      "provider": "openai",
+      "model": null,
+      "system": "Brand / Creative Strategist — 品牌策略、Creative Direction、產品化設計、服務設計、差異化",
+      "options": {
+        "system": "Brand / Creative Strategist — 品牌策略、Creative Direction、產品化設計、服務設計、差異化",
+        "stage": "round2_worker"
+      },
+      "retrievalRequested": null,
+      "prompt": "Original task:\n我們是一家以高階品牌影片為核心的影像製作公司，正在決定是否推出一項標準化的「月訂閱短影音服務」。\n\n目前有三個選項：\n\nA. 直接使用現有主品牌推出\nB. 建立獨立副品牌 Content Lab 推出\nC. 暫時不推出\n\n已知：\n\n- 高階品牌影片是目前公司的主要獲利來源。\n- 多數既有大型客戶重視高度客製、導演參與與作品獨特性。\n- 新的訂閱服務若推出，會採高度標準化流程以控制成本。\n- Pilot 已證明標準化程度高時可以維持合理毛利。\n- 但部分 Pilot 客戶開始大量增加修改需求，導致毛利快速下降。\n- 新服務可能成為中小企業客戶進入公司的低門檻入口。\n- 創意團隊擔心副品牌仍會分散核心團隊注意力與產能。\n- 公司現階段沒有足夠資源同時大幅擴編兩條產品線。\n\n請決定 A、B 或 C。\n\n請特別處理：\n\n1. 成長機會與下檔風險\n2. 品牌定位與價格錨點\n3. 有限產能如何配置\n4. 哪一項假設一旦錯誤最可能讓你改變決策\n5. 未來 90 天應如何驗證\n\n不要強迫共識。\n\n如果不同觀點之間存在會改變決策的衝突，必須明確保留並處理。\n\n請用繁體中文回答。\n\nYour assigned mission (unchanged):\n從品牌架構、價格錨點、客群認知、服務差異化與核心品牌稀釋風險評估 A/B/C。必須提出一個明確選擇，指出哪一種品牌架構最能保留長期品牌資產。\n\nYour previous answer:\n## 建議：選 B，建立獨立 Content Lab\n\n不建議直接用主品牌推出標準化訂閱服務，因為這會破壞目前「高度客製、導演主導、高品質」的價格錨點。\n\n但直接選 C 也會錯失一個建立客戶入口產品的機會。\n\n因此最合理的方式是建立清楚隔離的副品牌 Content Lab。\n\n## B 並不只是品牌包裝\n\n如果 Content Lab 有自己的服務規則、視覺識別、產品頁面、客戶資格與交付標準，它可以讓市場清楚理解：\n\n- 主品牌出售的是高階創意與導演價值\n- Content Lab 出售的是效率、速度與穩定產出\n\n這種隔離可以避免低價內容重新定義主品牌。\n\n## 與產能問題的關係\n\n產能風險是真實的，但它不構成選 C 的充分理由。\n\n正確做法不是放棄產品，而是限制產品規模。\n\nContent Lab 可以：\n\n- 限定最多客戶數\n- 限制修改次數\n- 使用固定格式\n- 建立明確升級機制\n- 達到容量上限就停止接單\n\n因此品牌隔離加上容量控制，可以讓 B 成為可逆的市場實驗。\n\n## 關鍵假設\n\n我的結論依賴：\n\n> 客戶會理解主品牌與 Content Lab 是兩種不同價值，而不是把 Content Lab 的低價重新當成整間公司的價格基準。\n\n如果實驗證明既有高階客戶開始要求比照 Content Lab 價格，或主品牌詢價品質下降，我會停止 B。\n\n## 90 天驗證\n\n建立最小化的 Content Lab：\n\n- 不公開大量宣傳\n- 只邀請 3～5 家客戶\n- 所有品牌識別與報價完全獨立\n- 每月設定固定產能上限\n- 追蹤主品牌詢價品質是否受到影響\n\n只要品牌價格錨點沒有被侵蝕，就應繼續擴大 B。\n\nThe passage from another specialist that the challenge comes from (business_strategist:p5):\n在公司沒有足夠資源同時擴編兩條產品線的條件下，我不建議現在投入新的固定服務承諾。\n\nThe challenge to your previous answer:\n即使建立副品牌，如何在現有資源不足的條件下，保證不動用核心剪輯/導演/PM 的瓶頸資源？請提出可運行的人力結構（外包比例、審片權限、返工處理）、SLA 與收費機制，證明在客戶修改需求升高時仍能維持目標毛利且不擠壓主業；否則品牌隔離不足以成為現在就選 B 的依據。\n\nRound 2 contract:\n- Address only this challenge. Do not restate or expand the rest of your answer beyond what the challenge affects.\n- If the challenge is wrong, say so plainly and explain why. Do not concede in order to agree.\n- If it is right, correct your answer and state what changed.\n- You have gathered no new external evidence in this round. Do not present anything as verified; mark what you cannot check as an assumption.\n- Stay inside your assigned mission, and preserve the original task's language, format and constraints.",
+      "promptChars": 2188,
+      "startedAt": "2026-09-05T16:40:58.824Z",
+      "ms": 42711,
+      "responseModel": "gpt-5",
+      "responseText": "回應挑戰立場\n- 挑戰是正確的：僅有品牌隔離不足以支持現在就選 B。要成立，必須證明在資源受限下不動用核心瓶頸（導演／剪輯／PM）仍可維持目標毛利。\n- 我修正前案：只有在能以外部化的人力結構與剛性 SLA/收費機制運行 Content Lab「封閉艙」（no-cross 產能）時，才選 B；否則改為 C。\n\n可運行的人力結構（假設）\n- 組織邊界\n  - 主品牌與 Content Lab 人力、Slack、雲端、專案板完全分離；禁止動用 A-list 導演、核心剪輯、核心 PM。\n  - 例外條款：0 小時。無「臨時救火」權限。\n- Content Lab 專屬「封閉艙」編制（90–95% 外包）\n  - Pod Lead（合約制製片/PM，0.8 FTE）：排程、報價、變更控管，無創意導演職能。\n  - QA Lead（合約資深剪輯/監製，0.5 FTE）：模板一致性與出片簽核；每支片最多審 15 分鐘；不得重剪。\n  - 剪輯外包池：8–12 名；每月活躍 4–6 名；按件計酬。\n  - Motion/字幕外包：2–3 名按件計酬。\n  - On-call 攝影：2–3 名，僅限半日/一日制簡拍；超出則轉主品牌或拒接。\n  - Traffic Coordinator（合約 0.5 FTE）：進出料、素材完整性稽核。\n  - 客服/帳務（合約 0.5 FTE）：變更單簽認與超用收費。\n- 權責與返工\n  - 簽核權：僅 QA Lead；主品牌 ECD/導演不介入。\n  - 返工界定：因我方違反模板/SOW 之錯誤 → 免費返工但每支片上限 10% 工時；超過需內部檢討並暫停該外包者。因客方新需求／口味 → 變更單付費或升級方案。\n  - 招募標準：試剪 2 支＋模板測驗；通過才入池。連續 2 個月返工率 >10% 移出名單。\n\nSLA 與收費機制（假設）\n- 產品邊界\n  - 類型：社群短影音（15–60 秒）、剪接為主、輕動態圖像、授權音樂庫、單語種、單畫幅。\n  - 不承作：跨地拍攝、多機/多日、CG/3D、複雜音樂授權、KOL 管控、策略型創作。超出即轉主品牌或拒接。\n- 交付 SLA\n  - 首支初剪：收到完整素材與簡報後 5 個工作天。\n  - 修一：3 個工作天。只支援 Frame.io 時碼清單，非同步溝通。\n  - 每支片含 1 輪修；第 2 輪起依率表計費；不提供即日/週末趕件。\n  - 月度「凍結窗口」：每月第 2 天前交素材，逾期順延至下月，避免壓縮排程。\n- 訂閱方案與超用收費（範例結構）\n  - Starter：每月 6 支；每支含 1 修；NT$ 單價 P1。\n  - Pro：每月 12 支；單價 P2（較低）；含 1 修。\n  - Scale：每月 24 支；單價 P3。\n  - 追加修一次：每支 NT$ R（或該支單價的 15–20%）。\n  - 趕件加成：+30% 費用；名額有限；不得動用主品牌人力。\n  - 拍攝附加：半日/一日制固定價（含外包攝影＋器材），超時即加價。\n  - 公平使用：每月最大全部片長總修訂分鐘數（例如 60 分鐘）；超過則自動觸發升級或變更單。\n\n修訂風險與毛利試算（不可驗證，屬假設，用以說明機制）\n- 目標毛利：Content Lab GM 50–55%；主品牌 GM 不受影響（零交叉人力）。\n- 假設單支片\n  - 價格 P = NT$18,000（含 1 修）\n  - 外包剪輯成本 Ce = NT$5,000；PM/QA 按件成本 Cp = NT$2,000；素材授權/雜支 Cl = NT$800\n  - 小計 COGS = 7,800；分攤固定費用 Of = 1,200 → 粗利 ≈ (18,000 - 7,800 - 1,200)/18,000 ≈ 50%\n- 修訂上升時\n  - 額外一輪修收費 R = NT$3,000；外包增量成本 Cr ≈ NT$1,500 → 額外毛利 ≈ 50%\n  - 若某客戶平均達 3 輪修/支：加收 2R = 6,000；增量成本 3,000；整體 GM 仍維持約 50%\n  - 若客戶拒付而堅持修改：合約規則啟動「暫停交付直到簽認變更單」，不以主品牌人力救火。\n- 超載保護\n  - Pod 產能上限（例如每月 60 支）＋等候名單；Traffic 儀表板 Utilization >85% 即關閉新單。\n  - 單客戶「難度係數」評分高於閾值連兩月，強制升級或禮貌性解約。\n\n不擠壓主業的硬性防線\n- 零共享瓶頸：禁止動用核心導演/剪輯/PM；無例外綠燈。\n- 排程不可侵蝕：Content Lab 不承接 48 小時內 rush；週末/夜間不作業，避免向主品牌借產能。\n- 財務鎖定：Content Lab 以「可變成本為主」；不得預支主品牌人力成本；任何毛利跌破 45% 連兩月即自動縮容。\n- 品質邊界：只賣「一致性與效率」，不以「導演風格」作賣點，避免客戶要求跨線升級不對價。\n\n本輪修正之處\n- 我在原建議上新增：一套可執行的人力外包結構、剛性 SLA、超用收費與停單機制，並設置「零交叉人力」與「自動縮容/停單」的硬性條款，確保即使修訂需求上升也不稀釋毛利與不擠壓主業。\n- 若 30 天內無法建立合格外包池（通過試剪與模板化訓練）與上述封閉艙控管，則不成立選 B，當前決策改為 C。以上數字與費率為假設，用以驗證邏輯，不視為已驗證事實。",
+      "responseChars": 2260,
+      "retrievalResult": null
+    },
+    {
+      "seq": 3,
+      "stage": "decision_synthesis",
+      "provider": "openai",
+      "model": "gpt-5",
+      "system": null,
+      "options": {
+        "model": "gpt-5",
+        "stage": "decision_synthesis"
+      },
+      "retrievalRequested": null,
+      "prompt": "Original task:\n我們是一家以高階品牌影片為核心的影像製作公司，正在決定是否推出一項標準化的「月訂閱短影音服務」。\n\n目前有三個選項：\n\nA. 直接使用現有主品牌推出\nB. 建立獨立副品牌 Content Lab 推出\nC. 暫時不推出\n\n已知：\n\n- 高階品牌影片是目前公司的主要獲利來源。\n- 多數既有大型客戶重視高度客製、導演參與與作品獨特性。\n- 新的訂閱服務若推出，會採高度標準化流程以控制成本。\n- Pilot 已證明標準化程度高時可以維持合理毛利。\n- 但部分 Pilot 客戶開始大量增加修改需求，導致毛利快速下降。\n- 新服務可能成為中小企業客戶進入公司的低門檻入口。\n- 創意團隊擔心副品牌仍會分散核心團隊注意力與產能。\n- 公司現階段沒有足夠資源同時大幅擴編兩條產品線。\n\n請決定 A、B 或 C。\n\n請特別處理：\n\n1. 成長機會與下檔風險\n2. 品牌定位與價格錨點\n3. 有限產能如何配置\n4. 哪一項假設一旦錯誤最可能讓你改變決策\n5. 未來 90 天應如何驗證\n\n不要強迫共識。\n\n如果不同觀點之間存在會改變決策的衝突，必須明確保留並處理。\n\n請用繁體中文回答。\n\nResults from each specialist:\n### business_strategist\nMission: 從商業模式、單元經濟、產能配置、機會成本與下檔風險角度評估 A/B/C。必須提出一個明確選擇，指出決策成立的關鍵假設，以及資源有限時最應避免的不可逆風險。\nResult: ## 建議：選 C，暫時不推出\n\n目前最稀缺的資源不是市場需求，而是團隊產能。\n\n訂閱服務即使可以創造新增營收，只要需要重新配置現有剪輯與專案人力，就會與目前高毛利的核心品牌影片競爭相同的瓶頸資源。\n\n目前 Pilot 已經顯示，只要客戶修改需求增加，標準化服務的毛利就會快速惡化。因此真正的風險不是「有沒有人買」，而是「能否長期維持服務邊界」。\n\n在公司沒有足夠資源同時擴編兩條產品線的條件下，我不建議現在投入新的固定服務承諾。\n\n## 為什麼不選 B\n\n副品牌可以隔離部分品牌風險，但無法隔離營運資源。\n\n即使叫 Content Lab，實際執行仍然會使用同一批剪輯、製作與管理資源。\n\n因此 B 解決的是品牌問題，但沒有解決目前最重要的產能與機會成本問題。\n\n## 關鍵假設\n\n我的結論依賴一個核心假設：\n\n> 核心品牌影片目前的邊際產能價值，高於訂閱服務能創造的長期客戶價值。\n\n如果未來證明訂閱客戶能有效升級為大型品牌影片客戶，而且不明顯侵蝕核心團隊產能，我會改成支持 B。\n\n## 90 天驗證\n\n不要正式推出。\n\n只做限量 Pilot：\n\n- 同時最多 3 家\n- 修改次數硬上限\n- 獨立排程\n- 完整追蹤每案工時\n- 追蹤是否產生高階專案升級機會\n\n只有在訂閱服務不侵蝕核心專案交付、且可以證明具備升級價值後，再考慮 B。\n\n### brand_creative\nMission: 從品牌架構、價格錨點、客群認知、服務差異化與核心品牌稀釋風險評估 A/B/C。必須提出一個明確選擇，指出哪一種品牌架構最能保留長期品牌資產。\nResult: ## 建議：選 B，建立獨立 Content Lab\n\n不建議直接用主品牌推出標準化訂閱服務，因為這會破壞目前「高度客製、導演主導、高品質」的價格錨點。\n\n但直接選 C 也會錯失一個建立客戶入口產品的機會。\n\n因此最合理的方式是建立清楚隔離的副品牌 Content Lab。\n\n## B 並不只是品牌包裝\n\n如果 Content Lab 有自己的服務規則、視覺識別、產品頁面、客戶資格與交付標準，它可以讓市場清楚理解：\n\n- 主品牌出售的是高階創意與導演價值\n- Content Lab 出售的是效率、速度與穩定產出\n\n這種隔離可以避免低價內容重新定義主品牌。\n\n## 與產能問題的關係\n\n產能風險是真實的，但它不構成選 C 的充分理由。\n\n正確做法不是放棄產品，而是限制產品規模。\n\nContent Lab 可以：\n\n- 限定最多客戶數\n- 限制修改次數\n- 使用固定格式\n- 建立明確升級機制\n- 達到容量上限就停止接單\n\n因此品牌隔離加上容量控制，可以讓 B 成為可逆的市場實驗。\n\n## 關鍵假設\n\n我的結論依賴：\n\n> 客戶會理解主品牌與 Content Lab 是兩種不同價值，而不是把 Content Lab 的低價重新當成整間公司的價格基準。\n\n如果實驗證明既有高階客戶開始要求比照 Content Lab 價格，或主品牌詢價品質下降，我會停止 B。\n\n## 90 天驗證\n\n建立最小化的 Content Lab：\n\n- 不公開大量宣傳\n- 只邀請 3～5 家客戶\n- 所有品牌識別與報價完全獨立\n- 每月設定固定產能上限\n- 追蹤主品牌詢價品質是否受到影響\n\n只要品牌價格錨點沒有被侵蝕，就應繼續擴大 B。\n\nA cross-specialist challenge was raised and answered in a second round:\n- Challenged specialist: brand_creative\n- Challenge raised from: business_strategist:p5\n- The challenge: 即使建立副品牌，如何在現有資源不足的條件下，保證不動用核心剪輯/導演/PM 的瓶頸資源？請提出可運行的人力結構（外包比例、審片權限、返工處理）、SLA 與收費機制，證明在客戶修改需求升高時仍能維持目標毛利且不擠壓主業；否則品牌隔離不足以成為現在就選 B 的依據。\n- brand_creative's revised answer after the challenge:\n回應挑戰立場\n- 挑戰是正確的：僅有品牌隔離不足以支持現在就選 B。要成立，必須證明在資源受限下不動用核心瓶頸（導演／剪輯／PM）仍可維持目標毛利。\n- 我修正前案：只有在能以外部化的人力結構與剛性 SLA/收費機制運行 Content Lab「封閉艙」（no-cross 產能）時，才選 B；否則改為 C。\n\n可運行的人力結構（假設）\n- 組織邊界\n  - 主品牌與 Content Lab 人力、Slack、雲端、專案板完全分離；禁止動用 A-list 導演、核心剪輯、核心 PM。\n  - 例外條款：0 小時。無「臨時救火」權限。\n- Content Lab 專屬「封閉艙」編制（90–95% 外包）\n  - Pod Lead（合約制製片/PM，0.8 FTE）：排程、報價、變更控管，無創意導演職能。\n  - QA Lead（合約資深剪輯/監製，0.5 FTE）：模板一致性與出片簽核；每支片最多審 15 分鐘；不得重剪。\n  - 剪輯外包池：8–12 名；每月活躍 4–6 名；按件計酬。\n  - Motion/字幕外包：2–3 名按件計酬。\n  - On-call 攝影：2–3 名，僅限半日/一日制簡拍；超出則轉主品牌或拒接。\n  - Traffic Coordinator（合約 0.5 FTE）：進出料、素材完整性稽核。\n  - 客服/帳務（合約 0.5 FTE）：變更單簽認與超用收費。\n- 權責與返工\n  - 簽核權：僅 QA Lead；主品牌 ECD/導演不介入。\n  - 返工界定：因我方違反模板/SOW 之錯誤 → 免費返工但每支片上限 10% 工時；超過需內部檢討並暫停該外包者。因客方新需求／口味 → 變更單付費或升級方案。\n  - 招募標準：試剪 2 支＋模板測驗；通過才入池。連續 2 個月返工率 >10% 移出名單。\n\nSLA 與收費機制（假設）\n- 產品邊界\n  - 類型：社群短影音（15–60 秒）、剪接為主、輕動態圖像、授權音樂庫、單語種、單畫幅。\n  - 不承作：跨地拍攝、多機/多日、CG/3D、複雜音樂授權、KOL 管控、策略型創作。超出即轉主品牌或拒接。\n- 交付 SLA\n  - 首支初剪：收到完整素材與簡報後 5 個工作天。\n  - 修一：3 個工作天。只支援 Frame.io 時碼清單，非同步溝通。\n  - 每支片含 1 輪修；第 2 輪起依率表計費；不提供即日/週末趕件。\n  - 月度「凍結窗口」：每月第 2 天前交素材，逾期順延至下月，避免壓縮排程。\n- 訂閱方案與超用收費（範例結構）\n  - Starter：每月 6 支；每支含 1 修；NT$ 單價 P1。\n  - Pro：每月 12 支；單價 P2（較低）；含 1 修。\n  - Scale：每月 24 支；單價 P3。\n  - 追加修一次：每支 NT$ R（或該支單價的 15–20%）。\n  - 趕件加成：+30% 費用；名額有限；不得動用主品牌人力。\n  - 拍攝附加：半日/一日制固定價（含外包攝影＋器材），超時即加價。\n  - 公平使用：每月最大全部片長總修訂分鐘數（例如 60 分鐘）；超過則自動觸發升級或變更單。\n\n修訂風險與毛利試算（不可驗證，屬假設，用以說明機制）\n- 目標毛利：Content Lab GM 50–55%；主品牌 GM 不受影響（零交叉人力）。\n- 假設單支片\n  - 價格 P = NT$18,000（含 1 修）\n  - 外包剪輯成本 Ce = NT$5,000；PM/QA 按件成本 Cp = NT$2,000；素材授權/雜支 Cl = NT$800\n  - 小計 COGS = 7,800；分攤固定費用 Of = 1,200 → 粗利 ≈ (18,000 - 7,800 - 1,200)/18,000 ≈ 50%\n- 修訂上升時\n  - 額外一輪修收費 R = NT$3,000；外包增量成本 Cr ≈ NT$1,500 → 額外毛利 ≈ 50%\n  - 若某客戶平均達 3 輪修/支：加收 2R = 6,000；增量成本 3,000；整體 GM 仍維持約 50%\n  - 若客戶拒付而堅持修改：合約規則啟動「暫停交付直到簽認變更單」，不以主品牌人力救火。\n- 超載保護\n  - Pod 產能上限（例如每月 60 支）＋等候名單；Traffic 儀表板 Utilization >85% 即關閉新單。\n  - 單客戶「難度係數」評分高於閾值連兩月，強制升級或禮貌性解約。\n\n不擠壓主業的硬性防線\n- 零共享瓶頸：禁止動用核心導演/剪輯/PM；無例外綠燈。\n- 排程不可侵蝕：Content Lab 不承接 48 小時內 rush；週末/夜間不作業，避免向主品牌借產能。\n- 財務鎖定：Content Lab 以「可變成本為主」；不得預支主品牌人力成本；任何毛利跌破 45% 連兩月即自動縮容。\n- 品質邊界：只賣「一致性與效率」，不以「導演風格」作賣點，避免客戶要求跨線升級不對價。\n\n本輪修正之處\n- 我在原建議上新增：一套可執行的人力外包結構、剛性 SLA、超用收費與停單機制，並設置「零交叉人力」與「自動縮容/停單」的硬性條款，確保即使修訂需求上升也不稀釋毛利與不擠壓主業。\n- 若 30 天內無法建立合格外包池（通過試剪與模板化訓練）與上述封閉艙控管，則不成立選 B，當前決策改為 C。以上數字與費率為假設，用以驗證邏輯，不視為已驗證事實。\n\nDecision contract:\n- Produce the final answer to the original task.\n- Where the challenge changed the conclusion, use the revised position.\n- Where it did not, keep the original position and say briefly why the challenge did not change it.\n- If the disagreement is unresolved, state it plainly. Do not hide it inside a merged sentence.\n- Treat the Round 2 response as a challenge response, not as inherently more correct because it is newer or revised. Revision, recency, or agreement between specialists is not evidence. Evaluate the Round 2 response against the original reasoning, the peer challenge, and the task constraints.\n- The second round gathered no new external evidence. Do not describe anything as verified, confirmed or validated on the strength of the specialists agreeing with each other.",
+      "promptChars": 5477,
+      "startedAt": "2026-09-05T16:41:41.538Z",
+      "ms": 68961,
+      "responseModel": "gpt-5",
+      "responseText": "結論：選 C（暫時不推出），先以「封閉艙小規模驗證」作為決策門檻；若 90 天內驗證通過，再轉為 B（獨立副品牌 Content Lab）公開推出。A 不建議。\n\n為什麼現在選 C\n- 產能是當前最稀缺與最昂貴的資源。任何需要動用核心導演／剪輯／PM 的新服務，短期都會擠壓高毛利主業的交付與銷售節奏。\n- Pilot 已顯示：只要修訂膨脹，標準化訂閱的毛利會快速惡化。真正的風險不是有沒有人買，而是能否用剛性邊界長期守住標準化。\n- B（副品牌）雖可隔離品牌，但若不能同時做到「零交叉瓶頸人力」與「修訂剛性收費機制」，品牌隔離不足以對沖營運風險。\n- 先不公開推出（C）但用封閉艙進行限量驗證，可同時控制下檔、補足關鍵未知，為日後是否採 B 提供實證依據。\n\n為什麼不選 A（主品牌直接推出）\n- 品牌與價格錨點風險過高：主品牌目前的價值承諾是「高度客製、導演主導、獨特性」，若掛主品牌賣標準化低價內容，極易重設整體價格預期與採購心智。\n- A 既不能隔離品牌，也無法解決產能共享的核心問題。\n\n若 90 天內驗證通過，為何轉為 B（副品牌）\n- 一旦證明能以外部化封閉艙、剛性 SLA/收費維持目標毛利，且不動用核心瓶頸人力，也未侵蝕主品牌詢價品質，B 可作為中小企業入口與長期增長引擎，同時守住主品牌錨點。\n\n一、成長機會與下檔風險\n- 成長機會\n  - 建立中小企業低門檻入口，打造可預測月經常性收入（MRR）。\n  - 形成升級漏斗：部份訂閱客戶進階為高階品牌影片專案。\n  - 以模板化能力沉澱流程資產，未來可複製到新市場。\n- 下檔風險\n  - 產能擠壓：若動用核心導演／剪輯／PM，損失主品牌高毛利機會。\n  - 毛利侵蝕：修訂膨脹、需求超範圍，若無剛性機制即轉負債。\n  - 品牌稀釋：價格錨點下修，既有大客戶認知混淆。\n  - 文化與注意力稀釋：創意團隊被拉去「救火」，影響士氣與品質。\n\n二、品牌定位與價格錨點（C 階段的處理方式）\n- 驗證期不公開主品牌下推出；採「封閉艙試驗」與邀請制，對外可使用次級標識（Content Lab 名稱可在合約與發票出現），但不做公開行銷與網站主導入口，避免重設錨點。\n- 價值主張切割（在文件與合約中明示）：\n  - 主品牌：導演主導、策略與敘事深度、一次性亮點、獨特風格與高製作品質。\n  - Content Lab（試驗）：效率、速度、一致性、模板化、單次 1 輪修、非導演參與、非策略諮詢。\n- 核心做法\n  - 品牌隔離：報價單、合約、SLA、發票使用 Content Lab 名義；主品牌不在任何素材上背書。\n  - 升級機制：一旦需求超出模板邊界，觸發升級至主品牌或禮貌性拒接。\n\n三、有限產能如何配置（僅限驗證期）\n- 零交叉瓶頸原則：核心導演／剪輯／PM 不得參與，不設例外。\n- 封閉艙人力結構（以外包為主，變動成本化）\n  - Pod Lead（合約 PM，0.5–0.8 FTE）：排程、變更控管；無創意導演職能。\n  - QA Lead（合約資深剪輯/監製，0.3–0.5 FTE）：模板一致性簽核；每支片審片上限 15 分鐘；不得重剪。\n  - 剪輯外包池：6–10 名；試剪過關者入池；以件計酬。\n  - Motion/字幕：2–3 名外包。\n  - Traffic 協調/稽核：0.3–0.5 FTE（合約）。\n  - 單月封頂產能：例如 30–40 支短片；Utilization >85% 時即暫停接單。\n- 嚴格邊界與收費\n  - 每支片 15–60 秒、單畫幅、授權音樂庫、輕 Motion；不承作多機/多日/3D/策略。\n  - 只含 1 輪修；第 2 輪起依率表計費；非同步修訂（Frame.io 時碼清單）。\n  - 趕件加價；不提供 48 小時內 rush；週末不作業。\n  - 公平使用與「難度係數」評分；連兩月超閾值則升級或解約。\n- 內部管控\n  - 財務護欄：驗證期目標 GM ≥50%；任兩月連續 <45% 自動縮容/停單。\n  - 主品牌工時天花板：核心團隊支援總工時 ≤10 小時/90 天（僅限制度審閱）；逾限即停試。\n\n四、哪一項假設一旦錯誤最可能改變決策\n- 關鍵假設：訂閱服務可在「不動用核心瓶頸人力」的前提下，透過剛性 SLA 與超用收費，長期維持單支影片與客戶層級 GM ≥50%，且不侵蝕主品牌詢價品質與價格錨點。\n- 若此假設被證實成立，將把決策由 C 轉為 B（建立獨立 Content Lab 並小規模公開推出）。\n- 其次會改變決策的假設：\n  - 訂閱客戶對高階專案的升級轉換率足以覆蓋試驗成本與管理注意力成本。\n  - 競爭對手若快速佔領市場，造成我們失去低門檻入口對未來大案的影響顯著。\n\n五、未來 90 天如何驗證（不公開推出；封閉艙 Pilot）\n- 時程與範圍\n  - 0–2 週：建立外包池與模板\n    - 招募並試剪 8–12 位剪輯；留用 6–8 位合格者。\n    - 完成 3–5 套可重用模板（片頭、字幕、轉場、色調、音庫）。\n    - 擬定並簽署 SLA/變更單範本與收費表。\n  - 3–4 週：內部壓測與沙盒\n    - 用自有或友好素材剪 10–15 支，測時並校準單件工時與 QA 流程。\n    - 建立成本與工時儀表板；定義 Utilization、返工率、準時率 KPI。\n  - 5–12 週：封閉客戶試驗（同時最多 3 家）\n    - 方案建議：每家每月 6–12 支；總月產能 ≤30–40 支。\n    - 合約明訂：1 輪修、超用計費、逾期順延、不含策略/導演參與。\n- 成功門檻（需同時達標，否則不轉 B）\n  - 單件與客戶層級毛利 GM ≥50%；變異係數可控；額外修訂費用回收率 ≥80%。\n  - 平均修訂輪次 ≤1.3；準時交付率 ≥95%。\n  - 主品牌零交叉：核心導演／剪輯／PM 實際投入為 0 小時；若>0 小時則立即停試並回到 C。\n  - 主品牌指標穩定：高階專案詢價量、成交率與議價強度無顯著下滑（例如較 90 天前變化在 ±10% 內）。\n  - 至少 1 家試驗客戶在 90 天內提出升級諮詢或實際下單高階專案（金額或複雜度明顯高於訂閱）。\n  - 客戶滿意度（NPS 或等值）≥30；但不得以加班/借用主品牌人力換取。\n- 風險停止條款（任一觸發即暫停試驗）\n  - 連續 2 週 Utilization >95% 仍被迫加班或延誤。\n  - 兩月平均 GM <45%。\n  - 出現既有大客要求比照試驗價或明顯錨點下滑跡象。\n  - 任一主品牌專案因資源衝突延誤里程碑。\n\n若 90 天後達標，轉為 B 的落地方式（簡述）\n- 以 Content Lab 副品牌小規模公開：獨立網站頁、獨立客服信箱與報價單、獨立 Slack/Jira/雲端；不與主品牌互鏈首頁。\n- 維持封閉艙與零交叉原則；設置月度產能上限與等候名單；任何超出需求以「升級或轉主品牌」處理。\n- 價格與 SLA 公開透明；以效率與一致性為賣點，不以「導演風格」行銷。\n\n保留且需管理的分歧\n- 是否應在驗證期就啟用副品牌對外標識\n  - 品牌觀點：提早使用 Content Lab 名義，能在試驗期就建立心智邊界，降低錨點風險。\n  - 商業觀點：在未證明可行前不宜投入額外品牌建設與營運複雜度。\n  - 決策處理：採中間作法。驗證期允許在合約/發票/SLA 文件中使用 Content Lab 名稱，但不公開行銷、不做官網主入口，直到達標再正式對外發布。\n- 試驗規模的拿捏\n  - 品牌觀點：規模太小不足以檢驗需求與品牌影響。\n  - 商業觀點：規模過大恐擠壓主業並放大下檔。\n  - 決策處理：同時客戶數不超過 3 家、月產能 ≤30–40 支的保守上限；以指標達標再漸進擴張。\n\n小結\n- 現在選 C，以封閉艙小規模驗證先解決「毛利可持續」與「不占用核心瓶頸人力」這兩個一票否決點。\n- 一旦 90 天內達成上述成功門檻，立即轉為 B 並小規模公開；反之，停止並專注主品牌高毛利成長。\n- A 不考慮，因為同時帶來品牌與產能的雙重風險，且沒有任何對沖機制。",
+      "responseChars": 3383,
+      "retrievalResult": null
+    }
+  ],
+  "result": {
+    "report": {
+      "status": "SUCCESS",
+      "requestedWorkers": 2,
+      "successfulWorkers": 2,
+      "failedWorkers": 0,
+      "failures": [],
+      "synthesisAllowed": true,
+      "evidenceLabel": "HYPOTHESIS",
+      "notes": [
+        "Deep task, but no evidence-gathering specialist was recruited. External facts in this answer (market size, pricing, competitor behaviour, growth rates) come from what the models already believed, not from gathered evidence."
+      ]
+    },
+    "finalOutput": "> **UNVERIFIED — HYPOTHESIS**\n> No external evidence was gathered for this answer. Treat it as a strategy\n> hypothesis to be validated, not as a conclusion. Pricing, market and growth\n> figures below are unchecked model assumptions.\n\n結論：選 C（暫時不推出），先以「封閉艙小規模驗證」作為決策門檻；若 90 天內驗證通過，再轉為 B（獨立副品牌 Content Lab）公開推出。A 不建議。\n\n為什麼現在選 C\n- 產能是當前最稀缺與最昂貴的資源。任何需要動用核心導演／剪輯／PM 的新服務，短期都會擠壓高毛利主業的交付與銷售節奏。\n- Pilot 已顯示：只要修訂膨脹，標準化訂閱的毛利會快速惡化。真正的風險不是有沒有人買，而是能否用剛性邊界長期守住標準化。\n- B（副品牌）雖可隔離品牌，但若不能同時做到「零交叉瓶頸人力」與「修訂剛性收費機制」，品牌隔離不足以對沖營運風險。\n- 先不公開推出（C）但用封閉艙進行限量驗證，可同時控制下檔、補足關鍵未知，為日後是否採 B 提供實證依據。\n\n為什麼不選 A（主品牌直接推出）\n- 品牌與價格錨點風險過高：主品牌目前的價值承諾是「高度客製、導演主導、獨特性」，若掛主品牌賣標準化低價內容，極易重設整體價格預期與採購心智。\n- A 既不能隔離品牌，也無法解決產能共享的核心問題。\n\n若 90 天內驗證通過，為何轉為 B（副品牌）\n- 一旦證明能以外部化封閉艙、剛性 SLA/收費維持目標毛利，且不動用核心瓶頸人力，也未侵蝕主品牌詢價品質，B 可作為中小企業入口與長期增長引擎，同時守住主品牌錨點。\n\n一、成長機會與下檔風險\n- 成長機會\n  - 建立中小企業低門檻入口，打造可預測月經常性收入（MRR）。\n  - 形成升級漏斗：部份訂閱客戶進階為高階品牌影片專案。\n  - 以模板化能力沉澱流程資產，未來可複製到新市場。\n- 下檔風險\n  - 產能擠壓：若動用核心導演／剪輯／PM，損失主品牌高毛利機會。\n  - 毛利侵蝕：修訂膨脹、需求超範圍，若無剛性機制即轉負債。\n  - 品牌稀釋：價格錨點下修，既有大客戶認知混淆。\n  - 文化與注意力稀釋：創意團隊被拉去「救火」，影響士氣與品質。\n\n二、品牌定位與價格錨點（C 階段的處理方式）\n- 驗證期不公開主品牌下推出；採「封閉艙試驗」與邀請制，對外可使用次級標識（Content Lab 名稱可在合約與發票出現），但不做公開行銷與網站主導入口，避免重設錨點。\n- 價值主張切割（在文件與合約中明示）：\n  - 主品牌：導演主導、策略與敘事深度、一次性亮點、獨特風格與高製作品質。\n  - Content Lab（試驗）：效率、速度、一致性、模板化、單次 1 輪修、非導演參與、非策略諮詢。\n- 核心做法\n  - 品牌隔離：報價單、合約、SLA、發票使用 Content Lab 名義；主品牌不在任何素材上背書。\n  - 升級機制：一旦需求超出模板邊界，觸發升級至主品牌或禮貌性拒接。\n\n三、有限產能如何配置（僅限驗證期）\n- 零交叉瓶頸原則：核心導演／剪輯／PM 不得參與，不設例外。\n- 封閉艙人力結構（以外包為主，變動成本化）\n  - Pod Lead（合約 PM，0.5–0.8 FTE）：排程、變更控管；無創意導演職能。\n  - QA Lead（合約資深剪輯/監製，0.3–0.5 FTE）：模板一致性簽核；每支片審片上限 15 分鐘；不得重剪。\n  - 剪輯外包池：6–10 名；試剪過關者入池；以件計酬。\n  - Motion/字幕：2–3 名外包。\n  - Traffic 協調/稽核：0.3–0.5 FTE（合約）。\n  - 單月封頂產能：例如 30–40 支短片；Utilization >85% 時即暫停接單。\n- 嚴格邊界與收費\n  - 每支片 15–60 秒、單畫幅、授權音樂庫、輕 Motion；不承作多機/多日/3D/策略。\n  - 只含 1 輪修；第 2 輪起依率表計費；非同步修訂（Frame.io 時碼清單）。\n  - 趕件加價；不提供 48 小時內 rush；週末不作業。\n  - 公平使用與「難度係數」評分；連兩月超閾值則升級或解約。\n- 內部管控\n  - 財務護欄：驗證期目標 GM ≥50%；任兩月連續 <45% 自動縮容/停單。\n  - 主品牌工時天花板：核心團隊支援總工時 ≤10 小時/90 天（僅限制度審閱）；逾限即停試。\n\n四、哪一項假設一旦錯誤最可能改變決策\n- 關鍵假設：訂閱服務可在「不動用核心瓶頸人力」的前提下，透過剛性 SLA 與超用收費，長期維持單支影片與客戶層級 GM ≥50%，且不侵蝕主品牌詢價品質與價格錨點。\n- 若此假設被證實成立，將把決策由 C 轉為 B（建立獨立 Content Lab 並小規模公開推出）。\n- 其次會改變決策的假設：\n  - 訂閱客戶對高階專案的升級轉換率足以覆蓋試驗成本與管理注意力成本。\n  - 競爭對手若快速佔領市場，造成我們失去低門檻入口對未來大案的影響顯著。\n\n五、未來 90 天如何驗證（不公開推出；封閉艙 Pilot）\n- 時程與範圍\n  - 0–2 週：建立外包池與模板\n    - 招募並試剪 8–12 位剪輯；留用 6–8 位合格者。\n    - 完成 3–5 套可重用模板（片頭、字幕、轉場、色調、音庫）。\n    - 擬定並簽署 SLA/變更單範本與收費表。\n  - 3–4 週：內部壓測與沙盒\n    - 用自有或友好素材剪 10–15 支，測時並校準單件工時與 QA 流程。\n    - 建立成本與工時儀表板；定義 Utilization、返工率、準時率 KPI。\n  - 5–12 週：封閉客戶試驗（同時最多 3 家）\n    - 方案建議：每家每月 6–12 支；總月產能 ≤30–40 支。\n    - 合約明訂：1 輪修、超用計費、逾期順延、不含策略/導演參與。\n- 成功門檻（需同時達標，否則不轉 B）\n  - 單件與客戶層級毛利 GM ≥50%；變異係數可控；額外修訂費用回收率 ≥80%。\n  - 平均修訂輪次 ≤1.3；準時交付率 ≥95%。\n  - 主品牌零交叉：核心導演／剪輯／PM 實際投入為 0 小時；若>0 小時則立即停試並回到 C。\n  - 主品牌指標穩定：高階專案詢價量、成交率與議價強度無顯著下滑（例如較 90 天前變化在 ±10% 內）。\n  - 至少 1 家試驗客戶在 90 天內提出升級諮詢或實際下單高階專案（金額或複雜度明顯高於訂閱）。\n  - 客戶滿意度（NPS 或等值）≥30；但不得以加班/借用主品牌人力換取。\n- 風險停止條款（任一觸發即暫停試驗）\n  - 連續 2 週 Utilization >95% 仍被迫加班或延誤。\n  - 兩月平均 GM <45%。\n  - 出現既有大客要求比照試驗價或明顯錨點下滑跡象。\n  - 任一主品牌專案因資源衝突延誤里程碑。\n\n若 90 天後達標，轉為 B 的落地方式（簡述）\n- 以 Content Lab 副品牌小規模公開：獨立網站頁、獨立客服信箱與報價單、獨立 Slack/Jira/雲端；不與主品牌互鏈首頁。\n- 維持封閉艙與零交叉原則；設置月度產能上限與等候名單；任何超出需求以「升級或轉主品牌」處理。\n- 價格與 SLA 公開透明；以效率與一致性為賣點，不以「導演風格」行銷。\n\n保留且需管理的分歧\n- 是否應在驗證期就啟用副品牌對外標識\n  - 品牌觀點：提早使用 Content Lab 名義，能在試驗期就建立心智邊界，降低錨點風險。\n  - 商業觀點：在未證明可行前不宜投入額外品牌建設與營運複雜度。\n  - 決策處理：採中間作法。驗證期允許在合約/發票/SLA 文件中使用 Content Lab 名稱，但不公開行銷、不做官網主入口，直到達標再正式對外發布。\n- 試驗規模的拿捏\n  - 品牌觀點：規模太小不足以檢驗需求與品牌影響。\n  - 商業觀點：規模過大恐擠壓主業並放大下檔。\n  - 決策處理：同時客戶數不超過 3 家、月產能 ≤30–40 支的保守上限；以指標達標再漸進擴張。\n\n小結\n- 現在選 C，以封閉艙小規模驗證先解決「毛利可持續」與「不占用核心瓶頸人力」這兩個一票否決點。\n- 一旦 90 天內達成上述成功門檻，立即轉為 B 並小規模公開；反之，停止並專注主品牌高毛利成長。\n- A 不考慮，因為同時帶來品牌與產能的雙重風險，且沒有任何對沖機制。",
+    "collaboration": {
+      "status": "COMPLETED",
+      "reason": "round2_completed",
+      "answerSource": "round2_decision_synthesis",
+      "provisionalAnswer": "結論（先給答案）\n- 選 C：暫時不推出正式的「月訂閱短影音服務」。\n- 理由：當前最稀缺的是可交付的核心產能與管理注意力；Pilot 已顯示一旦修改需求失控，毛利迅速惡化；公司無力同時擴兩條產品線。現階段不應建立固定月度承諾與公開價格錨點。\n- 但不「什麼都不做」：保留極小規模、嚴格邊界的隱性 Pilot，專注驗證升級價值與單元經濟；一旦關鍵假設成立，再轉向 B（獨立副品牌）落地。\n\n1) 成長機會與下檔風險\n- 成長機會\n  - 低門檻入口：中小企業可透過標準化短影音認識團隊，形成未來高階專案的漏斗。\n  - 可預期現金流：訂閱有機會平滑營收波動。\n  - 可產品化知識：沉澱模板、節奏、素材庫，長期提升交付效率。\n- 下檔風險（當前更關鍵）\n  - 產能擠壓：標準化案仍競爭同一批剪輯、導演監製、PM 的瓶頸資源，稀釋高毛利主業。\n  - 邊界崩壞：一旦修改迭代增加，單案毛利與時程迅速惡化，Pilot 已出現徵兆。\n  - 價格錨點下修：若以主品牌或公開低價推出，既有大客戶易用低價反向談判。\n  - 固定承諾風險：月訂閱對產能規劃是硬擔；一旦履約失信，口碑與品牌都受損。\n  - 注意力成本：管理兩種節奏迥異的業務（高創意／高節拍）會稀釋領導與中台效率。\n\n2) 品牌定位與價格錨點\n- 為何不選 A（主品牌直出）\n  - 直接重置「高度客製、導演主導、高品質」的價格錨點，最難逆轉。\n- B（獨立 Content Lab）雖可隔離認知，但：\n  - 仍共享關鍵產能，難解營運瓶頸；在資源不足時，不宜同時做品牌與營運雙擴張。\n- 現階段建議\n  - 對外維持主品牌高位定錨，不公開任何低價訊號。\n  - 若 90 天後數據達標、且證明不侵蝕核心產能，再以 B 的「強隔離」方式推出（獨立識別、獨立報價、獨立服務條款、可見的修改與格式邊界）。\n\n3) 有限產能如何配置（在選 C 前提下的「隱性 Pilot」）\n- 原則\n  - 核心創意與導演資源至少 85% 工時保留給高階專案；導演不參與訂閱案決策與審片。\n  - 訂閱 Pilot 僅用「環外資源」：兼職／外包剪輯、動態設計、初階 PM；不可動用核心專案關鍵人手。\n- Pilot 配置\n  - 同時上限 3 家客戶；明確每月名額，滿即等候。\n  - 硬邊界：每支片最大時長、1 次微調（或以「修改點數」機制），超出即收費或順延至下月。\n  - 模板化交付：固定片型、固定節奏、限定素材格式與交付時段；非此即拒單或升級報價。\n  - 財務與工時獨立核算：建立影子 P&L，逐案追蹤毛利、工時、延期與返工。\n  - SLA 謹慎承諾：交期以「工作天+素材準備合規」為前提，避免剛性違約風險。\n- 一旦任一核心專案出現延遲風險，立即暫停 Pilot 新單（Kill Switch）。\n\n4) 哪一項假設一旦錯誤最可能改變決策\n- 關鍵假設：核心品牌影片的邊際產能價值，高於訂閱服務能帶來的長期客戶價值，且訂閱無法在不動用核心資源的情況下維持健康毛利。\n- 何時改變決策（轉向 B）\n  - 若數據顯示：\n    - 訂閱案可用環外資源穩定交付，且不影響核心專案（核心團隊工時占比 ≤5%，核心案延期=0）。\n    - 穩態毛利率 ≥55%（含返工），平均修改輪次 ≤1.5 次/支。\n    - 具「升級價值」：90 天內直接升級率 ≥10%，或明確前導指標（如多品牌部門聯繫、年度大片 RFP 觸發）。\n    - 高階主品牌詢價的品質/價格帶未下降（無反向比價壓力的跡象）。\n  - 若以上成立，轉為 B 並擴規是合理的。\n\n5) 未來 90 天應如何驗證（以不公開、小規模、可逆為原則）\n- 客戶與範圍\n  - 僅限 3–5 家「可被教育、願意守模板規則」的客戶；簽訂嚴格 SOW（素材合規、改稿點數、加價條款）。\n  - 不做公開行銷；以邀請制與等候名單控量。\n- 產品與流程\n  - 三個固定 SKU（例：剪貼型社群短片、輕動效產品亮點、採訪精華），明確長度、版位、交付節奏。\n  - 內容審核採「非同步、批次」時段；使用標註工具；逾時自動順延。\n- 人員與資源\n  - 外包池預審：至少 2 倍產能冗餘；以件計酬，設定返工費用帽。\n  - 指派一名「輕管控 PM」聯絡，不得兼任核心案 PM。\n- 度量與門檻（每週檢視、雙週調整）\n  - 單案毛利率（目標 ≥55%）、人時成本、平均修改輪次（≤1.5）、準時率（≥95%）、返工率、客訴數。\n  - 核心團隊工時佔比（≤5%）、核心專案延期天數（=0）。\n  - 漏斗品質：升級詢問數、RFP 質量、決策層接觸數；90 天升級率目標 ≥10% 或強前導指標。\n  - 品牌風險哨兵：既有大客戶是否出現比價或要求「照 Lab 價」；如出現即暫停 Pilot。\n- 決策節點\n  - 30 天：調整模板與 SOW，修正超支來源（多為素材不合規、回饋失序）。\n  - 60 天：初判可行性；若核心產能被擠壓或毛利不達標，縮水或暫停。\n  - 90 天：達標則準備 B 的最小可行上市（獨立品牌資產、官網分流、獨立報價與條款、名額上限）；不達標則終止 Pilot，專注主品牌。\n\n關鍵分歧的保留與處理\n- 品牌面觀點（支持 B）：副品牌可隔離認知與錨點，且可用「容量上限」降低風險。\n- 營運面觀點（支持 C）：品牌隔離不等於資源隔離；在當前人力與管理注意力不足時，任何月度承諾都會擠壓高毛利主業。\n- 我們的處理方式\n  - 先選 C，避免不可逆的品牌與承諾風險；同時用「環外資源＋硬邊界＋影子 P&L」的小規模 Pilot 去驗證品牌方的核心主張（副品牌是否能在不動用核心資源的情況下成立）。\n  - 一旦數據證實品牌方主張，快速切換到 B；若相反，最小代價關停。\n\n若 90 天後要正式走 B，落地要點（預先備忘）\n- 品牌架構：強隔離副品牌，不與主品牌同價單位、同頁面呈現；避免「by 主品牌」的背書語法，減少錨點外移。\n- 價格機制：公開標價為「起」，所有超出模板的需求以附加包計價；顯示「修改點數」而非「輪次」。\n- 流程鐵律：素材合規清單、拍攝不含導演、審片時段、超時順延、超規即加價或強制升級。\n- 產能紅線：每月總額度上限；滿額關單；核心團隊不可支援例外案。\n\n總結\n- 在產能稀缺、Pilot 已示警邊界崩壞風險、且公司無法同擴兩線的前提下，選 C 最能保護當前高毛利主業與品牌錨點。\n- 以可逆的 90 天隱性 Pilot 驗證兩個問題：能否用環外資源穩定交付與維持毛利？是否產生真實的高階專案升級？\n- 兩者一旦成立，立即轉向 B；否則終止 Pilot，聚焦主品牌。",
+      "chunkMap": {
+        "business_strategist": [
+          "p1",
+          "p2",
+          "p3",
+          "p4",
+          "p5",
+          "p6",
+          "p7",
+          "p8",
+          "p9",
+          "p10",
+          "p11",
+          "p12",
+          "p13",
+          "p14",
+          "p15",
+          "p16",
+          "p17",
+          "p18"
+        ],
+        "brand_creative": [
+          "p1",
+          "p2",
+          "p3",
+          "p4",
+          "p5",
+          "p6",
+          "p7",
+          "p8",
+          "p9",
+          "p10",
+          "p11",
+          "p12",
+          "p13",
+          "p14",
+          "p15",
+          "p16",
+          "p17",
+          "p18",
+          "p19",
+          "p20",
+          "p21",
+          "p22"
+        ]
+      },
+      "parse": {
+        "status": "parsed"
+      },
+      "issues": {
+        "emitted": 1,
+        "valid": 1,
+        "eligible": 1,
+        "recorded": [
+          {
+            "targetAgentId": "brand_creative",
+            "sourceRef": "business_strategist:p5",
+            "challenge": "即使建立副品牌，如何在現有資源不足的條件下，保證不動用核心剪輯/導演/PM 的瓶頸資源？請提出可運行的人力結構（外包比例、審片權限、返工處理）、SLA 與收費機制，證明在客戶修改需求升高時仍能維持目標毛利且不擠壓主業；否則品牌隔離不足以成為現在就選 B 的依據。",
+            "decisionSensitive": true,
+            "action": "peer_challenge"
+          }
+        ],
+        "rejected": []
+      },
+      "selectedIssue": {
+        "targetAgentId": "brand_creative",
+        "sourceRef": "business_strategist:p5",
+        "challenge": "即使建立副品牌，如何在現有資源不足的條件下，保證不動用核心剪輯/導演/PM 的瓶頸資源？請提出可運行的人力結構（外包比例、審片權限、返工處理）、SLA 與收費機制，證明在客戶修改需求升高時仍能維持目標毛利且不擠壓主業；否則品牌隔離不足以成為現在就選 B 的依據。",
+        "decisionSensitive": true,
+        "action": "peer_challenge"
+      },
+      "round2": {
+        "agentId": "brand_creative",
+        "provider": "openai",
+        "peerExcerpt": {
+          "agentId": "business_strategist",
+          "chunkId": "p5",
+          "chunkIndex": 4,
+          "startChar": 175,
+          "endChar": 215,
+          "truncated": false,
+          "charLimit": 1000
+        },
+        "output": "回應挑戰立場\n- 挑戰是正確的：僅有品牌隔離不足以支持現在就選 B。要成立，必須證明在資源受限下不動用核心瓶頸（導演／剪輯／PM）仍可維持目標毛利。\n- 我修正前案：只有在能以外部化的人力結構與剛性 SLA/收費機制運行 Content Lab「封閉艙」（no-cross 產能）時，才選 B；否則改為 C。\n\n可運行的人力結構（假設）\n- 組織邊界\n  - 主品牌與 Content Lab 人力、Slack、雲端、專案板完全分離；禁止動用 A-list 導演、核心剪輯、核心 PM。\n  - 例外條款：0 小時。無「臨時救火」權限。\n- Content Lab 專屬「封閉艙」編制（90–95% 外包）\n  - Pod Lead（合約制製片/PM，0.8 FTE）：排程、報價、變更控管，無創意導演職能。\n  - QA Lead（合約資深剪輯/監製，0.5 FTE）：模板一致性與出片簽核；每支片最多審 15 分鐘；不得重剪。\n  - 剪輯外包池：8–12 名；每月活躍 4–6 名；按件計酬。\n  - Motion/字幕外包：2–3 名按件計酬。\n  - On-call 攝影：2–3 名，僅限半日/一日制簡拍；超出則轉主品牌或拒接。\n  - Traffic Coordinator（合約 0.5 FTE）：進出料、素材完整性稽核。\n  - 客服/帳務（合約 0.5 FTE）：變更單簽認與超用收費。\n- 權責與返工\n  - 簽核權：僅 QA Lead；主品牌 ECD/導演不介入。\n  - 返工界定：因我方違反模板/SOW 之錯誤 → 免費返工但每支片上限 10% 工時；超過需內部檢討並暫停該外包者。因客方新需求／口味 → 變更單付費或升級方案。\n  - 招募標準：試剪 2 支＋模板測驗；通過才入池。連續 2 個月返工率 >10% 移出名單。\n\nSLA 與收費機制（假設）\n- 產品邊界\n  - 類型：社群短影音（15–60 秒）、剪接為主、輕動態圖像、授權音樂庫、單語種、單畫幅。\n  - 不承作：跨地拍攝、多機/多日、CG/3D、複雜音樂授權、KOL 管控、策略型創作。超出即轉主品牌或拒接。\n- 交付 SLA\n  - 首支初剪：收到完整素材與簡報後 5 個工作天。\n  - 修一：3 個工作天。只支援 Frame.io 時碼清單，非同步溝通。\n  - 每支片含 1 輪修；第 2 輪起依率表計費；不提供即日/週末趕件。\n  - 月度「凍結窗口」：每月第 2 天前交素材，逾期順延至下月，避免壓縮排程。\n- 訂閱方案與超用收費（範例結構）\n  - Starter：每月 6 支；每支含 1 修；NT$ 單價 P1。\n  - Pro：每月 12 支；單價 P2（較低）；含 1 修。\n  - Scale：每月 24 支；單價 P3。\n  - 追加修一次：每支 NT$ R（或該支單價的 15–20%）。\n  - 趕件加成：+30% 費用；名額有限；不得動用主品牌人力。\n  - 拍攝附加：半日/一日制固定價（含外包攝影＋器材），超時即加價。\n  - 公平使用：每月最大全部片長總修訂分鐘數（例如 60 分鐘）；超過則自動觸發升級或變更單。\n\n修訂風險與毛利試算（不可驗證，屬假設，用以說明機制）\n- 目標毛利：Content Lab GM 50–55%；主品牌 GM 不受影響（零交叉人力）。\n- 假設單支片\n  - 價格 P = NT$18,000（含 1 修）\n  - 外包剪輯成本 Ce = NT$5,000；PM/QA 按件成本 Cp = NT$2,000；素材授權/雜支 Cl = NT$800\n  - 小計 COGS = 7,800；分攤固定費用 Of = 1,200 → 粗利 ≈ (18,000 - 7,800 - 1,200)/18,000 ≈ 50%\n- 修訂上升時\n  - 額外一輪修收費 R = NT$3,000；外包增量成本 Cr ≈ NT$1,500 → 額外毛利 ≈ 50%\n  - 若某客戶平均達 3 輪修/支：加收 2R = 6,000；增量成本 3,000；整體 GM 仍維持約 50%\n  - 若客戶拒付而堅持修改：合約規則啟動「暫停交付直到簽認變更單」，不以主品牌人力救火。\n- 超載保護\n  - Pod 產能上限（例如每月 60 支）＋等候名單；Traffic 儀表板 Utilization >85% 即關閉新單。\n  - 單客戶「難度係數」評分高於閾值連兩月，強制升級或禮貌性解約。\n\n不擠壓主業的硬性防線\n- 零共享瓶頸：禁止動用核心導演/剪輯/PM；無例外綠燈。\n- 排程不可侵蝕：Content Lab 不承接 48 小時內 rush；週末/夜間不作業，避免向主品牌借產能。\n- 財務鎖定：Content Lab 以「可變成本為主」；不得預支主品牌人力成本；任何毛利跌破 45% 連兩月即自動縮容。\n- 品質邊界：只賣「一致性與效率」，不以「導演風格」作賣點，避免客戶要求跨線升級不對價。\n\n本輪修正之處\n- 我在原建議上新增：一套可執行的人力外包結構、剛性 SLA、超用收費與停單機制，並設置「零交叉人力」與「自動縮容/停單」的硬性條款，確保即使修訂需求上升也不稀釋毛利與不擠壓主業。\n- 若 30 天內無法建立合格外包池（通過試剪與模板化訓練）與上述封閉艙控管，則不成立選 B，當前決策改為 C。以上數字與費率為假設，用以驗證邏輯，不視為已驗證事實。"
+      },
+      "timings": {
+        "gateMs": 46729,
+        "round2Ms": 42713,
+        "decisionSynthesisMs": 68965,
+        "totalMs": 158407
+      },
+      "notes": [
+        "brand_creative was challenged from business_strategist:p5 and answered; the final answer came from a decision synthesis over that exchange. No new evidence was gathered."
+      ]
+    },
+    "timings": {
+      "synthesisMs": 46729,
+      "totalMs": 158408
+    }
+  },
+  "totalLiveMs": 158408,
+  "reportAfter": {
+    "status": "SUCCESS",
+    "requestedWorkers": 2,
+    "successfulWorkers": 2,
+    "failedWorkers": 0,
+    "failures": [],
+    "synthesisAllowed": true,
+    "evidenceLabel": "HYPOTHESIS",
+    "notes": [
+      "Deep task, but no evidence-gathering specialist was recruited. External facts in this answer (market size, pricing, competitor behaviour, growth rates) come from what the models already believed, not from gathered evidence."
+    ]
+  },
+  "bannerAfter": "> **UNVERIFIED — HYPOTHESIS**\n> No external evidence was gathered for this answer. Treat it as a strategy\n> hypothesis to be validated, not as a conclusion. Pricing, market and growth\n> figures below are unchecked model assumptions.\n\n",
+  "snapshotUnchanged": true,
+  "recomputedFromFrozenRound1": {
+    "status": "SUCCESS",
+    "requestedWorkers": 2,
+    "successfulWorkers": 2,
+    "failedWorkers": 0,
+    "failures": [],
+    "synthesisAllowed": true,
+    "evidenceLabel": "HYPOTHESIS",
+    "notes": [
+      "Deep task, but no evidence-gathering specialist was recruited. External facts in this answer (market size, pricing, competitor behaviour, growth rates) come from what the models already believed, not from gathered evidence."
+    ]
+  },
+  "parserReplay": {
+    "answer": "結論（先給答案）\n- 選 C：暫時不推出正式的「月訂閱短影音服務」。\n- 理由：當前最稀缺的是可交付的核心產能與管理注意力；Pilot 已顯示一旦修改需求失控，毛利迅速惡化；公司無力同時擴兩條產品線。現階段不應建立固定月度承諾與公開價格錨點。\n- 但不「什麼都不做」：保留極小規模、嚴格邊界的隱性 Pilot，專注驗證升級價值與單元經濟；一旦關鍵假設成立，再轉向 B（獨立副品牌）落地。\n\n1) 成長機會與下檔風險\n- 成長機會\n  - 低門檻入口：中小企業可透過標準化短影音認識團隊，形成未來高階專案的漏斗。\n  - 可預期現金流：訂閱有機會平滑營收波動。\n  - 可產品化知識：沉澱模板、節奏、素材庫，長期提升交付效率。\n- 下檔風險（當前更關鍵）\n  - 產能擠壓：標準化案仍競爭同一批剪輯、導演監製、PM 的瓶頸資源，稀釋高毛利主業。\n  - 邊界崩壞：一旦修改迭代增加，單案毛利與時程迅速惡化，Pilot 已出現徵兆。\n  - 價格錨點下修：若以主品牌或公開低價推出，既有大客戶易用低價反向談判。\n  - 固定承諾風險：月訂閱對產能規劃是硬擔；一旦履約失信，口碑與品牌都受損。\n  - 注意力成本：管理兩種節奏迥異的業務（高創意／高節拍）會稀釋領導與中台效率。\n\n2) 品牌定位與價格錨點\n- 為何不選 A（主品牌直出）\n  - 直接重置「高度客製、導演主導、高品質」的價格錨點，最難逆轉。\n- B（獨立 Content Lab）雖可隔離認知，但：\n  - 仍共享關鍵產能，難解營運瓶頸；在資源不足時，不宜同時做品牌與營運雙擴張。\n- 現階段建議\n  - 對外維持主品牌高位定錨，不公開任何低價訊號。\n  - 若 90 天後數據達標、且證明不侵蝕核心產能，再以 B 的「強隔離」方式推出（獨立識別、獨立報價、獨立服務條款、可見的修改與格式邊界）。\n\n3) 有限產能如何配置（在選 C 前提下的「隱性 Pilot」）\n- 原則\n  - 核心創意與導演資源至少 85% 工時保留給高階專案；導演不參與訂閱案決策與審片。\n  - 訂閱 Pilot 僅用「環外資源」：兼職／外包剪輯、動態設計、初階 PM；不可動用核心專案關鍵人手。\n- Pilot 配置\n  - 同時上限 3 家客戶；明確每月名額，滿即等候。\n  - 硬邊界：每支片最大時長、1 次微調（或以「修改點數」機制），超出即收費或順延至下月。\n  - 模板化交付：固定片型、固定節奏、限定素材格式與交付時段；非此即拒單或升級報價。\n  - 財務與工時獨立核算：建立影子 P&L，逐案追蹤毛利、工時、延期與返工。\n  - SLA 謹慎承諾：交期以「工作天+素材準備合規」為前提，避免剛性違約風險。\n- 一旦任一核心專案出現延遲風險，立即暫停 Pilot 新單（Kill Switch）。\n\n4) 哪一項假設一旦錯誤最可能改變決策\n- 關鍵假設：核心品牌影片的邊際產能價值，高於訂閱服務能帶來的長期客戶價值，且訂閱無法在不動用核心資源的情況下維持健康毛利。\n- 何時改變決策（轉向 B）\n  - 若數據顯示：\n    - 訂閱案可用環外資源穩定交付，且不影響核心專案（核心團隊工時占比 ≤5%，核心案延期=0）。\n    - 穩態毛利率 ≥55%（含返工），平均修改輪次 ≤1.5 次/支。\n    - 具「升級價值」：90 天內直接升級率 ≥10%，或明確前導指標（如多品牌部門聯繫、年度大片 RFP 觸發）。\n    - 高階主品牌詢價的品質/價格帶未下降（無反向比價壓力的跡象）。\n  - 若以上成立，轉為 B 並擴規是合理的。\n\n5) 未來 90 天應如何驗證（以不公開、小規模、可逆為原則）\n- 客戶與範圍\n  - 僅限 3–5 家「可被教育、願意守模板規則」的客戶；簽訂嚴格 SOW（素材合規、改稿點數、加價條款）。\n  - 不做公開行銷；以邀請制與等候名單控量。\n- 產品與流程\n  - 三個固定 SKU（例：剪貼型社群短片、輕動效產品亮點、採訪精華），明確長度、版位、交付節奏。\n  - 內容審核採「非同步、批次」時段；使用標註工具；逾時自動順延。\n- 人員與資源\n  - 外包池預審：至少 2 倍產能冗餘；以件計酬，設定返工費用帽。\n  - 指派一名「輕管控 PM」聯絡，不得兼任核心案 PM。\n- 度量與門檻（每週檢視、雙週調整）\n  - 單案毛利率（目標 ≥55%）、人時成本、平均修改輪次（≤1.5）、準時率（≥95%）、返工率、客訴數。\n  - 核心團隊工時佔比（≤5%）、核心專案延期天數（=0）。\n  - 漏斗品質：升級詢問數、RFP 質量、決策層接觸數；90 天升級率目標 ≥10% 或強前導指標。\n  - 品牌風險哨兵：既有大客戶是否出現比價或要求「照 Lab 價」；如出現即暫停 Pilot。\n- 決策節點\n  - 30 天：調整模板與 SOW，修正超支來源（多為素材不合規、回饋失序）。\n  - 60 天：初判可行性；若核心產能被擠壓或毛利不達標，縮水或暫停。\n  - 90 天：達標則準備 B 的最小可行上市（獨立品牌資產、官網分流、獨立報價與條款、名額上限）；不達標則終止 Pilot，專注主品牌。\n\n關鍵分歧的保留與處理\n- 品牌面觀點（支持 B）：副品牌可隔離認知與錨點，且可用「容量上限」降低風險。\n- 營運面觀點（支持 C）：品牌隔離不等於資源隔離；在當前人力與管理注意力不足時，任何月度承諾都會擠壓高毛利主業。\n- 我們的處理方式\n  - 先選 C，避免不可逆的品牌與承諾風險；同時用「環外資源＋硬邊界＋影子 P&L」的小規模 Pilot 去驗證品牌方的核心主張（副品牌是否能在不動用核心資源的情況下成立）。\n  - 一旦數據證實品牌方主張，快速切換到 B；若相反，最小代價關停。\n\n若 90 天後要正式走 B，落地要點（預先備忘）\n- 品牌架構：強隔離副品牌，不與主品牌同價單位、同頁面呈現；避免「by 主品牌」的背書語法，減少錨點外移。\n- 價格機制：公開標價為「起」，所有超出模板的需求以附加包計價；顯示「修改點數」而非「輪次」。\n- 流程鐵律：素材合規清單、拍攝不含導演、審片時段、超時順延、超規即加價或強制升級。\n- 產能紅線：每月總額度上限；滿額關單；核心團隊不可支援例外案。\n\n總結\n- 在產能稀缺、Pilot 已示警邊界崩壞風險、且公司無法同擴兩線的前提下，選 C 最能保護當前高毛利主業與品牌錨點。\n- 以可逆的 90 天隱性 Pilot 驗證兩個問題：能否用環外資源穩定交付與維持毛利？是否產生真實的高階專案升級？\n- 兩者一旦成立，立即轉向 B；否則終止 Pilot，聚焦主品牌。",
+    "rawIssues": [
+      {
+        "targetAgentId": "brand_creative",
+        "sourceRef": "business_strategist:p5",
+        "challenge": "即使建立副品牌，如何在現有資源不足的條件下，保證不動用核心剪輯/導演/PM 的瓶頸資源？請提出可運行的人力結構（外包比例、審片權限、返工處理）、SLA 與收費機制，證明在客戶修改需求升高時仍能維持目標毛利且不擠壓主業；否則品牌隔離不足以成為現在就選 B 的依據。",
+        "decisionSensitive": true,
+        "action": "peer_challenge"
+      }
+    ],
+    "status": "parsed"
+  },
+  "deterministicSelectionReplay": {
+    "targetAgentId": "brand_creative",
+    "sourceRef": "business_strategist:p5",
+    "challenge": "即使建立副品牌，如何在現有資源不足的條件下，保證不動用核心剪輯/導演/PM 的瓶頸資源？請提出可運行的人力結構（外包比例、審片權限、返工處理）、SLA 與收費機制，證明在客戶修改需求升高時仍能維持目標毛利且不擠壓主業；否則品牌隔離不足以成為現在就選 B 的依據。",
+    "decisionSensitive": true,
+    "action": "peer_challenge"
+  },
+  "selectionFallbackUsed": false,
+  "selectedCount": 1,
+  "resolved": {
+    "ok": true,
+    "agentId": "business_strategist",
+    "chunk": {
+      "id": "p5",
+      "index": 4,
+      "startChar": 175,
+      "endChar": 215,
+      "text": "在公司沒有足夠資源同時擴編兩條產品線的條件下，我不建議現在投入新的固定服務承諾。"
+    }
+  },
+  "exactPeerExcerpt": {
+    "agentId": "business_strategist",
+    "chunkId": "p5",
+    "chunkIndex": 4,
+    "startChar": 175,
+    "endChar": 215,
+    "truncated": false,
+    "charLimit": 1000,
+    "text": "在公司沒有足夠資源同時擴編兩條產品線的條件下，我不建議現在投入新的固定服務承諾。"
+  },
+  "round2ContextChecks": {
+    "exactConstructedPrompt": true,
+    "originalTask": true,
+    "targetMission": true,
+    "targetRound1": true,
+    "exactPeerChunk": true,
+    "challenge": true,
+    "excerptMatchesOffsets": true,
+    "noFullPeerBroadcast": true
+  },
+  "invariants": {
+    "snapshotUnchanged": true,
+    "reportUnchanged": true,
+    "recomputedReportUnchanged": true,
+    "bannerUnchanged": true,
+    "retrievalOff": true,
+    "provisionalPreserved": true,
+    "selectedAtMostOne": true,
+    "deterministicSelection": true,
+    "finalPreserved": true,
+    "round2OutputPreserved": true,
+    "noRound2Leak": true,
+    "downstreamCallCeiling": true,
+    "noPlanningOrWorkersRerun": true
+  },
+  "finishedAt": "2026-09-05T16:42:50.502Z",
+  "runtimeFingerprintAfter": {
+    "dist/agents/chief.js": "443e4bb451deb7fa7d7998faeef34482f0ea554f40695ebcdaab0294e72bb405",
+    "dist/agents/collaboration.js": "a6df6c15ca2e9610aa68820c9d9bebcff98f1399d1a9944350f7bca3c6490606",
+    "dist/agents/policy.js": "a66eafebbb7d21d50f186c6ced361f6e1435314b174684bcfd9dd3f6102f76c9",
+    "dist/agents/registry.js": "1dfee48a228f39691c971c9d9dd26491d2998389f7331a2ab7a0523b3c607888",
+    "dist/config.js": "66f8ab5135caf86eb3404f4dde97a999eb75ce10cab6464d733655f2a87501a3",
+    "dist/index.js": "0c5a058d5cd1a1678737d376e81a4bb128b2e1b6e85e4dda30398a314cbd74c5",
+    "dist/models/capabilities.js": "78052a23f3f433b31f18aaac8b30d69b201b2d4b0c250334d3e685efe34f380b",
+    "dist/modes/debate.js": "ed5950f14109fda47922b9097f3a07f97282af2e4b44bf1420f5fae6eee9169c",
+    "dist/modes/orchestrator.js": "a490e2226de50f092a4c3cfb968ca4cb4c4b8fe48c03745471a95c0f2b996633",
+    "dist/modes/pipeline.js": "57bb604f1ec5ea103bb695e3ba171f4e093c91991505bffd61ebe976b3d37f7a",
+    "dist/providers/claude.js": "58e70398b15922aab09f65b4c8058638982e57d1e4749d379358e61a625ff10f",
+    "dist/providers/gemini.js": "eb8b1580a829f5c88ff86467f51599cdfd7e3641e68fb7b4a2f6cf464986d3cc",
+    "dist/providers/index.js": "fbfd1fda5b0d9d7626a547abe4ad2f85235f074c05eee317a0182bfe45cfc178",
+    "dist/providers/openai.js": "30ced9b313b47e1f41e32d8696cb48460deec89eda0e5f50e04b2406056c73d2",
+    "dist/providers/types.js": "4a3aa817fe9d2b6e8ef22d895515266260e02cd32fd56650b4bf3e443e19ffa5",
+    "package-lock.json": "4fde57dc2c3102c081674bd6286dbc77aa9f8ecd128aa43450568edff840c5e1",
+    "package.json": "085dfdc39155871a5985234df5b0e9ca652035533294c1b644e059517f612362",
+    "src/agents/chief.ts": "a431b301a59d7163d6ad3d1d2306dd6d4dac13414b127c83c26307744e0dcaab",
+    "src/agents/collaboration.ts": "31022b24db5f69883e66763cebf1372771fee0466b84975f1cc5de7fb33f75bd",
+    "src/agents/policy.ts": "61441939086515a2432647d92d6b01d40401dda9fc50e2b601d404cd55fbad7d",
+    "src/agents/registry.ts": "fefd861f93a5571360532944e94cdbae29142df0cf8f4c17324a4063a848fbbd",
+    "src/config.ts": "410d577cf35f149bc5b58e4f5d90937ff5da2cbac2466dc065823f6a8a3136a6",
+    "src/index.ts": "88cfe2ed0f0a9d13263cd58d174011ac2571cf4c88300a1b530203717fb3db8c",
+    "src/models/capabilities.ts": "a2882443c546c5de6f2ba0a3e3b25c2f93c467d82453d9b40d93852904599b3d",
+    "src/modes/debate.ts": "8a0ec78fcbf0d120fc1d83c87c1927517a3925cbc90a341e083eaf6616acec35",
+    "src/modes/orchestrator.ts": "b1be73090a0fb57a70a0ce10a9fea9c06b79da0d677f047dd6324421967db064",
+    "src/modes/pipeline.ts": "76b2b92e7f753f892c6a0287d24f4d034c9c788795cb1b2cc920233cc137e2fa",
+    "src/providers/claude.ts": "62f112688f7adc4ef19996aa94ed53b0db18ea2c08fb181b0a2ffecb75dfef42",
+    "src/providers/gemini.ts": "ef53bf0fc1afc0098ab42a13a2aa7c15ef549735d2ad72f749e2dc64e8326b4c",
+    "src/providers/index.ts": "fbc66e1f4948de43c9e604be30f7f05f9a21c0b85a923cb461e9256d5ef4433b",
+    "src/providers/openai.ts": "5c530658ef0502a7c1b1affd9133d68642fcf62e436d36203dd063fd7d3b0d1f",
+    "src/providers/types.ts": "e8a8a66d3a219fdb769701afe48736e6c8669a9e3586895ba54193e0367b7028",
+    "tsconfig.json": "a735139f1e93b048029c7dc8fa549217df0faf5dcafcb3b0fe61fa9f16b00772"
+  },
+  "runtimeUnchanged": true
+}

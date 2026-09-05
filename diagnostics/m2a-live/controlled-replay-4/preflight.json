@@ -1,0 +1,84 @@
+{
+  "baselineCommit": "aedc9efe0ff1f4acf7d5a36d9a1b3ab87e5b9af8",
+  "runtimeCommit": "267ecffb2eebbb8fe4d42333469ad8d10b0362f4",
+  "branch": "experimental/m2a-peer-challenge",
+  "workingTree": "?? diagnostics/m2a-live/controlled-replay-4/",
+  "nodeVersion": "v24.15.0",
+  "fixtureHashes": {
+    "task.txt": {
+      "chars": 487,
+      "sha256": "22bf40a1407d6349c95d83ae699460c68451c2826eb367dc97b8cbf079a58c02"
+    },
+    "mission-business_strategist.txt": {
+      "chars": 77,
+      "sha256": "4b8711789c06d84eb1beb3e4dec53078c067fc6191c5166bee25212fc7baa3ea"
+    },
+    "mission-brand_creative.txt": {
+      "chars": 70,
+      "sha256": "d73bbed7da14a6bed779e2f80739e40cde7aec79f43c0276cae28774a986b85a"
+    },
+    "round1-business_strategist.md": {
+      "chars": 570,
+      "sha256": "15eaf46ce3e5fbd941dfce29ac21b2a6cccabce7a026f87c4988c53af23364b8"
+    },
+    "round1-brand_creative.md": {
+      "chars": 712,
+      "sha256": "8faf6c050ec540fa4db6524d267c688a90b86e6059f514b5546b1a32a2e94a67"
+    }
+  },
+  "replay3SnapshotSha256": "cb5e9c309a8b64cac1b688d9de4ff4a9b26fc504d40d3ccb5ff412bcb4965a4b",
+  "replay4SnapshotSha256": "cb5e9c309a8b64cac1b688d9de4ff4a9b26fc504d40d3ccb5ff412bcb4965a4b",
+  "byteIdenticalFixtureVerified": true,
+  "replay3ArtifactSha256": "e184ab46be33f2df72ed096d146938a143a2d1197ac4e308c182ce3d7844a878",
+  "controlCases": 16,
+  "controlSha256": "f50a7b2ee2a8b7f896dc6a6b88692d612281553011a1de685b2e39c9a567c698",
+  "controlByteEquivalent": true,
+  "offlineTests": {
+    "before": 208,
+    "after": 212,
+    "failed": 0
+  },
+  "gateProvider": "openai",
+  "gateModel": "gpt-5",
+  "expectedGatePromptSha256": "a64cd320b27a61e722ff0e87701afa2469ca03b2329cd5a2d15ab0928009f8c7",
+  "gateChangedOnlyEligibility": true,
+  "round2DefaultModels": {
+    "business_strategist": "claude-sonnet-5",
+    "brand_creative": "gpt-5"
+  },
+  "runtimeFingerprint": {
+    "dist/agents/chief.js": "443e4bb451deb7fa7d7998faeef34482f0ea554f40695ebcdaab0294e72bb405",
+    "dist/agents/collaboration.js": "a6df6c15ca2e9610aa68820c9d9bebcff98f1399d1a9944350f7bca3c6490606",
+    "dist/agents/policy.js": "a66eafebbb7d21d50f186c6ced361f6e1435314b174684bcfd9dd3f6102f76c9",
+    "dist/agents/registry.js": "1dfee48a228f39691c971c9d9dd26491d2998389f7331a2ab7a0523b3c607888",
+    "dist/config.js": "66f8ab5135caf86eb3404f4dde97a999eb75ce10cab6464d733655f2a87501a3",
+    "dist/index.js": "0c5a058d5cd1a1678737d376e81a4bb128b2e1b6e85e4dda30398a314cbd74c5",
+    "dist/models/capabilities.js": "78052a23f3f433b31f18aaac8b30d69b201b2d4b0c250334d3e685efe34f380b",
+    "dist/modes/debate.js": "ed5950f14109fda47922b9097f3a07f97282af2e4b44bf1420f5fae6eee9169c",
+    "dist/modes/orchestrator.js": "a490e2226de50f092a4c3cfb968ca4cb4c4b8fe48c03745471a95c0f2b996633",
+    "dist/modes/pipeline.js": "57bb604f1ec5ea103bb695e3ba171f4e093c91991505bffd61ebe976b3d37f7a",
+    "dist/providers/claude.js": "58e70398b15922aab09f65b4c8058638982e57d1e4749d379358e61a625ff10f",
+    "dist/providers/gemini.js": "eb8b1580a829f5c88ff86467f51599cdfd7e3641e68fb7b4a2f6cf464986d3cc",
+    "dist/providers/index.js": "fbfd1fda5b0d9d7626a547abe4ad2f85235f074c05eee317a0182bfe45cfc178",
+    "dist/providers/openai.js": "30ced9b313b47e1f41e32d8696cb48460deec89eda0e5f50e04b2406056c73d2",
+    "dist/providers/types.js": "4a3aa817fe9d2b6e8ef22d895515266260e02cd32fd56650b4bf3e443e19ffa5",
+    "package-lock.json": "4fde57dc2c3102c081674bd6286dbc77aa9f8ecd128aa43450568edff840c5e1",
+    "package.json": "085dfdc39155871a5985234df5b0e9ca652035533294c1b644e059517f612362",
+    "src/agents/chief.ts": "a431b301a59d7163d6ad3d1d2306dd6d4dac13414b127c83c26307744e0dcaab",
+    "src/agents/collaboration.ts": "31022b24db5f69883e66763cebf1372771fee0466b84975f1cc5de7fb33f75bd",
+    "src/agents/policy.ts": "61441939086515a2432647d92d6b01d40401dda9fc50e2b601d404cd55fbad7d",
+    "src/agents/registry.ts": "fefd861f93a5571360532944e94cdbae29142df0cf8f4c17324a4063a848fbbd",
+    "src/config.ts": "410d577cf35f149bc5b58e4f5d90937ff5da2cbac2466dc065823f6a8a3136a6",
+    "src/index.ts": "88cfe2ed0f0a9d13263cd58d174011ac2571cf4c88300a1b530203717fb3db8c",
+    "src/models/capabilities.ts": "a2882443c546c5de6f2ba0a3e3b25c2f93c467d82453d9b40d93852904599b3d",
+    "src/modes/debate.ts": "8a0ec78fcbf0d120fc1d83c87c1927517a3925cbc90a341e083eaf6616acec35",
+    "src/modes/orchestrator.ts": "b1be73090a0fb57a70a0ce10a9fea9c06b79da0d677f047dd6324421967db064",
+    "src/modes/pipeline.ts": "76b2b92e7f753f892c6a0287d24f4d034c9c788795cb1b2cc920233cc137e2fa",
+    "src/providers/claude.ts": "62f112688f7adc4ef19996aa94ed53b0db18ea2c08fb181b0a2ffecb75dfef42",
+    "src/providers/gemini.ts": "ef53bf0fc1afc0098ab42a13a2aa7c15ef549735d2ad72f749e2dc64e8326b4c",
+    "src/providers/index.ts": "fbc66e1f4948de43c9e604be30f7f05f9a21c0b85a923cb461e9256d5ef4433b",
+    "src/providers/openai.ts": "5c530658ef0502a7c1b1affd9133d68642fcf62e436d36203dd063fd7d3b0d1f",
+    "src/providers/types.ts": "e8a8a66d3a219fdb769701afe48736e6c8669a9e3586895ba54193e0367b7028",
+    "tsconfig.json": "a735139f1e93b048029c7dc8fa549217df0faf5dcafcb3b0fe61fa9f16b00772"
+  }
+}

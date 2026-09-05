@@ -1,0 +1,14 @@
+{
+  "README.md": "dedb2a37d9a66647b2abc5a0e2541d527dde0cdbf22e8afd98bc62dbe544034c",
+  "artifact.json": "b9f5f62076343ed8f5a3f9d41b4467456c645dd361ba967fafff20b6b2ee7b85",
+  "attempt.json": "72e9123794c9a286e212716acdf41085f01407a04d89ea505ea35fe366c7480a",
+  "control-after.json": "f50a7b2ee2a8b7f896dc6a6b88692d612281553011a1de685b2e39c9a567c698",
+  "control-before.json": "f50a7b2ee2a8b7f896dc6a6b88692d612281553011a1de685b2e39c9a567c698",
+  "control.mjs": "a0fbf8eb778aea0a12d7a8c776a2c925ab141d6fe68668fd5688fd8aeeb30ca9",
+  "evaluation.md": "7b131f40743612370d70dc610e82e8864db5c31e768eb8b46af5dcbf8e45970d",
+  "harness.mjs": "78844251a0227e25627bb251310f246fd58cff3e9d0f3b137bb11687e139a0d3",
+  "npm-test-after.log": "fec48787cda7db26c3ec1a2b82f34fd2b2b24e38beba3dd6ac226e1bf19a8269",
+  "npm-test-before.log": "10583445405af94b23f6e5abbc59627ba089beef7d7c917963fe0efe645a1883",
+  "preflight.json": "c4b98a18c45fc7d22dcbb9fc2b05280929c202714571ee3974e73f8cb6bef41d",
+  "verify.mjs": "991799fd9dd7742a7d5291633de7db67719377bc0e24830951f929a42887c5c2"
+}
