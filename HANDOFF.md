@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-05, rev. 16)
+# ai-collab-mcp — Progress Report (2026-09-05, rev. 17)
 
 > ## 交接狀態
 >
@@ -10,7 +10,8 @@
 > | **Step 7 V1 Complexity Router** | **CODE + RUNTIME ACCEPTED —— 有界 SIMPLE direct delivery** |
 > | **Step 7.1 E2E Runtime Acceptance** | **DONE —— Test A PASS / Test B PASS,詳見第十八節** |
 > | **Milestone 2 scope analysis** | **DONE —— 見 `MILESTONE2_SCOPE_ANALYSIS.md`、第二十節** |
-> | **Experimental Milestone 2-A Prototype** | **PRE-LIVE FINALIZED / DEFAULT OFF —— 尚未跑過 live,詳見第二十一節** |
+> | **Experimental Milestone 2-A Prototype** | **PRE-LIVE FINALIZED / DEFAULT OFF —— 詳見第二十一節** |
+> | **M2-A Diagnostic Live #1 / #2** | **兩次皆 NOT EXERCISED —— 機制從未被真正執行,阻擋點各不相同,詳見第二十二節** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
 > | **目前離線測試** | **208 項全過 = rev.14 的 99 + M2-A 累計 109** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
@@ -20,6 +21,18 @@
 > **Experimental Milestone 2-A prototype 已實作,default OFF。** 關掉時的行為與回傳 payload 與 rev.14 逐欄相同,99 項既有測試無一需要放寬。新增 73 項測試涵蓋 stage 標記、call ceiling、best-effort parsing、issue 驗證、deterministic selection、selective peer context、失敗回退與 evidence 不變式。這是量測用的 prototype,不是 production feature,尚未跑過任何 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 17 改了什麼(兩次 Diagnostic Live 的結果)
+
+1. **兩次 live 都執行了,兩次都 `NOT EXERCISED`** —— targeted peer challenge 機制到目前為止**一次也沒有被真正執行過**。這不是 runtime 缺陷:兩次都沒有出現任何 defect,但也沒有任何一次讓 gate 有機會運作。
+2. **阻擋點是兩個不同的條件** —— #1 是 `single_specialist_no_peer`(Chief 只派 1 位),#2 是 `complexity_not_deep (normal)`(Chief 派了 2 位,但把任務判為 normal)。修掉其中一個不會讓另一個消失。
+3. **Planning Reachability 在 #2 通過** —— 在一個同時具備商業可行性、市場需求判讀、品牌定位三種資訊的固定 fixture 上,Chief 自行派出 2 位專家(business_strategist + brand_creative),並明確排除 market_researcher,理由是 fixture 已寫明不需外部搜尋。`planningAdjustments` 為空,沒有任何 enforcement 介入。**這是 Chief 自己的判斷,不是被規則逼出來的。**
+4. **兩次的 runtime 不變式都成立** —— gate 未啟動時 synthesis prompt 不含附錄(以實際 captured prompt 驗證)、`finalOutput` 逐字元等於 `banner + synthesis 原文`、evidence label 以 Round 1 結果獨立重算一致、四次/三次呼叫皆無 retrieval request、call ceiling respected。
+5. **保存完整證據** —— `diagnostics/m2a-live/` 收錄兩次執行的 artifact(含每次呼叫的 prompt 原文與回應原文)、harness 與 #2 的逐字 fixture。harness 是 pass-through recorder,參數原封轉給真正的 `callProvider`,runtime 行為未改變。
+6. **未修改任何程式** —— 兩輪 diagnostic 期間 `HEAD` 始終是 `d1d1d28`,working tree 全程 clean。本次 commit 只新增文件與證據。
+7. **修正審查包的一句過期敘述** —— 舊版結尾寫「一次 live 都還沒跑過」,現已改為「跑過兩次,機制仍未被執行」,以免審查者以為機制已被實測。
+
+---
 
 ## rev. 16 改了什麼(M2-A Pre-Live Finalization)
 
@@ -1941,3 +1954,111 @@ C_provisional  vs  C_final     ← 同一個任務、同一份 Round 1、同一�
 這三題的答案決定接下來要不要調 prompt,而它們都不需要評分系統。
 
 已停在此處,未自行開始任何 live 執行。
+
+---
+
+# 二十二、M2-A Diagnostic Live #1 / #2 —— 兩次皆 NOT EXERCISED
+
+證據:[`diagnostics/m2a-live/`](diagnostics/m2a-live/),含每次呼叫的 prompt 原文與回應原文。
+
+兩次執行的 commit 都是 `d1d1d28`,working tree 全程 clean,**沒有修改任何程式**。方法:注入一個 pass-through recorder 當 dispatcher,參數原封不動轉給真正的 `callProvider`,額外保存構建出來的 prompt —— 因此「Round 2 prompt 實際包含什麼」這類問題可以用 artifact 回答,不是靠讀原始碼推論。
+
+## 一句話結論
+
+**targeted peer challenge 機制到目前為止一次也沒有被真正執行過,而且兩次被擋下的原因不同。**
+
+| | Fixture 性質 | complexity | N | 阻擋點 | logical calls |
+|---|---|---|---|---|---|
+| #1 | 五年租約 + 650 萬 capex 的重大投資決策 | `deep` | 1 | `single_specialist_no_peer` | 3 |
+| #2 | 月訂閱新服務,含商業/市場/品牌三種決策資訊 | **`normal`** | 2 | `complexity_not_deep (normal)` | 4 |
+
+**修掉其中一個不會讓另一個消失。** M2-A 的 gate 需要同時滿足 `deep` **且** 至少 2 位成功專家;兩次執行各自缺了其中一個條件。
+
+## Diagnostic #1
+
+Chief 正確判為 `deep`,列出 5 項 required capabilities,但只派 1 位 `business_strategist`。原文理由:
+
+> Additional market/brand specialists would add detail but **not change the core decision under current data constraints**.
+
+Fixture 裡寫了「虛擬製作的實際市場需求我們沒有數據」—— Chief 讀成「市場研究在這裡幫不上忙」。**這一半是任務設計造成的**,不是 planner 缺陷。
+
+`RunStatus: SUCCESS`｜`EvidenceLabel: HYPOTHESIS`(deep 且無 evidence 專家)｜banner 正確附加｜總時長 273.4s。
+
+## Diagnostic #2 —— Planning Reachability PASS
+
+固定 fixture(逐字使用,sha256 `e8b6493d…`)刻意同時包含商業可行性、市場需求判讀、品牌定位三種不可互相取代的資訊。
+
+```
+complexity          : normal
+requiredCapabilities: business strategy and unit economics
+                      brand architecture and service design
+assignment count    : 2  → business_strategist(high) + brand_creative(medium)
+planningAdjustments : []
+```
+
+Chief 原文理由:
+
+> Decision hinges on unit economics/operational risk and brand cannibalization. **No external research is needed.** … **Two specialists are sufficient.**
+
+它排除 `market_researcher` 的理由與 fixture 明寫的「不需要進行外部搜尋」一致。**依既有標準這是 PASS** —— 第 5 節的判準是「>= 2 位」,而不是「一定要 3 位」;2 位若有合理理由,同樣是正確的 Minimum Sufficient Collaboration。
+
+但 complexity 判成 `normal`,而 M2-A 是 DEEP-only,所以 gate 仍未執行。
+
+**這次的材料本來是夠的。** 兩位專家都選 B,但論證基礎不同 —— strategist 從下檔風險與證據強度切入,brand_creative 從定價錨點與客群區隔切入。gate 從來沒有機會看到這組材料。
+
+## 兩次都成立的 runtime 不變式
+
+以實際 artifact 驗證,不是靠程式碼推論:
+
+| 檢查 | #1 | #2 |
+|---|---|---|
+| gate 未啟動時 synthesis prompt 不含附錄 | ✅ | ✅ |
+| 無 `synthesis_gate` / `round2_worker` / `decision_synthesis` stage | ✅ | ✅ |
+| `finalOutput` 逐字元 == `banner + synthesis 原文` | ✅ | ✅ |
+| evidence label 以 Round 1 獨立重算一致 | ✅ HYPOTHESIS | ✅ NOT_APPLICABLE |
+| 所有呼叫皆無 retrieval request 與 result | ✅ | ✅ |
+| call ceiling respected | ✅ 3 = 1+N+1 | ✅ 4 = 1+N+1 |
+| `collaboration` 物件四態可分辨 | ✅ NOT_TRIGGERED | ✅ NOT_TRIGGERED |
+
+**沒有發現任何 runtime defect。**
+
+## Chunk 壓力觀察(僅觀察,未修改 Chunker)
+
+```
+#1  business_strategist : 36 chunks
+#2  business_strategist : 23 chunks
+    brand_creative      : 17 chunks
+    total presented     : 40
+```
+
+若 gate 有跑,#2 會面對 40 個可選 reference。
+
+低資訊 chunk 確實存在:#2 的 `business_strategist` 有 10 個少於 40 字元的 chunk,其中 4 個是孤立的 `---` 分隔線,其餘是 Markdown 標題行;`brand_creative` 只有 2 個。
+
+**依指示未修改 Chunker。** 只有在真實 gate 選中無意義 chunk 並造成 peer challenge 錯位時,才構成修改依據 —— 目前沒有這個證據,現在改就是在對著猜測調整。
+
+## Latency 觀察(單次,非平均值)
+
+```
+#1  planning 29.9s  | worker      178.6s | synthesis 65.0s  | total 273.4s
+#2  planning 20.1s  | workers     572.1s | synthesis 122.3s | total 714.5s
+```
+
+#2 的 `brand_creative`(openai)單次 **572.1 秒**,比 #1 的整輪總時長還久。單次觀察,不是平均值、不是 SLA、不是 production performance —— 但值得記在案。
+
+## 本輪不得宣稱的事
+
+多 agent 比單 agent 好、peer challenge 改善答案、M2-A 已證明有產品價值、三位專家才是正確規劃、planner 必須固定招募三人。**兩次執行都沒有讓機制運作,因此對機制的價值一無所知。**
+
+這兩次回答的只有:多 specialist path 在合理任務下是否 reachable(#2:是),以及機制是否按設計運作(仍未知)。
+
+## 給下一輪 Architecture Review 的開放問題
+
+| # | 問題 |
+|---|---|
+| R-1 | DEEP-only 是否過窄?#2 是一個有真實跨專家分歧的 `normal` 任務,卻不在範圍內 |
+| R-2 | 兩次不同 fixture 分別收斂到 1 位與 2 位,是否需要研究 planner policy?(第一次的原因與任務設計有關,不宜單獨當證據) |
+| R-3 | 要不要接受「diagnostic 只能靠碰運氣觸發」,還是需要一個能穩定觸發 gate 的方式來驗證機制本身? |
+| R-4 | Chunk 切法在 40 個 reference 的規模下是否足夠精準?(目前無證據,不宜先改) |
+
+**R-3 是關鍵。** 目前驗證機制的唯一辦法是不斷跑真實任務、等它自然觸發,而兩次都沒中。這既慢又貴,而且無法保證下一次會中。

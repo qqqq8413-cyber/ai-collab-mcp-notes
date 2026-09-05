@@ -14,6 +14,28 @@
 
 ---
 
+## 0.1 ⚠️ 兩次 diagnostic live 的結果:機制仍未被執行
+
+程式碼未變(仍是本包所述的版本),但已經跑過兩次真實執行,**兩次都沒有讓 gate 運作**:
+
+| | complexity | N | 阻擋點 | logical calls |
+|---|---|---|---|---|
+| #1 重大投資決策(五年租約 + 650 萬 capex) | `deep` | 1 | `single_specialist_no_peer` | 3 |
+| #2 新服務決策(含商業/市場/品牌三種資訊) | **`normal`** | 2 | `complexity_not_deep (normal)` | 4 |
+
+gate 需要**同時**滿足 `deep` 且至少 2 位成功專家。兩次各自缺一個條件,**修掉其中一個不會讓另一個消失**。
+
+兩次都沒有 runtime defect:gate 未啟動時 synthesis prompt 不含附錄(以 captured prompt 驗證)、`finalOutput` 逐字元等於 `banner + synthesis 原文`、evidence label 以 Round 1 獨立重算一致、所有呼叫皆無 retrieval、call ceiling 皆為 `1 + N + 1`。
+
+#2 特別值得注意:兩位專家都選同一個選項,但論證基礎不同(一位從下檔風險與證據強度,一位從定價錨點與客群區隔)。**材料本來是夠的,gate 從來沒有機會看到。**
+
+這對你的審查有兩個影響:
+
+1. **本包第 5 節的九個挑戰點仍然全部有效**,因為沒有任何一項被實測推翻或證實。
+2. **多了一個新問題**:目前驗證機制的唯一辦法是跑真實任務等它自然觸發,兩次都沒中。這既慢又貴,也無法保證下次會中。**是否需要一個能穩定觸發 gate 的方式來驗證機制本身?** 請一併回答。
+
+---
+
 ## 1. 這一版相對上一版改了什麼
 
 | # | 改動 | 原因 |
@@ -493,4 +515,4 @@ runtime measurement > code / deterministic tests > independent external evidence
 
 **模型收斂不是獨立實證。** 你的意見屬於倒數第二層。
 
-**特別提醒:** 這份 prototype **一次 live 都還沒跑過**。任何關於「它實際表現如何」的判斷,你和我一樣沒有證據。
+**特別提醒:** 這份 prototype 已經跑過**兩次** diagnostic live,**兩次的協作機制都沒有被執行到**(見第 0.1 節)。所以關於「它實際表現如何」,你和我一樣仍然沒有證據 —— 差別只在於現在我們知道它為什麼還沒被執行。

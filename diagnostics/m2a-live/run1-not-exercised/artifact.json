@@ -1,0 +1,409 @@
+{
+  "startedAt": "2026-09-05T13:09:53.336Z",
+  "finishedAt": "2026-09-05T13:14:26.750Z",
+  "task": "我們是一家 12 人的影像製作公司,主要收入來自品牌形象影片與電商產品影片。去年營收約新台幣 4,800 萬,毛利率約 38%,手上現金約 900 萬。\n\n現在要決定一件事:是否簽下一個五年期的自有攝影棚租約,並同時投入約 650 萬購置燈光、軌道與虛擬製作(LED 牆)設備。\n\n背景與限制:\n- 目前所有案子都租借外部棚,一年棚租與外租設備支出約 320 萬,且旺季常訂不到理想檔期。\n- 五年租約年租金約 240 萬,含裝修攤提後前兩年現金流會明顯吃緊。\n- 前五大客戶佔營收 61%,其中最大一家的年度合約每年重新議價。\n- 團隊目前沒有專職棚務與設備維護人力,需要再聘一到兩人。\n- 有兩家規模相近的同業在過去 18 個月內先後建置了自有棚。\n- 虛擬製作的實際市場需求我們沒有數據,只有業務端零星反饋。\n\n請給我一個明確的決策建議(簽、不簽,或有條件地簽),並包含:\n1. 這個決定成立的關鍵前提是什麼,以及哪些前提目前沒有證據支撐\n2. 最主要的三個風險,以及各自的早期預警指標\n3. 如果決定不簽,替代方案是什麼\n4. 如果決定簽,前 12 個月必須達成什麼才算走在正軌\n\n請用繁體中文回答。",
+  "roster": [
+    {
+      "id": "business_strategist",
+      "provider": "claude",
+      "model": null,
+      "evidenceCapable": false
+    },
+    {
+      "id": "market_researcher",
+      "provider": "gemini",
+      "model": null,
+      "evidenceCapable": true
+    },
+    {
+      "id": "brand_creative",
+      "provider": "openai",
+      "model": null,
+      "evidenceCapable": false
+    }
+  ],
+  "plan": {
+    "complexity": "deep",
+    "requiredCapabilities": [
+      "financial modeling and cash-flow analysis",
+      "strategic decision-making under uncertainty",
+      "risk assessment and mitigation planning",
+      "scenario and sensitivity analysis",
+      "operational planning and milestones design"
+    ],
+    "assignments": [
+      {
+        "agentId": "business_strategist",
+        "mission": "Deliver a clear decision (sign/not sign/conditional) on a 5-year studio lease plus NT$6.5M capex. Build base/upside/downside P&L and cash-flow vs status quo, break-even and payback, utilization and pricing sensitivity, impact of top-client churn, staffing costs, and VP (LED) demand uncertainty. Define critical assumptions, top 3 risks with early indicators, alternative plan if not signing, and 12-month on-track milestones if signing.",
+        "priority": "high"
+      }
+    ],
+    "requiresRedTeam": false,
+    "reason": "This is a major investment decision driven primarily by internal unit economics, cash flow, and risk tolerance. A single business strategist can integrate financial scenarios, decision logic, risks, triggers, and operational milestones. Additional market/brand specialists would add detail but not change the core decision under current data constraints."
+  },
+  "planningAdjustments": [],
+  "workerResults": [
+    {
+      "agentId": "business_strategist",
+      "provider": "claude",
+      "mission": "Deliver a clear decision (sign/not sign/conditional) on a 5-year studio lease plus NT$6.5M capex. Build base/upside/downside P&L and cash-flow vs status quo, break-even and payback, utilization and pricing sensitivity, impact of top-client churn, staffing costs, and VP (LED) demand uncertainty. Define critical assumptions, top 3 risks with early indicators, alternative plan if not signing, and 12-month on-track milestones if signing.",
+      "output": "# 决策建議:**不簽現行的「5年綁約+一次性650萬資本支出」方案**,改採分階段替代方案;若特定前提在6–12個月內被驗證成立,才轉為「有條件簽」較小規模或較短年期的版本。\n\n以下先給出支撐這個結論的財務情境分析(所有數字為依題目資訊推導之**illustrative假設**,請貴公司以實際財務數字代入重跑,但結論的方向性應不變),再回答四個必答項目。\n\n---\n\n## 一、財務情境模型(Base / Upside / Downside)\n\n### 增量現金成本估算(每年,不含資本支出)\n\n| 項目 | Base | Upside | Downside |\n|---|---|---|---|\n| 租金(含裝修攤提) | 240萬 | 240萬 | 240萬 |\n| 新增棚務/維運人力(1–1.5人) | 110萬 | 110萬 | 130萬 |\n| 維護/保險/水電 | 40萬 | 40萬 | 60萬 |\n| 旺季殘留外租需求 | 64萬(取代80%) | 0(取代100%) | 160萬(僅取代50%) |\n| **增量成本合計** | **454萬** | **390萬** | **590萬** |\n| 減:原外租省下 | -256萬 | -320萬 | -160萬 |\n| **淨增量現金成本(不含capex)** | **≈198萬/年** | **≈70萬/年** | **≈430萬/年** |\n\n資本支出650萬為一次性現金流出(Year 0/1)。\n\n### 新增營收貢獻假設(來自自有棚使用率提升+VP新客源)\n\n- Base:額外營收約800萬 → 額外GP(38%)≈304萬\n- Upside:額外營收約2,000萬(含VP溢價) → 額外GP(38–45%)≈760–900萬\n- Downside:VP需求未兌現,棚僅取代原外租,**額外營收=0**\n\n### 年度淨現金影響(不含capex)\n\n| 情境 | 額外GP | 淨增量成本 | 年度淨影響 |\n|---|---|---|---|\n| Base | 304萬 | 198萬 | **+106萬** |\n| Upside | 830萬 | 70萬 | **+830萬** |\n| Downside | 0 | 430萬 | **−430萬** |\n\n### 資本支出回收期(僅650萬部分)\n\n- Base:650/106 ≈ **6.1年**,**超過5年租期**,租約到期前無法回收\n- Upside:650/830 ≈ **0.8年**,快速回收\n- Downside:**永不回收**,每年持續燒現金\n\n### Year 1 現金流檢驗(起點現金900萬)\n\n- Base(第一年爬坡期,假設新業務只兌現50%):900 − 650(capex) − 198(淨增量) + 150(部分新GP)≈ **剩202萬**,現金幾乎耗盡,與題目描述「前兩年現金流明顯吃緊」完全吻合。\n- Downside:900 − 650 − 430 ≈ **−180萬**,**第一年現金即轉負**,必須動用信用額度或增資。\n\n### 損益兩平所需成長\n\n- 打平「淨增量成本」需額外營收 ≈198萬/38% ≈ **521萬(+11%)**\n- 若要在5年租期內同時回收650萬資本支出,5年累積需額外GP約1,640萬,平均每年328萬 → 對應年額外營收約**863萬(+18%)**,且須**連續5年**維持。\n\n### 大客戶流失衝擊\n\n假設最大客戶約占營收20%(≈960萬營收,GP≈365萬)。該客戶每年重新議價,若砍價15–20%或流失,GP損失55–365萬,**足以吃掉甚至反轉Base情境全年+106萬的淨效益**。棚的固定成本(租金+折舊+人事)**不會因客戶流失而下降**,這是本案最脆弱的一環。\n\n### 使用率/定價敏感度\n\n要打平上述缺口,自有棚的實際「產值」需從目前外租320萬水準,成長至約840萬等值水準,即使用天數需成長**2倍以上**。目前**唯一支持這個假設的證據是業務端零星反饋**,沒有正式的市場調研或客戶意向書佐證。\n\n---\n\n## 二、正式回答四個項目\n\n### 1. 關鍵前提與缺乏證據的部分\n\n| 前提 | 是否有證據支撐 |\n|---|---|\n| 棚使用率可從現況成長2倍以上(自用+對外出租) | **無**,僅業務端零星反饋 |\n| 虛擬製作(LED牆)能帶來每年500–900萬新增GP | **無市場數據**,是最大未驗證假設,且占650萬資本支出中比重最高(推估LED牆+VP設備占60–70%) |\n| 前五大客戶尤其最大客戶未來5年合約穩定 | **無**,合約逐年重議,且無替代客源計畫 |\n| 簽約後仍能維持至少3–4個月安全現金水位 | **模型顯示不成立**,Year1即逼近甚至跌破安全水位 |\n| 新增1–2名棚務/維運人力可順利招募並穩定留任 | 未驗證 |\n\n**結論:支撐這個5年決定的前提,幾乎全數缺乏證據**,尤其VP需求與使用率成長這兩項是財務模型能否轉正的關鍵變數,目前僅靠假設支撐。\n\n### 2. 最主要的三個風險與早期預警指標\n\n**風險一:流動性風險(現金耗盡)**\n- 早期預警指標:每月現金餘額低於3個月營運費用;需動用信用額度;應收帳款天數拉長。\n\n**風險二:客戶集中度與流失風險**\n- 早期預警指標:最大客戶議約延遲或主動砍價;前五大客戶當年下單量年減>10%;新客戶開發未達季度目標。\n\n**風險三:使用率/VP需求不如預期風險**\n- 早期預警指標:簽約後前2季棚每月使用天數未達目標70%;LED/VP詢問轉正式提案(RFP)轉換率低於20%;業務反饋的潛在案源3個月內未轉化為實單。\n\n### 3. 若決定不簽,替代方案\n\n- **方案A:與外部棚簽長期框架/包底協議**——用年度最低承諾金額換取旺季優先檔期與折扣,解決訂不到檔期的痛點,但不承擔5年租約與650萬資本支出。\n- **方案B:小額投入(100–150萬)**——僅添購可攜式LED面板、基礎軌道與燈光,強化在外租棚時的效率與作品力,不綁長約、保留彈性。\n- **方案C:與同業或中小型製作公司共同出資/共用棚**——分攤租金與資本支出,並採1年一約而非5年,保留退出彈性。\n- **方案D:市場驗證優先**——先動用150–200萬,租用第三方LED虛擬棚實際執行1–2個真實案子,取得客戶付費意願與毛利率的**真實數據**,再決定是否自建。\n\n### 4. 若決定簽(或未來條件成立後轉為簽約),前12個月必須達成的里程碑\n\n- **財務**:Q1結束現金水位不低於300萬安全門檻;全年淨增量現金成本控制在估算值±20%內。\n- **使用率**:棚每月自用+外租使用天數達到目標(如每月12–15工作天,使用率50%以上)。\n- **新增業務驗證**:至少3個非既有前五大客戶的新案源使用自有棚拍攝,證明棚帶來的是「增量業務」而非單純取代外租。\n- **VP/LED變現**:由虛擬製作帶來至少2–3個新簽約案,合計貢獻營收500萬以上。\n- **客戶穩定度**:最大客戶完成年度重議價且維持在原營收±10%內;若流失,3個月內須找到替代營收。\n- **人力/營運**:新聘棚務人力到位並穩定運作,無因人力不足導致檔期衝突或設備事故。\n- **止損機制**:若12個月後上述指標多數(70%以上)未達成,應立即啟動止損——轉租部分棚期給第三方、暫緩後續設備追加投資。\n\n---\n\n**總結**:目前的財務結構顯示,這個決定在Base情境下**回收期超過租約年限**,在Downside情境下**第一年現金即轉負**,而支撐Upside情境的關鍵假設(VP需求、使用率翻倍)**目前完全沒有數據佐證**。在缺乏市場驗證與客戶集中度風險未緩解的情況下,建議**先不簽**,以低成本、可逆的替代方案驗證需求,待關鍵前提被實際數據證實後,再考慮較小規模或較短年期的條件式簽約。"
+    }
+  ],
+  "report": {
+    "status": "SUCCESS",
+    "requestedWorkers": 1,
+    "successfulWorkers": 1,
+    "failedWorkers": 0,
+    "failures": [],
+    "synthesisAllowed": true,
+    "evidenceLabel": "HYPOTHESIS",
+    "notes": [
+      "Deep task, but no evidence-gathering specialist was recruited. External facts in this answer (market size, pricing, competitor behaviour, growth rates) come from what the models already believed, not from gathered evidence."
+    ],
+    "policy": {
+      "topology": "single",
+      "synthesize": true,
+      "reason": "non_simple_execution"
+    }
+  },
+  "recomputedReportFromRound1": {
+    "status": "SUCCESS",
+    "evidenceLabel": "HYPOTHESIS",
+    "notes": [
+      "Deep task, but no evidence-gathering specialist was recruited. External facts in this answer (market size, pricing, competitor behaviour, growth rates) come from what the models already believed, not from gathered evidence."
+    ]
+  },
+  "bannerFromRound1Report": "> **UNVERIFIED — HYPOTHESIS**\n> No external evidence was gathered for this answer. Treat it as a strategy\n> hypothesis to be validated, not as a conclusion. Pricing, market and growth\n> figures below are unchecked model assumptions.\n\n",
+  "collaboration": {
+    "status": "NOT_TRIGGERED",
+    "reason": "single_specialist_no_peer",
+    "answerSource": "round1_provisional",
+    "parse": {
+      "status": "absent"
+    },
+    "issues": {
+      "emitted": 0,
+      "valid": 0,
+      "eligible": 0,
+      "recorded": [],
+      "rejected": []
+    },
+    "timings": {
+      "totalMs": 0
+    },
+    "notes": [
+      "The collaboration gate did not run: single_specialist_no_peer. The answer is the ordinary synthesis, unchanged."
+    ]
+  },
+  "chunkMapRecomputed": {
+    "business_strategist": [
+      {
+        "id": "p1",
+        "index": 0,
+        "startChar": 0,
+        "endChar": 88,
+        "text": "# 决策建議:**不簽現行的「5年綁約+一次性650萬資本支出」方案**,改採分階段替代方案;若特定前提在6–12個月內被驗證成立,才轉為「有條件簽」較小規模或較短年期的版本。"
+      },
+      {
+        "id": "p2",
+        "index": 1,
+        "startChar": 90,
+        "endChar": 179,
+        "text": "以下先給出支撐這個結論的財務情境分析(所有數字為依題目資訊推導之**illustrative假設**,請貴公司以實際財務數字代入重跑,但結論的方向性應不變),再回答四個必答項目。"
+      },
+      {
+        "id": "p3",
+        "index": 2,
+        "startChar": 181,
+        "endChar": 184,
+        "text": "---"
+      },
+      {
+        "id": "p4",
+        "index": 3,
+        "startChar": 186,
+        "endChar": 223,
+        "text": "## 一、財務情境模型(Base / Upside / Downside)"
+      },
+      {
+        "id": "p5",
+        "index": 4,
+        "startChar": 225,
+        "endChar": 248,
+        "text": "### 增量現金成本估算(每年,不含資本支出)"
+      },
+      {
+        "id": "p6",
+        "index": 5,
+        "startChar": 250,
+        "endChar": 613,
+        "text": "| 項目 | Base | Upside | Downside |\n|---|---|---|---|\n| 租金(含裝修攤提) | 240萬 | 240萬 | 240萬 |\n| 新增棚務/維運人力(1–1.5人) | 110萬 | 110萬 | 130萬 |\n| 維護/保險/水電 | 40萬 | 40萬 | 60萬 |\n| 旺季殘留外租需求 | 64萬(取代80%) | 0(取代100%) | 160萬(僅取代50%) |\n| **增量成本合計** | **454萬** | **390萬** | **590萬** |\n| 減:原外租省下 | -256萬 | -320萬 | -160萬 |\n| **淨增量現金成本(不含capex)** | **≈198萬/年** | **≈70萬/年** | **≈430萬/年** |"
+      },
+      {
+        "id": "p7",
+        "index": 6,
+        "startChar": 615,
+        "endChar": 642,
+        "text": "資本支出650萬為一次性現金流出(Year 0/1)。"
+      },
+      {
+        "id": "p8",
+        "index": 7,
+        "startChar": 644,
+        "endChar": 674,
+        "text": "### 新增營收貢獻假設(來自自有棚使用率提升+VP新客源)"
+      },
+      {
+        "id": "p9",
+        "index": 8,
+        "startChar": 676,
+        "endChar": 799,
+        "text": "- Base:額外營收約800萬 → 額外GP(38%)≈304萬\n- Upside:額外營收約2,000萬(含VP溢價) → 額外GP(38–45%)≈760–900萬\n- Downside:VP需求未兌現,棚僅取代原外租,**額外營收=0**"
+      },
+      {
+        "id": "p10",
+        "index": 9,
+        "startChar": 801,
+        "endChar": 821,
+        "text": "### 年度淨現金影響(不含capex)"
+      },
+      {
+        "id": "p11",
+        "index": 10,
+        "startChar": 823,
+        "endChar": 977,
+        "text": "| 情境 | 額外GP | 淨增量成本 | 年度淨影響 |\n|---|---|---|---|\n| Base | 304萬 | 198萬 | **+106萬** |\n| Upside | 830萬 | 70萬 | **+830萬** |\n| Downside | 0 | 430萬 | **−430萬** |"
+      },
+      {
+        "id": "p12",
+        "index": 11,
+        "startChar": 979,
+        "endChar": 999,
+        "text": "### 資本支出回收期(僅650萬部分)"
+      },
+      {
+        "id": "p13",
+        "index": 12,
+        "startChar": 1001,
+        "endChar": 1108,
+        "text": "- Base:650/106 ≈ **6.1年**,**超過5年租期**,租約到期前無法回收\n- Upside:650/830 ≈ **0.8年**,快速回收\n- Downside:**永不回收**,每年持續燒現金"
+      },
+      {
+        "id": "p14",
+        "index": 13,
+        "startChar": 1110,
+        "endChar": 1136,
+        "text": "### Year 1 現金流檢驗(起點現金900萬)"
+      },
+      {
+        "id": "p15",
+        "index": 14,
+        "startChar": 1138,
+        "endChar": 1311,
+        "text": "- Base(第一年爬坡期,假設新業務只兌現50%):900 − 650(capex) − 198(淨增量) + 150(部分新GP)≈ **剩202萬**,現金幾乎耗盡,與題目描述「前兩年現金流明顯吃緊」完全吻合。\n- Downside:900 − 650 − 430 ≈ **−180萬**,**第一年現金即轉負**,必須動用信用額度或增資。"
+      },
+      {
+        "id": "p16",
+        "index": 15,
+        "startChar": 1313,
+        "endChar": 1325,
+        "text": "### 損益兩平所需成長"
+      },
+      {
+        "id": "p17",
+        "index": 16,
+        "startChar": 1327,
+        "endChar": 1458,
+        "text": "- 打平「淨增量成本」需額外營收 ≈198萬/38% ≈ **521萬(+11%)**\n- 若要在5年租期內同時回收650萬資本支出,5年累積需額外GP約1,640萬,平均每年328萬 → 對應年額外營收約**863萬(+18%)**,且須**連續5年**維持。"
+      },
+      {
+        "id": "p18",
+        "index": 17,
+        "startChar": 1460,
+        "endChar": 1471,
+        "text": "### 大客戶流失衝擊"
+      },
+      {
+        "id": "p19",
+        "index": 18,
+        "startChar": 1473,
+        "endChar": 1611,
+        "text": "假設最大客戶約占營收20%(≈960萬營收,GP≈365萬)。該客戶每年重新議價,若砍價15–20%或流失,GP損失55–365萬,**足以吃掉甚至反轉Base情境全年+106萬的淨效益**。棚的固定成本(租金+折舊+人事)**不會因客戶流失而下降**,這是本案最脆弱的一環。"
+      },
+      {
+        "id": "p20",
+        "index": 19,
+        "startChar": 1613,
+        "endChar": 1626,
+        "text": "### 使用率/定價敏感度"
+      },
+      {
+        "id": "p21",
+        "index": 20,
+        "startChar": 1628,
+        "endChar": 1733,
+        "text": "要打平上述缺口,自有棚的實際「產值」需從目前外租320萬水準,成長至約840萬等值水準,即使用天數需成長**2倍以上**。目前**唯一支持這個假設的證據是業務端零星反饋**,沒有正式的市場調研或客戶意向書佐證。"
+      },
+      {
+        "id": "p22",
+        "index": 21,
+        "startChar": 1735,
+        "endChar": 1738,
+        "text": "---"
+      },
+      {
+        "id": "p23",
+        "index": 22,
+        "startChar": 1740,
+        "endChar": 1753,
+        "text": "## 二、正式回答四個項目"
+      },
+      {
+        "id": "p24",
+        "index": 23,
+        "startChar": 1755,
+        "endChar": 1774,
+        "text": "### 1. 關鍵前提與缺乏證據的部分"
+      },
+      {
+        "id": "p25",
+        "index": 24,
+        "startChar": 1776,
+        "endChar": 2074,
+        "text": "| 前提 | 是否有證據支撐 |\n|---|---|\n| 棚使用率可從現況成長2倍以上(自用+對外出租) | **無**,僅業務端零星反饋 |\n| 虛擬製作(LED牆)能帶來每年500–900萬新增GP | **無市場數據**,是最大未驗證假設,且占650萬資本支出中比重最高(推估LED牆+VP設備占60–70%) |\n| 前五大客戶尤其最大客戶未來5年合約穩定 | **無**,合約逐年重議,且無替代客源計畫 |\n| 簽約後仍能維持至少3–4個月安全現金水位 | **模型顯示不成立**,Year1即逼近甚至跌破安全水位 |\n| 新增1–2名棚務/維運人力可順利招募並穩定留任 | 未驗證 |"
+      },
+      {
+        "id": "p26",
+        "index": 25,
+        "startChar": 2076,
+        "endChar": 2143,
+        "text": "**結論:支撐這個5年決定的前提,幾乎全數缺乏證據**,尤其VP需求與使用率成長這兩項是財務模型能否轉正的關鍵變數,目前僅靠假設支撐。"
+      },
+      {
+        "id": "p27",
+        "index": 26,
+        "startChar": 2145,
+        "endChar": 2167,
+        "text": "### 2. 最主要的三個風險與早期預警指標"
+      },
+      {
+        "id": "p28",
+        "index": 27,
+        "startChar": 2169,
+        "endChar": 2231,
+        "text": "**風險一:流動性風險(現金耗盡)**\n- 早期預警指標:每月現金餘額低於3個月營運費用;需動用信用額度;應收帳款天數拉長。"
+      },
+      {
+        "id": "p29",
+        "index": 28,
+        "startChar": 2233,
+        "endChar": 2304,
+        "text": "**風險二:客戶集中度與流失風險**\n- 早期預警指標:最大客戶議約延遲或主動砍價;前五大客戶當年下單量年減>10%;新客戶開發未達季度目標。"
+      },
+      {
+        "id": "p30",
+        "index": 29,
+        "startChar": 2306,
+        "endChar": 2406,
+        "text": "**風險三:使用率/VP需求不如預期風險**\n- 早期預警指標:簽約後前2季棚每月使用天數未達目標70%;LED/VP詢問轉正式提案(RFP)轉換率低於20%;業務反饋的潛在案源3個月內未轉化為實單。"
+      },
+      {
+        "id": "p31",
+        "index": 30,
+        "startChar": 2408,
+        "endChar": 2425,
+        "text": "### 3. 若決定不簽,替代方案"
+      },
+      {
+        "id": "p32",
+        "index": 31,
+        "startChar": 2427,
+        "endChar": 2720,
+        "text": "- **方案A:與外部棚簽長期框架/包底協議**——用年度最低承諾金額換取旺季優先檔期與折扣,解決訂不到檔期的痛點,但不承擔5年租約與650萬資本支出。\n- **方案B:小額投入(100–150萬)**——僅添購可攜式LED面板、基礎軌道與燈光,強化在外租棚時的效率與作品力,不綁長約、保留彈性。\n- **方案C:與同業或中小型製作公司共同出資/共用棚**——分攤租金與資本支出,並採1年一約而非5年,保留退出彈性。\n- **方案D:市場驗證優先**——先動用150–200萬,租用第三方LED虛擬棚實際執行1–2個真實案子,取得客戶付費意願與毛利率的**真實數據**,再決定是否自建。"
+      },
+      {
+        "id": "p33",
+        "index": 32,
+        "startChar": 2722,
+        "endChar": 2761,
+        "text": "### 4. 若決定簽(或未來條件成立後轉為簽約),前12個月必須達成的里程碑"
+      },
+      {
+        "id": "p34",
+        "index": 33,
+        "startChar": 2763,
+        "endChar": 3134,
+        "text": "- **財務**:Q1結束現金水位不低於300萬安全門檻;全年淨增量現金成本控制在估算值±20%內。\n- **使用率**:棚每月自用+外租使用天數達到目標(如每月12–15工作天,使用率50%以上)。\n- **新增業務驗證**:至少3個非既有前五大客戶的新案源使用自有棚拍攝,證明棚帶來的是「增量業務」而非單純取代外租。\n- **VP/LED變現**:由虛擬製作帶來至少2–3個新簽約案,合計貢獻營收500萬以上。\n- **客戶穩定度**:最大客戶完成年度重議價且維持在原營收±10%內;若流失,3個月內須找到替代營收。\n- **人力/營運**:新聘棚務人力到位並穩定運作,無因人力不足導致檔期衝突或設備事故。\n- **止損機制**:若12個月後上述指標多數(70%以上)未達成,應立即啟動止損——轉租部分棚期給第三方、暫緩後續設備追加投資。"
+      },
+      {
+        "id": "p35",
+        "index": 34,
+        "startChar": 3136,
+        "endChar": 3139,
+        "text": "---"
+      },
+      {
+        "id": "p36",
+        "index": 35,
+        "startChar": 3141,
+        "endChar": 3335,
+        "text": "**總結**:目前的財務結構顯示,這個決定在Base情境下**回收期超過租約年限**,在Downside情境下**第一年現金即轉負**,而支撐Upside情境的關鍵假設(VP需求、使用率翻倍)**目前完全沒有數據佐證**。在缺乏市場驗證與客戶集中度風險未緩解的情況下,建議**先不簽**,以低成本、可逆的替代方案驗證需求,待關鍵前提被實際數據證實後,再考慮較小規模或較短年期的條件式簽約。"
+      }
+    ]
+  },
+  "finalOutput": "> **UNVERIFIED — HYPOTHESIS**\n> No external evidence was gathered for this answer. Treat it as a strategy\n> hypothesis to be validated, not as a conclusion. Pricing, market and growth\n> figures below are unchecked model assumptions.\n\n決策建議\n- 現在不簽「5 年租約 + 一次性 650 萬設備投資」的現行方案。先用低成本、可回撤的方式驗證需求（6–12 個月），若達成明確門檻，再「有條件地簽」一個較短年期/較小規模/分期投資的版本。\n\n1) 關鍵前提與目前缺乏證據之處\n- 必要前提（含量化門檻）\n  - 棚使用率大幅提升：自有棚可至少取代現行外租支出 80% 以上，並帶來額外增量業務。\n  - 新增營收門檻：\n    - 僅打平新增固定費用：約 198 萬/年 → 需新增營收 ≈ 198/0.38 ≈ 520 萬/年。\n    - 若連同回收 650 萬設備於 5 年內：每年需多賺毛利 ≈ 198+130=328 萬 → 對應新增營收 ≈ 328/0.38 ≈ 860 萬/年（約為現營收的 +18%）。\n  - 最大客戶及前五大客戶未大幅縮減（最大客戶年度合約須維持在 ±10% 內）。\n  - 能在 1–2 個月內補齊 1–2 名棚務/維護人力並穩定運作。\n  - 簽約/投資後 12 個月內公司現金水位不低於約 300 萬（約 3 個月安全庫存），且具備可動用的循環信用額度。\n- 目前缺乏證據的前提\n  - 虛擬製作（LED 牆）實際市場需求與付費意願（僅零星回饋、無付費樣本/轉換率數據）。\n  - 棚使用率可翻倍成長（包含淡旺季分布與對外出租能力）。\n  - 最大客戶穩定度（每年重議價、無對沖方案）。\n  - 新增人力的到位時程與成本控制。\n  - 同業近 18 個月自建棚的實際產能利用與定價狀況（競爭影響未明）。\n\n2) 三大風險與早期預警指標\n- 流動性風險（現金吃緊）\n  - 指標：月末現金低於 3 個月固定支出；需動用短期融資；應收帳款天數 > 60 天且惡化。\n- 需求/使用率不達標（含 VP 需求落空）\n  - 指標：簽約後前兩季平均每月使用天數 < 12 天（<50% 使用率）；VP 詢問→正式提案轉換率 < 20%；提案→中標轉換率 < 30%；有效管道覆蓋（pipeline）< 2 倍季度目標。\n- 客戶集中度風險\n  - 指標：最大客戶議約延遲/砍價 ≥ 15%；前五大客戶累計下單量季減 > 10%；單一客戶佔比持續 > 20% 且無備援名單。\n\n3) 若決定不簽的替代方案\n- 與外部棚簽框架/包底協議：以年度最低承諾金額換旺季優先檔期與折扣（鎖檔期為主、資本承擔為輕）。\n- 小額可攜設備投資（約 100–150 萬）：強化燈光、軌道與移動解決方案，提升在外部棚的效率與質量。\n- 與同業共用/聯合承租：採 6–12 個月短約與分攤租金、共用部分設備，保留退出彈性。\n- 先做 VP 市場驗證：以案租第三方 LED 虛擬棚，完成 1–2 個「付費」真案，收集定價、毛利與流程數據後再決策。\n\n4) 若決定簽，前 12 個月的「走在正軌」門檻\n- 資金安全\n  - 簽約前取得 500–800 萬可動用循環額度；全年現金不低於 300 萬；新增固定費用控制在預算 ±20%。\n- 使用率與營收\n  - 於第 2 季達每月 12–15 個收費拍攝日（≥50% 使用率），第 4 季達 15–18 日。\n  - 年度「新增」營收 ≥ 800–900 萬，整體毛利率維持 ≥ 38%。\n  - 至少 3 個非前五大客戶的新案使用自有棚，證實為增量而非替代。\n- VP/LED 變現\n  - 12 個月內達成 ≥ 2–3 個付費 VP 專案，合計營收 ≥ 500 萬、單案毛利 ≥ 35%；未達此門檻則凍結後續 VP 加碼投資。\n- 客戶組合健康度\n  - 最大客戶年度合約完成重議價且規模維持在 ±10% 內；新增 2–3 個年貢獻 ≥ 200 萬的中型客戶作對沖。\n- 營運與人力\n  - 1–2 名棚務/維護人力於第 1 季到位；設備稼動正常、無重大停機；建立 SOP、保養與安全制度，全年零重大事故。\n- 止損觸發\n  - M6：平均使用率 < 40% 或新增毛利 < 120 萬 → 啟動部分轉租/對外出租時段、壓縮可變費用。\n  - M12：新增毛利 < 250 萬或年度新增營收 < 700 萬 → 啟動退出/縮規模方案（含轉租、多方共用或提前終止條款談判）。\n\n補充：若未來要「有條件地簽」，建議的保護性條件\n- 年期與彈性：優先爭取 2+1 或 3 年含解約/轉租權的條款；或先以較小坪數/單棚試水，達標再擴。\n- 投資分期：先上燈光/軌道與基礎布置，VP/LED 採租賃或與供應商分潤/融資方案，視訂單里程碑再追加。\n- 客戶驗證：簽前取得 2–3 份意向書（LOI）或框架合約，綁定每年最少檔期/金額。\n- 資金安全網：簽前落地銀行額度與保險；與外部棚保留後備檔期合作，避免旺季卡死。\n\n總結\n- 以現況數據推算，在基準情境下回收期超過 5 年，且第 1 年現金壓力顯著；支撐樂觀情境的關鍵假設（VP 需求、使用率翻倍）尚未被驗證。因此建議先不簽，以低成本替代方案解決旺季檔期與效率問題，同步做 6–12 個月的需求驗證；待達成明確量化門檻後，再以較短年期、分期投資與保護性條款的「有條件方案」進場。這樣可在控制下檔風險的同時，保留向上彈性。",
+  "timings": {
+    "planningMs": 29856,
+    "workersMs": 178589,
+    "synthesisMs": 64966,
+    "totalMs": 273413
+  },
+  "calls": [
+    {
+      "seq": 1,
+      "stage": "planning",
+      "provider": "openai",
+      "model": "gpt-5",
+      "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+      "retrievalRequested": null,
+      "promptChars": 1270,
+      "prompt": "Task:\n我們是一家 12 人的影像製作公司,主要收入來自品牌形象影片與電商產品影片。去年營收約新台幣 4,800 萬,毛利率約 38%,手上現金約 900 萬。\n\n現在要決定一件事:是否簽下一個五年期的自有攝影棚租約,並同時投入約 650 萬購置燈光、軌道與虛擬製作(LED 牆)設備。\n\n背景與限制:\n- 目前所有案子都租借外部棚,一年棚租與外租設備支出約 320 萬,且旺季常訂不到理想檔期。\n- 五年租約年租金約 240 萬,含裝修攤提後前兩年現金流會明顯吃緊。\n- 前五大客戶佔營收 61%,其中最大一家的年度合約每年重新議價。\n- 團隊目前沒有專職棚務與設備維護人力,需要再聘一到兩人。\n- 有兩家規模相近的同業在過去 18 個月內先後建置了自有棚。\n- 虛擬製作的實際市場需求我們沒有數據,只有業務端零星反饋。\n\n請給我一個明確的決策建議(簽、不簽,或有條件地簽),並包含:\n1. 這個決定成立的關鍵前提是什麼,以及哪些前提目前沒有證據支撐\n2. 最主要的三個風險,以及各自的早期預警指標\n3. 如果決定不簽,替代方案是什麼\n4. 如果決定簽,前 12 個月必須達成什麼才算走在正軌\n\n請用繁體中文回答。\n\nAvailable specialists:\n- agentId: business_strategist | role: Business Strategist / Critical Analyst — 商業模式、財務邏輯、商業風險、策略漏洞、可行性、反方觀點\n- agentId: market_researcher | role: Market / Research Analyst — 市場情報、競品、客群、成長機會、外部環境、證據蒐集\n- agentId: brand_creative | role: Brand / Creative Strategist — 品牌策略、Creative Direction、產品化設計、服務設計、差異化\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+      "ms": 29854,
+      "responseModel": "gpt-5",
+      "responseChars": 1207,
+      "responseText": "{\n  \"complexity\": \"deep\",\n  \"requiredCapabilities\": [\"financial modeling and cash-flow analysis\", \"strategic decision-making under uncertainty\", \"risk assessment and mitigation planning\", \"scenario and sensitivity analysis\", \"operational planning and milestones design\"],\n  \"assignments\": [\n    { \"agentId\": \"business_strategist\", \"mission\": \"Deliver a clear decision (sign/not sign/conditional) on a 5-year studio lease plus NT$6.5M capex. Build base/upside/downside P&L and cash-flow vs status quo, break-even and payback, utilization and pricing sensitivity, impact of top-client churn, staffing costs, and VP (LED) demand uncertainty. Define critical assumptions, top 3 risks with early indicators, alternative plan if not signing, and 12-month on-track milestones if signing.\", \"priority\": \"high\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"This is a major investment decision driven primarily by internal unit economics, cash flow, and risk tolerance. A single business strategist can integrate financial scenarios, decision logic, risks, triggers, and operational milestones. Additional market/brand specialists would add detail but not change the core decision under current data constraints.\"\n}",
+      "retrievalResult": null
+    },
+    {
+      "seq": 2,
+      "stage": "round1_worker",
+      "provider": "claude",
+      "model": null,
+      "system": "Business Strategist / Critical Analyst — 商業模式、財務邏輯、商業風險、策略漏洞、可行性、反方觀點",
+      "retrievalRequested": null,
+      "promptChars": 1444,
+      "prompt": "Original task:\n我們是一家 12 人的影像製作公司,主要收入來自品牌形象影片與電商產品影片。去年營收約新台幣 4,800 萬,毛利率約 38%,手上現金約 900 萬。\n\n現在要決定一件事:是否簽下一個五年期的自有攝影棚租約,並同時投入約 650 萬購置燈光、軌道與虛擬製作(LED 牆)設備。\n\n背景與限制:\n- 目前所有案子都租借外部棚,一年棚租與外租設備支出約 320 萬,且旺季常訂不到理想檔期。\n- 五年租約年租金約 240 萬,含裝修攤提後前兩年現金流會明顯吃緊。\n- 前五大客戶佔營收 61%,其中最大一家的年度合約每年重新議價。\n- 團隊目前沒有專職棚務與設備維護人力,需要再聘一到兩人。\n- 有兩家規模相近的同業在過去 18 個月內先後建置了自有棚。\n- 虛擬製作的實際市場需求我們沒有數據,只有業務端零星反饋。\n\n請給我一個明確的決策建議(簽、不簽,或有條件地簽),並包含:\n1. 這個決定成立的關鍵前提是什麼,以及哪些前提目前沒有證據支撐\n2. 最主要的三個風險,以及各自的早期預警指標\n3. 如果決定不簽,替代方案是什麼\n4. 如果決定簽,前 12 個月必須達成什麼才算走在正軌\n\n請用繁體中文回答。\n\nAssigned mission:\nDeliver a clear decision (sign/not sign/conditional) on a 5-year studio lease plus NT$6.5M capex. Build base/upside/downside P&L and cash-flow vs status quo, break-even and payback, utilization and pricing sensitivity, impact of top-client churn, staffing costs, and VP (LED) demand uncertainty. Define critical assumptions, top 3 risks with early indicators, alternative plan if not signing, and 12-month on-track milestones if signing.\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+      "ms": 178589,
+      "responseModel": "claude-sonnet-5",
+      "responseChars": 3335,
+      "responseText": "# 决策建議:**不簽現行的「5年綁約+一次性650萬資本支出」方案**,改採分階段替代方案;若特定前提在6–12個月內被驗證成立,才轉為「有條件簽」較小規模或較短年期的版本。\n\n以下先給出支撐這個結論的財務情境分析(所有數字為依題目資訊推導之**illustrative假設**,請貴公司以實際財務數字代入重跑,但結論的方向性應不變),再回答四個必答項目。\n\n---\n\n## 一、財務情境模型(Base / Upside / Downside)\n\n### 增量現金成本估算(每年,不含資本支出)\n\n| 項目 | Base | Upside | Downside |\n|---|---|---|---|\n| 租金(含裝修攤提) | 240萬 | 240萬 | 240萬 |\n| 新增棚務/維運人力(1–1.5人) | 110萬 | 110萬 | 130萬 |\n| 維護/保險/水電 | 40萬 | 40萬 | 60萬 |\n| 旺季殘留外租需求 | 64萬(取代80%) | 0(取代100%) | 160萬(僅取代50%) |\n| **增量成本合計** | **454萬** | **390萬** | **590萬** |\n| 減:原外租省下 | -256萬 | -320萬 | -160萬 |\n| **淨增量現金成本(不含capex)** | **≈198萬/年** | **≈70萬/年** | **≈430萬/年** |\n\n資本支出650萬為一次性現金流出(Year 0/1)。\n\n### 新增營收貢獻假設(來自自有棚使用率提升+VP新客源)\n\n- Base:額外營收約800萬 → 額外GP(38%)≈304萬\n- Upside:額外營收約2,000萬(含VP溢價) → 額外GP(38–45%)≈760–900萬\n- Downside:VP需求未兌現,棚僅取代原外租,**額外營收=0**\n\n### 年度淨現金影響(不含capex)\n\n| 情境 | 額外GP | 淨增量成本 | 年度淨影響 |\n|---|---|---|---|\n| Base | 304萬 | 198萬 | **+106萬** |\n| Upside | 830萬 | 70萬 | **+830萬** |\n| Downside | 0 | 430萬 | **−430萬** |\n\n### 資本支出回收期(僅650萬部分)\n\n- Base:650/106 ≈ **6.1年**,**超過5年租期**,租約到期前無法回收\n- Upside:650/830 ≈ **0.8年**,快速回收\n- Downside:**永不回收**,每年持續燒現金\n\n### Year 1 現金流檢驗(起點現金900萬)\n\n- Base(第一年爬坡期,假設新業務只兌現50%):900 − 650(capex) − 198(淨增量) + 150(部分新GP)≈ **剩202萬**,現金幾乎耗盡,與題目描述「前兩年現金流明顯吃緊」完全吻合。\n- Downside:900 − 650 − 430 ≈ **−180萬**,**第一年現金即轉負**,必須動用信用額度或增資。\n\n### 損益兩平所需成長\n\n- 打平「淨增量成本」需額外營收 ≈198萬/38% ≈ **521萬(+11%)**\n- 若要在5年租期內同時回收650萬資本支出,5年累積需額外GP約1,640萬,平均每年328萬 → 對應年額外營收約**863萬(+18%)**,且須**連續5年**維持。\n\n### 大客戶流失衝擊\n\n假設最大客戶約占營收20%(≈960萬營收,GP≈365萬)。該客戶每年重新議價,若砍價15–20%或流失,GP損失55–365萬,**足以吃掉甚至反轉Base情境全年+106萬的淨效益**。棚的固定成本(租金+折舊+人事)**不會因客戶流失而下降**,這是本案最脆弱的一環。\n\n### 使用率/定價敏感度\n\n要打平上述缺口,自有棚的實際「產值」需從目前外租320萬水準,成長至約840萬等值水準,即使用天數需成長**2倍以上**。目前**唯一支持這個假設的證據是業務端零星反饋**,沒有正式的市場調研或客戶意向書佐證。\n\n---\n\n## 二、正式回答四個項目\n\n### 1. 關鍵前提與缺乏證據的部分\n\n| 前提 | 是否有證據支撐 |\n|---|---|\n| 棚使用率可從現況成長2倍以上(自用+對外出租) | **無**,僅業務端零星反饋 |\n| 虛擬製作(LED牆)能帶來每年500–900萬新增GP | **無市場數據**,是最大未驗證假設,且占650萬資本支出中比重最高(推估LED牆+VP設備占60–70%) |\n| 前五大客戶尤其最大客戶未來5年合約穩定 | **無**,合約逐年重議,且無替代客源計畫 |\n| 簽約後仍能維持至少3–4個月安全現金水位 | **模型顯示不成立**,Year1即逼近甚至跌破安全水位 |\n| 新增1–2名棚務/維運人力可順利招募並穩定留任 | 未驗證 |\n\n**結論:支撐這個5年決定的前提,幾乎全數缺乏證據**,尤其VP需求與使用率成長這兩項是財務模型能否轉正的關鍵變數,目前僅靠假設支撐。\n\n### 2. 最主要的三個風險與早期預警指標\n\n**風險一:流動性風險(現金耗盡)**\n- 早期預警指標:每月現金餘額低於3個月營運費用;需動用信用額度;應收帳款天數拉長。\n\n**風險二:客戶集中度與流失風險**\n- 早期預警指標:最大客戶議約延遲或主動砍價;前五大客戶當年下單量年減>10%;新客戶開發未達季度目標。\n\n**風險三:使用率/VP需求不如預期風險**\n- 早期預警指標:簽約後前2季棚每月使用天數未達目標70%;LED/VP詢問轉正式提案(RFP)轉換率低於20%;業務反饋的潛在案源3個月內未轉化為實單。\n\n### 3. 若決定不簽,替代方案\n\n- **方案A:與外部棚簽長期框架/包底協議**——用年度最低承諾金額換取旺季優先檔期與折扣,解決訂不到檔期的痛點,但不承擔5年租約與650萬資本支出。\n- **方案B:小額投入(100–150萬)**——僅添購可攜式LED面板、基礎軌道與燈光,強化在外租棚時的效率與作品力,不綁長約、保留彈性。\n- **方案C:與同業或中小型製作公司共同出資/共用棚**——分攤租金與資本支出,並採1年一約而非5年,保留退出彈性。\n- **方案D:市場驗證優先**——先動用150–200萬,租用第三方LED虛擬棚實際執行1–2個真實案子,取得客戶付費意願與毛利率的**真實數據**,再決定是否自建。\n\n### 4. 若決定簽(或未來條件成立後轉為簽約),前12個月必須達成的里程碑\n\n- **財務**:Q1結束現金水位不低於300萬安全門檻;全年淨增量現金成本控制在估算值±20%內。\n- **使用率**:棚每月自用+外租使用天數達到目標(如每月12–15工作天,使用率50%以上)。\n- **新增業務驗證**:至少3個非既有前五大客戶的新案源使用自有棚拍攝,證明棚帶來的是「增量業務」而非單純取代外租。\n- **VP/LED變現**:由虛擬製作帶來至少2–3個新簽約案,合計貢獻營收500萬以上。\n- **客戶穩定度**:最大客戶完成年度重議價且維持在原營收±10%內;若流失,3個月內須找到替代營收。\n- **人力/營運**:新聘棚務人力到位並穩定運作,無因人力不足導致檔期衝突或設備事故。\n- **止損機制**:若12個月後上述指標多數(70%以上)未達成,應立即啟動止損——轉租部分棚期給第三方、暫緩後續設備追加投資。\n\n---\n\n**總結**:目前的財務結構顯示,這個決定在Base情境下**回收期超過租約年限**,在Downside情境下**第一年現金即轉負**,而支撐Upside情境的關鍵假設(VP需求、使用率翻倍)**目前完全沒有數據佐證**。在缺乏市場驗證與客戶集中度風險未緩解的情況下,建議**先不簽**,以低成本、可逆的替代方案驗證需求,待關鍵前提被實際數據證實後,再考慮較小規模或較短年期的條件式簽約。",
+      "retrievalResult": null
+    },
+    {
+      "seq": 3,
+      "stage": "synthesis",
+      "provider": "openai",
+      "model": "gpt-5",
+      "system": null,
+      "retrievalRequested": null,
+      "promptChars": 4450,
+      "prompt": "Original task:\n我們是一家 12 人的影像製作公司,主要收入來自品牌形象影片與電商產品影片。去年營收約新台幣 4,800 萬,毛利率約 38%,手上現金約 900 萬。\n\n現在要決定一件事:是否簽下一個五年期的自有攝影棚租約,並同時投入約 650 萬購置燈光、軌道與虛擬製作(LED 牆)設備。\n\n背景與限制:\n- 目前所有案子都租借外部棚,一年棚租與外租設備支出約 320 萬,且旺季常訂不到理想檔期。\n- 五年租約年租金約 240 萬,含裝修攤提後前兩年現金流會明顯吃緊。\n- 前五大客戶佔營收 61%,其中最大一家的年度合約每年重新議價。\n- 團隊目前沒有專職棚務與設備維護人力,需要再聘一到兩人。\n- 有兩家規模相近的同業在過去 18 個月內先後建置了自有棚。\n- 虛擬製作的實際市場需求我們沒有數據,只有業務端零星反饋。\n\n請給我一個明確的決策建議(簽、不簽,或有條件地簽),並包含:\n1. 這個決定成立的關鍵前提是什麼,以及哪些前提目前沒有證據支撐\n2. 最主要的三個風險,以及各自的早期預警指標\n3. 如果決定不簽,替代方案是什麼\n4. 如果決定簽,前 12 個月必須達成什麼才算走在正軌\n\n請用繁體中文回答。\n\nResults from each specialist:\n### business_strategist\nMission: Deliver a clear decision (sign/not sign/conditional) on a 5-year studio lease plus NT$6.5M capex. Build base/upside/downside P&L and cash-flow vs status quo, break-even and payback, utilization and pricing sensitivity, impact of top-client churn, staffing costs, and VP (LED) demand uncertainty. Define critical assumptions, top 3 risks with early indicators, alternative plan if not signing, and 12-month on-track milestones if signing.\nResult: # 决策建議:**不簽現行的「5年綁約+一次性650萬資本支出」方案**,改採分階段替代方案;若特定前提在6–12個月內被驗證成立,才轉為「有條件簽」較小規模或較短年期的版本。\n\n以下先給出支撐這個結論的財務情境分析(所有數字為依題目資訊推導之**illustrative假設**,請貴公司以實際財務數字代入重跑,但結論的方向性應不變),再回答四個必答項目。\n\n---\n\n## 一、財務情境模型(Base / Upside / Downside)\n\n### 增量現金成本估算(每年,不含資本支出)\n\n| 項目 | Base | Upside | Downside |\n|---|---|---|---|\n| 租金(含裝修攤提) | 240萬 | 240萬 | 240萬 |\n| 新增棚務/維運人力(1–1.5人) | 110萬 | 110萬 | 130萬 |\n| 維護/保險/水電 | 40萬 | 40萬 | 60萬 |\n| 旺季殘留外租需求 | 64萬(取代80%) | 0(取代100%) | 160萬(僅取代50%) |\n| **增量成本合計** | **454萬** | **390萬** | **590萬** |\n| 減:原外租省下 | -256萬 | -320萬 | -160萬 |\n| **淨增量現金成本(不含capex)** | **≈198萬/年** | **≈70萬/年** | **≈430萬/年** |\n\n資本支出650萬為一次性現金流出(Year 0/1)。\n\n### 新增營收貢獻假設(來自自有棚使用率提升+VP新客源)\n\n- Base:額外營收約800萬 → 額外GP(38%)≈304萬\n- Upside:額外營收約2,000萬(含VP溢價) → 額外GP(38–45%)≈760–900萬\n- Downside:VP需求未兌現,棚僅取代原外租,**額外營收=0**\n\n### 年度淨現金影響(不含capex)\n\n| 情境 | 額外GP | 淨增量成本 | 年度淨影響 |\n|---|---|---|---|\n| Base | 304萬 | 198萬 | **+106萬** |\n| Upside | 830萬 | 70萬 | **+830萬** |\n| Downside | 0 | 430萬 | **−430萬** |\n\n### 資本支出回收期(僅650萬部分)\n\n- Base:650/106 ≈ **6.1年**,**超過5年租期**,租約到期前無法回收\n- Upside:650/830 ≈ **0.8年**,快速回收\n- Downside:**永不回收**,每年持續燒現金\n\n### Year 1 現金流檢驗(起點現金900萬)\n\n- Base(第一年爬坡期,假設新業務只兌現50%):900 − 650(capex) − 198(淨增量) + 150(部分新GP)≈ **剩202萬**,現金幾乎耗盡,與題目描述「前兩年現金流明顯吃緊」完全吻合。\n- Downside:900 − 650 − 430 ≈ **−180萬**,**第一年現金即轉負**,必須動用信用額度或增資。\n\n### 損益兩平所需成長\n\n- 打平「淨增量成本」需額外營收 ≈198萬/38% ≈ **521萬(+11%)**\n- 若要在5年租期內同時回收650萬資本支出,5年累積需額外GP約1,640萬,平均每年328萬 → 對應年額外營收約**863萬(+18%)**,且須**連續5年**維持。\n\n### 大客戶流失衝擊\n\n假設最大客戶約占營收20%(≈960萬營收,GP≈365萬)。該客戶每年重新議價,若砍價15–20%或流失,GP損失55–365萬,**足以吃掉甚至反轉Base情境全年+106萬的淨效益**。棚的固定成本(租金+折舊+人事)**不會因客戶流失而下降**,這是本案最脆弱的一環。\n\n### 使用率/定價敏感度\n\n要打平上述缺口,自有棚的實際「產值」需從目前外租320萬水準,成長至約840萬等值水準,即使用天數需成長**2倍以上**。目前**唯一支持這個假設的證據是業務端零星反饋**,沒有正式的市場調研或客戶意向書佐證。\n\n---\n\n## 二、正式回答四個項目\n\n### 1. 關鍵前提與缺乏證據的部分\n\n| 前提 | 是否有證據支撐 |\n|---|---|\n| 棚使用率可從現況成長2倍以上(自用+對外出租) | **無**,僅業務端零星反饋 |\n| 虛擬製作(LED牆)能帶來每年500–900萬新增GP | **無市場數據**,是最大未驗證假設,且占650萬資本支出中比重最高(推估LED牆+VP設備占60–70%) |\n| 前五大客戶尤其最大客戶未來5年合約穩定 | **無**,合約逐年重議,且無替代客源計畫 |\n| 簽約後仍能維持至少3–4個月安全現金水位 | **模型顯示不成立**,Year1即逼近甚至跌破安全水位 |\n| 新增1–2名棚務/維運人力可順利招募並穩定留任 | 未驗證 |\n\n**結論:支撐這個5年決定的前提,幾乎全數缺乏證據**,尤其VP需求與使用率成長這兩項是財務模型能否轉正的關鍵變數,目前僅靠假設支撐。\n\n### 2. 最主要的三個風險與早期預警指標\n\n**風險一:流動性風險(現金耗盡)**\n- 早期預警指標:每月現金餘額低於3個月營運費用;需動用信用額度;應收帳款天數拉長。\n\n**風險二:客戶集中度與流失風險**\n- 早期預警指標:最大客戶議約延遲或主動砍價;前五大客戶當年下單量年減>10%;新客戶開發未達季度目標。\n\n**風險三:使用率/VP需求不如預期風險**\n- 早期預警指標:簽約後前2季棚每月使用天數未達目標70%;LED/VP詢問轉正式提案(RFP)轉換率低於20%;業務反饋的潛在案源3個月內未轉化為實單。\n\n### 3. 若決定不簽,替代方案\n\n- **方案A:與外部棚簽長期框架/包底協議**——用年度最低承諾金額換取旺季優先檔期與折扣,解決訂不到檔期的痛點,但不承擔5年租約與650萬資本支出。\n- **方案B:小額投入(100–150萬)**——僅添購可攜式LED面板、基礎軌道與燈光,強化在外租棚時的效率與作品力,不綁長約、保留彈性。\n- **方案C:與同業或中小型製作公司共同出資/共用棚**——分攤租金與資本支出,並採1年一約而非5年,保留退出彈性。\n- **方案D:市場驗證優先**——先動用150–200萬,租用第三方LED虛擬棚實際執行1–2個真實案子,取得客戶付費意願與毛利率的**真實數據**,再決定是否自建。\n\n### 4. 若決定簽(或未來條件成立後轉為簽約),前12個月必須達成的里程碑\n\n- **財務**:Q1結束現金水位不低於300萬安全門檻;全年淨增量現金成本控制在估算值±20%內。\n- **使用率**:棚每月自用+外租使用天數達到目標(如每月12–15工作天,使用率50%以上)。\n- **新增業務驗證**:至少3個非既有前五大客戶的新案源使用自有棚拍攝,證明棚帶來的是「增量業務」而非單純取代外租。\n- **VP/LED變現**:由虛擬製作帶來至少2–3個新簽約案,合計貢獻營收500萬以上。\n- **客戶穩定度**:最大客戶完成年度重議價且維持在原營收±10%內;若流失,3個月內須找到替代營收。\n- **人力/營運**:新聘棚務人力到位並穩定運作,無因人力不足導致檔期衝突或設備事故。\n- **止損機制**:若12個月後上述指標多數(70%以上)未達成,應立即啟動止損——轉租部分棚期給第三方、暫緩後續設備追加投資。\n\n---\n\n**總結**:目前的財務結構顯示,這個決定在Base情境下**回收期超過租約年限**,在Downside情境下**第一年現金即轉負**,而支撐Upside情境的關鍵假設(VP需求、使用率翻倍)**目前完全沒有數據佐證**。在缺乏市場驗證與客戶集中度風險未緩解的情況下,建議**先不簽**,以低成本、可逆的替代方案驗證需求,待關鍵前提被實際數據證實後,再考慮較小規模或較短年期的條件式簽約。\n\nSynthesize these results into a single, coherent final answer to the original task.",
+      "ms": 64966,
+      "responseModel": "gpt-5",
+      "responseChars": 2142,
+      "responseText": "決策建議\n- 現在不簽「5 年租約 + 一次性 650 萬設備投資」的現行方案。先用低成本、可回撤的方式驗證需求（6–12 個月），若達成明確門檻，再「有條件地簽」一個較短年期/較小規模/分期投資的版本。\n\n1) 關鍵前提與目前缺乏證據之處\n- 必要前提（含量化門檻）\n  - 棚使用率大幅提升：自有棚可至少取代現行外租支出 80% 以上，並帶來額外增量業務。\n  - 新增營收門檻：\n    - 僅打平新增固定費用：約 198 萬/年 → 需新增營收 ≈ 198/0.38 ≈ 520 萬/年。\n    - 若連同回收 650 萬設備於 5 年內：每年需多賺毛利 ≈ 198+130=328 萬 → 對應新增營收 ≈ 328/0.38 ≈ 860 萬/年（約為現營收的 +18%）。\n  - 最大客戶及前五大客戶未大幅縮減（最大客戶年度合約須維持在 ±10% 內）。\n  - 能在 1–2 個月內補齊 1–2 名棚務/維護人力並穩定運作。\n  - 簽約/投資後 12 個月內公司現金水位不低於約 300 萬（約 3 個月安全庫存），且具備可動用的循環信用額度。\n- 目前缺乏證據的前提\n  - 虛擬製作（LED 牆）實際市場需求與付費意願（僅零星回饋、無付費樣本/轉換率數據）。\n  - 棚使用率可翻倍成長（包含淡旺季分布與對外出租能力）。\n  - 最大客戶穩定度（每年重議價、無對沖方案）。\n  - 新增人力的到位時程與成本控制。\n  - 同業近 18 個月自建棚的實際產能利用與定價狀況（競爭影響未明）。\n\n2) 三大風險與早期預警指標\n- 流動性風險（現金吃緊）\n  - 指標：月末現金低於 3 個月固定支出；需動用短期融資；應收帳款天數 > 60 天且惡化。\n- 需求/使用率不達標（含 VP 需求落空）\n  - 指標：簽約後前兩季平均每月使用天數 < 12 天（<50% 使用率）；VP 詢問→正式提案轉換率 < 20%；提案→中標轉換率 < 30%；有效管道覆蓋（pipeline）< 2 倍季度目標。\n- 客戶集中度風險\n  - 指標：最大客戶議約延遲/砍價 ≥ 15%；前五大客戶累計下單量季減 > 10%；單一客戶佔比持續 > 20% 且無備援名單。\n\n3) 若決定不簽的替代方案\n- 與外部棚簽框架/包底協議：以年度最低承諾金額換旺季優先檔期與折扣（鎖檔期為主、資本承擔為輕）。\n- 小額可攜設備投資（約 100–150 萬）：強化燈光、軌道與移動解決方案，提升在外部棚的效率與質量。\n- 與同業共用/聯合承租：採 6–12 個月短約與分攤租金、共用部分設備，保留退出彈性。\n- 先做 VP 市場驗證：以案租第三方 LED 虛擬棚，完成 1–2 個「付費」真案，收集定價、毛利與流程數據後再決策。\n\n4) 若決定簽，前 12 個月的「走在正軌」門檻\n- 資金安全\n  - 簽約前取得 500–800 萬可動用循環額度；全年現金不低於 300 萬；新增固定費用控制在預算 ±20%。\n- 使用率與營收\n  - 於第 2 季達每月 12–15 個收費拍攝日（≥50% 使用率），第 4 季達 15–18 日。\n  - 年度「新增」營收 ≥ 800–900 萬，整體毛利率維持 ≥ 38%。\n  - 至少 3 個非前五大客戶的新案使用自有棚，證實為增量而非替代。\n- VP/LED 變現\n  - 12 個月內達成 ≥ 2–3 個付費 VP 專案，合計營收 ≥ 500 萬、單案毛利 ≥ 35%；未達此門檻則凍結後續 VP 加碼投資。\n- 客戶組合健康度\n  - 最大客戶年度合約完成重議價且規模維持在 ±10% 內；新增 2–3 個年貢獻 ≥ 200 萬的中型客戶作對沖。\n- 營運與人力\n  - 1–2 名棚務/維護人力於第 1 季到位；設備稼動正常、無重大停機；建立 SOP、保養與安全制度，全年零重大事故。\n- 止損觸發\n  - M6：平均使用率 < 40% 或新增毛利 < 120 萬 → 啟動部分轉租/對外出租時段、壓縮可變費用。\n  - M12：新增毛利 < 250 萬或年度新增營收 < 700 萬 → 啟動退出/縮規模方案（含轉租、多方共用或提前終止條款談判）。\n\n補充：若未來要「有條件地簽」，建議的保護性條件\n- 年期與彈性：優先爭取 2+1 或 3 年含解約/轉租權的條款；或先以較小坪數/單棚試水，達標再擴。\n- 投資分期：先上燈光/軌道與基礎布置，VP/LED 採租賃或與供應商分潤/融資方案，視訂單里程碑再追加。\n- 客戶驗證：簽前取得 2–3 份意向書（LOI）或框架合約，綁定每年最少檔期/金額。\n- 資金安全網：簽前落地銀行額度與保險；與外部棚保留後備檔期合作，避免旺季卡死。\n\n總結\n- 以現況數據推算，在基準情境下回收期超過 5 年，且第 1 年現金壓力顯著；支撐樂觀情境的關鍵假設（VP 需求、使用率翻倍）尚未被驗證。因此建議先不簽，以低成本替代方案解決旺季檔期與效率問題，同步做 6–12 個月的需求驗證；待達成明確量化門檻後，再以較短年期、分期投資與保護性條款的「有條件方案」進場。這樣可在控制下檔風險的同時，保留向上彈性。",
+      "retrievalResult": null
+    }
+  ]
+}
