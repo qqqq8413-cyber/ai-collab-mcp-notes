@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-05, rev. 18)
+# ai-collab-mcp — Progress Report (2026-09-06, rev. 19)
 
 > ## 交接狀態
 >
@@ -22,6 +22,17 @@
 > **Experimental Milestone 2-A prototype 已實作,default OFF。** 關掉時的行為與回傳 payload 與 rev.14 逐欄相同,99 項既有測試無一需要放寬。新增 73 項測試涵蓋 stage 標記、call ceiling、best-effort parsing、issue 驗證、deterministic selection、selective peer context、失敗回退與 evidence 不變式。這是量測用的 prototype,不是 production feature,尚未跑過任何 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 19 改了什麼(去識別化與 benchmark reset)
+
+1. **⚠️ BENCHMARK RESET** —— `benchmark-task.mjs` 裡的公司名稱原本是真實名稱,而這個檔案在 `main` 上、公開。已換成固定佔位名稱「星芒影像工作室」。**這正是已知會讓計畫從 `deep` 變成 `normal` 的那種替換**,所以 **rev.19 之前所有 BENCHMARK_TASK 的測量值都是歷史數據,與之後的執行不可比較**。要比較前必須重新建立 baseline;佔位名稱現在自己就是控制變數,不得再改。
+2. **這是一個取捨,不是清理** —— 換掉的代價是既有 benchmark 數據脫鉤,留著的代價是公司名稱持續公開。使用者選擇去識別化優先。受影響的只有 `test-chief-live.mjs` 與 `test-orchestrator.mjs` 兩個 live-only 腳本,`npm test` 的 208 項離線測試不使用 BENCHMARK_TASK。
+3. **README 更新** —— 公開版原本停在「Step 7 V1 / 99 項測試」,已更新為 208 項、加入 M2-A 的 default-OFF 狀態與「三次 live 後機制後半段仍未執行」的事實,並指向 `diagnostics/m2a-live/`。發佈前的英文完整版保留為本機檔案,已加入 `.gitignore`。
+4. **`.gitignore` 補洞** —— 新增 `/orchestrator-run-*.txt`(原本只擋 `.json`,一份含真實公司名稱的 2,355 行執行紀錄因此暴露在 untracked 狀態)與 `*.local.md`。
+5. **決定不改寫歷史** —— `eabae9e` 的兩個 harness 檔含本機使用者名稱(暫存路徑),tip 已在 `27a743c` 修掉。**不做 history rewrite**,因為每一個 commit 的作者欄位本來就是 `qqqq8413 <qqqq8413@gmail.com>` —— 移除路徑裡的名字、卻留著每個 commit 上的 email,是形式而非實質。若之後要處理身分揭露,對象應該是 commit 作者資訊,那需要改寫全部歷史並調整 git config。
+6. **未修改任何 runtime** —— `src/` 與 `d1d1d28` 逐位元組相同,`npm test` 208 passed / 0 failed。
+
+---
 
 ## rev. 18 改了什麼(Controlled Frozen Round-1 Replay)
 

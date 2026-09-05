@@ -7,3 +7,4 @@
 /simple-baseline.json
 /orchestrator-run-*.json
 /orchestrator-run-*.txt
+*.local.md

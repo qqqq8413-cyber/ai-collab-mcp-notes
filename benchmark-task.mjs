@@ -5,7 +5,14 @@
 // byte-identical. A harness that inlines its own copy silently becomes incomparable —
 // which already happened once, when a live planning check used a placeholder company
 // name and returned `normal` where the orchestrator runs had returned `deep`.
-export const BENCHMARK_TASK = `請規劃「嶼光映像」2027 年如何提升：
+//
+// ⚠️ BENCHMARK RESET (rev. 19). The company name here was the real one, and this file is
+// public. It has been replaced with a fixed placeholder. Because that exact substitution
+// is the one already known to move a plan from `deep` to `normal`, every BENCHMARK_TASK
+// measurement recorded before this change is historical and NOT comparable with anything
+// measured after it. Re-baseline before comparing; do not read old numbers against new
+// runs. The placeholder is now itself the control variable and must not be edited again.
+export const BENCHMARK_TASK = `請規劃「星芒影像工作室」2027 年如何提升：
 1. 營收
 2. 品牌影響力
 3. 案源品質
