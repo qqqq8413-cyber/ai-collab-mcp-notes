@@ -25,6 +25,9 @@ export const MANDATORY_FIELDS = Object.freeze([
   'snapshotSha256',
   'arm',
   'runIndex',
+  // H-05: protocol v0.2 §18.3 lists it as mandatory. Without it a run cannot be placed in
+  // time relative to its own calls, so nothing about execution provenance is checkable.
+  'startedAt',
   'pins',
   'temperature',
   'retrievalPolicy',
@@ -49,6 +52,22 @@ export const REQUIRED_PINS = Object.freeze({
 });
 
 const SHA256 = /^[0-9a-f]{64}$/;
+
+/**
+ * UTC ISO-8601, and only UTC — a trailing `Z`, not an offset.
+ *
+ * Client-observed, never server-attested (H-05). Offsets are rejected rather than
+ * normalized: two runs recorded in different local zones would otherwise compare as if
+ * they were written the same way.
+ */
+const UTC_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
+
+/** @returns true when `value` is a well-formed, real UTC ISO-8601 instant. */
+export function isUtcIso(value) {
+  if (typeof value !== 'string' || !UTC_ISO.test(value)) return false;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed);
+}
 
 export function canonicalize(manifest) {
   const { manifestSha256: _drop, ...rest } = manifest;
@@ -95,6 +114,11 @@ export function validateManifest(manifest) {
   }
   if (!(manifest.temperature === 'unsupported' || typeof manifest.temperature === 'number')) {
     problems.push('temperature must be a number or the string "unsupported"');
+  }
+  if (manifest.startedAt !== undefined && !isUtcIso(manifest.startedAt)) {
+    problems.push(
+      `startedAt must be a UTC ISO-8601 instant ending in "Z", got ${JSON.stringify(manifest.startedAt)}`
+    );
   }
 
   const pins = manifest.pins ?? {};

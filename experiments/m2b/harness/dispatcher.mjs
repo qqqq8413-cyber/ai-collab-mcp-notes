@@ -9,8 +9,16 @@
  * `stage`, so a dispatcher can answer `synthesis_gate` from a recording and forward
  * everything else.
  *
- * It also carries the two assertions that a run cannot be trusted without: the resolved
- * model must equal the pinned one, and retrieval must be absent everywhere.
+ * It also carries the assertions a run cannot be trusted without: the resolved model must
+ * equal the pinned one, retrieval must be absent everywhere, and every call must record
+ * when it was issued.
+ *
+ * ## Timestamps are client-observed, and only that (H-05)
+ *
+ * `startedAt` is taken from this process immediately BEFORE the provider call is issued.
+ * It is not derived from the completion time, and it is not attested by any provider. It
+ * records when this harness sent the request — nothing about server-side execution. No
+ * check built on it may be described as a server timestamp guarantee.
  */
 import { createHash } from 'node:crypto';
 
@@ -47,10 +55,13 @@ const sha256 = (value) => createHash('sha256').update(value).digest('hex');
  * @param {number|'unsupported'} input.temperature
  *   Plumbed through to the underlying call when numeric. `'unsupported'` records the fact
  *   and sends nothing — the protocol forbids working around it in provider runtime.
- * @param {{stage:string, provider:string, model:string, text:string}|null} [input.replay]
+ * @param {{stage:string, provider:string, model:string, text:string, startedAt:string}|null} [input.replay]
  *   A previously recorded response. Only `synthesis_gate` is replayable in Phase 1.
+ * @param {() => Date} [input.now]
+ *   Clock, injectable so offline tests can assert timestamp behaviour deterministically
+ *   without touching a provider.
  */
-export function createDispatcher({ call, pins, temperature, replay = null }) {
+export function createDispatcher({ call, pins, temperature, replay = null, now = () => new Date() }) {
   const calls = [];
   let recordedGate = replay;
 
@@ -65,7 +76,10 @@ export function createDispatcher({ call, pins, temperature, replay = null }) {
     }
 
     // A replayed gate is not a provider call. It is recorded as such so call accounting
-    // reflects what was actually spent, not what the code path looks like.
+    // reflects what was actually spent, not what the code path looks like — and, per H-05,
+    // it must not claim an execution timestamp it did not have. `startedAt: null` says
+    // "no provider execution happened here"; the original recording's timestamp is kept
+    // separately as provenance, never presented as this call's own.
     if (stage === 'synthesis_gate' && recordedGate) {
       calls.push({
         seq: calls.length + 1,
@@ -79,11 +93,15 @@ export function createDispatcher({ call, pins, temperature, replay = null }) {
         retrievalRequested: null,
         retrievalResult: null,
         replayed: true,
-        ms: 0,
+        startedAt: null,
+        ms: null,
+        recordedProviderStartedAt: recordedGate.startedAt ?? null,
       });
       return { provider, model: recordedGate.model, text: recordedGate.text };
     }
 
+    // Taken before the request is issued. Never back-derived from completion (H-05).
+    const startedAtIso = now().toISOString();
     const startedAt = Date.now();
     const result = await call(provider, prompt, {
       ...options,
@@ -109,11 +127,12 @@ export function createDispatcher({ call, pins, temperature, replay = null }) {
       retrievalRequested: options.retrieval ?? null,
       retrievalResult: result.retrieval ?? null,
       replayed: false,
+      startedAt: startedAtIso,
       ms,
     });
 
     if (stage === 'synthesis_gate' && !recordedGate) {
-      recordedGate = { stage, provider, model: result.model, text: result.text };
+      recordedGate = { stage, provider, model: result.model, text: result.text, startedAt: startedAtIso };
     }
     return result;
   };

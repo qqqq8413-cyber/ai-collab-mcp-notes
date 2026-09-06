@@ -16,7 +16,7 @@ const sha256 = (v) => createHash('sha256').update(v).digest('hex');
 /** Pulls the prompt a given stage was actually sent, out of the stub/live call log. */
 const promptFor = (seen, stage, nth = 0) => seen.filter((s) => s.stage === stage)[nth]?.prompt ?? null;
 
-export function buildRunArtifact({ experimentId, fixtureId, runIndex, snapshot, run, seen, manifests, gateResponseText }) {
+export function buildRunArtifact({ experimentId, fixtureId, runIndex, snapshot, run, seen, manifests, gateResponseText, generatedAt }) {
   const baseline = evidenceBaseline(snapshot);
   const { arms, peer, accounting } = run;
 
@@ -37,7 +37,7 @@ export function buildRunArtifact({ experimentId, fixtureId, runIndex, snapshot, 
     experimentId,
     fixtureId,
     runIndex,
-    generatedAt: new Date().toISOString(),
+    generatedAt: generatedAt ?? new Date().toISOString(),
     snapshot,
     snapshotSha256: sha256(JSON.stringify(snapshot)),
     manifests,

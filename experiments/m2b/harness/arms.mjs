@@ -43,8 +43,8 @@ export function buildSpecialistBlock(snapshot) {
 }
 
 /** Arm B — the existing orchestrator. No gate appendix at all. */
-export async function runArmB({ snapshot, call, pins, temperature }) {
-  const d = createDispatcher({ call, pins, temperature });
+export async function runArmB({ snapshot, call, pins, temperature, now }) {
+  const d = createDispatcher({ call, pins, temperature, now });
   const result = await replaySynthesis(snapshot, {
     synthesizer: { provider: pins.synthesis.provider, model: pins.synthesis.requestedModel },
     call: d.dispatcher,
@@ -58,8 +58,8 @@ export async function runArmB({ snapshot, call, pins, temperature }) {
  * This is also the run that *records* the shared gate response. `disableRound2` keeps
  * `selectedIssue`, which is what lets C and D1 route to the same target specialist later.
  */
-export async function runArmBPrime({ snapshot, call, pins, temperature }) {
-  const d = createDispatcher({ call, pins, temperature });
+export async function runArmBPrime({ snapshot, call, pins, temperature, now }) {
+  const d = createDispatcher({ call, pins, temperature, now });
   const result = await replaySynthesis(snapshot, {
     synthesizer: { provider: pins.synthesis_gate.provider, model: pins.synthesis_gate.requestedModel },
     collaboration: { enabled: true, disableRound2: true },
@@ -75,9 +75,9 @@ export async function runArmBPrime({ snapshot, call, pins, temperature }) {
 }
 
 /** Arm C — the full targeted peer challenge, replaying B-prime's gate response. */
-export async function runArmC({ snapshot, call, pins, temperature, gateRecording }) {
+export async function runArmC({ snapshot, call, pins, temperature, gateRecording, now }) {
   if (!gateRecording) throw new Error('runArmC requires the gate recording from arm B-prime');
-  const d = createDispatcher({ call, pins, temperature, replay: gateRecording });
+  const d = createDispatcher({ call, pins, temperature, replay: gateRecording, now });
   const result = await replaySynthesis(snapshot, {
     synthesizer: { provider: pins.synthesis_gate.provider, model: pins.synthesis_gate.requestedModel },
     collaboration: { enabled: true },
@@ -95,7 +95,7 @@ export async function runArmC({ snapshot, call, pins, temperature, gateRecording
  * *topic* would be leakage, and NC-3 runs on the constructed prompt before the call to
  * make that failure loud.
  */
-export async function runArmD1({ snapshot, call, pins, temperature, bPrime, peer }) {
+export async function runArmD1({ snapshot, call, pins, temperature, bPrime, peer, now }) {
   const collab = bPrime.result.collaboration;
   const selected = collab?.selectedIssue;
   if (!selected) {
@@ -108,7 +108,7 @@ export async function runArmD1({ snapshot, call, pins, temperature, bPrime, peer
     throw new Error(`arm D1: cannot resolve target specialist "${selected.targetAgentId}" in the frozen snapshot`);
   }
 
-  const d = createDispatcher({ call, pins, temperature });
+  const d = createDispatcher({ call, pins, temperature, now });
 
   const selfReviewPrompt = buildSelfReviewPrompt({
     task: snapshot.task,
@@ -173,9 +173,9 @@ export async function runArmD1({ snapshot, call, pins, temperature, bPrime, peer
  * The order matters: B-prime must run first because it produces the gate recording C and
  * D1 replay.
  */
-export async function runAllArms({ snapshot, call, pins, temperature }) {
-  const bPrime = await runArmBPrime({ snapshot, call, pins, temperature });
-  const b = await runArmB({ snapshot, call, pins, temperature });
+export async function runAllArms({ snapshot, call, pins, temperature, now }) {
+  const bPrime = await runArmBPrime({ snapshot, call, pins, temperature, now });
+  const b = await runArmB({ snapshot, call, pins, temperature, now });
 
   const selected = bPrime.result.collaboration?.selectedIssue;
   const peerExcerpt = bPrime.result.collaboration?.round2?.peerExcerpt;
@@ -185,8 +185,8 @@ export async function runAllArms({ snapshot, call, pins, temperature }) {
     sourceRef: selected?.sourceRef ?? '',
   };
 
-  const c = await runArmC({ snapshot, call, pins, temperature, gateRecording: bPrime.gateRecording });
-  const d1 = await runArmD1({ snapshot, call, pins, temperature, bPrime, peer });
+  const c = await runArmC({ snapshot, call, pins, temperature, gateRecording: bPrime.gateRecording, now });
+  const d1 = await runArmD1({ snapshot, call, pins, temperature, bPrime, peer, now });
 
   const billable = bPrime.billable + b.billable + c.billable + d1.billable;
   return {

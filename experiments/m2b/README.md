@@ -1,9 +1,9 @@
 # M2-B Experiment Harness
 
 ```
-Status        REVISED / AWAITING GPT HARNESS RE-REVIEW / NO LIVE AUTHORIZATION
+Status        REVISED / AWAITING FINAL GPT HARNESS REVIEW / NO LIVE AUTHORIZATION
 Protocol      M2B-PROTOCOL-0.2  (M2_EFFECTIVENESS_EXPERIMENT.md @ a308bc8)
-Offline tests 94 passed / 0 failed
+Offline tests 110 passed / 0 failed
 src/ diff     empty
 ```
 
@@ -136,6 +136,9 @@ synthetic fixture 可重現 —— `" the same senior edi"` 同時出現在 chal
 | manifest | **15 個 mandatory field 逐一移除** | `ManifestInvalid`,且錯誤訊息點名該欄位 |
 | manifest | pin 缺 requestedModel | `ManifestInvalid` |
 | manifest | 竄改 manifestSha256 對應內容 | `ManifestInvalid` |
+| H-05 manifest | 缺 / 格式錯 / 非 UTC offset / 不可能的時刻 / 數字 | `ManifestInvalid` |
+| H-05 call | live call 缺 startedAt、格式錯、早於 run 起始、ms 為負 | 對應 verifier check FAIL |
+| H-05 replay | 把 replayed gate 偽裝成 live call 時間 | 對應 verifier check FAIL |
 | verifier | 竄改 call 數 / pin / retrieval / provisional / normalized / label / D₁ prompt / pair / manifest / snapshot hash / neutrality guard / selectedIssue | 對應那一項 `FAIL` |
 
 另有一條**行為性**的:D₁ 的 prompt 被汙染時,`runArmD1` 在**發出任何 provider 呼叫之前**
@@ -188,7 +191,26 @@ target identity                 D₁.selfReview.agentId == 重算出的 selected
 ⚠️ artifact 只存 **raw fact**(`agentId` / `provider` / `requestedModel` / `resolvedModel`),
 **不存 `targetMatched: true` 這種自報結論**。比對由 verifier 自己做。
 
-## verify.mjs 可重算的 14 項
+## H-05 execution timestamp provenance
+
+`startedAt` 在**送出請求之前**取得,不由完成時間倒推。
+
+```
+真實 provider call     startedAt: UTC ISO-8601（"Z" 結尾，不接受 offset）
+                       ms:        非負數
+replayed gate          startedAt: null      ← replay 不是 provider execution
+                       ms:        null
+                       recordedProviderStartedAt: 原始錄製時間（獨立 provenance 欄位）
+manifest               startedAt: mandatory，UTC ISO-8601
+```
+
+⚠️ **這些是 client-observed execution provenance,不是 server timestamp guarantee。**
+它記錄的是「本 harness 何時送出請求」,對 server 端執行時間不作任何宣稱。
+verifier 只驗形狀與順序合理性(呼叫不得早於自己的 run 開始),**不建立假的 server 保證**。
+
+時鐘可注入(`createDispatcher({ now })`),所以時間行為完全離線可測,不碰任何 provider。
+
+## verify.mjs 可重算的 15 項
 
 ```
 manifest integrity                    重新 canonicalize + 重算 sha256（manifestSha256 mandatory）
@@ -198,6 +220,8 @@ trigger state and call accounting     以 production 重推 selectedIssue，再�
                                       決定應有 topology（6 或 2），gate 只計費一次
 call / manifest pin binding           逐呼叫比 provider + requestedModel + resolvedModel
 cross-arm pin and target matching     B′/C gate、C/D₁ target、C/D₁ synthesizer、target agentId
+execution timestamp provenance        manifest 與每次 live call 的 UTC ISO；replayed 不得
+                                      宣稱 execution timestamp；ms 非負；呼叫不早於 run 起始
 retrieval all-off                     逐呼叫 requested/result 皆 null
 C 與 B′ 共用同一 gate sample           比對 provisional 與 gate prompt sha；
                                       no-trigger 時另斷言 C.finalOutput == B′.finalOutput

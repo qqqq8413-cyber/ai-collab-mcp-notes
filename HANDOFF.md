@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-06, rev. 25)
+# ai-collab-mcp — Progress Report (2026-09-06, rev. 26)
 
 > ## 交接狀態
 >
@@ -16,7 +16,7 @@
 > | **M2-A Controlled Replay #4** | **FULL MECHANISM RUNTIME PASS —— 一次自然 valid issue → R2 → Decision Synthesis,不代表品質或產品價值已驗證** |
 > | **rev.20 Independent Code Review** | **ACCEPT WITH DOCUMENTATION CORRECTION —— 無 runtime defect;3 項文件/命名修正 + 1 項規格 concern 待 review,詳見第二十五節** |
 > | **M2-B Protocol** | **ARCHITECTURE ACCEPTED / HARNESS IMPLEMENTATION NEXT / LIVE PILOT NOT AUTHORIZED —— `M2_EFFECTIVENESS_EXPERIMENT.md` v0.2 @ `a308bc8`** |
-> | **M2-B Harness** | **REVISED / AWAITING GPT HARNESS RE-REVIEW / NO LIVE AUTHORIZATION —— H-01…H-04 已處理,94 項離線測試,`src/` diff 為空** |
+> | **M2-B Harness** | **REVISED / AWAITING FINAL GPT HARNESS REVIEW / NO LIVE AUTHORIZATION —— H-01…H-05 + D-01 已處理,110 項離線測試,`src/` diff 為空** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
 > | **目前離線測試** | **212 項全過 = rev.19 的 208 + Gate semantics 新增 4** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
@@ -26,6 +26,38 @@
 > **Experimental Milestone 2-A 已完成本輪限定工程,現在 STOPPED / AWAITING ARCHITECTURE REVIEW,default OFF。** 使用者批准 Gate eligibility 由 post-synthesis unresolved conflict 改成 pre-synthesis material disagreement;唯一一次 Replay #4 使用與 #3 byte-identical 的 fixture,自然跑通 valid issue、sourceRef、Targeted R2 與 Decision Synthesis。212 項離線測試通過,既有 assertions 未放寬,16 組修改前/後 control capture byte-identical。這是機制驗證,尚未執行品質比較或 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 26 改了什麼(H-05 provenance + D-01 wording —— experiments/ only,src/ zero-change)
+
+**`src/` diff 為空。production 離線測試仍 212 全過,Replay #4 封印仍 VERIFIED。**
+harness 離線測試 94 → **110**,0 失敗。兩份 GEMINI packet 均未修改。
+
+| ID | 結果 | 內容 |
+|---|---|---|
+| **H-05** | **FIXED** | execution timestamp provenance。`startedAt` 加入 manifest MANDATORY_FIELDS(UTC ISO-8601,`Z` 結尾,拒收 offset);每次真實 provider call 在**送出請求之前**取得 `startedAt`,不由完成時間倒推;**replayed gate 記 `startedAt: null` / `ms: null`,不得偽造 provider execution timestamp**,原始錄製時間另存為獨立的 `recordedProviderStartedAt` provenance 欄位。 |
+| **D-01** | **DOCUMENTATION CORRECTION** | §20.1 殘留的 `4 fixtures × 5 reps × 6 calls = 120` 與 amendment 矛盾,已改為 maximum / actual 兩行;§5.1 的 6-call topology 明標為 **TRIGGERED repetition**,並註明 NO-TRIGGER = 2 billable calls。 |
+
+1. **verifier 由 14 項擴為 15 項** —— 新增 `execution timestamp provenance`。
+2. **時鐘可注入** —— `createDispatcher({ now })`,時間行為完全離線可測,不碰任何 provider。
+3. ⚠️ **`H-05 FIXED` 只代表 offline harness provenance contract 已修正。**
+   **不代表 model drift 已 live validated。** 這些是 client-observed execution provenance,
+   **不是 server timestamp guarantee** —— verifier 只驗形狀與順序合理性,不建立假的 server 保證。
+4. **Claim boundary(必須維持)** ——
+
+   ```
+   ✅ harness revised            ✅ offline structural checks pass
+   ✅ production tests unchanged
+   ❌ no live validation         ❌ no pilot
+   ❌ no effectiveness evidence  ❌ no model drift validation
+   ❌ no productionization
+   ```
+
+5. **未動** —— `src/`、production prompts、provider adapters、planner、Gate semantics、
+   chunker、retrieval、Step 8、Replay #4 sealed artifacts、既有 production tests 的 assert 語意、
+   `GEMINI_M2B_REVIEW_PACKET.md`、`GEMINI_M2B_REVIEW_PACKET_2.md`。
+   未 merge main,未執行任何 live call。
+
+---
 
 ## rev. 25 改了什麼(M2-B Harness Narrow Correction —— experiments/ only,src/ zero-change)
 

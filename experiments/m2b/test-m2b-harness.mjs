@@ -12,6 +12,7 @@
  */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { buildRunReport, buildOutputBanner } from '../../dist/modes/orchestrator.js';
 import { createDispatcher, ModelPinViolation, RetrievalPolicyViolation } from './harness/dispatcher.mjs';
 import { runArmB, runArmBPrime, runArmC, runArmD1, runAllArms, buildSpecialistBlock } from './harness/arms.mjs';
@@ -20,7 +21,7 @@ import { assertNoPeerLeakage, PeerLeakageDetected } from './harness/leakage.mjs'
 import { evidenceBaseline, assertEvidenceIsolation, EvidenceInvariantViolation } from './harness/invariants.mjs';
 import { normalizeAnswer, verifyNormalization, NormalizationError } from './harness/normalizer.mjs';
 import { buildBlindPairs, assertPairsBlind, PairLeakageDetected } from './harness/pairs.mjs';
-import { validateManifest, sealManifest, ManifestInvalid, MANDATORY_FIELDS } from './harness/manifest.mjs';
+import { validateManifest, sealManifest, ManifestInvalid, MANDATORY_FIELDS, isUtcIso } from './harness/manifest.mjs';
 import { buildRunArtifact } from './harness/artifact.mjs';
 import { verifyArtifact } from './verify.mjs';
 import * as F from './fixtures/synthetic/fixture.mjs';
@@ -47,6 +48,16 @@ async function mustThrow(fn, type, hint) {
 }
 
 const PEER = { chunkText: F.PEER_CHUNK_TEXT, challengeText: F.CHALLENGE_TEXT, sourceRef: F.SOURCE_REF };
+
+/**
+ * Deterministic clock. H-05 timestamp behaviour is asserted offline, with no provider
+ * anywhere near it — a wall clock would make these tests flaky for no gain.
+ */
+const RUN_STARTED_AT = '2026-01-01T00:00:00.000Z';
+function fakeClock(startIso = RUN_STARTED_AT, stepMs = 1000) {
+  let t = Date.parse(startIso);
+  return () => { const at = new Date(t); t += stepMs; return at; };
+}
 const base = () => ({ snapshot: F.SNAPSHOT, pins: F.PINS, temperature: 0 });
 
 /* ============================================================== arm runners */
@@ -419,6 +430,7 @@ const goodManifest = () => sealManifest({
   snapshotSha256: 'b'.repeat(64),
   arm: 'C',
   runIndex: 1,
+  startedAt: RUN_STARTED_AT,
   pins: F.PINS,
   temperature: 0,
   retrievalPolicy: 'all-off',
@@ -549,11 +561,12 @@ function buildArtifact(run, stub, gateResponseText) {
     experimentId: 'm2b-offline-selftest', protocolVersion: 'M2B-PROTOCOL-0.2',
     fixtureId: 'synthetic-1', fixtureSha256: 'a'.repeat(64),
     snapshotSha256: createHash('sha256').update(JSON.stringify(F.SNAPSHOT)).digest('hex'),
-    arm, runIndex: 1, pins: F.PINS, temperature: 0, retrievalPolicy: 'all-off',
+    arm, runIndex: 1, startedAt: RUN_STARTED_AT, pins: F.PINS, temperature: 0, retrievalPolicy: 'all-off',
     evidenceLabelBaseline: 'HYPOTHESIS', runtimeCommit: 'c'.repeat(40), promptSourceCommit: 'd'.repeat(40),
     chunkerVersion: 'e'.repeat(64), peerExcerptChars: 1000,
   });
   return buildRunArtifact({
+    generatedAt: RUN_STARTED_AT,
     experimentId: 'm2b-offline-selftest', fixtureId: 'synthetic-1', runIndex: 1,
     snapshot: F.SNAPSHOT, run, seen: stub.seen, gateResponseText,
     manifests: { B: manifest('B'), B_prime: manifest('B_prime'), C: manifest('C'), D1: manifest('D1') },
@@ -562,7 +575,7 @@ function buildArtifact(run, stub, gateResponseText) {
 
 async function syntheticArtifact() {
   const stub = F.makeStub();
-  const run = await runAllArms({ ...base(), call: stub.call });
+  const run = await runAllArms({ ...base(), call: stub.call, now: fakeClock() });
   return buildArtifact(run, stub, F.GATE_TEXT);
 }
 
@@ -571,7 +584,7 @@ await check('the verifier passes every recomputation on a clean artifact', async
   const failures = results.filter((r) => r.status === 'FAIL').map((r) => `${r.name}: ${r.detail}`);
   assert.deepEqual(failures, []);
   assert.equal(ok, true);
-  assert.equal(results.length, 14, 'all fourteen recomputations must run');
+  assert.equal(results.length, 15, 'all fifteen recomputations must run');
 });
 
 await check('NEGATIVE: the verifier catches a tampered call count', async () => {
@@ -666,7 +679,7 @@ console.log('\nH-03 no-trigger path');
 /** A repetition where the gate emits no issue block at all. A legal observation. */
 async function noTriggerArtifact() {
   const stub = F.makeStub({ gateText: F.PROVISIONAL });
-  const run = await runAllArms({ ...base(), call: stub.call });
+  const run = await runAllArms({ ...base(), call: stub.call, now: fakeClock() });
   return { artifact: buildArtifact(run, stub, F.PROVISIONAL), run, stub };
 }
 
@@ -842,6 +855,120 @@ await check('the artifact records raw identity, never a self-reported match', as
   }
   assert.equal(a.arms.D1.selfReview.agentId, 'brand');
   assert.equal(a.arms.D1.selfReview.provider, 'openai');
+});
+
+/* ============================================ H-05 execution provenance */
+console.log('\nH-05 execution timestamp provenance');
+
+await check('a real provider call records a UTC startedAt taken before the request', async () => {
+  const stub = F.makeStub();
+  const b = await runArmB({ ...base(), call: stub.call, now: fakeClock() });
+  const call = b.calls[0];
+  assert.equal(call.replayed, false);
+  assert.ok(isUtcIso(call.startedAt), `startedAt "${call.startedAt}" is not UTC ISO-8601`);
+  assert.equal(call.startedAt, RUN_STARTED_AT, 'the timestamp must come from the clock, before the call');
+  assert.ok(Number.isFinite(call.ms) && call.ms >= 0);
+});
+
+await check('a replayed gate claims no provider execution timestamp', async () => {
+  const stub = F.makeStub();
+  const bp = await runArmBPrime({ ...base(), call: stub.call, now: fakeClock() });
+  const c = await runArmC({ ...base(), call: stub.call, now: fakeClock('2026-01-01T01:00:00.000Z'), gateRecording: bp.gateRecording });
+  const replayed = c.calls.find((x) => x.stage === 'synthesis_gate');
+  assert.equal(replayed.replayed, true);
+  assert.equal(replayed.startedAt, null, 'a replay is not a provider execution and must not carry one\'s timestamp');
+  assert.equal(replayed.ms, null, 'a replay spent no provider time');
+  // The original execution's timestamp is kept, but as separate provenance.
+  assert.equal(replayed.recordedProviderStartedAt, RUN_STARTED_AT);
+  assert.ok(isUtcIso(replayed.recordedProviderStartedAt));
+});
+
+await check('the timestamp is client-observed only and is documented as such', () => {
+  const source = readFileSync(new URL('./harness/dispatcher.mjs', import.meta.url), 'utf8');
+  assert.ok(source.includes('client-observed'), 'the dispatcher must state that timestamps are client-observed');
+  assert.ok(source.includes('not attested by any provider'));
+});
+
+await check('a valid UTC instant is accepted and an offset instant is not', () => {
+  assert.equal(isUtcIso('2026-01-01T00:00:00.000Z'), true);
+  assert.equal(isUtcIso('2026-01-01T00:00:00Z'), true);
+  assert.equal(isUtcIso('2026-01-01T00:00:00+08:00'), false, 'an offset is not UTC');
+  assert.equal(isUtcIso('2026-01-01 00:00:00Z'), false);
+  assert.equal(isUtcIso('2026-13-45T99:99:99Z'), false, 'a well-shaped but impossible instant is not valid');
+  assert.equal(isUtcIso(1767225600000), false);
+  assert.equal(isUtcIso(undefined), false);
+});
+
+await check('NEGATIVE: a manifest with no startedAt is rejected', () => {
+  const m = goodManifest();
+  delete m.startedAt;
+  const err = mustThrowSync(() => validateManifest(m), ManifestInvalid);
+  assert.ok(err.problems.some((x) => x.includes('startedAt')));
+});
+
+for (const [label, value] of [
+  ['malformed', 'yesterday afternoon'],
+  ['non-UTC offset', '2026-01-01T00:00:00+08:00'],
+  ['impossible instant', '2026-13-45T99:99:99Z'],
+  ['a number instead of a string', 1767225600000],
+]) {
+  await check(`NEGATIVE: a manifest whose startedAt is ${label} is rejected`, () => {
+    const m = sealManifest({ ...goodManifest(), startedAt: value, manifestSha256: undefined });
+    const err = mustThrowSync(() => validateManifest(m), ManifestInvalid);
+    assert.ok(err.problems.some((x) => x.includes('startedAt')), err.problems.join('; '));
+  });
+}
+
+await check('NEGATIVE: the verifier catches a manifest with no startedAt', async () => {
+  const a = await syntheticArtifact();
+  delete a.manifests.C.startedAt;
+  const { results } = verifyArtifact(a);
+  assert.equal(results.find((r) => r.name === 'execution timestamp provenance').status, 'FAIL');
+});
+
+await check('NEGATIVE: the verifier catches a malformed manifest startedAt', async () => {
+  const a = await syntheticArtifact();
+  a.manifests.C.startedAt = 'not-a-timestamp';
+  const { results } = verifyArtifact(a);
+  assert.equal(results.find((r) => r.name === 'execution timestamp provenance').status, 'FAIL');
+});
+
+await check('NEGATIVE: the verifier catches a real provider call with no startedAt', async () => {
+  const a = await syntheticArtifact();
+  delete a.arms.B.calls[0].startedAt;
+  const { results } = verifyArtifact(a);
+  assert.equal(results.find((r) => r.name === 'execution timestamp provenance').status, 'FAIL');
+});
+
+await check('NEGATIVE: the verifier catches a malformed call startedAt', async () => {
+  const a = await syntheticArtifact();
+  a.arms.C.calls.find((c) => c.stage === 'round2_worker').startedAt = '2026-01-01 00:00:00';
+  const { results } = verifyArtifact(a);
+  assert.equal(results.find((r) => r.name === 'execution timestamp provenance').status, 'FAIL');
+});
+
+await check('NEGATIVE: the verifier catches a replayed gate dressed up as a live call', async () => {
+  // The exact fabrication H-05 exists to stop: a replay presented as a provider execution.
+  const a = await syntheticArtifact();
+  const replayed = a.arms.C.calls.find((c) => c.stage === 'synthesis_gate');
+  replayed.startedAt = '2026-01-01T02:00:00.000Z';
+  replayed.ms = 1234;
+  const { results } = verifyArtifact(a);
+  assert.equal(results.find((r) => r.name === 'execution timestamp provenance').status, 'FAIL');
+});
+
+await check('NEGATIVE: the verifier catches a call issued before its own run began', async () => {
+  const a = await syntheticArtifact();
+  a.arms.B.calls[0].startedAt = '2025-06-01T00:00:00.000Z';
+  const { results } = verifyArtifact(a);
+  assert.equal(results.find((r) => r.name === 'execution timestamp provenance').status, 'FAIL');
+});
+
+await check('NEGATIVE: the verifier catches a negative call duration', async () => {
+  const a = await syntheticArtifact();
+  a.arms.B.calls[0].ms = -5;
+  const { results } = verifyArtifact(a);
+  assert.equal(results.find((r) => r.name === 'execution timestamp provenance').status, 'FAIL');
 });
 
 function mustThrowSync(fn, type) {

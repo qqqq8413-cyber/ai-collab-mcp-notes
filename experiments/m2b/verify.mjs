@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { buildRunReport, buildOutputBanner } from '../../dist/modes/orchestrator.js';
 import { parseGateOutput, validateIssues, selectIssue, segmentAll, resolveSourceRef } from '../../dist/agents/collaboration.js';
-import { validateManifest, canonicalize } from './harness/manifest.mjs';
+import { validateManifest, canonicalize, isUtcIso } from './harness/manifest.mjs';
 import { evidenceBaseline } from './harness/invariants.mjs';
 import { verifyNormalization } from './harness/normalizer.mjs';
 import { assertPairsBlind } from './harness/pairs.mjs';
@@ -158,6 +158,49 @@ const CHECKS = [
     assert.equal(d1Call.provider, cCall.provider, 'C and D1 second-round providers differ at runtime');
     assert.equal(d1Call.resolvedModel, cCall.resolvedModel, 'C and D1 second-round resolved models differ at runtime');
     return `same gate pin, same target pin, same synthesizer pin, same target specialist "${selected.targetAgentId}"`;
+  }],
+
+  // H-05. Client-observed execution provenance only — this asserts nothing about
+  // server-side timing, and no check here may be read as a server timestamp guarantee.
+  ['execution timestamp provenance', (a) => {
+    let live = 0;
+    let replayed = 0;
+    for (const [arm, m] of Object.entries(a.manifests)) {
+      assert.ok(m.startedAt !== undefined, `${arm}: manifest has no startedAt`);
+      assert.ok(isUtcIso(m.startedAt), `${arm}: manifest startedAt "${m.startedAt}" is not a UTC ISO-8601 instant`);
+    }
+    for (const [arm, r] of Object.entries(a.arms)) {
+      const manifestAt = Date.parse(a.manifests[arm]?.startedAt ?? '');
+      for (const call of r.calls ?? []) {
+        if (call.replayed) {
+          // A replay is not an execution. It must not carry one's timing.
+          assert.equal(call.startedAt, null,
+            `${arm}/${call.stage}: a replayed call claims startedAt "${call.startedAt}"; a replay is not a provider execution`);
+          assert.ok(call.ms === null || call.ms === undefined,
+            `${arm}/${call.stage}: a replayed call claims ms=${call.ms}; a replay spent no provider time`);
+          if (call.recordedProviderStartedAt != null) {
+            assert.ok(isUtcIso(call.recordedProviderStartedAt),
+              `${arm}/${call.stage}: recordedProviderStartedAt is not a UTC ISO-8601 instant`);
+          }
+          replayed++;
+          continue;
+        }
+        assert.ok(call.startedAt !== undefined && call.startedAt !== null,
+          `${arm}/${call.stage}: a real provider call has no startedAt`);
+        assert.ok(isUtcIso(call.startedAt),
+          `${arm}/${call.stage}: startedAt "${call.startedAt}" is not a UTC ISO-8601 instant`);
+        assert.ok(Number.isFinite(call.ms) && call.ms >= 0,
+          `${arm}/${call.stage}: ms must be a non-negative number, got ${call.ms}`);
+        // Ordering sanity, not precision: a call issued before its own run began is
+        // impossible, whatever the clock's accuracy.
+        if (Number.isFinite(manifestAt)) {
+          assert.ok(Date.parse(call.startedAt) >= manifestAt,
+            `${arm}/${call.stage}: call startedAt precedes the manifest's own startedAt`);
+        }
+        live++;
+      }
+    }
+    return `${live} live calls carry a UTC startedAt; ${replayed} replayed calls claim none (client-observed only)`;
   }],
 
   ['retrieval all-off', (a) => {

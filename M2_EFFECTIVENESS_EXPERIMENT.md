@@ -7,7 +7,7 @@
 > |---|---|
 > | Protocol version | `M2B-PROTOCOL-0.2` |
 > | Architecture status | **ACCEPTED WITH CORRECTIONS**(GPT Architecture Review of v0.1) |
-> | Harness status | **REVISED / AWAITING GPT HARNESS RE-REVIEW** —— H-01 / H-02 / H-03 / H-04 見下方 amendment |
+> | Harness status | **REVISED / AWAITING FINAL GPT HARNESS REVIEW** —— H-01…H-05 與 D-01 見下方 amendment |
 > | Live authorization | **NOT GRANTED** —— pilot 需先通過 GPT Harness Review |
 > | 撰寫依據 | `HANDOFF.md` rev.22 @ `339d700201ee493f592b6a9a56b3e96248bd6f8d` |
 > | 治理依據 | `AI_COLLAB_WORKFLOW_RULES.md`(rev.21 基準版) |
@@ -57,6 +57,8 @@
 | **H-01** | **ACCEPTED** | peer chunk 出現在**兩個 arm 的** decision prompt 是 **evidence parity**,不是 leakage。NC-3 維持 stage-specific:middle round 全檢,decision prompt 只檢 challengeText / sourceRef | §14、§19 X11 |
 | **H-02** | **ACCEPTED WITH CLASSIFICATION CORRECTION** | 20/60 字元窗行為保留,但**降級為 Secondary Diagnostic Heuristic**;不得再稱 correctness invariant / structural guarantee / proof of no leakage | §14、§19 X11、§25.3 |
 | **H-03** | **FIXED** | no-trigger path 是**一等公民的合法形狀**:未觸發時 `C = B′`、`D₁ = SKIPPED`、該 repetition 只花 **2** 次呼叫。verifier 依重推的 trigger state 決定應有 topology | §7.2、§20.1 |
+| **H-05** | **FIXED** | execution timestamp provenance。`startedAt` 為 mandatory manifest field(UTC ISO-8601);每次真實 provider call 在**送出前**記錄 `startedAt` 與 `ms`;replayed gate 記 `startedAt: null`,**不得偽造 provider execution timestamp**,原始時間另存為 `recordedProviderStartedAt`。**client-observed only,不是 server timestamp guarantee。** |
+| **D-01** | **DOCUMENTATION CORRECTION** | §20.1 殘留的 `4 fixtures × 5 reps × 6 calls = 120` 已改為 maximum / actual 兩行;§5.1 的 6-call topology 明標為 **TRIGGERED repetition**,並註明 NO-TRIGGER = 2 billable calls |
 | **H-04** | **FIXED** | manifest ↔ runtime binding:`manifestSha256` 改為 mandatory;逐呼叫綁 provider / requestedModel / resolvedModel;manifest ↔ artifact identity;cross-arm pin;target agentId | §18.3 |
 
 `[DECISION]` **`120 live calls` 一律讀作 upper bound。** 4 fixtures × 5 repetitions × **最多** 6 calls。
@@ -457,13 +459,19 @@ C − D 只剩下：中間輪 + decision synthesis 的差異
 於是每個 fixture-repetition 的實際 live call 數:
 
 ```
+TRIGGERED repetition（gate 選出了 issue）
+
 B    : 1  （獨立的 synthesis 呼叫，prompt 不同，不能共用）
-gate : 1  （B′ / C / D 三者共用)
+gate : 1  （B′ / C / D₁ 三者共用)
 C    : 2  （round2_worker + decision_synthesis）
-D    : 2  （self_review + decision_synthesis）
+D₁   : 2  （self_review + decision_synthesis）
 ────────────────────────────
 合計 : 6  （而非 naive 的 1+1+3+3 = 8）
 ```
+
+`[DECISION]` ⚠️ **上表只適用於 TRIGGERED repetition。**
+**NO-TRIGGER repetition = 2 billable calls**(B 1 + 共用 gate 1;`C = B′`、`D₁ = SKIPPED`),
+詳見 Harness Review Clarification 的 **H-03 amendment**。未觸發不是 invalid run,不得剔除。
 
 `[DESIGN]` 這同時省了 25% 的成本**並且**提高了統計效力。兩者不衝突。
 
@@ -1582,16 +1590,23 @@ NC-3 的自動斷言不可省略,且應在每次 D 執行**之前**跑,失敗即
 `[DESIGN]`
 
 ```
-fixtures        : 3 positive + 1 negative control = 4
-repetitions     : 5
-arms            : B / B′ / C / D
-live calls      : 4 fixtures × 5 reps × 6 calls = 120
-judge 配對      : 4 × 5 × 3 必要比較 = 60 pairs
-                  pilot 全 counterbalance → 120 judge 判斷 × 2 judges = 240
+fixtures            : 3 positive + 1 negative control = 4
+repetitions         : 5
+arms                : B / B′ / C / D₁
+maximum live calls  : 4 fixtures × 5 reps × max 6 = 120   ← UPPER BOUND, not a plan
+actual live calls   : depends on observed trigger outcomes
+judge 配對          : 最多 4 × 5 × 3 必要比較 = 60 pairs
+                      pilot 全 counterbalance → 最多 120 judge 判斷 × 2 judges = 240
 ```
 
+`[DECISION]` ⚠️ **120 是上限,不是預測值。** 未觸發的 repetition 只花 **2** 次呼叫
+(`C = B′`、`D₁ = SKIPPED`),而**未觸發不是 invalid run,不得剔除**——
+詳見 Harness Review Clarification 的 H-03 amendment。實際總數是**執行後記錄的觀察值**。
+judge 配對數同理:未觸發的 repetition 不產生 D₁ answer,因此也不產生 `C vs D₁` 配對。
+
 `[SIGNAL]` wall time 量級估計(由 Replay #4 單次觀察外推,**不是預測**):
-120 次 provider 呼叫 ≈ 1.5–3 小時序列執行。
+**若全部 repetition 都 triggered**,最多 120 次 provider 呼叫的序列 wall-time 粗略量級
+約 1.5–3 小時。實際觸發較少時會更短。
 
 ## 20.2 Pilot 的交付物
 
@@ -1956,7 +1971,7 @@ RECOMMEND（已批准的 Phase 1 形狀）:
 ```
 
 `[DECISION]` ⚠️ **本輪(Protocol v0.2)明確不做 ③–⑩ 的任何一項。**
-特別是:**不跑 temperature probe、不跑 120 calls、不呼叫任何 live API、不開始 harness implementation。**
+特別是:**不跑 temperature probe、不跑 pilot、不呼叫任何 live API、不開始 harness implementation。**
 
 `[DESIGN]` 第 ⑨ 步的順序是紀律性的:**先確認工具可信,再看結果。**
 反過來做,就會在工具不可信時看見自己想看的東西。
