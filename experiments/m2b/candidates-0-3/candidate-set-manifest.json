@@ -1,0 +1,224 @@
+{
+  "protocolVersion": "M2B-PROTOCOL-0.3",
+  "amendment": "Option 3'-H — Heterogeneous Round1",
+  "status": "FROZEN_PRE_LIVE",
+  "authorizedBy": "GPT ARCHITECTURE DECISION — M2-B PROTOCOL 0.3 FIXTURE ACQUISITION POOL DESIGN",
+  "acceptedProtocolCommit": "13548639877af5bdb47055c100681b819a5c3538",
+  "candidateIds": [
+    "S1",
+    "S2",
+    "S3",
+    "E1",
+    "E2",
+    "E3",
+    "I1",
+    "I2",
+    "I3"
+  ],
+  "archetypes": {
+    "S1": "STRATEGY_CONFLICT",
+    "S2": "STRATEGY_CONFLICT",
+    "S3": "STRATEGY_CONFLICT",
+    "E1": "EXECUTION_CONSTRAINT_CONFLICT",
+    "E2": "EXECUTION_CONSTRAINT_CONFLICT",
+    "E3": "EXECUTION_CONSTRAINT_CONFLICT",
+    "I1": "EVIDENCE_INTERPRETATION_CONFLICT",
+    "I2": "EVIDENCE_INTERPRETATION_CONFLICT",
+    "I3": "EVIDENCE_INTERPRETATION_CONFLICT"
+  },
+  "reserveCandidates": [
+    "S3",
+    "E3",
+    "I3"
+  ],
+  "waveOrder": [
+    [
+      "S1",
+      "E1",
+      "I1"
+    ],
+    [
+      "S2",
+      "E2",
+      "I2"
+    ],
+    [
+      "S3",
+      "E3",
+      "I3"
+    ]
+  ],
+  "taskSha256": {
+    "S1": "8caf1128dd7ee72d30cbe67669e92869ebc8431c1d97338a6e76314846c9faa0",
+    "S2": "e8f211cc10431e6a051f4f141ac174d0c2149c5d7100be84f6094fbf6a3ce690",
+    "S3": "3866338b7213bfbb2b76189f5fa61ff54dee5a5d1fac65f20943a8a81f55e1cb",
+    "E1": "3629abc76b453e702aa45d8c338d2a3976ed7e591a5b3c7ef1b260e84f978338",
+    "E2": "e91ff0673be8e304587b854af3d551312d960acb5d4ee20b532e4c799a8d6a51",
+    "E3": "eed2ea25f22f33a98b005ac3227fd04c847dd04888ee8fb4744cc95f9717f6e7",
+    "I1": "4cdeab7aac4536ffcbaba1cb73ff22fbbdf0c798b5df5f39cd70782c763d3e81",
+    "I2": "30e9cf842737ebaf8acd07414bb3a01cc9beec225d50dd54f18f5dc7eec5a512",
+    "I3": "0abc0a95c332a42ac8612978221cba2d056ffc63ebf0decf5d19fed5fe1a76e9"
+  },
+  "taskChars": {
+    "S1": 984,
+    "S2": 920,
+    "S3": 926,
+    "E1": 984,
+    "E2": 902,
+    "E3": 878,
+    "I1": 1012,
+    "I2": 995,
+    "I3": 1087
+  },
+  "freezeCommit": "PENDING — recorded in freeze-provenance.json by the immediately following commit, to avoid a circular self-hash",
+  "providerMappingReference": {
+    "source": "experiments/m2b/protocol/amendment-0-3.mjs — ROLE_PROVIDER_MAP / CHIEF_PIN",
+    "note": "Referenced, not restated. The tasks themselves do not know this mapping and were not written against it."
+  },
+  "oneAttemptRule": "Each candidate receives exactly one Round 1 attempt. A failed candidate is preserved as failed evidence and is never rewritten, replaced or re-run under its own id.",
+  "formalF4Author": "fresh-clean-room-A2",
+  "noProviderCoverageSelection": true,
+  "selectionRationaleExclusions": [
+    "provider coverage was not a selection criterion",
+    "market_researcher was not targeted, required, or designed for",
+    "no specialist count was designed for",
+    "no provider, model or role name appears in any task"
+  ],
+  "designNote": "Every candidate in R2 and R3 offered a free hedge — phase it, verify more, limited rollout — which is dominant under uncertainty, and both specialists took it in all five observed cases. Each option C here therefore carries a stated, concrete penalty drawn from the task's own facts: an indivisible volume, a single-shot window, an unrepeatable measurement condition. Waiting is never free.",
+  "structuralReview": {
+    "S1": {
+      "candidateId": "S1",
+      "archetype": "STRATEGY_CONFLICT",
+      "domain": "專業影像後製軟體 / B2B 軟體",
+      "horizon": "3 年產品主軸；工程能量三年內只能投入一個方向",
+      "irreversible": "核心架構、授權模式與客服組織隨方向改變，中途轉向等於重做核心架構",
+      "credibleA": "現有客戶佔收入絕大部分且已明確要求整合；競爭者明年進場，不做會直接流失",
+      "credibleB": "創作者市場已有可觀討論度與既有散布；現有客戶為一年一約、最大一家已被有自有工具團隊的集團併購；創作者市場的競爭者已宣告要往專業級發展，晚進場等於讓出",
+      "credibleC": "兩邊都不放棄，但題目明載兩項競爭動作都在第一年內發生，而 C 要到第三年才成熟",
+      "dominantRisk": "低 —— A 的收入集中優勢已被「一年一約 + 最大客戶被併購」抵銷；B 同時具備進攻與防守理由",
+      "F5_selfContained": true,
+      "F6_noLiveWeb": true,
+      "F7_nonArithmeticHeavy": true
+    },
+    "S2": {
+      "candidateId": "S2",
+      "archetype": "STRATEGY_CONFLICT",
+      "domain": "手工調味醬料製造 / 食品",
+      "horizon": "3 年保底採購合約；新產線需兩年才完工",
+      "irreversible": "產能優先權讓渡三年；自有品牌旺季斷貨後小型通路不一定願意再上架",
+      "credibleA": "保底量體帶來穩定現金流，金額足以支撐新產線；量大毛利金額可觀",
+      "credibleB": "自有品牌毛利高、回購好，且稀缺性本身是購買理由；代工會以更低價出現同風味產品",
+      "credibleC": "題目明載保底量不可分割，因此縮小版實質等同放棄，且此類全國性合約不常出現",
+      "dominantRisk": "低 —— A 的現金流優勢與 B 的品牌稀缺性各有明確代價，且新產線需兩年、合約本季截止",
+      "F5_selfContained": true,
+      "F6_noLiveWeb": true,
+      "F7_nonArithmeticHeavy": true
+    },
+    "S3": {
+      "candidateId": "S3",
+      "archetype": "STRATEGY_CONFLICT",
+      "domain": "連鎖物理治療診所 / 醫療服務",
+      "horizon": "3 年區域專屬合約；治療師招募需一年以上",
+      "irreversible": "區域專屬合約；治療師招募需一年以上；療程標準化會改變服務定義",
+      "credibleA": "填滿三間低利用率據點的時段並支撐擴編；其中兩間據點租約一年內到期，利用率不改善就要重新評估續租",
+      "credibleB": "療程完整、不趕時間是現有口碑基礎；標準化時長短於現行平均，內部對療效影響無共識",
+      "credibleC": "題目明載同區域只簽一家且量體不可分割，部分承接實質等同放棄",
+      "dominantRisk": "低 —— B 原本只有「利用率偏低」這個軟性代價，已補入租約到期這個有時限的具體後果",
+      "F5_selfContained": true,
+      "F6_noLiveWeb": true,
+      "F7_nonArithmeticHeavy": true
+    },
+    "E1": {
+      "candidateId": "E1",
+      "archetype": "EXECUTION_CONSTRAINT_CONFLICT",
+      "domain": "獨立遊戲工作室 / 遊戲開發",
+      "horizon": "14 個月移植期，並決定是否長期進入主機市場",
+      "irreversible": "單次推廣檔期，錯過即失效且不保留；PC 更新中斷三季不可回補",
+      "credibleA": "唯一熟悉自家渲染管線的人親自處理效能與低規格記憶體；負責人自評「很緊但不是不可能」",
+      "credibleB": "外部公司有可查證的同類移植實績；引擎負責人可續維護 PC 更新，社群節奏不中斷",
+      "credibleC": "避開失敗即損失不可回收費用的風險，但放棄檔期，且平台方未來是否再提供同等資源不確定",
+      "dominantRisk": "低 —— 分階段上線被平台方明文排除，因此不存在「先上一部分」這個免費折衷",
+      "F5_selfContained": true,
+      "F6_noLiveWeb": true,
+      "F7_nonArithmeticHeavy": true
+    },
+    "E2": {
+      "candidateId": "E2",
+      "archetype": "EXECUTION_CONSTRAINT_CONFLICT",
+      "domain": "建築師事務所 / 公共工程投標",
+      "horizon": "得標後 4 年以上的設計與監造，並決定能否進入公共工程市場",
+      "irreversible": "全有全無投標、法定截止日不可延、得標後不可調整團隊組成；共同投標的並列名義長期存在",
+      "credibleA": "設計辨識度是目前接案主要來源，獨立投標可完整保有主導權與作品歸屬",
+      "credibleB": "共同簽證與審查出席分擔解決本案最硬的產能限制，並補上本所沒有的公共工程行政能力與實績",
+      "credibleC": "保住三件民間案的合約義務與設計主導權，但同規模標案該地區平均二到三年才出現一次",
+      "dominantRisk": "低 —— B 的產能解方直接以設計主導權與作品歸屬為代價，而那正是本所接案的來源",
+      "F5_selfContained": true,
+      "F6_noLiveWeb": true,
+      "F7_nonArithmeticHeavy": true
+    },
+    "E3": {
+      "candidateId": "E3",
+      "archetype": "EXECUTION_CONSTRAINT_CONFLICT",
+      "domain": "生技檢測實驗室 / 檢測服務",
+      "horizon": "3 年委託；認證 9–14 個月、技術員養成 6–9 個月",
+      "irreversible": "單一窗口全責、不接受分批啟動；四個月內簽約，之後三年不再徵求",
+      "credibleA": "認證自持可保留全部利潤與品質控制權，不必建立從未有過的分包管理制度",
+      "credibleB": "分包方已具認證並提供三年稽核紀錄，可避開九到十四個月不可控的認證時程",
+      "credibleC": "避免在沒有分包管理制度與專責稽核人員的情況下承擔全責，但放棄三年內不再出現的同等規模機會",
+      "dominantRisk": "低 —— B 以「對分包方偏差負全部責任 + 無既有分包品管制度」為代價，並非免費折衷",
+      "F5_selfContained": true,
+      "F6_noLiveWeb": true,
+      "F7_nonArithmeticHeavy": true
+    },
+    "I1": {
+      "candidateId": "I1",
+      "archetype": "EVIDENCE_INTERPRETATION_CONFLICT",
+      "domain": "線上語言學習 / 線上教育",
+      "horizon": "3 年獲客方式與定價結構的重新配置",
+      "irreversible": "行銷預算與產品開發順序重新配置；定價與方案結構隨之改變",
+      "credibleA": "推薦而來的學員前三個月續訂率明顯較高；帳面單位獲客成本低於付費廣告；付費廣告在預算未減下產出下降三成",
+      "credibleB": "增量可能來自兩年一次的展會（未用推薦連結的新學員也同步上升）；客服有「本來就要報名」的自述；客單價偏低且推薦高度集中於前 20 名社群活躍成員",
+      "credibleC": "維持小規模續觀察，但題目明載下次同等展會在兩年後、且高頻推薦人名單會隨活躍度變動，條件不可比",
+      "dominantRisk": "中低 —— 已同時提供「推薦創造新需求」（推薦人回報被推薦者原本沒考慮）與「推薦只是改道」（客服自述）兩側證詞，未由題目解掉",
+      "F5_selfContained": true,
+      "F6_noLiveWeb": true,
+      "F7_nonArithmeticHeavy": true
+    },
+    "I2": {
+      "candidateId": "I2",
+      "archetype": "EVIDENCE_INTERPRETATION_CONFLICT",
+      "domain": "訂閱制數位媒體 / 數位媒體",
+      "horizon": "3 年內容結構、編輯團隊組成與採訪預算配置",
+      "irreversible": "編輯團隊組成與採訪預算分配方式改變；付費牆結構影響既有訂戶關係",
+      "credibleA": "問卷中多數訂戶自陳深度調查是訂閱主因；扣除爆發兩週後的期間仍高於前九個月",
+      "credibleB": "行為紀錄顯示多數訂戶每月開啟深度報導不到兩篇，開啟最多的是即時新聞與專欄；退訂主因是沒有時間看；深度調查成本為即時新聞的數十倍且完成時間不可預測",
+      "credibleC": "維持現狀再觀察，但重大獨家不可預期、且高開啟率專欄作者合約半年內到期，條件不可比",
+      "dominantRisk": "低 —— 問卷與行為紀錄直接互相牴觸，題目未提供任何可用來裁決兩者的資訊",
+      "F5_selfContained": true,
+      "F6_noLiveWeb": true,
+      "F7_nonArithmeticHeavy": true
+    },
+    "I3": {
+      "candidateId": "I3",
+      "archetype": "EVIDENCE_INTERPRETATION_CONFLICT",
+      "domain": "連鎖眼鏡零售 / 實體零售",
+      "horizon": "3 年展店標準：選址條件、人員編制與設備採購",
+      "irreversible": "租約選址條件、人員編制與驗光設備採購隨型態改變；驗光師人力是展店速度限制",
+      "credibleA": "客單價 +27%、營收 +8%（未改造門市 +3%）；驗光預約比例由兩成升至六成；庫存成本與滯銷比例下降；同波廣告涵蓋的六間未改造門市成長與其他未改造門市無明顯差異",
+      "credibleB": "試行門市原本就是來客數前段、非隨機挑選且無對照門市；來客數 -15%；交件時間延長三到五天且「可以馬上拿到」評分下降；租金最高商圈的那間成長最低",
+      "credibleC": "再試行一年，但地區廣告專案為一次性且驗光師人力限制可納入的門市數，條件不可比",
+      "dominantRisk": "中低 —— 原稿的 confound 全部單向指向 B（與 R3 fxr-11 同型），已補入「同波廣告的六間未改造門市無差異」削弱廣告解釋，以及「來客數下降集中在未購買人次、完成配鏡人次持平」這項雙向事實",
+      "F5_selfContained": true,
+      "F6_noLiveWeb": true,
+      "F7_nonArithmeticHeavy": true
+    }
+  },
+  "notRecorded": [
+    "expected correct answer",
+    "expected specialist disagreement",
+    "expected provider choice",
+    "expected target provider",
+    "expected Gate target"
+  ],
+  "exposureRule": "archetype labels and this manifest are experiment-internal and must never reach a clean-room annotator."
+}
