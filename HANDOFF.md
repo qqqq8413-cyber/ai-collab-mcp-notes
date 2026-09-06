@@ -1,5 +1,9 @@
 # ai-collab-mcp — Progress Report (2026-09-06, rev. 35)
 
+> **先讀 [`CURRENT_STATE.md`](CURRENT_STATE.md)。** 那是「目前仍有效狀態」的短版 materialized view。
+> 本檔保留完整歷史與 provenance,需要證據時再查對應節次;
+> 正式 methodology / protocol 以 `M2_EFFECTIVENESS_EXPERIMENT.md` 為準。
+
 > ## 交接狀態
 >
 > | 項目 | 狀態 |
