@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  7bf07c5e878420467febc802d9538e8c53dcc559
+stateVerifiedThrough  9a6e7150baccf9a76cd60e9ea99d8264409e9634
 production            src/** 停在 d01043b（accepted pre-synthesis boundary）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -276,6 +276,8 @@ provider heterogeneity caused the observed conflict
 | **CWP-3** | real capture → clean-room A2 packet builder + annotation validator | ACCEPTED | `5a2bb5e5b1871e3ce55a6770a0a786018c5d65e1` |
 | **CWP-3R** | fatal capture handling ＋ prior A2 provenance continuity validation | ACCEPTED | `183b88669edaf46a634efd5d6c67d9194cb7c7b1` |
 | **P-1** | request-side provider/model pin mismatch 的 pre-call guard | CLOSED / ACCEPTED | `a275d010703bf382dcccf1b621607b4eac582c97` |
+| **CWP-4A** | journal↔raw-call seq 相等、gapless sequence、P03 wave-order 驗證 | ACCEPTED | `732d567fddf03cd3964dbd483defd112227e5922` |
+| **CWP-4B** | capture-scoped transport no-retry ＋ dependency provenance ＋ CAPTURE-3 | ACCEPTED | `9a6e7150baccf9a76cd60e9ea99d8264409e9634` |
 
 ### PRE-LIVE BLOCKER LEDGER
 
@@ -295,7 +297,8 @@ provider heterogeneity caused the observed conflict
 | **C-01** | 合法的 pre-Round1 fatal capture 會讓 A2 loader crash | CLOSED by **CWP-3R** |
 | **C-02** | prior A2 provenance 未經連續性驗證就被信任 | CLOSED by **CWP-3R** |
 | **P-1** | request-side provider/model 不符只在 provider call 之後才被發現 | CLOSED by **P-1** @ `a275d01` |
-| **D-01** | 本檔未記錄 harness 尚不支援 0.3 | CLOSED by 本次更新 |
+| **D-01** | 本檔未記錄 harness 尚不支援 0.3 | CLOSED by `bb2214f` 的更新 |
+| **T-RETRY-01** | SDK transport retry accounting gap —— 一次 logical dispatch 可能是多次 HTTP attempt | **CLOSED FOR FUTURE CAPTURES** by **CWP-4B** @ `9a6e715` |
 
 未關閉、但**不是** engineering blocker 的兩項,列出以免被誤讀成已消失:
 
@@ -304,7 +307,7 @@ N-01  session 的 fresh:true 會 rmSync capture root
       → live entry point 不可達：run-live.mjs 拒絕 --fresh / --overwrite / --delete-existing，
         且 realRoot 已存在就拒絕啟動。僅離線 stub session 用得到。狀態：MITIGATED，非 CLOSED
 N-02  3′-H 把唯一 providesEvidence 的 role（market_researcher）綁到 gemini，
-      而該 role 在目前已觀察的十題中被指派 0 次 → gemini worker coverage 可能為零。
+      而該 role 在目前已觀察的十三題中被指派 0 次 → gemini worker coverage 可能為零。
       這是合法的 observed result，不是缺陷。詳見第 8 節
 ```
 
@@ -364,6 +367,63 @@ Resolved-side model/provider drift  只有 call 之後才可知
 
 這個區分必須留在 current state ——**它正是上一輪 pre-live review 漏判的原因之一**。
 
+### T-RETRY-01 —— transport retry accounting（CWP-4B)
+
+`[FACT]` recorder 記的是 **logical dispatch**。OpenAI 與 Anthropic SDK 的 client 預設
+`maxRetries = 2`,所以在 CWP-4B 之前,**一次 logical dispatch 最多可能是三次 HTTP attempt**,
+而 artifact 只會記下較小的那個數字。這個落差由 Codex 的獨立稽核指出。
+
+**修正方式是 capture-scoped,不是全域的:**
+
+```
+CallOptions.transportMaxRetries?: 0      新欄位，只有 0
+recorder 對每一個 planning / round1_worker call 注入 transportMaxRetries: 0
+OpenAI / Anthropic adapter 以 per-request option 遵守它
+沒有帶這個欄位的呼叫 → 保留 SDK 預設重試（一般產品路徑不受影響，有測試釘住）
+```
+
+`[FACT]` **Gemini 沒有這個旋鈕,因為它沒有重試。** 已安裝的
+`@google/generative-ai@0.24.1` 的 `makeRequest` 只 `await fetchFn(url, fetchOptions)` 一次,
+非 ok 就直接拋。這是**已安裝位元組的性質**,不是我們設定的選項,所以
+`test-m2b-transport-policy.mjs` 以 stubbed fetch 對真實 adapter＋真實 SDK 實測(500 → 恰好 1 次 fetch),
+而不是引用文件。
+
+**Closure 是 prospective 的。** 它**不會**回溯替 Wave 1 / Wave 2 補上 transport-attempt 證據。
+
+### 歷史 retry 語意（不得寫錯)
+
+```
+可以說：Wave 1 / Wave 2 沒有 orchestration-level 的 retry 或 fallback（已觀察）
+不可說：Wave 1 / Wave 2 證明了沒有 SDK retry
+        —— transport-level retry 次數在歷史 artifact 中不可觀測
+```
+
+### Runtime fingerprint 的真實邊界
+
+```
+runtimeFingerprint 只涵蓋   src/**/*.ts 與 dist/**/*.js
+它不涵蓋                    package-lock、已安裝的 SDK 位元組
+```
+
+**不得**把「runtime fingerprint unchanged」擴張成「整個依賴環境 byte-identical」。
+CWP-4B 的作法是**另外新增** dependency provenance(package-lock SHA-256、三個 provider SDK 的
+locked/installed 版本、已安裝 manifest 與 resolved entrypoint 的雜湊),
+而**不是**改變 fingerprint 的既有含義 —— 那會靜默地重新描述每一份已存在的 artifact。
+
+live 前的 fail-closed preflight:installed ≠ locked,或 installed ≠ transport 證明所用版本,
+一律在**第一個 provider call 之前**停止。不自動 `npm install`,不自動修復依賴樹。
+
+### Capture schema 版本
+
+```
+M2B-REAL-ROUND1-CAPTURE-2   Wave 1 / Wave 2（無 transport provenance）
+M2B-REAL-ROUND1-CAPTURE-3   CWP-4B 之後（必須有 transport + dependency provenance）
+protocol 仍是 M2B-PROTOCOL-0.3 —— 這是 evidence schema 硬化，不是 methodology 修訂
+```
+
+verifier 依 capture 自己宣告的版本分流:CAPTURE-2 **不得**被以 transport provenance 評判
+(把「沒記錄」讀成「合規」等於捏造它從未擁有的證據);CAPTURE-3 則強制要求。
+
 ### Governance invariant
 
 ```
@@ -380,9 +440,12 @@ OFFLINE → LIVE 之前,必須 reconcile 完整的已知 blocker ledger,
 累計 live call:
 
 ```
-R1 = 10   R2 = 10   R3 = 9   P03 Wave 1 = 6      TOTAL = 35
+R1 = 10   R2 = 10   R3 = 9   P03 Wave 1 = 6   P03 Wave 2 = 8      TOTAL = 43
 A2 acquisition live calls = 0
 ```
+
+以上是 **recorded logical provider invocations**。Wave 1 / Wave 2 屬 CAPTURE-2,
+**transport-level HTTP attempt 次數在那些 artifact 中不可觀測**(見第 7 節)。
 
 全部只用 `planning` 與 `round1_worker`。四輪都沒有 synthesis / Gate / Round 2 /
 Decision Synthesis / temperature probe / pilot。
@@ -460,12 +523,79 @@ Wave 1 **從未到達 F4**。唯一的 eligibility 失敗是 **F2**。
 不得據此宣稱 M2 無效、peer challenge 無效、heterogeneous provider 無效、
 F4 失敗、Gemini 失敗、Claude 比較好,或 Chief routing 有缺陷。
 
-`[FACT]` `market_researcher` 在 R2 四題 + R3 三題 + P03 Wave 1 三題,**合計十題中被指派 0 次**。
+### P03 Wave 2 —— EXECUTED / PRESERVED NEGATIVE ACQUISITION EVIDENCE
+
+evidence commit `781ade9062b69f5aa120f59f1e80b3ba9b138493` ｜ 授權 base `b8479a9`
+｜ evidence root `experiments/m2b/fixtures-real-0-3/wave-2/`
+
+```
+S2  normal / 2 specialists / SUCCESS / F1 FAIL / F2 PASS / F3 PASS / FAILED   live calls = 3
+E2  normal / 2 specialists / SUCCESS / F1 FAIL / F2 PASS / F3 PASS / FAILED   live calls = 3
+I2  deep   / 1 specialist  / SUCCESS / F1 PASS / F2 FAIL / F3 PASS / FAILED   live calls = 2
+
+Wave 2 = 8 recorded logical provider invocations      ceiling = 12
+roundEndingViolation = null ｜ runtime fingerprint drift = none
+
+A2 admissions = 0 ｜ A2 calls = 0 ｜ filled archetypes = 0
+```
+
+`[FACT]` **Wave 1 與 Wave 2 的 acquisition failure mode 不同,不存在單一全域 blocker:**
+
+```
+Wave 1   三題 F1/F3 過、F2 全 FAIL
+Wave 2   兩題 F1 FAIL（被判 normal）、一題 F2 FAIL
+```
+
+**不得**把「複雜度判定 ↔ specialist 數量」的這個形態寫成 correlation,
+也**不得**寫成一個穩定的 Chief 機制。目前只有六題觀察,沒有對照設計。
+
+#### Provider coverage
+
+`[FACT]` S2 與 E2 各獲派兩位 specialist,實際執行為:
+
+```
+business_strategist  →  claude / claude-sonnet-5
+brand_creative       →  openai / gpt-5
+```
+
+verifier 的 check 17/18 對全部五筆 worker call 綁定 snapshot / request / resolution。
+
+`[FACT]` **因此 multi-provider Round1 worker execution 現在是 observed 的。**
+這是 Option 3′-H 上線以來第一次有第二個 provider 真正跑 worker。
+
+`[FACT]` `market_researcher` 在相關的歷史 acquisition 樣本中仍是 **0 次指派**,
+gemini 至今未執行過任何 worker call。
+**不得**把 retrieval-off 寫成造成這件事的原因 —— 那是未證實的因果宣稱。
+
+#### 外部審查（本輪的兩份，強度不同）
+
+`[SIGNAL]` **Gemini methodology review —— lower-tier external methodology review。**
+
+```
+結論                PASS WITH CORRECTIONS
+new methodology blocker  none
+Wave 3 methodology       READY
+```
+
+model 同意**不構成證據**。該 Gemini session 已因看過實驗結構而**對正式 A2 汙染,
+永遠不得充當 A2**。
+
+`[FACT]` **Codex independent audit —— 獨立確認 Wave 2 candidate / evidence 完整性。**
+它發現四項:
+
+```
+journal 相等性 verifier 弱點            → CLOSED by CWP-4A @ 732d567
+wave-order verifier 弱點                → CLOSED by CWP-4A @ 732d567
+SDK transport retry accounting gap       → CLOSED FOR FUTURE CAPTURES by CWP-4B @ 9a6e715
+runtime fingerprint 依賴涵蓋範圍限制      → 以獨立的 dependency provenance 處理（見第 7 節）
+```
+
+`[FACT]` `market_researcher` 在 R2 四題 + R3 三題 + P03 Wave 1 三題 + Wave 2 三題,**合計十三題中被指派 0 次**。
 retrieval 釘在 all-off、task 又要求只根據題目事實判斷,消掉了該 role 的存在理由。
 
 `[SIGNAL]` 這對 3′-H 的 observed coverage 有後果:R3 在同質配置下 gemini 確實跑過 Round 1
 (扮演 strategist / creative);改成 3′-H 後 gemini 綁 `market_researcher`,
-而該 role 在目前已觀察的十題中一次都沒被指派。**gemini 的 worker coverage 可能是零,而那是合法的 observed result。**
+而該 role 在目前已觀察的十三題中一次都沒被指派。**gemini 的 worker coverage 可能是零,而那是合法的 observed result。**
 
 `[SIGNAL]` 這只是對已觀察樣本的描述。**不得**升級成:`market_researcher` 永遠不會被選、
 gemini 永遠拿不到 worker call、retrieval-off **必然**導致 zero `market_researcher` selection,
@@ -484,7 +614,8 @@ experiments/m2b/fixtures/           R1 synthetic —— PRE-FLIGHT SYNTHETIC CAN
 experiments/m2b/fixtures-real/      R1 capture（四次失敗，保存為證據）
 experiments/m2b/fixtures-real-r2/   R2 capture，含 fxr-08
 experiments/m2b/fixtures-real-r3/   R3 capture
-experiments/m2b/fixtures-real-0-3/  P03 Wave 1 capture（三題 F2 failure，保存為證據）—— READ-ONLY
+experiments/m2b/fixtures-real-0-3/  P03 Wave 1（三題 F2 failure）＋ Wave 2（兩題 F1、一題 F2 failure）
+                                    保存為證據 —— READ-ONLY
 diagnostics/m2a-live/               Replay #3 / #4
 ```
 
@@ -531,7 +662,8 @@ LIVE                    NONE
 EXECUTION AUTHORIZATION NOT GRANTED
 
 Wave 1                  CONSUMED / CLOSED   ← 已於 516d838 執行完畢，該授權不延續
-Wave 2                  NOT AUTHORIZED
+Wave 2                  CONSUMED / CLOSED   ← 已於 781ade9 執行完畢，該授權不延續
+Wave 3                  NOT AUTHORIZED
 Gemini A2               NOT AUTHORIZED
 Gate                    NOT AUTHORIZED
 Synthesis               NOT AUTHORIZED
@@ -543,7 +675,7 @@ main merge              NOT AUTHORIZED
 src/** 修改             NOT AUTHORIZED（發現需要改 → STOP，回 GPT）
 ```
 
-**Wave 1 的 live authorization 已 CONSUMED,不得解讀為對 Wave 2 仍然有效。**
+**Wave 1 與 Wave 2 的 live authorization 都已 CONSUMED,不得解讀為對 Wave 3 仍然有效。**
 每一個新的 live boundary 需要一份新的、明寫 base SHA 的授權。
 
 硬性 invariant,不得軟化:
@@ -564,17 +696,22 @@ READY      ≠  AUTHORIZATION
 ```
 NEXT PROTOCOL-DEFINED STEP
 
-Wave 2:  S2 → E2 → I2     exactly one attempt each
-理由:    Wave 1 沒有填滿任何 archetype（三題全 FAIL F2）
+Wave 3:  S3 → E3 → I3     exactly one attempt each
+理由:    Wave 1 與 Wave 2 都沒有填滿任何 archetype
 
-STATUS:  NOT AUTHORIZED
+P03 attempted        6 / 9
+A2 admitted          0
+filled archetypes    0
+
+Wave 3 methodology   READY
+Wave 3 LIVE          NOT AUTHORIZED
 ```
 
 **這是 protocol 定義的下一步,不是授權。** 必須先做一次新的 pre-live reconciliation,
 再由 GPT 明確授權,才能執行:
 
 ```
-1. Wave 2 acquisition = S2 / E2 / I2
+1. Wave 3 acquisition = S3 / E3 / I3
    每題 exactly one attempt
    只允許 planning 與 round1_worker
    直接呼叫 runRound1Stage()，不得用 runOrchestrator()
@@ -709,9 +846,11 @@ R1 / R2 verifier 的失敗項**全部是 F1/F2 eligibility gate 本身**,不是�
 ---
 
 ```
-STATE ALIGNED THROUGH 516d838 /
-P03 WAVE 1 EXECUTED — THREE F2 FAILURES PRESERVED /
-A2 = NO_A2_BATCH（NO_F4_ELIGIBLE_CANDIDATES）/ NEGATIVE CONTROL NOT SENT /
-NEXT PROTOCOL STEP = WAVE 2，NOT AUTHORIZED /
+STATE ALIGNED THROUGH 9a6e715 /
+P03 WAVE 1 + WAVE 2 EXECUTED — 6/9 ATTEMPTED, 0 ARCHETYPES FILLED /
+FAILURE MODES MIXED: WAVE 1 F2 ×3 ｜ WAVE 2 F1 ×2 + F2 ×1 /
+MULTI-PROVIDER ROUND1 WORKER EXECUTION NOW OBSERVED（claude + openai）/
+T-RETRY-01 CLOSED FOR FUTURE CAPTURES @ 9a6e715（PROSPECTIVE ONLY）/
+NEXT PROTOCOL STEP = WAVE 3，METHODOLOGY READY，LIVE NOT AUTHORIZED /
 LIVE = NONE / EXECUTION AUTHORIZATION: NOT GRANTED
 ```
