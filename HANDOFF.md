@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-06, rev. 31)
+# ai-collab-mcp — Progress Report (2026-09-06, rev. 32)
 
 > ## 交接狀態
 >
@@ -19,9 +19,10 @@
 > | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
 > | **M2-B Fixture Freeze(synthetic)** | **SUPERSEDED —— GPT Fixture Review 判定 FIXTURE PROVENANCE BLOCKER;`fx-01…04` 改列 PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL,檔案原封保留於 `02cbb5f`** |
 > | **M2-B Pre-Synthesis Boundary** | **ACCEPTED(GPT)—— `runRound1Stage()` 已抽出,offline parity byte-identical** |
-> | **M2-B Real Round1 Capture** | **PARTIAL / CANDIDATE REPLACEMENT REQUIRES GPT / LIVE PILOT NOT AUTHORIZED —— 四題各一次 attempt,四題全 FAIL F1(production 判 `normal` 非 `deep`),其中兩題另 FAIL F2。10 次 live call,證據全數保留於 `81ac330`,詳見第二十七節** |
+> | **M2-B Real Round1 Capture — Set R1** | **FAILED(保存為失敗證據)—— fxr-01…04 四題全 FAIL F1,證據保留於 `81ac330`,詳見第二十七節** |
+> | **M2-B Real Round1 Capture — Set R2** | **PARTIAL / REPLACEMENT SET R2 INCOMPLETE / CANDIDATE REPLACEMENT REQUIRES GPT / LIVE PILOT NOT AUTHORIZED —— fxr-05…08 四題 F1 全過(`deep`),但 fxr-05 / fxr-07 各只獲派一位 specialist 而 FAIL F2。10 次 live call,證據保留於 `7af382d`,詳見第二十八節** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
-> | **目前離線測試** | **production 212 / harness 110 / synthetic fixtures 44 / round1 boundary 15 / capture 64(新增)—— 全過,無任何 expectation 因 live 結果而放寬** |
+> | **目前離線測試** | **production 212 / harness 110 / synthetic fixtures 44 / round1 boundary 15 / capture 74 —— 全過,無任何 expectation 因 live 結果而放寬** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
 > | **Step 8 Implementation** | **DEFERRED —— Milestone 2 驗證後再回來** |
 > | 未完成的程式修改 | **無** |
@@ -29,6 +30,81 @@
 > **Experimental Milestone 2-A 已完成本輪限定工程,現在 STOPPED / AWAITING ARCHITECTURE REVIEW,default OFF。** 使用者批准 Gate eligibility 由 post-synthesis unresolved conflict 改成 pre-synthesis material disagreement;唯一一次 Replay #4 使用與 #3 byte-identical 的 fixture,自然跑通 valid issue、sourceRef、Targeted R2 與 Decision Synthesis。212 項離線測試通過,既有 assertions 未放寬,16 組修改前/後 control capture byte-identical。這是機制驗證,尚未執行品質比較或 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 32 改了什麼(M2-B Replacement Real Round1 Capture — Set R2)
+
+**本輪未修改 production。`src/` 與 `dist/` 零變動,production SHA 仍為 `d01043b`。**
+Live stage 僅 `planning` 與 `round1_worker`,本輪 **10 次 live call**(R2 ceiling 16,與 R1 的 10 次分開計算)。
+無 synthesis、無 Gate、無 Round 2、無 Decision Synthesis、無 temperature probe、無 pilot。
+
+### 28. M2-B Replacement Real Round1 Capture(fxr-05…fxr-08 / Set R2)
+
+R1 四題全被判 `normal` 而 FAIL F1。GPT 裁決:**F1/F2/F3 不變、不把 M2-A eligibility 放寬到 NORMAL**,
+改以四題全新 replacement task 重跑。四題在任何 provider call 之前先凍結並 push(`b993325`)。
+
+**結果:2 CAPTURED / 2 FAILED,本輪仍是 PARTIAL。**
+
+| fixture | 來源 | complexity | planner assignments | 成功 worker | RunStatus | provider/model | calls | F1 | F2 | F3 | 判定 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| fxr-05 | r2-01 | `deep` | business_strategist | 1 | SUCCESS | openai/gpt-5 | 2 | ✅ | ❌ | ✅ | **FAILED** |
+| fxr-06 | r2-02 | `deep` | business_strategist, brand_creative | 2 | SUCCESS | claude/claude-sonnet-5 | 3 | ✅ | ✅ | ✅ | **CAPTURED** |
+| fxr-07 | r2-03 | `deep` | business_strategist | 1 | SUCCESS | gemini/gemini-3.1-pro-preview | 2 | ✅ | ❌ | ✅ | **FAILED** |
+| fxr-08 | r2-04 | `deep` | business_strategist, brand_creative | 2 | SUCCESS | openai/gpt-5 | 3 | ✅ | ✅ | ✅ | **CAPTURED** |
+
+**[FACT] F1 已解決。** 四題全部被 production Chief 判為 `deep`。replacement 選題在 complexity 這一關有效。
+
+**[FACT] F2 沒有跟著解決。** `deep` 是「至多 8 位 specialist」的**上限**,不是「至少 2 位」的下限;
+Chief 的第一條 planning rule 就是「先決定這題是不是真的需要超過一位 specialist」。
+fxr-05 的理由是品牌面「可由商業策略視角權衡」,fxr-07 的理由是「additional roles would not change
+the recommendation」。兩者都是連貫的判斷,不是故障。
+
+**[SIGNAL] 一個值得命名的結構性交互作用。** `market_researcher` 在 R2 四題中**被指派 0 次**。
+本實驗把 retrieval 釘在 all-off,而四題 task 都要求「只根據題目提供的事實判斷」,其中 fxr-05 與
+fxr-07 更明確點名不得引入外部市場資訊 —— 這正好消掉了 research specialist 的存在理由,使可用
+roster 實際上只剩兩位;再遇上沒有真正品牌面向的題目,就塌成一位。**讓 fixture 自足的那條指令,
+同時也在對抗 F2。** 這是 n=8(R1 4 + R2 4)的觀察,尚不足以推廣。
+
+**[FACT] capture 完整性成立。** offline verifier 重算 179 項,失敗的只有 fxr-05 / fxr-07 的 F2 這 2 項。
+pin 的 provider/model 在 request 與 resolve 兩側吻合、retrieval 全程 all-off、temperature 從未設定、
+只出現 planning 與 round1_worker、runtime fingerprint 起訖相同、凍結輸出與 raw provider text 逐位元組相等。
+
+**[SIGNAL] 初步 archetype screen(僅 fxr-06 / fxr-08,兩題 single-specialist 在結構上不可 screen)**
+- `fxr-08`(intended negative control):兩位 specialist 都選 **B**,理由一致(續約窗口、9–15 個月
+  物料自然更新、客戶接受 endorsement)。negative control 的失敗樣態是「明確互斥的核心決策」——
+  這裡沒有 → **通過 screen**。
+- `fxr-06`(intended positive):business_strategist 明確「建議管理層採 B」;brand_creative 未點名
+  A/B/C,但核心結論是「撐不住 14 週 80 據點同步全面上線,撐得住核心系統 + 分階段導入」,
+  在決策關鍵問題上與 B 同向,未見 decision-sensitive 對立 → **實質同意**。
+  唯一保留:brand_creative 明確自我限縮為交付端判斷,未承擔 A/B/C 決策,是否構成
+  `FAILED_PRE_GATE_SCREEN` 請 GPT 裁定。
+
+**[DECISION] 依 §26 走 PARTIAL path。** 未產 packet、未自行設計第三組 replacement、未 retry、
+未呼叫 Gemini annotator。四次 attempt 的證據(含兩次失敗)全部保留並提交。
+
+### 累計 real-Round1 live call
+
+```
+historical failed capture (R1)   10
+replacement capture (R2)         10
+cumulative real-Round1 work      20
+```
+
+### [SIGNAL ONLY] Routing 觀察 —— 不得外推
+
+R1 的 4/4 SME 營運型 candidate task 被判 `normal`。這是 **signal only**。
+**不得**據此宣稱「多數使用者的商業任務都是 NORMAL」或「M2-A 很少可達」—— n=4 撐不起這種結論。
+本 scope 不開 routing study。
+
+### 本輪 commit
+
+- `b993325` replacementCandidateFreezeCommit(四題 task 凍結,live 之前 commit + push)
+- `7af382d` R2 REAL ROUND1 CAPTURE EVIDENCE(四次 attempt,含兩次失敗)
+
+### Replay #4 狀態(三分法)
+
+- artifact seal:**INTACT**
+- historical runtime fingerprint:**MISMATCH —— EXPECTED AFTER APPROVED `d01043b` REFACTOR**
+- historical disabled/omitted behavioral control recheck:**PASS**(`f50a7b2e…`,無 drift)
 
 ## rev. 31 改了什麼(M2-B Real Round1 Capture —— 授權 live,結果 PARTIAL)
 
