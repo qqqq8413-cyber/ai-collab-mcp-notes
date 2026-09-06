@@ -17,10 +17,14 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  b7b304eebe599c32e0d9255f47781c25530b12cc
+stateVerifiedThrough  a275d010703bf382dcccf1b621607b4eac582c97
 production            src/** 停在 d01043b（accepted pre-synthesis boundary）
 main                  未 merge，且本階段不打算 merge
 ```
+
+**production boundary 未移動。** `CWP-1` / `CWP-2` / `CWP-3` / `CWP-3R` / `P-1` 全部只動
+`experiments/m2b/**` 的 acquisition / experiment tooling,**沒有任何一個進入 `src/**`**。
+production Round 1 邊界仍然是 `d01043b` 的 `runRound1Stage()`。
 
 > ⚠️ **`stateVerifiedThrough` 是本檔內容被核對到的那個 commit,不是目前的 branch HEAD。**
 > 本檔一被 commit,任何寫死在裡面的 HEAD 就已經過期 —— 包含這一行。
@@ -260,10 +264,127 @@ provider heterogeneity caused the observed conflict
 
 ---
 
-## 7. Real Round1 capture history（壓縮版）
+## 7. Pre-live engineering state（M2-B acquisition tooling）
+
+`M2B-PROTOCOL-0.3` —— **ACCEPTED**。以下五個 work packet 依序把它變成可執行的 acquisition 路徑,
+全部落在 `experiments/m2b/**`:
+
+| packet | 內容 | 狀態 | commit |
+|---|---|---|---|
+| **CWP-1** | Option 3′-H capture routing / per-agent pin provenance | ACCEPTED | `656f75c75bf0e8b2f9f359446822dab27773f5db` |
+| **CWP-2** | P03 candidate pool 註冊 / wave gating / one-attempt / wave budget | ACCEPTED | `5d92a34333dab522885ef88a48889680079f6594` |
+| **CWP-3** | real capture → clean-room A2 packet builder + annotation validator | ACCEPTED | `5a2bb5e5b1871e3ce55a6770a0a786018c5d65e1` |
+| **CWP-3R** | fatal capture handling ＋ prior A2 provenance continuity validation | ACCEPTED | `183b88669edaf46a634efd5d6c67d9194cb7c7b1` |
+| **P-1** | request-side provider/model pin mismatch 的 pre-call guard | CLOSED / ACCEPTED | `a275d010703bf382dcccf1b621607b4eac582c97` |
+
+### PRE-LIVE BLOCKER LEDGER
+
+歷史 ID 沿用 `WAVE1_PREFLIGHT_REVIEW.md` 的原始命名,**不重新命名**。
+
+| ID | 內容 | 狀態 |
+|---|---|---|
+| **B-01** | 0.3 candidate pool 未註冊為 candidate set,`sourceTaskPath('S1')` 直接拋錯 | CLOSED by **CWP-2** |
+| **B-02** | `buildWorkerRefs` 用 per-fixture pin,不是 role pin | CLOSED by **CWP-1** |
+| **B-03** | recorder 的 `pins[stage]` 無法表達 per-agent pin | CLOSED by **CWP-1** |
+| **B-04** | verifier check 17/18 寫死 `providerAllocation[fixtureId]` | CLOSED by **CWP-1** |
+| **B-05** | 綠燈測試守著已被取代的 Option 3′ allocation | CLOSED by **CWP-1** |
+| **B-06** | manifest 只記單一 `providerAllocation` | CLOSED by **CWP-1** |
+| **N-03** | `slotsForWave` 未接進 session driver | CLOSED by **CWP-2** |
+| **N-05** | call budget 仍是 16,不是 per-wave | CLOSED by **CWP-2**（`waveCallBudget` = 選中 slot × 4) |
+| **N-04** | 沒有 real capture → clean-room A2 的可執行路徑 | CLOSED by **CWP-3** |
+| **C-01** | 合法的 pre-Round1 fatal capture 會讓 A2 loader crash | CLOSED by **CWP-3R** |
+| **C-02** | prior A2 provenance 未經連續性驗證就被信任 | CLOSED by **CWP-3R** |
+| **P-1** | request-side provider/model 不符只在 provider call 之後才被發現 | CLOSED by **P-1** @ `a275d01` |
+| **D-01** | 本檔未記錄 harness 尚不支援 0.3 | CLOSED by 本次更新 |
+
+未關閉、但**不是** engineering blocker 的兩項,列出以免被誤讀成已消失:
+
+```
+N-01  session 的 fresh:true 會 rmSync capture root
+      → live entry point 不可達：run-live.mjs 拒絕 --fresh / --overwrite / --delete-existing，
+        且 realRoot 已存在就拒絕啟動。僅離線 stub session 用得到。狀態：MITIGATED，非 CLOSED
+N-02  3′-H 把唯一 providesEvidence 的 role（market_researcher）綁到 gemini，
+      而該 role 在已觀察七題中被指派 0 次 → gemini worker coverage 可能為零。
+      這是合法的 observed result，不是缺陷。詳見第 8 節
+```
+
+仍待 GPT 裁決的 architecture 開放項(非 blocker,但**不得在 reconciliation 時遺漏**):
+
+```
+A2 prior provenance 的 on-disk 儲存位置與命名        未定
+A2 identity scanner 的 fail-closed 行為（真實 Round1 若含 S1/E1/I1 字樣會擋下整批)  未裁決
+CWP-2 wave gating 與 A2 resolveAnnotations().filledArchetypes 尚未接線          未接
+session.mjs 的 ROUND_ENDING class 清單未含 RequestPinMismatch（該路徑對它不可達)  名義不一致
+```
+
+### ⚠️ CRITICAL GOVERNANCE GATE
+
+```
+Known engineering blockers:
+none currently known from the materialized ledger above
+```
+
+**THIS DOES NOT MEAN PRE-LIVE READY.**
+
+```
+FINAL PRE-LIVE BLOCKER RECONCILIATION
+STATUS: PENDING
+```
+
+該 review 必須自己做到,不得省略:
+
+```
+fresh-fetch HEAD
+reconcile CURRENT_STATE 與實際 repo
+reconcile 完整歷史 blocker ledger（含 HANDOFF）
+逐項確認每個 CLOSED blocker 都有 source / test / commit 證據
+實際檢視 live path
+才做 readiness 判定
+```
+
+**不得**把「no known engineering blockers」寫成「Wave 1 ready」或「PRE-LIVE PASS」。
+
+### Pin validation 是兩層,語意不可合併（P-1)
+
+```
+Request-side pin mismatch          call 之前就可知
+  → RequestPinMismatch
+  → provider NOT called
+  → 不 reserve budget
+  → 不寫 live-call journal
+
+Resolved-side model/provider drift  只有 call 之後才可知
+  → ModelPinMismatch
+  → raw response 保留
+  → call 計入
+  → 標記 invalid
+  → 不 retry、不 fallback
+```
+
+這個區分必須留在 current state ——**它正是上一輪 pre-live review 漏判的原因之一**。
+
+### Governance invariant
+
+```
+No blocker observed  ≠  all known blockers have closure evidence.
+```
+
+OFFLINE → LIVE 之前,必須 reconcile 完整的已知 blocker ledger,
+而不是只確認「最近幾輪沒有再出現 blocker」。
+
+---
+
+## 8. Real Round1 capture history（壓縮版）
 
 累計 live call:**R1 = 10、R2 = 10、R3 = 9,總計 29**。全部只用 `planning` 與 `round1_worker`。
 三輪都沒有 synthesis / Gate / Round 2 / Decision Synthesis / temperature probe / pilot。
+
+```
+P03 Wave 1 live calls      0
+A2 acquisition live calls  0
+```
+
+離線 stub session 的 call **不計入** live history,任何時候都不得混算。
 
 | set | 結論 | evidence commit |
 |---|---|---|
@@ -287,7 +408,7 @@ retrieval 釘在 all-off、task 又要求只根據題目事實判斷,消掉了�
 
 ---
 
-## 8. Fixture state
+## 9. Fixture state
 
 ### 已凍結、不得修改
 
@@ -335,24 +456,47 @@ archetype 標籤是 experiment-internal,**絕不可出現在任何 clean-room pa
 
 ---
 
-## 9. Current authorization
+## 10. Current authorization
 
 ```
 LIVE                    NONE
-Wave 1 acquisition      尚未執行
-Gemini A2 annotation    尚未執行
-Gate                    未授權
-temperature probe       未授權
-pilot                   未授權
-main merge              未授權
-src/** 修改             未授權（發現需要改 → STOP，回 GPT）
+EXECUTION AUTHORIZATION NOT GRANTED
+
+Wave 1                  NOT AUTHORIZED
+Gemini A2               NOT AUTHORIZED
+Gate                    NOT AUTHORIZED
+Round 2                 NOT AUTHORIZED
+Pilot                   NOT AUTHORIZED
+temperature probe       NOT AUTHORIZED
+main merge              NOT AUTHORIZED
+src/** 修改             NOT AUTHORIZED（發現需要改 → STOP，回 GPT）
 ```
+
+硬性 invariant,不得軟化:
+
+```
+NEXT STEP  ≠  EXECUTION AUTHORIZATION
+READY      ≠  AUTHORIZATION
+```
+
+「next step」「ready」「architecture-ready」「execution-ready」「可以進入」
+都**不構成** execution authorization。沒有明寫 `EXECUTION AUTHORIZATION: GRANTED`,
+一律視為 `NOT GRANTED`。
 
 ---
 
-## 10. Next exact step
+## 11. Next exact step
 
-在 GPT 或新 thread 明確確認之後:
+```
+NEXT PROTOCOL-DEFINED STEP
+
+Wave 1:  S1 → E1 → I1     exactly one attempt each
+
+STATUS:  PENDING FINAL PRE-LIVE BLOCKER RECONCILIATION
+```
+
+**這是 protocol 定義的下一步,不是授權。** 必須先通過第 7 節的 Final Pre-Live Blocker
+Reconciliation,再由 GPT 明確授權,才能執行:
 
 ```
 1. Wave 1 acquisition = S1 / E1 / I1
@@ -371,7 +515,7 @@ src/** 修改             未授權（發現需要改 → STOP，回 GPT）
 
 ---
 
-## 11. Active forbidden actions
+## 12. Active forbidden actions
 
 ```
 不得新增第十題
@@ -387,7 +531,7 @@ src/** 修改             未授權（發現需要改 → STOP，回 GPT）
 
 ---
 
-## 12. Current interpretation（措辭邊界)
+## 13. Current interpretation（措辭邊界)
 
 `[FACT]` **`fxr-09` / `fxr-10` / `fxr-11` 在 F1/F2/F3 上是 3/3 PASS,F4 在這三題上未取得。**
 
@@ -417,7 +561,7 @@ pool 設計上做了什麼:九題的選項 C 一律帶有取自該題自身事�
 
 ---
 
-## 13. Evidence pointers
+## 14. Evidence pointers
 
 | 主張 | 去哪裡查 |
 |---|---|
@@ -431,6 +575,10 @@ pool 設計上做了什麼:九題的選項 C 一律帶有取自該題自身事�
 | R3 capture 證據 + pre-Gate screen | `experiments/m2b/fixtures-real-r3/` @ `6aee7b0`(含 `pre-gate-screen.json`、`evaluation.md`);`HANDOFF.md` §29 |
 | candidate pool 凍結 | `experiments/m2b/candidates-0-3/` @ `ab893c1`;`HANDOFF.md` §31 |
 | capture harness + verifier | `experiments/m2b/capture/` @ `c5a4a37`(後續擴充見 git log) |
+| Option 3′-H routing 落地 | `experiments/m2b/capture/runner.mjs`、`recorder.mjs` @ `656f75c` |
+| P03 wave gating / one-attempt | `experiments/m2b/capture/session.mjs`、`runner.mjs` @ `5d92a34` |
+| A2 acquisition packet + validator | `experiments/m2b/harness/a2-acquisition.mjs` @ `5a2bb5e`,fatal/provenance 修正 @ `183b886` |
+| request-side pin guard（P-1) | `experiments/m2b/capture/recorder.mjs` @ `a275d01`;測試見 `test-m2b-capture.mjs` T-P1-1…10 |
 | Replay #4 三分法狀態 | `diagnostics/m2a-live/controlled-replay-4/`;`HANDOFF.md` rev.30 起每輪重述 |
 
 ### Replay #4 —— 固定用三分法陳述,不得只寫 VERIFIED
@@ -450,12 +598,16 @@ production            212
 harness               110
 synthetic fixtures     44
 round1 boundary        15
-capture                81
+capture               115   （含 P-1 的 11 項 request-side guard 測試）
 protocol 0.3           29
 candidate pool         27
+A2 acquisition         76   （CWP-3 56 ＋ CWP-3R 20）
 capture verifier      R1 174/180 ｜ R2 178/180 ｜ R3 149/149
 synthetic integrity   36/36
 ```
+
+合計 **628 passed, 0 failed**（核對於 `stateVerifiedThrough`）。
+capture verifier 的失敗項與失敗 identity 自 R1/R2 凍結以來未變動。
 
 R1 / R2 verifier 的失敗項**全部是 F1/F2 eligibility gate 本身**,不是完整性問題;
 那是保存下來的失敗證據應有的樣子。
@@ -463,6 +615,8 @@ R1 / R2 verifier 的失敗項**全部是 F1/F2 eligibility gate 本身**,不是�
 ---
 
 ```
-CONTEXT COMPRESSED / CURRENT_STATE CREATED /
-LIVE STILL NOT AUTHORIZED / READY FOR NEW GPT THREAD
+STATE ALIGNED THROUGH a275d01 /
+NO KNOWN ENGINEERING BLOCKER IN THE MATERIALIZED LEDGER /
+FINAL PRE-LIVE BLOCKER RECONCILIATION: PENDING /
+LIVE = NONE / EXECUTION AUTHORIZATION: NOT GRANTED
 ```
