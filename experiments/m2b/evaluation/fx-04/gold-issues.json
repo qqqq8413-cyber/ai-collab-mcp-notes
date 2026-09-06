@@ -1,0 +1,36 @@
+{
+  "fixtureId": "fx-04",
+  "goldIssues": [
+    {
+      "id": "gi-1",
+      "issue": "決策必須釐清「交付前漏改」的根本原因究竟是客戶回饋缺乏集中記錄，還是記錄後缺乏執行與檢核機制。",
+      "supportRefs": [
+        "team_workflow:p3",
+        "client_delivery:p2",
+        "client_delivery:p13",
+        "client_delivery:p14"
+      ]
+    },
+    {
+      "id": "gi-2",
+      "issue": "決策必須解決無專職 PM 且團隊對行政負擔排斥的採用門檻，確保設計師能持續維護工具而不重演試算表填寫不全的問題。",
+      "supportRefs": [
+        "team_workflow:p5",
+        "team_workflow:p6",
+        "team_workflow:p10",
+        "client_delivery:p8",
+        "client_delivery:p9"
+      ]
+    },
+    {
+      "id": "gi-3",
+      "issue": "決策必須訂定工具導入成功與否的客觀衡量標準，並確立小規模試用失敗時改回現行流程的替代與檢核方案。",
+      "supportRefs": [
+        "team_workflow:p11",
+        "team_workflow:p13",
+        "client_delivery:p11",
+        "client_delivery:p14"
+      ]
+    }
+  ]
+}

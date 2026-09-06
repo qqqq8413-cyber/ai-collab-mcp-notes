@@ -1,0 +1,15 @@
+{
+  "fixtureId": "fx-03",
+  "materialConflict": true,
+  "description": "demand_research 認為 Pilot 的高留存已證明產品需求並主張直接對外推出（選 A），而 retention_analysis 則認為 Pilot 樣本受熟客與人情偏誤影響，無法代表陌生市場，主張應先進行第二輪陌生客群 Pilot（選 B）。",
+  "passageRefs": [
+    "demand_research:p1",
+    "demand_research:p2",
+    "demand_research:p15",
+    "retention_analysis:p1",
+    "retention_analysis:p2",
+    "retention_analysis:p4",
+    "retention_analysis:p6",
+    "retention_analysis:p16"
+  ]
+}

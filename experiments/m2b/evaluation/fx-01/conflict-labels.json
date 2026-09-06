@@ -1,0 +1,13 @@
+{
+  "fixtureId": "fx-01",
+  "materialConflict": true,
+  "description": "market_positioning 主張透過線上平台合作以低固定成本快速驗證個人市場需求（選 B），但 delivery_operations 認為核心瓶頸是資深講師產能上限，平台合作無法解決授課人力問題且會嚴重排擠高單價 B2B 主業，主張暫不推出（選 C）。",
+  "passageRefs": [
+    "market_positioning:p1",
+    "market_positioning:p4",
+    "delivery_operations:p1",
+    "delivery_operations:p3",
+    "delivery_operations:p5",
+    "delivery_operations:p8"
+  ]
+}

@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-06, rev. 27)
+# ai-collab-mcp — Progress Report (2026-09-06, rev. 28)
 
 > ## 交接狀態
 >
@@ -17,7 +17,7 @@
 > | **rev.20 Independent Code Review** | **ACCEPT WITH DOCUMENTATION CORRECTION —— 無 runtime defect;3 項文件/命名修正 + 1 項規格 concern 待 review,詳見第二十五節** |
 > | **M2-B Protocol** | **ARCHITECTURE ACCEPTED / HARNESS IMPLEMENTATION NEXT / LIVE PILOT NOT AUTHORIZED —— `M2_EFFECTIVENESS_EXPERIMENT.md` v0.2 @ `a308bc8`** |
 > | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
-> | **M2-B Fixture Freeze** | **RUNTIME SIDE FROZEN / AWAITING CLEAN-ROOM ANNOTATION / LIVE PILOT NOT AUTHORIZED —— 4 個 fixture 已凍結,clean-room packet 已產出並 hash,尚未取得標註** |
+> | **M2-B Fixture Freeze** | **FROZEN / AWAITING GPT FIXTURE REVIEW / LIVE PILOT NOT AUTHORIZED —— 4 個 fixture + 雙 clean-room ground truth 已凍結並 hash,154 項離線測試,零 provider 呼叫** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
 > | **目前離線測試** | **212 項全過 = rev.19 的 208 + Gate semantics 新增 4** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
@@ -27,6 +27,63 @@
 > **Experimental Milestone 2-A 已完成本輪限定工程,現在 STOPPED / AWAITING ARCHITECTURE REVIEW,default OFF。** 使用者批准 Gate eligibility 由 post-synthesis unresolved conflict 改成 pre-synthesis material disagreement;唯一一次 Replay #4 使用與 #3 byte-identical 的 fixture,自然跑通 valid issue、sourceRef、Targeted R2 與 Decision Synthesis。212 項離線測試通過,既有 assertions 未放寬,16 組修改前/後 control capture byte-identical。這是機制驗證,尚未執行品質比較或 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 28 改了什麼(M2-B Fixture Freeze 完成 —— ground truth 已由 clean-room 取得並凍結)
+
+**`src/` diff 為空。production 212 全過,Replay #4 封印 VERIFIED,兩份 GEMINI packet 未動。**
+harness 110 + fixtures 44 = **154 項離線測試,0 失敗**。
+**零 provider 呼叫、零 Gate 執行、零 arm 執行、未跑 temperature probe。**
+
+### 1. 雙 clean-room ground truth 已取得
+
+| | 標註者 | 看到什麼 | raw sha256 |
+|---|---|---|---|
+| Conflict labels | clean-room Gemini session **A** | 只有 `packet-conflict.md` | `96ba88667d29c4b2…` |
+| Gold issues | clean-room Gemini session **B** | 只有 `packet-gold.md`,**未看過 session A 的輸出** | `e9f83a30af2fa5b4…` |
+
+兩個 session 都是全新對話,未重用 methodology review 的 context,也未重用 PACKET-1／PACKET-2。
+**這是 ground-truth authoring,不是 runtime experiment** —— 未呼叫 Chief／M2 harness,
+不計入 pilot calls。此區分已寫入 freeze manifest 的 `activityClass`。
+
+### 2. Negative control 獨立驗證通過
+
+```
+fx-01  intended=positive  observed=true    AGREES
+fx-02  intended=positive  observed=true    AGREES
+fx-03  intended=positive  observed=true    AGREES
+fx-04  intended=NEGATIVE  observed=false   AGREES
+```
+
+四份全部相符,**無需更換任何候選**。若曾不符,依 protocol §13 是換 fixture 重跑 clean-room,
+**不得編輯標註** —— 該行為由測試強制(把 `fx-04` 翻成 true 時,intent check 必須回報 disagree)。
+
+### 3. 「逐字提交」是可驗證的,不是口頭承諾
+
+raw 標註輸出原文保存於 `evaluation/cleanroom/raw-*.md`(含 JSON 與人類可讀說明),
+per-fixture 檔案是它的**純分割**。測試把分割重新接起來,必須與 raw 物件 `deepEqual` ——
+任何正規化、修正或補全都會在這裡現形。**Claude 未觸碰任何語意判斷。**
+
+### 4. Freeze manifest
+
+`experiments/m2b/manifests/fixture-freeze-manifest.json` 綁定:
+四個 fixture 的 fixture/snapshot/roster/manifest hash、雙份 ground truth hash、
+兩份 packet hash、兩份 raw 標註 hash、runtimeCommit、chunkerVersion、
+以及 `status=FROZEN_PRE_ARM` / `armExecution=NONE` / `liveProviderCalls=0`。
+測試逐項從檔案重算比對。**一經 commit 不覆寫**;要改就是新的 freeze commit。
+
+### 5. Claim boundary(必須維持)
+
+```
+✅ 4 個 fixture 已凍結並 hash        ✅ 雙 clean-room ground truth 已凍結
+✅ negative control 獨立驗證通過      ✅ 路徑隔離結構性測試通過
+✅ Option 3′ 分配已凍結（未執行）
+❌ 尚未 GPT Fixture Review           ❌ 零 Gate / arm / provider 執行
+❌ 未跑 temperature probe            ❌ 無任何 effectiveness 證據
+```
+
+**不得寫成 PILOT READY / EFFECTIVENESS VALIDATED / GATE VALIDATED / PRODUCTION READY。**
+
+---
 
 ## rev. 27 改了什麼(M2-B Fixture Freeze —— runtime side 完成,ground truth 待標註)
 

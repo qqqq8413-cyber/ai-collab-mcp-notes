@@ -17,6 +17,7 @@ import {
 } from './harness/fixtures.mjs';
 import { buildCleanRoomPacket, scanPacket, assertPacketClean, PacketLeakageDetected, FORBIDDEN_TERMS, PACKET_ORDER } from './harness/cleanroom.mjs';
 import { OPTION_3_PRIME } from './harness/freeze.mjs';
+import { readRaw, extractJsonArray, validateConflictLabels, validateGoldIssues, checkAgainstIntent, AnnotationInvalid } from './harness/annotations.mjs';
 
 const M2B = fileURLToPath(new URL('./', import.meta.url));
 const sha256 = (v) => createHash('sha256').update(v).digest('hex');
@@ -332,6 +333,102 @@ await check('gold issues, when present, are valid, resolve, and live outside run
       for (const ref of gi.supportRefs ?? []) assert.ok(ids.has(ref), `${id}: gold issue cites ${ref}, which does not resolve`);
     }
   }
+});
+
+await check('the per-fixture split is a faithful partition of the raw annotator output', () => {
+  // What makes "committed verbatim" checkable: rejoin the split and it must reproduce the
+  // raw objects exactly. Any normalization, correction or completion would show up here.
+  for (const [kind, name] of [['conflict-labels', 'conflict-labels'], ['gold-issues', 'gold-issues']]) {
+    const raw = readRaw(kind);
+    for (const entry of raw.entries) {
+      const split = JSON.parse(readFileSync(join(EVALUATION_ROOT, entry.fixtureId, `${name}.json`), 'utf8'));
+      assert.deepEqual(split, entry, `${entry.fixtureId}/${name}: the split differs from the raw annotator output`);
+    }
+    assert.equal(raw.entries.length, EXPERIMENT_FIXTURE_IDS.length);
+  }
+});
+
+await check('the raw annotator outputs are present and hashed into the freeze manifest', () => {
+  const freeze = JSON.parse(readFileSync(join(M2B, 'manifests', 'fixture-freeze-manifest.json'), 'utf8'));
+  for (const [file, key] of [
+    ['raw-conflict-labels.md', 'rawConflictLabelsSha256'],
+    ['raw-gold-issues.md', 'rawGoldIssuesSha256'],
+    ['packet-conflict.md', 'packetConflictSha256'],
+    ['packet-gold.md', 'packetGoldSha256'],
+  ]) {
+    const actual = sha256(readFileSync(join(EVALUATION_ROOT, 'cleanroom', file), 'utf8'));
+    assert.equal(freeze.cleanRoom[key], actual, `${file}: hash in the freeze manifest does not match the file`);
+  }
+});
+
+await check('the freeze manifest records zero arm execution and zero provider calls', () => {
+  const freeze = JSON.parse(readFileSync(join(M2B, 'manifests', 'fixture-freeze-manifest.json'), 'utf8'));
+  assert.equal(freeze.status, 'FROZEN_PRE_ARM');
+  assert.equal(freeze.armExecution, 'NONE');
+  assert.equal(freeze.liveProviderCalls, 0);
+  assert.equal(freeze.temperatureProbe, 'NOT RUN');
+  assert.equal(freeze.fixtures.length, 4);
+  assert.match(freeze.cleanRoom.activityClass, /not a runtime experiment/);
+});
+
+await check('every hash in the freeze manifest reproduces from the frozen files', () => {
+  const freeze = JSON.parse(readFileSync(join(M2B, 'manifests', 'fixture-freeze-manifest.json'), 'utf8'));
+  for (const f of freeze.fixtures) {
+    const fx = loadFixture(f.fixtureId);
+    assert.equal(f.fixtureSha256, fx.fixtureSha256, `${f.fixtureId}: fixture hash`);
+    assert.equal(f.snapshotSha256, fx.snapshotSha256, `${f.fixtureId}: snapshot hash`);
+    for (const [key, path] of [
+      ['conflictLabelsSha256', join(EVALUATION_ROOT, f.fixtureId, 'conflict-labels.json')],
+      ['goldIssuesSha256', join(EVALUATION_ROOT, f.fixtureId, 'gold-issues.json')],
+      ['fixtureManifestSha256', join(FIXTURE_ROOT, f.fixtureId, 'fixture-manifest.json')],
+    ]) {
+      assert.equal(f[key], sha256(readFileSync(path, 'utf8')), `${f.fixtureId}: ${key}`);
+    }
+  }
+});
+
+await check('conflict labels and gold issues came from separate sessions, recorded as such', () => {
+  const freeze = JSON.parse(readFileSync(join(M2B, 'manifests', 'fixture-freeze-manifest.json'), 'utf8'));
+  assert.notEqual(freeze.cleanRoom.conflictAnnotator, freeze.cleanRoom.goldAnnotator);
+  assert.match(freeze.cleanRoom.goldAnnotator, /never session A output/);
+  assert.match(freeze.cleanRoom.isolation, /two separate fresh sessions/);
+});
+
+await check('NEGATIVE: a conflict label with an unresolvable passageRef is rejected', () => {
+  const entries = readRaw('conflict-labels').entries.map((e) =>
+    e.fixtureId === 'fx-01' ? { ...e, passageRefs: [...e.passageRefs, 'market_positioning:p99'] } : e);
+  const err = mustThrow(() => validateConflictLabels(entries), AnnotationInvalid);
+  assert.ok(err.problems.some((p) => p.includes('p99')));
+});
+
+await check('NEGATIVE: a gold issue with an unresolvable supportRef is rejected', () => {
+  const entries = readRaw('gold-issues').entries.map((e) =>
+    e.fixtureId === 'fx-02' ? { ...e, goldIssues: [{ ...e.goldIssues[0], supportRefs: ['growth_planning:p99'] }] } : e);
+  const err = mustThrow(() => validateGoldIssues(entries), AnnotationInvalid);
+  assert.ok(err.problems.some((p) => p.includes('p99')));
+});
+
+await check('NEGATIVE: a materialConflict=true label with no description is rejected', () => {
+  const entries = readRaw('conflict-labels').entries.map((e) =>
+    e.fixtureId === 'fx-03' ? { ...e, description: null } : e);
+  mustThrow(() => validateConflictLabels(entries), AnnotationInvalid);
+});
+
+await check('NEGATIVE: a missing fixture entry is rejected rather than filled in', () => {
+  const entries = readRaw('conflict-labels').entries.filter((e) => e.fixtureId !== 'fx-04');
+  const err = mustThrow(() => validateConflictLabels(entries), AnnotationInvalid);
+  assert.ok(err.problems.some((p) => p.includes('no entry for fx-04')));
+});
+
+await check('NEGATIVE: intent disagreement is reported, never silently reconciled', () => {
+  // The whole point of the negative control: if the independent annotator disagrees, the
+  // candidate fails and gets replaced. The label is not edited.
+  const flipped = readRaw('conflict-labels').entries.map((e) =>
+    e.fixtureId === 'fx-04' ? { ...e, materialConflict: true, description: 'x', passageRefs: ['team_workflow:p1'] } : e);
+  const report = checkAgainstIntent(flipped);
+  const negative = report.find((r) => r.fixtureId === 'fx-04');
+  assert.equal(negative.agrees, false, 'a flipped negative control must be reported as disagreeing');
+  assert.equal(negative.intendedPositive, false);
 });
 
 await check('NEGATIVE: a conflict label citing a nonexistent passage is rejected', () => {

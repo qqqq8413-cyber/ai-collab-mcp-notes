@@ -1,0 +1,33 @@
+{
+  "fixtureId": "fx-01",
+  "goldIssues": [
+    {
+      "id": "gi-1",
+      "issue": "決策必須評估資深講師產能上限對高客單價 B2B 業務的排擠風險，以及能否運用非資深講師獨立授課以解開產能瓶頸。",
+      "supportRefs": [
+        "market_positioning:p7",
+        "delivery_operations:p2",
+        "delivery_operations:p5",
+        "delivery_operations:p11"
+      ]
+    },
+    {
+      "id": "gi-2",
+      "issue": "決策必須衡量與平台合作對於 B2B 企業客戶價格重新錨定的風險，以及失去學員名單與定價主導權的長期代價。",
+      "supportRefs": [
+        "market_positioning:p4",
+        "market_positioning:p12",
+        "market_positioning:p13"
+      ]
+    },
+    {
+      "id": "gi-3",
+      "issue": "決策必須權衡公開班作為 B2B 客戶獲客漏斗上游的長期戰略價值，與自建行銷／系統或經營平台課程所帶來的團隊營運負擔。",
+      "supportRefs": [
+        "market_positioning:p6",
+        "market_positioning:p9",
+        "delivery_operations:p9"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "fixtureId": "fx-02",
+  "goldIssues": [
+    {
+      "id": "gi-1",
+      "issue": "決策必須評估主治獸醫人力缺口與長招募週期（>4 個月），以及抽調人力是否會進一步惡化現有院區已排至兩週後的等待時間。",
+      "supportRefs": [
+        "clinical_staffing:p4",
+        "clinical_staffing:p5",
+        "clinical_staffing:p6",
+        "growth_planning:p4",
+        "growth_planning:p12"
+      ]
+    },
+    {
+      "id": "gi-2",
+      "issue": "決策必須衡量第二院區採取「限縮診別」啟動的可行性，能否在不攤薄現有院區核心產能的前提下把握黃金物件保留期（3 個月）。",
+      "supportRefs": [
+        "clinical_staffing:p11",
+        "growth_planning:p5",
+        "growth_planning:p7",
+        "growth_planning:p8",
+        "growth_planning:p12"
+      ]
+    },
+    {
+      "id": "gi-3",
+      "issue": "決策必須解決內部流程依賴口頭默契未文件化的隱患，並防範資深獸醫助理調動或離職對現有看診量與服務品質的衝擊。",
+      "supportRefs": [
+        "clinical_staffing:p8",
+        "clinical_staffing:p9",
+        "clinical_staffing:p14"
+      ]
+    }
+  ]
+}

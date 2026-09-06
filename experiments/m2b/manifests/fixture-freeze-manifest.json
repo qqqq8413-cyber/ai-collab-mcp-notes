@@ -1,0 +1,78 @@
+{
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "status": "FROZEN_PRE_ARM",
+  "frozenAt": "2026-09-06T03:27:17.992Z",
+  "runtimeCommit": "b20df206b93c88a9d45d841d16c24fcb5a81af5a",
+  "chunkerVersion": "3a3d72bf78afd5dc69e9392e6a925e9a3b5d12f051c8b4327f024173b561e522",
+  "fixtures": [
+    {
+      "fixtureId": "fx-01",
+      "archetypeCode": "STRATEGY_CONFLICT",
+      "fixtureSha256": "7a0d9d8270baf078e9bf30ef3f8b4f53c4173e8d1475529d6f856dc61bc088cb",
+      "snapshotSha256": "e5c7b435ded065f92553bd9fb17666fedf4924ba24033f429a37d95ed43081a3",
+      "rosterSha256": "94c08d8207e4d250f9553178f742d29a55dca22cee75c3f3996a9ea9b2de02d8",
+      "fixtureManifestSha256": "f30dfdcc5f834038ae1ea99419f493b8331a2ce091251e8438c7784fff968a71",
+      "conflictLabelsSha256": "57314c6e4eb7732c031f9a583a431fac84fe442384c319d4a0d01f8be9d2f827",
+      "goldIssuesSha256": "f2211e922d73743a120165e2ba800bb4034d8f6048e07e10701aaab459d29276",
+      "option3Prime": {
+        "targetProvider": "openai",
+        "targetModel": "gpt-5"
+      }
+    },
+    {
+      "fixtureId": "fx-02",
+      "archetypeCode": "EXECUTION_CONSTRAINT_CONFLICT",
+      "fixtureSha256": "d7a88244030ac28748ec4cd4a29a8c245f5536c4f406e9fb608313ace42ad66b",
+      "snapshotSha256": "d75df0cc56719b4c240ba4212b3b93d19a7c640a45a0762cf58f48c67fad3b9d",
+      "rosterSha256": "c61b1a3a201f871bd126c3ed862002dc50b2ab0b5fc972b82479ebe64a8a36f4",
+      "fixtureManifestSha256": "82489f48a8162512d2a5f06c1368fa3e1ab0245c9dde6301ba1b89535f3548db",
+      "conflictLabelsSha256": "16120f1c4a7183637f051b1d1469488c97cfde7cb1de7ee43f59add1c1b86837",
+      "goldIssuesSha256": "21a6ba9e483679277c90ea0fb586029bd3c006b2e754114b4c80cb3f0b3924f7",
+      "option3Prime": {
+        "targetProvider": "claude",
+        "targetModel": "claude-sonnet-5"
+      }
+    },
+    {
+      "fixtureId": "fx-03",
+      "archetypeCode": "EVIDENCE_INTERPRETATION_CONFLICT",
+      "fixtureSha256": "658c6d268c8e13d5ebc11a0d2468767561e2785b474b2d3d4350f80b3392d319",
+      "snapshotSha256": "ce367a8e4ef8822669a532b8d1c529087060333963e2512d7790cc450f7efafe",
+      "rosterSha256": "d5a7cb3361702af1224d2c1504c3b3e75c36ca792d9e7191f4d2962d366a7bfd",
+      "fixtureManifestSha256": "0061cd372a54bb7a028ad55febe8c4aa8312a3c253efef176c23d853b15b531d",
+      "conflictLabelsSha256": "43aea2add3b0c98a8f151966ff4be8bf1955eff56b556dd556251dcf3d0679c5",
+      "goldIssuesSha256": "ede566769eacd0d812e9231c0c97cfd2a2244825121b97294135a78c2b9ac331",
+      "option3Prime": {
+        "targetProvider": "gemini",
+        "targetModel": "gemini-3.1-pro-preview"
+      }
+    },
+    {
+      "fixtureId": "fx-04",
+      "archetypeCode": "NEGATIVE_CONTROL",
+      "fixtureSha256": "0843db6a86d709dcfe6249970b59e83a017f747bdb15beb962003f3a6700fec9",
+      "snapshotSha256": "efb51f05330c03baafe8832230a5d70a1fa936b4445f177acfed9bd2b31cf25e",
+      "rosterSha256": "8faf6dea63690294065bf58974d4f2d8907aee085292b6eac215bc450bedc81b",
+      "fixtureManifestSha256": "b650c77f1342846c1c01173b5dccee2b41eef5a1e472c8ba70f91d26b00dc93c",
+      "conflictLabelsSha256": "e9d71ee83bedb7afc7ef380de7d327049dc9a40d4b5526f73d6ba8cc55e2395f",
+      "goldIssuesSha256": "a7ce81ba894dd46a4d5a26d14cb4337d739ab2c4d585785099710d0bf11a0457",
+      "option3Prime": {
+        "targetProvider": "openai",
+        "targetModel": "gpt-5"
+      }
+    }
+  ],
+  "cleanRoom": {
+    "packetConflictSha256": "4af963eed0dce2809c96b80dfec9420c965fdfdbe847ff16ec05a4b0175d7e84",
+    "packetGoldSha256": "463e117b17d2ef77bc2d0883ee30806ce01f23b21c046c5ea8624fae5505e2ea",
+    "rawConflictLabelsSha256": "96ba88667d29c4b27d2811e76c1b73bdea72f68d3f7883cd2798fde317beb69a",
+    "rawGoldIssuesSha256": "e9f83a30af2fa5b4397493110a446fd4dbff88146fb95820a045d84b1fcc23fe",
+    "conflictAnnotator": "clean-room Gemini session A — saw only packet-conflict.md",
+    "goldAnnotator": "clean-room Gemini session B — saw only packet-gold.md, never session A output",
+    "isolation": "two separate fresh sessions; neither reused the methodology-review context nor PACKET-1/PACKET-2",
+    "activityClass": "GROUND-TRUTH AUTHORING — not a runtime experiment; no Chief/M2 harness call, not counted as pilot calls"
+  },
+  "armExecution": "NONE",
+  "liveProviderCalls": 0,
+  "temperatureProbe": "NOT RUN"
+}

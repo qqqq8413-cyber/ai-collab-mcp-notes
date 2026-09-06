@@ -1,0 +1,13 @@
+{
+  "fixtureId": "fx-02",
+  "materialConflict": true,
+  "description": "clinical_staffing 認為主治獸醫短缺與長招募週期會拖垮現有院區品質，主張延至明年下半年（選 B）；而 growth_planning 則認為可透過「限縮診別」以例行項目啟動來繞過人力瓶頸，主張今年下半年直接開分院（選 A）。",
+  "passageRefs": [
+    "clinical_staffing:p1",
+    "clinical_staffing:p4",
+    "clinical_staffing:p6",
+    "growth_planning:p1",
+    "growth_planning:p7",
+    "growth_planning:p8"
+  ]
+}

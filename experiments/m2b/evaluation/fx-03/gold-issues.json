@@ -1,0 +1,32 @@
+{
+  "fixtureId": "fx-03",
+  "goldIssues": [
+    {
+      "id": "gi-1",
+      "issue": "決策必須判定第一輪 Pilot 的高留存是否代表產品具備真實市場需求，還是僅為熟客與人情關係影響下的偏誤結果。",
+      "supportRefs": [
+        "demand_research:p15",
+        "retention_analysis:p4",
+        "retention_analysis:p6"
+      ]
+    },
+    {
+      "id": "gi-2",
+      "issue": "決策必須評估是否需透過付費獲客測試陌生客群的獲客成本（CAC），以及直接公開推出是否會因同時引入陌生客群與獲客成本兩項變數而無法歸因留存下滑。",
+      "supportRefs": [
+        "demand_research:p9",
+        "demand_research:p10",
+        "retention_analysis:p14"
+      ]
+    },
+    {
+      "id": "gi-3",
+      "issue": "決策必須回應已知的配送時段營運問題，並處理第一輪 Pilot 中未測出的價格敏感度與四成問卷未填答所隱含的數據缺口。",
+      "supportRefs": [
+        "demand_research:p5",
+        "retention_analysis:p9",
+        "retention_analysis:p11"
+      ]
+    }
+  ]
+}

@@ -9,7 +9,7 @@
  * freeze is not a freeze. Re-freezing requires deleting deliberately, which leaves a trace
  * in git.
  */
-import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -149,4 +149,56 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const out = freezeAll();
   for (const w of out.written) console.log(`${w.sha256.slice(0, 16)}  ${w.path.replace(ROOT, '')}`);
   console.log(`\nruntimeCommit ${out.runtimeCommit}\nchunkerVersion ${out.chunkerVersion.slice(0, 16)}…\nfrozenAt ${out.frozenAt}`);
+}
+
+/**
+ * The experiment freeze manifest: one record binding fixtures, ground truth, the packets
+ * the annotators actually saw, and the runtime that produced the passage ids.
+ *
+ * Written after annotation, so it is the point at which the Phase 1 inputs stop moving.
+ */
+export function buildFreezeManifest({ frozenAt } = {}) {
+  const runtimeCommit = git('rev-parse', 'HEAD');
+  const at = frozenAt ?? new Date().toISOString();
+  const hashOf = (p) => sha256(readFileSync(p, 'utf8'));
+  const evaluationRoot = join(M2B, 'evaluation');
+
+  const fixtures = EXPERIMENT_FIXTURE_IDS.map((fixtureId) => {
+    const fx = loadFixture(fixtureId);
+    const manifest = JSON.parse(readFileSync(join(FIXTURE_ROOT, fixtureId, 'fixture-manifest.json'), 'utf8'));
+    return {
+      fixtureId,
+      archetypeCode: manifest.archetypeCode,
+      fixtureSha256: fx.fixtureSha256,
+      snapshotSha256: fx.snapshotSha256,
+      rosterSha256: manifest.rosterSha256,
+      fixtureManifestSha256: hashOf(join(FIXTURE_ROOT, fixtureId, 'fixture-manifest.json')),
+      conflictLabelsSha256: hashOf(join(evaluationRoot, fixtureId, 'conflict-labels.json')),
+      goldIssuesSha256: hashOf(join(evaluationRoot, fixtureId, 'gold-issues.json')),
+      option3Prime: OPTION_3_PRIME.byFixture[fixtureId],
+    };
+  });
+
+  return {
+    protocolVersion: 'M2B-PROTOCOL-0.2',
+    status: 'FROZEN_PRE_ARM',
+    frozenAt: at,
+    runtimeCommit,
+    chunkerVersion: sha256(git('show', `${runtimeCommit}:src/agents/collaboration.ts`)),
+    fixtures,
+    cleanRoom: {
+      packetConflictSha256: hashOf(join(evaluationRoot, 'cleanroom', 'packet-conflict.md')),
+      packetGoldSha256: hashOf(join(evaluationRoot, 'cleanroom', 'packet-gold.md')),
+      rawConflictLabelsSha256: hashOf(join(evaluationRoot, 'cleanroom', 'raw-conflict-labels.md')),
+      rawGoldIssuesSha256: hashOf(join(evaluationRoot, 'cleanroom', 'raw-gold-issues.md')),
+      // Provenance, stated because it is the thing that makes the labels independent.
+      conflictAnnotator: 'clean-room Gemini session A — saw only packet-conflict.md',
+      goldAnnotator: 'clean-room Gemini session B — saw only packet-gold.md, never session A output',
+      isolation: 'two separate fresh sessions; neither reused the methodology-review context nor PACKET-1/PACKET-2',
+      activityClass: 'GROUND-TRUTH AUTHORING — not a runtime experiment; no Chief/M2 harness call, not counted as pilot calls',
+    },
+    armExecution: 'NONE',
+    liveProviderCalls: 0,
+    temperatureProbe: 'NOT RUN',
+  };
 }
