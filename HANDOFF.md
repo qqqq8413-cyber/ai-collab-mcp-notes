@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-06, rev. 33)
+# ai-collab-mcp — Progress Report (2026-09-06, rev. 34)
 
 > ## 交接狀態
 >
@@ -15,7 +15,7 @@
 > | **M2-A Controlled Replay #3** | **NOT EXERCISED —— gate 首次真正執行,但認出分歧後選擇在答案內解決,未輸出區塊,詳見第二十三節** |
 > | **M2-A Controlled Replay #4** | **FULL MECHANISM RUNTIME PASS —— 一次自然 valid issue → R2 → Decision Synthesis,不代表品質或產品價值已驗證** |
 > | **rev.20 Independent Code Review** | **ACCEPT WITH DOCUMENTATION CORRECTION —— 無 runtime defect;3 項文件/命名修正 + 1 項規格 concern 待 review,詳見第二十五節** |
-> | **M2-B Protocol** | **ARCHITECTURE ACCEPTED / HARNESS ACCEPTED / LIVE PILOT NOT AUTHORIZED —— `M2_EFFECTIVENESS_EXPERIMENT.md` v0.2 @ `a308bc8`** |
+> | **M2-B Protocol** | **`M2B-PROTOCOL-0.3` —— Option 3′-H(Heterogeneous Round1)amendment 已寫入,v0.2 全文保留;ARCHITECTURE ACCEPTED / HARNESS ACCEPTED / AWAITING GPT REVIEW OF 0.3 AMENDMENT / LIVE PILOT NOT AUTHORIZED,詳見第三十節** |
 > | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
 > | **M2-B Fixture Freeze(synthetic)** | **SUPERSEDED —— GPT Fixture Review 判定 FIXTURE PROVENANCE BLOCKER;`fx-01…04` 改列 PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL,檔案原封保留於 `02cbb5f`** |
 > | **M2-B Pre-Synthesis Boundary** | **ACCEPTED(GPT)—— `runRound1Stage()` 已抽出,offline parity byte-identical** |
@@ -23,7 +23,7 @@
 > | **M2-B Real Round1 Capture — Set R2** | **PARTIAL / REPLACEMENT SET R2 INCOMPLETE / CANDIDATE REPLACEMENT REQUIRES GPT / LIVE PILOT NOT AUTHORIZED —— fxr-05…08 四題 F1 全過(`deep`),但 fxr-05 / fxr-07 各只獲派一位 specialist 而 FAIL F2。10 次 live call,證據保留於 `7af382d`,詳見第二十八節** |
 > | **M2-B Real Round1 Capture — Set R3** | **PARTIAL / R3 POSITIVE SET INCOMPLETE / REQUIRES GPT ARCHITECTURE REVIEW / LIVE PILOT NOT AUTHORIZED —— fxr-09…11 的 F1/F2/F3 全過,但三題皆 FAILED_PRE_GATE_SCREEN。9 次 live call,證據保留於 `6aee7b0`,詳見第二十九節** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
-> | **目前離線測試** | **production 212 / harness 110 / synthetic fixtures 44 / round1 boundary 15 / capture 81 —— 全過;R3 artifact verifier 149/149 + synthetic integrity 36/36,無 expectation 因 live 結果而放寬** |
+> | **目前離線測試** | **production 212 / harness 110 / synthetic fixtures 44 / round1 boundary 15 / capture 81 / protocol 0.3 amendment 29 —— 全過;R3 artifact verifier 149/149 + synthetic integrity 36/36,無 expectation 因 live 結果而放寬** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
 > | **Step 8 Implementation** | **DEFERRED —— Milestone 2 驗證後再回來** |
 > | 未完成的程式修改 | **無** |
@@ -31,6 +31,93 @@
 > **Experimental Milestone 2-A 已完成本輪限定工程,現在 STOPPED / AWAITING ARCHITECTURE REVIEW,default OFF。** 使用者批准 Gate eligibility 由 post-synthesis unresolved conflict 改成 pre-synthesis material disagreement;唯一一次 Replay #4 使用與 #3 byte-identical 的 fixture,自然跑通 valid issue、sourceRef、Targeted R2 與 Decision Synthesis。212 項離線測試通過,既有 assertions 未放寬,16 組修改前/後 control capture byte-identical。這是機制驗證,尚未執行品質比較或 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 34 改了什麼(M2B-PROTOCOL-0.3 Amendment —— 文件與測試,零 live call)
+
+**本輪未修改 production,亦未執行任何 provider call。** `src/`、`dist/` 零變動。
+無 live capture、無 candidate task 產生、無 Gemini annotation、無 Gate、無 temperature probe、無 pilot。
+
+### 30. M2B-PROTOCOL-0.3 —— Option 3′-H(Heterogeneous Round1)
+
+`M2_EFFECTIVENESS_EXPERIMENT.md` 由 v0.2 升版 0.3。**v0.2 全文與 provenance 原封保留,未刪除任何歷史設計。**
+amendment 同時以可執行常數編碼於 `experiments/m2b/protocol/amendment-0-3.mjs`,
+由 `test-m2b-protocol-0-3.mjs`(29 項)雙向斷言文件與常數一致,避免日後各改各的。
+
+**本輪的直接動機是第二十九節的 R3 結果:** fxr-09…11 的 F1/F2/F3 全過,
+但三題 pre-Gate screen 全部 `FAILED_PRE_GATE_SCREEN` —— capture 機制沒問題,
+拿不到的是**實質分歧**本身。
+
+**A.1 Round1 provider mapping —— 綁 role,全局固定**
+
+```
+business_strategist  →  claude / claude-sonnet-5
+market_researcher    →  gemini / gemini-3.1-pro-preview
+brand_creative       →  openai / gpt-5
+Chief planning       →  openai / gpt-5
+```
+Planner 仍自由決定 specialist 數量、選誰、mission 內容。
+
+**A.2** provider 不再隨 fixture 變動 → fixture 層級共線性消失;但 role 與 provider 仍一對一,
+**role-provider coupling 為殘留 confound,未消除**。這是降級,不是消除。
+
+**A.3 C/D₁ invariant** —— 在 3′-H 下**由結構自動成立**:routing 是 `agentId` 的函數,
+不吃 fixture 也不吃 arm,兩個 arm 指向同一位被選中的 specialist 就不可能解析到不同 model。
+真正的改變是 **target provider 不再事前可知**,由 Gate 選中誰決定。
+
+**A.4 target-provider rotation 降級**為 secondary observed execution coverage;
+不得為 provider coverage 選擇、保留或剔除 fixture。
+
+**A.5/A.6** 九題 acquisition pool(S1–S3 / E1–E3 / I1–I3,各第三題為備援),
+live 前一次 write→hash→order→commit→push;三個 wave,後續 wave 只跑仍未填滿的 slot,
+每題 exactly one attempt。**已填滿的 archetype 不再重試。**
+
+**A.7** F1–F7 一字未改,F4 不放寬;明確寫入「相同決策 + 不同推理,不自動構成 material conflict」——
+這正是 R3 三題落敗的樣態,寫成規則以免日後被辯成通過。
+
+**A.8** 正式 F4 改由 fresh clean-room Gemini **A2** 在 acquisition 過程中 author;
+A2 只看 task / missions / actual Round1 / passage IDs / schema,
+**不得看到 intended archetype / Gate / arms / gold**。
+填 slot 需 `materialConflict=true` **且** `conflictArchetype` 等於該 slot 的 preregistered archetype。
+`[DESIGN]` 這同時把 R3 由 Claude 執行的 pre-Gate screen 交回獨立標註者,Claude 不再是正式 F4 的判定者。
+
+**A.9** `fxr-08` 不重跑,沿用 R2 已 committed 的 capture,由同一位 A2 評估;
+預期 `materialConflict=false`,若為 true 則 STOP 回 GPT。
+
+**A.10 Bias register**:X14 更新為
+「fixture 層級共線性 reduced,**residual role-provider coupling remains**」;
+新增 **X18 Heterogeneous Prior Friction**。
+`[DESIGN]` X18 只能寫成 **plausible contributor / methodology motivation**。
+R1/R2/R3 都不是為這個因果問題設計的,
+**不得宣稱 heterogeneous allocation 已被證明是 R3 F4 failure 的原因**。
+
+**A.11 Claim boundary**:acquisition 不產生 effectiveness claim;pilot 仍不回答 effectiveness;
+正式 `C > D₁` 只能在後續 formal study 之後、且只適用 preregistered heterogeneous fixture population。
+四項禁止宣稱已逐條寫入文件並由測試斷言。
+
+### `[OPEN]` 一個需要你先裁定的執行後果
+
+committed capture evidence 顯示 `market_researcher` 在 **R2 四題 + R3 三題,合計七題中被指派 0 次**。
+retrieval 釘在 all-off、fixture 又要求「只根據題目提供的事實判斷」,正好消掉 research specialist
+的存在理由 —— 七題的 planner 一律只選 `business_strategist` 與 `brand_creative`。
+
+**這對 3′-H 的 observed coverage 有具體後果。** R3 在 Option 3′(每題同質)下,
+gemini 確實執行過 Round 1 —— 它在 fxr-11 扮演的是 `business_strategist` / `brand_creative`。
+改成 3′-H 之後 gemini 綁在 `market_researcher` 上,而該 role 在已觀察到的七題中一次都沒被指派。
+若此情形延續,**3′-H 實際上會退化成 claude / openai 兩方,gemini 的 Round1 worker coverage 為零**。
+
+這不改變 A.1 的 mapping,也不是改 mapping 的請求 —— 只是說明「observed coverage」可能觀察到的是零,
+而這一點在 acquisition 開跑前就已可預期。是否要在 acquisition 題目中內建真實的第三個專業面向,
+請你裁定;本輪未自行處理。
+
+### 本輪修改範圍
+
+```
+M2_EFFECTIVENESS_EXPERIMENT.md        v0.2 → 0.3（新增 amendment 節,未刪除既有內容）
+experiments/m2b/protocol/amendment-0-3.mjs    新增（可執行常數）
+experiments/m2b/test-m2b-protocol-0-3.mjs     新增（29 項離線斷言）
+HANDOFF.md                            本節
+src/**                                零變動
+```
 
 ## rev. 33 改了什麼(M2-B Replacement Real Round1 Capture — Set R3)
 

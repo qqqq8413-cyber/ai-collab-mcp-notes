@@ -5,7 +5,8 @@
 >
 > | | |
 > |---|---|
-> | Protocol version | `M2B-PROTOCOL-0.2` |
+> | Protocol version | `M2B-PROTOCOL-0.3` —— v0.2 設計全文保留於下,未刪除 |
+> | v0.3 amendment | **Option 3′-H — Heterogeneous Round1**(見「v0.3 Amendment」節) |
 > | Architecture status | **ACCEPTED WITH CORRECTIONS**(GPT Architecture Review of v0.1) |
 > | Harness status | **REVISED / AWAITING FINAL GPT HARNESS REVIEW** —— H-01…H-05 與 D-01 見下方 amendment |
 > | Live authorization | **NOT GRANTED** —— pilot 需先通過 GPT Harness Review |
@@ -43,6 +44,189 @@
 `[DECISION]` **v0.1 已凍結於 commit `734ad8e`,`GEMINI_M2B_REVIEW_PACKET.md` @ `14952c7`
 仍指向 v0.1,依 packet immutability 規則不回頭覆寫。** 若日後需要對 v0.2 再做一次
 外部 review,應建立 `GEMINI-M2B-PACKET-2`,而不是改舊 packet。
+
+---
+
+## v0.3 Amendment —— Option 3′-H:Heterogeneous Round1
+
+`[DECISION]` GPT Architecture Decision 對 Option B 的裁決是
+**ACCEPT OPTION B WITH ARCHITECTURE CORRECTIONS**,protocol 由 `M2B-PROTOCOL-0.2`
+升版為 `M2B-PROTOCOL-0.3`。**v0.2 的全部設計與 provenance 原文保留,未刪除任何歷史設計。**
+本節只記錄差異;凡本節未改動者,一律以 v0.2 正文為準。
+
+可執行常數見 [`experiments/m2b/protocol/amendment-0-3.mjs`](experiments/m2b/protocol/amendment-0-3.mjs),
+離線驗證見 [`experiments/m2b/test-m2b-protocol-0-3.mjs`](experiments/m2b/test-m2b-protocol-0-3.mjs)。
+設計文件與常數互為斷言對象,避免兩者日後各改各的。
+
+### A.1 Round 1 provider mapping(取代 Option 3′ 的 per-fixture 同質配置)
+
+`[DECISION]` **provider 改綁 role,全局固定,不得依 fixture 變動:**
+
+```
+business_strategist  →  claude / claude-sonnet-5
+market_researcher    →  gemini / gemini-3.1-pro-preview
+brand_creative       →  openai / gpt-5
+
+Chief planning       →  openai / gpt-5
+```
+
+`[DESIGN]` Planner 的自由度不變:**specialist 數量、選誰、mission 內容,仍完全由 production Chief 決定。**
+被固定的只是「某個 role 一旦被選中,由誰執行」。
+
+### A.2 為什麼這比 Option 3′ 更乾淨
+
+`[DESIGN]` Option 3′ 把「同一 fixture 內所有 specialist 綁同一 provider」,
+好處是 target provider 在 Gate 出現之前就已知;代價是 **provider 與 fixture 完全共線**(X14)。
+Option 3′-H 改綁 role 之後:
+
+- provider 不再隨 fixture 變動 → **fixture 層級的共線性消失**
+- 但 role 與 provider 仍然一對一 → **role-provider coupling 為殘留 confound,未消除**
+
+`[DESIGN]` **這是 confound 的降級,不是消除。** X14 據此更新。
+
+### A.3 C / D₁ invariant —— 不可放寬
+
+`[DECISION]`
+
+```
+同一 fixture、同一 selected target：
+  C  target provider/model
+  ===
+  D₁ target provider/model
+  exact match
+```
+
+`[DESIGN]` 在 3′-H 下這條**由結構自動成立**:routing 是 `agentId` 的函數,
+不吃 fixture、也不吃 arm,因此兩個 arm 只要指向同一位被選中的 specialist,
+就不可能解析到不同的 model。
+
+`[DESIGN]` **真正的改變是 target provider 不再事前可知** ——
+它由 Gate 選中誰決定。這正是 A.4 必須把 rotation 降級的原因。
+
+### A.4 取消硬性 target-provider rotation
+
+`[DECISION]` OpenAI / Claude / Gemini 的 target rotation
+由「設計要求」降級為 **secondary observed execution coverage**。
+
+```
+不得為了取得 provider coverage 而選擇、保留或剔除任何 fixture。
+```
+
+`[DESIGN]` v0.2 §15.3 的「fixture #1 → OpenAI target、#2 → Claude、#3 → Gemini」
+在 3′-H 下已不可執行,因為 target 由 Gate 決定而非由配置決定。
+covered provider 變成**事後觀察到的結果**,照實記錄,不作為納入條件。
+
+`[OPEN]` **一個必須先講清楚的執行後果。**
+committed capture evidence 顯示 `market_researcher` 在 **R2 四題 + R3 三題,合計七題中被指派 0 次**。
+本實驗把 retrieval 釘在 all-off,而 fixture 又要求「只根據題目提供的事實判斷」,
+這正好消掉 research specialist 的存在理由 —— 七題的 planner 一律只選
+`business_strategist` 與 `brand_creative`。
+
+`[SIGNAL]` **這對 3′-H 的 observed coverage 有具體後果。**
+R3 在 Option 3′(每題同質)下,gemini 確實執行過 Round 1 —— 它在 fxr-11 扮演的是
+`business_strategist` / `brand_creative`。改成 3′-H 之後,gemini 綁在 `market_researcher` 上,
+而該 role 在已觀察到的七題中**一次都沒有被指派**。
+若此情形延續,**3′-H 實際上會退化成 claude / openai 兩方,gemini 的 Round 1 worker coverage 為零**。
+
+這不改變 A.1 的 mapping —— 只是說明「observed coverage」可能觀察到的是零,
+且這一點在 acquisition 開跑前就已可預期,不應該等到跑完才發現。
+是否要在 acquisition 題目中內建真實的第三個專業面向,屬 GPT 裁決範圍;本輪未自行處理。
+
+### A.5 Fixture acquisition pool(9 題,一次凍結)
+
+`[DECISION]` 在**任何 live call 之前**,一次凍結九題:
+
+| archetype | 主要 | 備援 |
+|---|---|---|
+| Strategy | `S1` `S2` | `S3` |
+| Execution Constraint | `E1` `E2` | `E3` |
+| Evidence Interpretation | `I1` `I2` | `I3` |
+
+九題必須事前完成:**write → hash → order → commit → push**。
+**看過任何 Round 1 之後不得新增 task。**
+
+### A.6 Execution waves
+
+`[DECISION]`
+
+```
+Wave 1:  S1  E1  I1
+Wave 2:  只跑仍未填滿的 slot：S2  E2  I2
+Wave 3:  只跑仍未填滿的 slot：S3  E3  I3
+
+每個 task exactly one Round1 attempt。
+```
+
+`[DESIGN]` 已填滿的 archetype **不進入後續 wave**。
+用備援題去換一個「更好的」已成立 slot,就是換了包裝的 cherry-picking。
+
+### A.7 Eligibility 不變
+
+`[DECISION]` **F1–F7 全部維持 v0.2 §13.1 的定義,一字未改。F4 不得放寬。**
+
+`[DECISION]` 明確寫入一條判定規則:
+
+> **相同決策 + 不同推理,不自動構成 material conflict。**
+
+### A.8 Formal F4 改由 clean-room A2 在 acquisition 過程中 author
+
+`[DECISION]` 正式 F4 不再由 Claude 判定,改由 **fresh clean-room Gemini session A2** 撰寫。
+
+```
+A2 只能看到：  task / missions / actual Round1 / passage IDs / output schema
+A2 不得看到：  intended archetype / Gate / arms / gold issues
+
+輸出欄位：     materialConflict / conflictArchetype / summary / passageIds
+```
+
+`[DESIGN]` `intended archetype` 必須對 A2 隱藏。
+一個被告知「這題是寫來產生哪種衝突」的標註者,是在**確認標籤**而不是在讀文本,
+F4 就不再獨立於它所要資格化的對象。
+
+`[DECISION]` 一個 candidate 要填入某 archetype slot,必須同時成立:
+
+```
+materialConflict === true
+AND
+conflictArchetype === 該 slot 的 preregistered archetype
+```
+
+### A.9 Negative control
+
+`[DECISION]` **`fxr-08` 不重跑**,沿用 R2 已 committed 的 capture,由同一位 clean-room A2 評估。
+
+```
+預期：materialConflict = false
+若為 true：STOP，回 GPT review（不得自行處理）
+```
+
+### A.10 Bias register 更新
+
+`[DECISION]` **X14 更新**、**X18 新增**,見 §19。
+
+`[DESIGN]` X18 只能寫成 **plausible contributor / methodology motivation**。
+**不得宣稱 heterogeneous allocation 已被證明會造成 F4 failure** —— 目前沒有任何
+committed capture 具備支撐該因果宣稱的設計。
+
+### A.11 Claim boundary
+
+`[DECISION]`
+
+```
+Fixture acquisition：不產生任何 effectiveness claim
+Pilot：             仍然不回答 effectiveness
+正式 C > D₁ 宣稱：   只能在後續 formal study 之後，
+                    且只適用於 preregistered heterogeneous fixture population
+```
+
+`[DECISION]` **禁止的宣稱(四項,不得以任何措辭迂迴):**
+
+```
+pure peer-information value
+homogeneous deployment generalization
+cross-provider generalization
+provider heterogeneity caused the observed conflict
+```
 
 ---
 
@@ -1601,7 +1785,8 @@ Replay #4 就是這樣:runtime 是 `267ecff`,而 artifact 提交在 `4e34d89`。
 | **X11** | D 被 peer 資訊汙染 | **極高** | NC-3:五項 primary structural controls(簽章限制 + 三種整串精確拒絕 + call 前執行);字元窗為 secondary diagnostic | **未解決**:paraphrase / topic steering / semantic / concept-level leakage 無法由 lexical matching 證明不存在 |
 | **X12** | Gold issue 洩漏進 runtime | 高 | GI-1..GI-5,檔案系統層分離 | 需人為紀律維持 |
 | **X13** | Arithmetic 變異淹沒 peer 效果 | 中高 | F7 排除算術重的 fixture(第 17 節下方) | 見 X13 說明 |
-| **X14** | Provider 與 fixture 共線 | 中 | Option 3′:合成器固定,provider 只在 target 輪換,且 C/D 配對內為常數 | 不足以宣稱泛化(已寫入 claims ladder) |
+| **X14** | Provider 與 fixture 共線 | 中 | **v0.3 Option 3′-H:provider 綁 role 而非綁 fixture,fixture 層級共線性 reduced;C/D₁ 配對內仍為常數**(v0.2 原措施:Option 3′ 合成器固定 + target 輪換) | **residual role-provider coupling remains** —— role 與 provider 仍一對一,confound 為降級而非消除;仍不足以宣稱泛化 |
+| **X18** | **Heterogeneous Prior Friction** —— 不同 provider 的 Round 1 先驗差異,可能同時影響分歧的產生與其可辨識度 | — | v0.3 登記在案;acquisition 的 F4 由 clean-room A2 獨立判定,與 provider 配置無關 | **plausible contributor / methodology motivation only** —— 尚未證實;現有 committed capture 皆非為此因果問題而設計,**不得宣稱 heterogeneous allocation 造成 F4 failure** |
 | **X15** | 評估者疲勞 / 前後不一致 | 低中 | 每個 judge session 的配對數設上限;重複稽核偵測漂移 | — |
 | **X16** | **Decision Synthesis source framing** —— decision synthesis 知道修正來自「跨專家挑戰」,可能因此偏好採納 | — | **Phase 1 treatment component**(§4.1.1 成分 ④) | **限制 causal claim 至 peer-challenge package**;拆解需 §4.4 Phase 1.5 |
 | **X17** | **Challenge-author capability difference** —— C 的挑戰由 gate 模型撰寫,D₁ 的由 target 自己撰寫,兩者能力不同 | — | **Phase 1 treatment component**(§4.1.1 成分 ②③) | **Phase 1 不控制**;若 `C > D₁` 則觸發 §4.4 conditional Phase 1.5 ablation |
@@ -2224,7 +2409,7 @@ L8  temperature 是否被 gpt-5 接受未經實測（§7.4 [OPEN]）
 
 ## Experiment concerns
 
-`[DESIGN]` 完整清單見第 19 節 Bias / Confound Register(X1–X17)。
+`[DESIGN]` 完整清單見第 19 節 Bias / Confound Register(X1–X18)。
 其中最致命的三項:
 
 ```
