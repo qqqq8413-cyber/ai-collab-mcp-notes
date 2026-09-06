@@ -1,0 +1,91 @@
+{
+  "fixtureId": "fxr-07",
+  "sourceCandidateId": "r2-03",
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-1",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "executionHead": "b993325d69fcf8266d69e67bbf6fdbb0d1267e48",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "b993325d69fcf8266d69e67bbf6fdbb0d1267e48",
+  "nodeVersion": "v24.15.0",
+  "taskSha256": "d9723f4cc122c0d4ac22ba51b4659fb6c1f60d5b0bedc3ec9a83303fb6c1cfbb",
+  "startedAt": "2026-09-06T05:04:37.521Z",
+  "completedAt": "2026-09-06T05:05:25.048Z",
+  "captureStatus": "FAILED",
+  "eligibility": {
+    "F1": true,
+    "F2": false,
+    "F3": true
+  },
+  "failureReasons": [
+    "F2: 1 specialist(s) returned output, fewer than two"
+  ],
+  "fatalError": null,
+  "chiefPin": {
+    "provider": "openai",
+    "requestedModel": "gpt-5",
+    "resolvedModel": "gpt-5",
+    "resolvedProvider": "openai"
+  },
+  "providerAllocation": {
+    "provider": "gemini",
+    "model": "gemini-3.1-pro-preview"
+  },
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "actualComplexity": "deep",
+  "plannerAssignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Using only the provided test facts, recommend A/B/C for the second site. Interpret evidence quality (repeat buys, net-new acquisition, pricing power, HQ-senior dependence, event attendance bias), identify the most misread metric and why, state what 6‑month results would change the call (clear thresholds), and judge if evidence suffices for a 3+ year irreversible investment. Deliver a concise, board-ready rationale with conditionality.",
+      "priority": "high"
+    }
+  ],
+  "planningAdjustments": [],
+  "round1Status": "SUCCESS",
+  "successfulWorkerCount": 1,
+  "failedWorkerCount": 0,
+  "liveCallCount": 2,
+  "agentOrder": [
+    "business_strategist"
+  ],
+  "availableRosterSha256": "3460acbd0c0d327e4c65a00611a903142dbef55f37cff9ed8b624486804eb793",
+  "snapshotSha256": "a433d3d2a7392f8fc613a8a6d28ae9ac48db755a375d7c63ba2eb8bf830021cb",
+  "rawCallsSha256": "dfc4d84f07df8c6488f91f5f31f884b0b067afccce4287ac76ebf2bd43c71476",
+  "runtimeFingerprintStart": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEnd": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "postRound1Execution": "NONE",
+  "gateExecution": "NONE",
+  "synthesisExecution": "NONE",
+  "workers": [
+    {
+      "agentId": "business_strategist",
+      "roleSha256": "c96ca15e20caa8b0018dcf6c88487641679d376f5a970e4a4bf8fcd28f183996",
+      "missionSha256": "b32fc2c2bd48f209ef6d90efcbf82f63a4ab54172408a44178e759b3e2dee631",
+      "outputSha256": "8ade2c98af5063a0c0599e1ad8f9a767de964906d9be1d4329c841e21d73ac9e",
+      "providerRequested": "gemini",
+      "providerResolved": "gemini",
+      "modelRequested": "gemini-3.1-pro-preview",
+      "modelResolved": "gemini-3.1-pro-preview",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    }
+  ],
+  "fileHashes": {
+    "task.txt": "d9723f4cc122c0d4ac22ba51b4659fb6c1f60d5b0bedc3ec9a83303fb6c1cfbb",
+    "available-roster.json": "3460acbd0c0d327e4c65a00611a903142dbef55f37cff9ed8b624486804eb793",
+    "planner-result.json": "241cba927105c19899b0225e586c7a90b9b991ba339e3cb4a9e7916ad712ad46",
+    "planning-adjustments.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "snapshot.json": "a433d3d2a7392f8fc613a8a6d28ae9ac48db755a375d7c63ba2eb8bf830021cb",
+    "report.json": "7a3d1fd43cdde3ae661187bfa1e741a548644de46ce82ef546d4454fd5e67841",
+    "mission-business_strategist.txt": "b32fc2c2bd48f209ef6d90efcbf82f63a4ab54172408a44178e759b3e2dee631",
+    "round1-business_strategist.md": "8ade2c98af5063a0c0599e1ad8f9a767de964906d9be1d4329c841e21d73ac9e",
+    "raw-calls.json": "dfc4d84f07df8c6488f91f5f31f884b0b067afccce4287ac76ebf2bd43c71476"
+  },
+  "manifestSha256": "d0e920023f2d3293370ff9c602ad2d48202afd98d5ff728367fe0aca5a212597"
+}

@@ -1,0 +1,91 @@
+{
+  "fixtureId": "fxr-05",
+  "sourceCandidateId": "r2-01",
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-1",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "executionHead": "b993325d69fcf8266d69e67bbf6fdbb0d1267e48",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "b993325d69fcf8266d69e67bbf6fdbb0d1267e48",
+  "nodeVersion": "v24.15.0",
+  "taskSha256": "89632d813c73a98f139f1d3e94c00992c8134849cb09d55dc2ced20b716cc64c",
+  "startedAt": "2026-09-06T04:59:57.367Z",
+  "completedAt": "2026-09-06T05:01:36.818Z",
+  "captureStatus": "FAILED",
+  "eligibility": {
+    "F1": true,
+    "F2": false,
+    "F3": true
+  },
+  "failureReasons": [
+    "F2: 1 specialist(s) returned output, fewer than two"
+  ],
+  "fatalError": null,
+  "chiefPin": {
+    "provider": "openai",
+    "requestedModel": "gpt-5",
+    "resolvedModel": "gpt-5",
+    "resolvedProvider": "openai"
+  },
+  "providerAllocation": {
+    "provider": "openai",
+    "model": "gpt-5"
+  },
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "actualComplexity": "deep",
+  "plannerAssignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "基於題目資訊，完成A/B/C三案的單位經濟、能力建設需求、品牌/資料控制、講師負荷與資源占用、現金流與風險對比，明確選定一個主策略並給出最重要理由；提出最大反方論點；列出可改變決策的條件（以條件式）；設計未來6–12個月可回收試點與里程碑，降低不可逆風險並檢驗：平台轉企客轉化、社群營運成本、講師瓶頸。",
+      "priority": "high"
+    }
+  ],
+  "planningAdjustments": [],
+  "round1Status": "SUCCESS",
+  "successfulWorkerCount": 1,
+  "failedWorkerCount": 0,
+  "liveCallCount": 2,
+  "agentOrder": [
+    "business_strategist"
+  ],
+  "availableRosterSha256": "41a461070de65514e1a2cddf8a3ead57b48e05d1ad56efe2d28384020fe39f4b",
+  "snapshotSha256": "d618446870be982aa95341c82fd9d149f35b84fb1e25773ec0cefef6b0213b84",
+  "rawCallsSha256": "65fd620bcfcf2dd1a46e0997d4be2e177e2d793e9bc10f812a01e6b7ce309c0c",
+  "runtimeFingerprintStart": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEnd": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "postRound1Execution": "NONE",
+  "gateExecution": "NONE",
+  "synthesisExecution": "NONE",
+  "workers": [
+    {
+      "agentId": "business_strategist",
+      "roleSha256": "c96ca15e20caa8b0018dcf6c88487641679d376f5a970e4a4bf8fcd28f183996",
+      "missionSha256": "e0b42b886b492247cf3b70473ac8e7b2ea18ecc57ac3006e7fe650934b180d88",
+      "outputSha256": "ee849f60d7a00162e99b7aaeeeca51e1167ce44e26e5659667ab24c7fcd51a7a",
+      "providerRequested": "openai",
+      "providerResolved": "openai",
+      "modelRequested": "gpt-5",
+      "modelResolved": "gpt-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    }
+  ],
+  "fileHashes": {
+    "task.txt": "89632d813c73a98f139f1d3e94c00992c8134849cb09d55dc2ced20b716cc64c",
+    "available-roster.json": "41a461070de65514e1a2cddf8a3ead57b48e05d1ad56efe2d28384020fe39f4b",
+    "planner-result.json": "369e51479472ad2f253d7412887a6bd4a0725a4e60ee833b22807e9507c44438",
+    "planning-adjustments.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "snapshot.json": "d618446870be982aa95341c82fd9d149f35b84fb1e25773ec0cefef6b0213b84",
+    "report.json": "7a3d1fd43cdde3ae661187bfa1e741a548644de46ce82ef546d4454fd5e67841",
+    "mission-business_strategist.txt": "e0b42b886b492247cf3b70473ac8e7b2ea18ecc57ac3006e7fe650934b180d88",
+    "round1-business_strategist.md": "ee849f60d7a00162e99b7aaeeeca51e1167ce44e26e5659667ab24c7fcd51a7a",
+    "raw-calls.json": "65fd620bcfcf2dd1a46e0997d4be2e177e2d793e9bc10f812a01e6b7ce309c0c"
+  },
+  "manifestSha256": "de6c9064de434c83e3f5ea9b7f2d181ad38eeda23749d67146918890e718e2e6"
+}

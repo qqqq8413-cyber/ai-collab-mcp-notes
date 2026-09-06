@@ -1,0 +1,111 @@
+{
+  "fixtureId": "fxr-08",
+  "sourceCandidateId": "r2-04",
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-1",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "executionHead": "b993325d69fcf8266d69e67bbf6fdbb0d1267e48",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "b993325d69fcf8266d69e67bbf6fdbb0d1267e48",
+  "nodeVersion": "v24.15.0",
+  "taskSha256": "b2dd92e0c216603551fac43b6ccfb82822a430e2f1ebee9a74782c0dbf6bd053",
+  "startedAt": "2026-09-06T05:05:25.051Z",
+  "completedAt": "2026-09-06T05:09:31.010Z",
+  "captureStatus": "CAPTURED",
+  "eligibility": {
+    "F1": true,
+    "F2": true,
+    "F3": true
+  },
+  "failureReasons": [],
+  "fatalError": null,
+  "chiefPin": {
+    "provider": "openai",
+    "requestedModel": "gpt-5",
+    "resolvedModel": "gpt-5",
+    "resolvedProvider": "openai"
+  },
+  "providerAllocation": {
+    "provider": "openai",
+    "model": "gpt-5"
+  },
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "actualComplexity": "deep",
+  "plannerAssignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Assess options A/B/C against contract/renewal timing, operational readiness (systems can integrate now), regulatory disclosure, and commercial risks. Recommend one path with rationale across business risk and client relationship impact; define decision gates over 12 months; and list specific risks to monitor (renewal churn, endorsement acceptance, re-confirmation workload) strictly using provided facts.",
+      "priority": "high"
+    },
+    {
+      "agentId": "brand_creative",
+      "mission": "Design the brand architecture and 12‑month transition approach aligned to the chosen option: preserve acquired-brand equity, define endorsement system, messaging to reassure clients, and touchpoint sequencing (signage, materials, digital, CRM) synced with integration and normal update cycles. Outline execution order and internal KPIs to track confusion and acceptance within given constraints.",
+      "priority": "high"
+    }
+  ],
+  "planningAdjustments": [],
+  "round1Status": "SUCCESS",
+  "successfulWorkerCount": 2,
+  "failedWorkerCount": 0,
+  "liveCallCount": 3,
+  "agentOrder": [
+    "business_strategist",
+    "brand_creative"
+  ],
+  "availableRosterSha256": "41a461070de65514e1a2cddf8a3ead57b48e05d1ad56efe2d28384020fe39f4b",
+  "snapshotSha256": "4f1211c3ff7bcfa96dc0469e33ee7330b58035e3ab27209c437f6573c437690d",
+  "rawCallsSha256": "95e70f5c65d245fa5820293da0aa81b105fe42c7c539d7e38832e9d5934b487e",
+  "runtimeFingerprintStart": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEnd": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "postRound1Execution": "NONE",
+  "gateExecution": "NONE",
+  "synthesisExecution": "NONE",
+  "workers": [
+    {
+      "agentId": "business_strategist",
+      "roleSha256": "c96ca15e20caa8b0018dcf6c88487641679d376f5a970e4a4bf8fcd28f183996",
+      "missionSha256": "17b7a63f1fea376f34087573aac58999c961bbd09dccbcc087b8ae68efb33ffe",
+      "outputSha256": "f8f2936d324770a164fd96878586680ec38919515f40a6425456d2a15d5bb532",
+      "providerRequested": "openai",
+      "providerResolved": "openai",
+      "modelRequested": "gpt-5",
+      "modelResolved": "gpt-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    },
+    {
+      "agentId": "brand_creative",
+      "roleSha256": "758c34dbd9c86ee261a68e61c6a23608c2d1297b5985bdbac02f6bf39a89554d",
+      "missionSha256": "b7ed77609d07670051f1858f1d4941efe5a1cfed538b98ce3e00e66c7df28d9b",
+      "outputSha256": "d1833598cac3a08d55d7f1d3f96356d6c343cc34c84da436f0da205a369cd39b",
+      "providerRequested": "openai",
+      "providerResolved": "openai",
+      "modelRequested": "gpt-5",
+      "modelResolved": "gpt-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    }
+  ],
+  "fileHashes": {
+    "task.txt": "b2dd92e0c216603551fac43b6ccfb82822a430e2f1ebee9a74782c0dbf6bd053",
+    "available-roster.json": "41a461070de65514e1a2cddf8a3ead57b48e05d1ad56efe2d28384020fe39f4b",
+    "planner-result.json": "2bdb0d1234cda3b58bc53ae7a7e3762d678cd275a671fb524bfb8dc8cbb3916d",
+    "planning-adjustments.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "snapshot.json": "4f1211c3ff7bcfa96dc0469e33ee7330b58035e3ab27209c437f6573c437690d",
+    "report.json": "7e79f077cd3ef87fb08356cf4cc39fc1072b6b87e7e182ccf79c1a2a4cef33e3",
+    "mission-business_strategist.txt": "17b7a63f1fea376f34087573aac58999c961bbd09dccbcc087b8ae68efb33ffe",
+    "round1-business_strategist.md": "f8f2936d324770a164fd96878586680ec38919515f40a6425456d2a15d5bb532",
+    "mission-brand_creative.txt": "b7ed77609d07670051f1858f1d4941efe5a1cfed538b98ce3e00e66c7df28d9b",
+    "round1-brand_creative.md": "d1833598cac3a08d55d7f1d3f96356d6c343cc34c84da436f0da205a369cd39b",
+    "raw-calls.json": "95e70f5c65d245fa5820293da0aa81b105fe42c7c539d7e38832e9d5934b487e"
+  },
+  "manifestSha256": "90a2d04666449b8c5b0f5103b58bc35e5dd46d063fd7cbc04db640e34bde5229"
+}

@@ -1,0 +1,111 @@
+{
+  "fixtureId": "fxr-06",
+  "sourceCandidateId": "r2-02",
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-1",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "executionHead": "b993325d69fcf8266d69e67bbf6fdbb0d1267e48",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "b993325d69fcf8266d69e67bbf6fdbb0d1267e48",
+  "nodeVersion": "v24.15.0",
+  "taskSha256": "e50b4d66bde3e943a55b04f3eb163f742da2267859fec22d04451afb574ec951",
+  "startedAt": "2026-09-06T05:01:36.822Z",
+  "completedAt": "2026-09-06T05:04:37.518Z",
+  "captureStatus": "CAPTURED",
+  "eligibility": {
+    "F1": true,
+    "F2": true,
+    "F3": true
+  },
+  "failureReasons": [],
+  "fatalError": null,
+  "chiefPin": {
+    "provider": "openai",
+    "requestedModel": "gpt-5",
+    "resolvedModel": "gpt-5",
+    "resolvedProvider": "openai"
+  },
+  "providerAllocation": {
+    "provider": "claude",
+    "model": "claude-sonnet-5"
+  },
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "actualComplexity": "deep",
+  "plannerAssignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Build A/B/C decision with quantified risk/benefit under given constraints. Test delivery viability vs single half-time senior, fixed 14-week deadline, 80-site go-live. Recommend path, list reversal conditions, and non-negotiable commercial/governance terms (scope boundaries, phased acceptance, change controls, decision SLAs, client single-threaded owner, penalties/bonuses). Ensure plan leverages external suppliers without ceding final brand control.",
+      "priority": "high"
+    },
+    {
+      "agentId": "brand_creative",
+      "mission": "Stress-test creative/brand workflow: can core brand system, approvals, cross-site consistency, executive reviews be owned with only one senior at 50% for weeks 1–10 and freelancers for production? Define minimal viable brand system for week 14, gating, approval cadence, QA, escalation, and what must slip to phase 2. Identify delivery risks, flip conditions, and non-negotiables to protect quality.",
+      "priority": "high"
+    }
+  ],
+  "planningAdjustments": [],
+  "round1Status": "SUCCESS",
+  "successfulWorkerCount": 2,
+  "failedWorkerCount": 0,
+  "liveCallCount": 3,
+  "agentOrder": [
+    "business_strategist",
+    "brand_creative"
+  ],
+  "availableRosterSha256": "fce2fab8f9a3f54be464bcc5b25284488c484ac5d215a94d913a931d9633062d",
+  "snapshotSha256": "eb25bb1ae2fdf974287dcff06ed27ce956fd572fc294c52a286118238a87ac61",
+  "rawCallsSha256": "8db62ec11ef456f323dbf884d807d31039507540132685002a178ae3e21c6323",
+  "runtimeFingerprintStart": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEnd": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "postRound1Execution": "NONE",
+  "gateExecution": "NONE",
+  "synthesisExecution": "NONE",
+  "workers": [
+    {
+      "agentId": "business_strategist",
+      "roleSha256": "c96ca15e20caa8b0018dcf6c88487641679d376f5a970e4a4bf8fcd28f183996",
+      "missionSha256": "0ff505356c3c79da612ad3ecf545559fde83d24051c3bc97dce0624990cab6ff",
+      "outputSha256": "5e510dee9cc89a9e90fa503fcf3fd1bdc0612401fabda4287badc4a4c82f4d0d",
+      "providerRequested": "claude",
+      "providerResolved": "claude",
+      "modelRequested": "claude-sonnet-5",
+      "modelResolved": "claude-sonnet-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    },
+    {
+      "agentId": "brand_creative",
+      "roleSha256": "758c34dbd9c86ee261a68e61c6a23608c2d1297b5985bdbac02f6bf39a89554d",
+      "missionSha256": "4533559d4ad3aceb107f423a838c5e67002d2ac8f3c3f868f58f8f53b0a957cc",
+      "outputSha256": "e967ebe0cf07a9ead5e92c3c0b03b5148098851257519b42a5d46857b4254005",
+      "providerRequested": "claude",
+      "providerResolved": "claude",
+      "modelRequested": "claude-sonnet-5",
+      "modelResolved": "claude-sonnet-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    }
+  ],
+  "fileHashes": {
+    "task.txt": "e50b4d66bde3e943a55b04f3eb163f742da2267859fec22d04451afb574ec951",
+    "available-roster.json": "fce2fab8f9a3f54be464bcc5b25284488c484ac5d215a94d913a931d9633062d",
+    "planner-result.json": "f5976ab64c81e60df03be2f620ef210ca26ad787b0aed524334ab29035ddc05d",
+    "planning-adjustments.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "snapshot.json": "eb25bb1ae2fdf974287dcff06ed27ce956fd572fc294c52a286118238a87ac61",
+    "report.json": "7e79f077cd3ef87fb08356cf4cc39fc1072b6b87e7e182ccf79c1a2a4cef33e3",
+    "mission-business_strategist.txt": "0ff505356c3c79da612ad3ecf545559fde83d24051c3bc97dce0624990cab6ff",
+    "round1-business_strategist.md": "5e510dee9cc89a9e90fa503fcf3fd1bdc0612401fabda4287badc4a4c82f4d0d",
+    "mission-brand_creative.txt": "4533559d4ad3aceb107f423a838c5e67002d2ac8f3c3f868f58f8f53b0a957cc",
+    "round1-brand_creative.md": "e967ebe0cf07a9ead5e92c3c0b03b5148098851257519b42a5d46857b4254005",
+    "raw-calls.json": "8db62ec11ef456f323dbf884d807d31039507540132685002a178ae3e21c6323"
+  },
+  "manifestSha256": "40ad5345f05658ca573821202ddadc634ea1a4e26843259807e46ba480295066"
+}

@@ -1,0 +1,21 @@
+{
+  "complexity": "deep",
+  "requiredCapabilities": [
+    "business strategy and risk assessment",
+    "brand architecture and execution planning"
+  ],
+  "assignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Assess options A/B/C against contract/renewal timing, operational readiness (systems can integrate now), regulatory disclosure, and commercial risks. Recommend one path with rationale across business risk and client relationship impact; define decision gates over 12 months; and list specific risks to monitor (renewal churn, endorsement acceptance, re-confirmation workload) strictly using provided facts.",
+      "priority": "high"
+    },
+    {
+      "agentId": "brand_creative",
+      "mission": "Design the brand architecture and 12‑month transition approach aligned to the chosen option: preserve acquired-brand equity, define endorsement system, messaging to reassure clients, and touchpoint sequencing (signage, materials, digital, CRM) synced with integration and normal update cycles. Outline execution order and internal KPIs to track confusion and acceptance within given constraints.",
+      "priority": "high"
+    }
+  ],
+  "requiresRedTeam": false,
+  "reason": "Decision affects brand architecture and commercial risk; it needs only business and brand strategy. No external research is required per prompt, so two specialists suffice for a high-quality, actionable recommendation."
+}

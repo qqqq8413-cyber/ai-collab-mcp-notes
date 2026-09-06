@@ -1,0 +1,17 @@
+{
+  "complexity": "deep",
+  "requiredCapabilities": [
+    "strategy and financial-risk assessment",
+    "experimental evidence interpretation",
+    "decision framing under uncertainty"
+  ],
+  "assignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Using only the provided test facts, recommend A/B/C for the second site. Interpret evidence quality (repeat buys, net-new acquisition, pricing power, HQ-senior dependence, event attendance bias), identify the most misread metric and why, state what 6‑month results would change the call (clear thresholds), and judge if evidence suffices for a 3+ year irreversible investment. Deliver a concise, board-ready rationale with conditionality.",
+      "priority": "high"
+    }
+  ],
+  "requiresRedTeam": false,
+  "reason": "This is a major investment decision based solely on given pilot evidence. It needs one strategist to interpret experimental signals, weigh risks, set decision thresholds, and recommend among A/B/C without external market data. Additional roles would not change the decision."
+}

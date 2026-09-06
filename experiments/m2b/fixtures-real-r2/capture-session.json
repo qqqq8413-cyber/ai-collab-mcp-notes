@@ -1,0 +1,118 @@
+{
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-1",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "candidateSet": "R2",
+  "candidateSetFixtureIds": [
+    "fxr-05",
+    "fxr-06",
+    "fxr-07",
+    "fxr-08"
+  ],
+  "executionHead": "b993325d69fcf8266d69e67bbf6fdbb0d1267e48",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "b993325d69fcf8266d69e67bbf6fdbb0d1267e48",
+  "nodeVersion": "v24.15.0",
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "chiefPin": {
+    "provider": "openai",
+    "model": "gpt-5"
+  },
+  "providerAllocation": {
+    "fxr-01": {
+      "provider": "openai",
+      "model": "gpt-5"
+    },
+    "fxr-02": {
+      "provider": "claude",
+      "model": "claude-sonnet-5"
+    },
+    "fxr-03": {
+      "provider": "gemini",
+      "model": "gemini-3.1-pro-preview"
+    },
+    "fxr-04": {
+      "provider": "openai",
+      "model": "gpt-5"
+    },
+    "fxr-05": {
+      "provider": "openai",
+      "model": "gpt-5"
+    },
+    "fxr-06": {
+      "provider": "claude",
+      "model": "claude-sonnet-5"
+    },
+    "fxr-07": {
+      "provider": "gemini",
+      "model": "gemini-3.1-pro-preview"
+    },
+    "fxr-08": {
+      "provider": "openai",
+      "model": "gpt-5"
+    }
+  },
+  "sourceCandidate": {
+    "fxr-01": "fx-01",
+    "fxr-02": "fx-02",
+    "fxr-03": "fx-03",
+    "fxr-04": "fx-04",
+    "fxr-05": "r2-01",
+    "fxr-06": "r2-02",
+    "fxr-07": "r2-03",
+    "fxr-08": "r2-04"
+  },
+  "startedAt": "2026-09-06T04:59:57.366Z",
+  "completedAt": "2026-09-06T05:09:31.015Z",
+  "globalLiveCallCount": 10,
+  "roundEndingViolation": null,
+  "runtimeFingerprintStartSha256": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEndSha256": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintDrift": [],
+  "attempts": [
+    {
+      "fixtureId": "fxr-05",
+      "sourceCandidateId": "r2-01",
+      "captureStatus": "FAILED",
+      "complexity": "deep",
+      "successfulWorkerCount": 1,
+      "round1Status": "SUCCESS",
+      "liveCallCount": 2,
+      "manifestSha256": "de6c9064de434c83e3f5ea9b7f2d181ad38eeda23749d67146918890e718e2e6"
+    },
+    {
+      "fixtureId": "fxr-06",
+      "sourceCandidateId": "r2-02",
+      "captureStatus": "CAPTURED",
+      "complexity": "deep",
+      "successfulWorkerCount": 2,
+      "round1Status": "SUCCESS",
+      "liveCallCount": 3,
+      "manifestSha256": "40ad5345f05658ca573821202ddadc634ea1a4e26843259807e46ba480295066"
+    },
+    {
+      "fixtureId": "fxr-07",
+      "sourceCandidateId": "r2-03",
+      "captureStatus": "FAILED",
+      "complexity": "deep",
+      "successfulWorkerCount": 1,
+      "round1Status": "SUCCESS",
+      "liveCallCount": 2,
+      "manifestSha256": "d0e920023f2d3293370ff9c602ad2d48202afd98d5ff728367fe0aca5a212597"
+    },
+    {
+      "fixtureId": "fxr-08",
+      "sourceCandidateId": "r2-04",
+      "captureStatus": "CAPTURED",
+      "complexity": "deep",
+      "successfulWorkerCount": 2,
+      "round1Status": "SUCCESS",
+      "liveCallCount": 3,
+      "manifestSha256": "90a2d04666449b8c5b0f5103b58bc35e5dd46d063fd7cbc04db640e34bde5229"
+    }
+  ]
+}

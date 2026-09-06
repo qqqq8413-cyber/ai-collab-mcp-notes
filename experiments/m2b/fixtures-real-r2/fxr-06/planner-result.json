@@ -1,0 +1,21 @@
+{
+  "complexity": "deep",
+  "requiredCapabilities": [
+    "commercial strategy and risk assessment",
+    "creative operations and brand governance feasibility"
+  ],
+  "assignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Build A/B/C decision with quantified risk/benefit under given constraints. Test delivery viability vs single half-time senior, fixed 14-week deadline, 80-site go-live. Recommend path, list reversal conditions, and non-negotiable commercial/governance terms (scope boundaries, phased acceptance, change controls, decision SLAs, client single-threaded owner, penalties/bonuses). Ensure plan leverages external suppliers without ceding final brand control.",
+      "priority": "high"
+    },
+    {
+      "agentId": "brand_creative",
+      "mission": "Stress-test creative/brand workflow: can core brand system, approvals, cross-site consistency, executive reviews be owned with only one senior at 50% for weeks 1–10 and freelancers for production? Define minimal viable brand system for week 14, gating, approval cadence, QA, escalation, and what must slip to phase 2. Identify delivery risks, flip conditions, and non-negotiables to protect quality.",
+      "priority": "high"
+    }
+  ],
+  "requiresRedTeam": false,
+  "reason": "This is a high-stakes go/no-go and contract-terms decision hinging on commercial risk and delivery capacity. Business Strategist determines the recommendation and deal guardrails; Brand/Creative validates whether execution is feasible and defines gating/quality controls. No market research is needed because the brief limits judgment to provided facts."
+}
