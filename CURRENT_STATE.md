@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  a275d010703bf382dcccf1b621607b4eac582c97
+stateVerifiedThrough  516d83854212091f51e35efa2ac194f95bc28437
 production            src/** 停在 d01043b（accepted pre-synthesis boundary）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -328,10 +328,11 @@ none currently known from the materialized ledger above
 
 ```
 FINAL PRE-LIVE BLOCKER RECONCILIATION
-STATUS: PENDING
+STATUS: PASS — 已於 P03 Wave 1 之前完成，且該次授權已 CONSUMED / CLOSED
 ```
 
-該 review 必須自己做到,不得省略:
+**該次 PASS 只涵蓋 Wave 1,不自動延伸到 Wave 2 或 A2。**
+每一個新的 live boundary 都必須重跑一次下列 reconciliation:
 
 ```
 fresh-fetch HEAD
@@ -376,14 +377,15 @@ OFFLINE → LIVE 之前,必須 reconcile 完整的已知 blocker ledger,
 
 ## 8. Real Round1 capture history（壓縮版）
 
-累計 live call:**R1 = 10、R2 = 10、R3 = 9,總計 29**。全部只用 `planning` 與 `round1_worker`。
-三輪都沒有 synthesis / Gate / Round 2 / Decision Synthesis / temperature probe / pilot。
+累計 live call:
 
 ```
-P03 Wave 1 live calls      0
-A2 acquisition live calls  0
+R1 = 10   R2 = 10   R3 = 9   P03 Wave 1 = 6      TOTAL = 35
+A2 acquisition live calls = 0
 ```
 
+全部只用 `planning` 與 `round1_worker`。四輪都沒有 synthesis / Gate / Round 2 /
+Decision Synthesis / temperature probe / pilot。
 離線 stub session 的 call **不計入** live history,任何時候都不得混算。
 
 | set | 結論 | evidence commit |
@@ -397,7 +399,66 @@ A2 acquisition live calls  0
 `[INTERPRETATION]` 在**目前已觀察到的 acquisition 序列**中,active blocker 移到了 F4。
 **這不表示未來的 candidate 不會再 FAIL F1/F2/F3。** F1–F7 一律不變,F4 不放寬。
 
-`[FACT]` `market_researcher` 在 R2 四題 + R3 三題,**合計七題中被指派 0 次**。
+### P03 Wave 1 —— EXECUTED / PRESERVED NEGATIVE ACQUISITION EVIDENCE
+
+`516d838` ｜ 授權 base `bb2214f` ｜ evidence root `experiments/m2b/fixtures-real-0-3/wave-1/`
+
+```
+S1  deep / 1 specialist / SUCCESS / F1 PASS / F2 FAIL / F3 PASS / FAILED   live calls = 2
+E1  deep / 1 specialist / SUCCESS / F1 PASS / F2 FAIL / F3 PASS / FAILED   live calls = 2
+I1  deep / 1 specialist / SUCCESS / F1 PASS / F2 FAIL / F3 PASS / FAILED   live calls = 2
+
+Wave 1 live calls = 6      ceiling = 12
+roundEndingViolation = null
+runtime fingerprint drift = none
+```
+
+`[FACT]` 三題**全部**被判為 `deep`。
+`[FACT]` 三題 Round 1 **RunStatus 全部 SUCCESS**,沒有任何 worker 失敗。
+`[FACT]` 三題**各只被指派一位 specialist**,且三次都是 `business_strategist`。
+`[FACT]` 因此三題**全部 FAIL F2**,對 A2 不具 eligibility。
+
+`[INTERPRETATION]` **在已觀察到的 P03 Wave 1 樣本中,acquisition 的 active bottleneck 是 F2。**
+
+以下都**未被證實,不得寫入任何報告**:
+
+```
+F2 永遠無法滿足
+Chief 一定只會選一位 specialist
+剩下的 candidate 也會 FAIL F2
+Option 3′-H 導致 one-specialist planning
+heterogeneous routing 失敗
+```
+
+**Option 3′-H 的精確措辭** —— role-based heterogeneous routing 在**結構上是啟用的**,
+verifier 的 check 17/18 在三題上都把 snapshot / request / resolution 綁在一起:
+
+```
+Chief planning              openai / gpt-5
+business_strategist worker  claude / claude-sonnet-5   （requested == resolved）
+```
+
+但 `market_researcher` 與 `brand_creative` 在 Wave 1 **獲得 0 次指派**,
+所以 **Wave 1 並未提供 observed multi-provider worker collaboration**。
+這是 production planner 的行為,**不是 engineering defect**。
+
+**Wave 1 A2 狀態**(以 committed 的 `buildA2AcquisitionBatch()` 離線重算,0 provider call):
+
+```
+status  = NO_A2_BATCH
+reason  = NO_F4_ELIGIBLE_CANDIDATES
+admitted = []          rejected = S1, E1, I1（皆 F2 = false）
+packet = null          provenance = null
+
+negativeControlIncluded = false   → fxr-08 未送出
+Gemini A2 calls = 0    F4 judgments = 0    filled archetypes = none
+```
+
+Wave 1 **從未到達 F4**。唯一的 eligibility 失敗是 **F2**。
+不得據此宣稱 M2 無效、peer challenge 無效、heterogeneous provider 無效、
+F4 失敗、Gemini 失敗、Claude 比較好,或 Chief routing 有缺陷。
+
+`[FACT]` `market_researcher` 在 R2 四題 + R3 三題 + P03 Wave 1 三題,**合計十題中被指派 0 次**。
 retrieval 釘在 all-off、task 又要求只根據題目事實判斷,消掉了該 role 的存在理由。
 
 `[SIGNAL]` 這對 3′-H 的 observed coverage 有後果:R3 在同質配置下 gemini 確實跑過 Round 1
@@ -417,6 +478,7 @@ experiments/m2b/fixtures/           R1 synthetic —— PRE-FLIGHT SYNTHETIC CAN
 experiments/m2b/fixtures-real/      R1 capture（四次失敗，保存為證據）
 experiments/m2b/fixtures-real-r2/   R2 capture，含 fxr-08
 experiments/m2b/fixtures-real-r3/   R3 capture
+experiments/m2b/fixtures-real-0-3/  P03 Wave 1 capture（三題 F2 failure，保存為證據）—— READ-ONLY
 diagnostics/m2a-live/               Replay #3 / #4
 ```
 
@@ -462,15 +524,21 @@ archetype 標籤是 experiment-internal,**絕不可出現在任何 clean-room pa
 LIVE                    NONE
 EXECUTION AUTHORIZATION NOT GRANTED
 
-Wave 1                  NOT AUTHORIZED
+Wave 1                  CONSUMED / CLOSED   ← 已於 516d838 執行完畢，該授權不延續
+Wave 2                  NOT AUTHORIZED
 Gemini A2               NOT AUTHORIZED
 Gate                    NOT AUTHORIZED
+Synthesis               NOT AUTHORIZED
 Round 2                 NOT AUTHORIZED
+Decision Synthesis      NOT AUTHORIZED
 Pilot                   NOT AUTHORIZED
 temperature probe       NOT AUTHORIZED
 main merge              NOT AUTHORIZED
 src/** 修改             NOT AUTHORIZED（發現需要改 → STOP，回 GPT）
 ```
+
+**Wave 1 的 live authorization 已 CONSUMED,不得解讀為對 Wave 2 仍然有效。**
+每一個新的 live boundary 需要一份新的、明寫 base SHA 的授權。
 
 硬性 invariant,不得軟化:
 
@@ -490,22 +558,24 @@ READY      ≠  AUTHORIZATION
 ```
 NEXT PROTOCOL-DEFINED STEP
 
-Wave 1:  S1 → E1 → I1     exactly one attempt each
+Wave 2:  S2 → E2 → I2     exactly one attempt each
+理由:    Wave 1 沒有填滿任何 archetype（三題全 FAIL F2）
 
-STATUS:  PENDING FINAL PRE-LIVE BLOCKER RECONCILIATION
+STATUS:  NOT AUTHORIZED
 ```
 
-**這是 protocol 定義的下一步,不是授權。** 必須先通過第 7 節的 Final Pre-Live Blocker
-Reconciliation,再由 GPT 明確授權,才能執行:
+**這是 protocol 定義的下一步,不是授權。** 必須先做一次新的 pre-live reconciliation,
+再由 GPT 明確授權,才能執行:
 
 ```
-1. Wave 1 acquisition = S1 / E1 / I1
+1. Wave 2 acquisition = S2 / E2 / I2
    每題 exactly one attempt
    只允許 planning 與 round1_worker
    直接呼叫 runRound1Stage()，不得用 runOrchestrator()
    retrieval all-off；temperature provider-default-unprobed
 
-2. 然後交 fresh clean-room Gemini A2 做正式 F4 annotation
+2. 只有在出現 F1/F2/F3 全過的 candidate 時，才交 fresh clean-room Gemini A2 做正式 F4 annotation
+   （零 eligible candidate → NO_A2_BATCH，負控 fxr-08 不得單獨送出）
    （A2 不得看到 intended archetype / Gate / arms / gold）
 
 3. Stopping rule（protocol 0.3）：
@@ -615,8 +685,9 @@ R1 / R2 verifier 的失敗項**全部是 F1/F2 eligibility gate 本身**,不是�
 ---
 
 ```
-STATE ALIGNED THROUGH a275d01 /
-NO KNOWN ENGINEERING BLOCKER IN THE MATERIALIZED LEDGER /
-FINAL PRE-LIVE BLOCKER RECONCILIATION: PENDING /
+STATE ALIGNED THROUGH 516d838 /
+P03 WAVE 1 EXECUTED — THREE F2 FAILURES PRESERVED /
+A2 = NO_A2_BATCH（NO_F4_ELIGIBLE_CANDIDATES）/ NEGATIVE CONTROL NOT SENT /
+NEXT PROTOCOL STEP = WAVE 2，NOT AUTHORIZED /
 LIVE = NONE / EXECUTION AUTHORIZATION: NOT GRANTED
 ```
