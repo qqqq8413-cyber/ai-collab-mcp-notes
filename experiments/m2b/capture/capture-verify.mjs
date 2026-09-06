@@ -13,6 +13,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { buildRunReport } from '../../../dist/modes/orchestrator.js';
 import { PROTOCOL_VERSION as CURRENT_PROTOCOL_VERSION, routingFor } from '../protocol/amendment-0-3.mjs';
 
@@ -34,7 +35,7 @@ const EVALUATION_ARTIFACT_PATTERNS = Object.freeze(['conflict-label', 'gold-issu
  *   candidate set keeps its own source directory, and so a test can verify a capture that
  *   lives anywhere on disk.
  */
-export function verifyCapture({ realRoot, chiefPin, providerAllocation, sourceCandidate, sourceTaskPathFor, globalCallBudget = GLOBAL_CALL_BUDGET }) {
+export function verifyCapture({ realRoot, chiefPin, providerAllocation, sourceCandidate, sourceTaskPathFor, globalCallBudget = GLOBAL_CALL_BUDGET, expectedFixtureIds = null }) {
   const checks = [];
   const check = (id, name, ok, detail = '') => {
     checks.push({ id, name, ok: Boolean(ok), detail: String(detail) });
@@ -44,6 +45,24 @@ export function verifyCapture({ realRoot, chiefPin, providerAllocation, sourceCa
   const session = JSON.parse(readFileSync(join(realRoot, 'capture-session.json'), 'utf8'));
   const fixtureIds = session.attempts.map((a) => a.fixtureId);
   const all = [];
+
+  if (expectedFixtureIds !== null) {
+    const violation = session.roundEndingViolation;
+    const prefix = fixtureIds.length <= expectedFixtureIds.length
+      && fixtureIds.every((id, i) => id === expectedFixtureIds[i]);
+    // The session may retain the violating attempt or stop before adding it.
+    const legitimateStop = violation != null
+      && ['SCOPE_VIOLATION_POST_ROUND1_CALL', 'RETRIEVAL_POLICY_VIOLATION',
+        'TEMPERATURE_POLICY_VIOLATION', 'CALL_BUDGET_EXCEEDED',
+        'INVALID_CAPTURE', 'REQUEST_PIN_MISMATCH'].includes(violation.code)
+      && expectedFixtureIds.includes(violation.fixtureId)
+      && (violation.fixtureId === fixtureIds.at(-1)
+        || violation.fixtureId === expectedFixtureIds[fixtureIds.length]);
+    check('7c', 'session attempts match the expected wave order',
+      prefix && (violation == null
+        ? fixtureIds.length === expectedFixtureIds.length : legitimateStop),
+      `expected ${expectedFixtureIds.join(', ')}; recorded ${fixtureIds.join(', ')}`);
+  }
 
   for (const fixtureId of fixtureIds) {
     const dir = join(realRoot, fixtureId);
@@ -229,9 +248,19 @@ export function verifyCapture({ realRoot, chiefPin, providerAllocation, sourceCa
   // 25 (session scope). The journal is the write-ahead record; nothing may exist outside it.
   const journalPath = join(realRoot, 'journal.ndjson');
   const journal = readFileSync(journalPath, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line));
-  check('25b', 'every recorded call appears in the write-ahead journal', journal.length === globalCalls, `${journal.length} journalled, ${globalCalls} in artifacts`);
-  const journalSeqs = journal.map((c) => c.seq).sort((x, y) => x - y);
-  check('25c', 'journal sequence is complete and gapless', journalSeqs.every((s, i) => s === i + 1), journalSeqs.join(','));
+  const rawCalls = all.flatMap((a) => a.rawCalls);
+  const validIdentities = (records) => records.every((c) => Number.isSafeInteger(c?.seq) && c.seq > 0)
+    && new Set(records.map((c) => c.seq)).size === records.length;
+  const journalBySeq = new Map(journal.map((c) => [c?.seq, c]));
+  // Compare by dispatch identity, never by concurrent settlement or file order.
+  check('25b', 'every raw call has exactly one identical journal record',
+    validIdentities(journal) && validIdentities(rawCalls)
+      && journal.length === rawCalls.length
+      && rawCalls.every((c) => isDeepStrictEqual(c, journalBySeq.get(c.seq))),
+    `${journal.length} journalled, ${globalCalls} in artifacts; matched by seq and full contents`);
+  const journalSeqs = journal.map((c) => c?.seq).sort((x, y) => x - y);
+  check('25c', 'journal sequence is complete and gapless', validIdentities(journal)
+    && journalSeqs.every((s, i) => s === i + 1), journalSeqs.join(','));
 
   // 31. runtime fingerprint unchanged across the whole capture
   check(31, 'runtime fingerprint start equals end',

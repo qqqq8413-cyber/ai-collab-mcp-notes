@@ -21,6 +21,7 @@ const waveArg = process.argv.find((a) => a.startsWith('--wave='));
 const filledArg = process.argv.find((a) => a.startsWith('--filled-archetypes='));
 let realRoot = set.realRoot;
 let globalCallBudget = set.globalCallBudget;
+let expectedFixtureIds = null;
 if (setId === 'P03') {
   if (!waveArg) {
     console.error('P03 verification requires --wave=1, --wave=2 or --wave=3.');
@@ -32,6 +33,7 @@ if (setId === 'P03') {
     : [];
   try {
     const selectedSlots = selectWaveSlots(waveNumber, filledArchetypes);
+    expectedFixtureIds = selectedSlots;
     realRoot = waveOutputRoot(waveNumber);
     globalCallBudget = waveCallBudget(selectedSlots);
   } catch (err) {
@@ -50,6 +52,7 @@ const capture = verifyCapture({
   sourceCandidate: SOURCE_CANDIDATE,
   sourceTaskPathFor: sourceTaskPath,
   globalCallBudget,
+  expectedFixtureIds,
 });
 const synthetic = verifySyntheticUnchanged({
   syntheticRoot: SYNTHETIC_ROOT,

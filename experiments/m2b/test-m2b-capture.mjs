@@ -120,13 +120,14 @@ async function stubSession(name, callOptions = {}, sessionOptions = {}) {
   return { ...out, realRoot, call };
 }
 
-const verifyAt = (realRoot, globalCallBudget = GLOBAL_CALL_BUDGET) => verifyCapture({
+const verifyAt = (realRoot, globalCallBudget = GLOBAL_CALL_BUDGET, expectedFixtureIds = null) => verifyCapture({
   realRoot,
   chiefPin: CHIEF_PIN,
   providerAllocation: PROVIDER_ALLOCATION,
   sourceCandidate: SOURCE_CANDIDATE,
   sourceTaskPathFor: sourceTaskPath,
   globalCallBudget,
+  expectedFixtureIds,
 });
 
 /** Copies a legal capture, applies one tampering, and returns the verifier result. */
@@ -1134,7 +1135,7 @@ await check('a legal P03 Wave 1 stub capture spends twelve calls and verifies cl
   assert.equal(p03Wave1.session.globalCallBudget, 12);
   assert.equal(p03Wave1.session.globalLiveCallCount, 12);
   assert.equal(call.seen.length, 12);
-  const result = verifyAt(P03_WAVE1_ROOT, 12);
+  const result = verifyAt(P03_WAVE1_ROOT, 12, P03_WAVE1_SLOTS);
   assert.deepEqual(failedIds(result), []);
   for (const attempt of p03Wave1.session.attempts) {
     const manifest = JSON.parse(readFileSync(join(P03_WAVE1_ROOT, attempt.fixtureId, 'capture-manifest.json'), 'utf8'));
@@ -1162,7 +1163,7 @@ await check('a gated P03 Wave 2 skips STRATEGY, adjusts budget and verifies clea
   assert.equal(out.session.globalCallBudget, 8);
   assert.equal(out.session.globalLiveCallCount, 8);
   assert.equal(call.seen.length, 8, 'no call is spent on skipped S2');
-  assert.deepEqual(failedIds(verifyAt(realRoot, 8)), []);
+  assert.deepEqual(failedIds(verifyAt(realRoot, 8, selected)), []);
 });
 
 await check('a cross-wave duplicate slot is refused before any provider call', async () => {
@@ -1379,6 +1380,102 @@ await check('the R3 capture remains 149 of 149 with no reinterpreted provenance'
   assert.deepEqual(failedIds(result), []);
   assert.equal(result.checks.length, 149);
 });
+
+console.log('\nCWP-4A evidence binding');
+
+function copyWave(name) {
+  const root = join(SCRATCH, `binding-${name}`);
+  cpSync(P03_WAVE1_ROOT, root, { recursive: true });
+  return root;
+}
+function editJournal(root, mutate) {
+  const path = join(root, 'journal.ndjson');
+  const records = readFileSync(path, 'utf8').trim().split('\n').map(JSON.parse);
+  mutate(records);
+  writeFileSync(path, records.map((r) => JSON.stringify(r)).join('\n') + '\n');
+}
+const verifyWave = (root) => verifyAt(root, 12, P03_WAVE1_SLOTS);
+
+await check('journal content tampering fails 25b with count and sequence preserved', () => {
+  const root = copyWave('content');
+  editJournal(root, (records) => { records[0].prompt += ' altered'; });
+  assert.deepEqual(failedIds(verifyWave(root)), ['25b']);
+});
+
+await check('journal physical order and object key order do not affect content binding', () => {
+  const root = copyWave('physical-order');
+  editJournal(root, (records) => {
+    records.reverse();
+    records[0] = Object.fromEntries(Object.entries(records[0]).reverse());
+  });
+  assert.deepEqual(failedIds(verifyWave(root)), []);
+});
+
+for (const [name, mutate] of [
+  ['duplicate', (r) => { r[1].seq = r[0].seq; }],
+  ['invalid', (r) => { r[0].seq = '1'; }],
+  ['gap', (r) => { r[0].seq = 99; }],
+  ['raw-only', (r) => { r.pop(); }],
+  ['journal-only', (r) => { r.push({ ...r[0], seq: r.length + 1 }); }],
+]) {
+  await check(`journal ${name} breaks one-to-one binding`, () => {
+    const root = copyWave(name);
+    editJournal(root, mutate);
+    assert.ok(failedIds(verifyWave(root)).includes('25b'));
+  });
+}
+
+await check('same candidate set reordered fails only the wave-order guard', () => {
+  const root = copyWave('reordered');
+  editJson(join(root, 'capture-session.json'), (s) => { s.attempts.reverse(); });
+  assert.deepEqual(failedIds(verifyWave(root)), ['7c']);
+});
+
+await check('unauthorized candidate insertion fails wave-order guard', () => {
+  const root = copyWave('unauthorized');
+  cpSync(join(P03_HISTORY_ROOT, 'wave-2', 'E2'), join(root, 'E2'), { recursive: true });
+  editJson(join(root, 'capture-session.json'), (s) => { s.attempts.push({ fixtureId: 'E2' }); });
+  assert.ok(failedIds(verifyWave(root)).includes('7c'));
+});
+
+await check('an actual runtime early stop retains its ordered prefix', async () => {
+  const run = await stubSession('binding-actual-stop', {}, { globalBudget: 6 });
+  const result = verifyAt(run.realRoot, 6, [...REAL_FIXTURE_IDS]);
+  assert.equal(result.checks.find((c) => c.id === '7c').ok, true);
+  assert.equal(result.checks.find((c) => c.id === '25b').ok, true);
+  assert.deepEqual(failedIds(result), [
+    'fxr-02/12b', 'fxr-02/13b',
+    ...['market_researcher', 'brand_creative'].flatMap((id) =>
+      ['15', '15b', '16b', '17', '18', '19', '19b'].map((n) => `fxr-02/${n}:${id}`)),
+  ], 'preserve existing diagnostics for workers refused before dispatch');
+});
+
+for (const included of [true, false]) {
+  await check(`P03 early-stop order accepts violating fixture ${included ? 'included' : 'not yet in attempts'}`, () => {
+    const root = copyWave(`prefix-${included}`);
+    editJson(join(root, 'capture-session.json'), (s) => {
+      s.attempts = s.attempts.slice(0, included ? 2 : 1);
+      s.roundEndingViolation = { fixtureId: 'E1', code: 'CALL_BUDGET_EXCEEDED' };
+    });
+    const result = verifyWave(root);
+    assert.equal(result.checks.find((c) => c.id === '7c').ok, true);
+    // Missing raw-call evidence must still fail binding, even for an ordered prefix.
+    assert.ok(failedIds(result).includes('25b'));
+  });
+}
+
+for (const [name, mutate] of [
+  ['incomplete without violation', (s) => { s.attempts.pop(); }],
+  ['skipped earlier slot', (s) => { s.attempts.shift(); s.roundEndingViolation = { fixtureId: 'I1', code: 'CALL_BUDGET_EXCEEDED' }; }],
+  ['unknown violation', (s) => { s.attempts.pop(); s.roundEndingViolation = { fixtureId: 'E1', code: 'FAKE' }; }],
+  ['violation at skipped slot', (s) => { s.attempts = []; s.roundEndingViolation = { fixtureId: 'E1', code: 'CALL_BUDGET_EXCEEDED' }; }],
+]) {
+  await check(`wave-order rejects ${name}`, () => {
+    const root = copyWave(name);
+    editJson(join(root, 'capture-session.json'), mutate);
+    assert.ok(failedIds(verifyWave(root)).includes('7c'));
+  });
+}
 
 rmSync(SCRATCH, { recursive: true, force: true });
 console.log(`\n${passed} passed, ${failed} failed`);
