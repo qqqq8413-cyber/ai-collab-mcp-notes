@@ -26,10 +26,13 @@ import {
 import { runCaptureSession } from './capture/session.mjs';
 import { verifyCapture, verifySyntheticUnchanged } from './capture/capture-verify.mjs';
 import {
-  REAL_FIXTURE_IDS, PROVIDER_ALLOCATION, CHIEF_PIN, SOURCE_CANDIDATE,
+  REAL_FIXTURE_IDS, PROVIDER_ALLOCATION, HISTORICAL_PROVIDER_ALLOCATION, CHIEF_PIN, SOURCE_CANDIDATE,
   SYNTHETIC_ROOT, CANDIDATES_R2_ROOT, CANDIDATES_R3_ROOT, CANDIDATE_SETS, candidateSetFor, sourceTaskPath,
   REGISTERED_SPECIALISTS, buildWorkerRefs, canonical, sha256,
 } from './capture/runner.mjs';
+import {
+  ROLE_PROVIDER_MAP, routingFor, cd1TargetInvariantHolds,
+} from './protocol/amendment-0-3.mjs';
 
 let passed = 0, failed = 0;
 async function check(name, fn) {
@@ -143,8 +146,23 @@ const editJson = (path, mutate) => {
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('\nRecording dispatcher — pre-call guards');
 
-const RECORDER_WORKERS = REGISTERED_SPECIALISTS.map((id, i) => ({ id, role: `Role ${i} for ${id}`, provider: 'openai', model: 'gpt-5' }));
-const PINS = { planning: CHIEF_PIN, round1_worker: { provider: 'openai', model: 'gpt-5' } };
+const RECORDER_WORKERS = REGISTERED_SPECIALISTS.map((id, i) => ({
+  id,
+  role: `Role ${i} for ${id}`,
+  ...routingFor(id),
+}));
+const PINS = { planning: CHIEF_PIN, round1_worker: routingFor };
+
+const dispatchWorker = (dispatch, worker, options = {}) => dispatch(
+  options.provider ?? worker.provider,
+  options.prompt ?? 'p',
+  {
+    stage: 'round1_worker',
+    model: options.model ?? worker.model,
+    system: worker.role,
+    ...(options.retrieval === undefined ? {} : { retrieval: options.retrieval }),
+  },
+);
 
 function recorderFixture({ call, fixtureId = 'fxr-01', workers = RECORDER_WORKERS } = {}) {
   let calledProvider = 0;
@@ -220,7 +238,7 @@ await check('the global budget stops the seventeenth call before it is issued', 
   for (const fixtureId of REAL_FIXTURE_IDS) {
     const dispatch = recorder.dispatcherFor(fixtureId, { pins: PINS, workers: RECORDER_WORKERS });
     await dispatch('openai', 'p', { stage: 'planning', model: 'gpt-5' });
-    for (const w of RECORDER_WORKERS) await dispatch('openai', 'p', { stage: 'round1_worker', model: 'gpt-5', system: w.role });
+    for (const w of RECORDER_WORKERS) await dispatchWorker(dispatch, w);
   }
   assert.equal(recorder.liveCallCount, GLOBAL_CALL_BUDGET);
   assert.equal(providerCalls, GLOBAL_CALL_BUDGET);
@@ -241,7 +259,7 @@ await check('the R3 budget stops a thirteenth call before it is issued', async (
   for (const fixtureId of CANDIDATE_SETS.R3.fixtureIds) {
     const dispatch = recorder.dispatcherFor(fixtureId, { pins: PINS, workers: RECORDER_WORKERS });
     await dispatch('openai', 'p', { stage: 'planning', model: 'gpt-5' });
-    for (const w of RECORDER_WORKERS) await dispatch('openai', 'p', { stage: 'round1_worker', model: 'gpt-5', system: w.role });
+    for (const w of RECORDER_WORKERS) await dispatchWorker(dispatch, w);
   }
   const dispatch = recorder.dispatcherFor('fxr-r3-overflow', { pins: PINS, workers: RECORDER_WORKERS });
   const err = await mustReject(() => dispatch('openai', 'p', { stage: 'planning', model: 'gpt-5' }), 'R3 budget');
@@ -265,7 +283,7 @@ await check('concurrent worker dispatches cannot overshoot the global budget', a
   });
   const dispatch = recorder.dispatcherFor('fxr-01', { pins: PINS, workers: RECORDER_WORKERS });
   const settled = await Promise.allSettled(
-    RECORDER_WORKERS.map((w) => dispatch('openai', 'p', { stage: 'round1_worker', model: 'gpt-5', system: w.role }))
+    RECORDER_WORKERS.map((w) => dispatchWorker(dispatch, w))
   );
   assert.equal(providerCalls, 2, 'exactly the budget may reach a provider, however concurrent the batch');
   assert.equal(settled.filter((r) => r.status === 'rejected').length, 1);
@@ -276,7 +294,7 @@ await check('concurrent worker dispatches cannot overshoot the global budget', a
 await check('the per-candidate budget stops a fifth call for one candidate', async () => {
   const f = recorderFixture();
   await f.dispatch('openai', 'p', { stage: 'planning', model: 'gpt-5' });
-  for (const w of RECORDER_WORKERS) await f.dispatch('openai', 'p', { stage: 'round1_worker', model: 'gpt-5', system: w.role });
+  for (const w of RECORDER_WORKERS) await dispatchWorker(f.dispatch, w);
   const before = f.providerCalls;
   const err = await mustReject(() => f.dispatch('openai', 'p', { stage: 'planning', model: 'gpt-5' }), 'candidate budget');
   assert.ok(err instanceof CallBudgetExceeded);
@@ -315,6 +333,23 @@ await check('a worker call matching two specialists is refused, not guessed', as
   assert.ok(err instanceof WorkerBindingError);
   assert.equal(err.matches, 2);
   assert.equal(f.providerCalls, 0);
+});
+
+await check('round1 worker expected pins are resolved per bound agent id', async () => {
+  const recorder = createRecorder({
+    call: async (provider, prompt, options) => ({ provider, model: options.model, text: prompt }),
+  });
+  const dispatch = recorder.dispatcherFor('fxr-01', { pins: PINS, workers: RECORDER_WORKERS });
+  for (const worker of RECORDER_WORKERS) await dispatchWorker(dispatch, worker);
+  assert.equal(recorder.calls.length, 3);
+  for (const raw of recorder.calls) {
+    assert.deepEqual(
+      { provider: raw.providerRequested, model: raw.modelRequested },
+      ROLE_PROVIDER_MAP[raw.agentId],
+      raw.agentId,
+    );
+    assert.equal(raw.pinMismatch, false);
+  }
 });
 
 await check('a resolved model that differs from the pin preserves the raw response and invalidates the call', async () => {
@@ -380,7 +415,7 @@ await check('the write-ahead journal is appended after each call, not at the end
   });
   const dispatch = recorder.dispatcherFor('fxr-01', { pins: PINS, workers: RECORDER_WORKERS });
   await dispatch('openai', 'p', { stage: 'planning', model: 'gpt-5' });
-  await dispatch('openai', 'p', { stage: 'round1_worker', model: 'gpt-5', system: RECORDER_WORKERS[0].role });
+  await dispatchWorker(dispatch, RECORDER_WORKERS[0]);
   assert.deepEqual(lengths, [0, 1], 'call N must already be on disk when call N+1 is issued');
   assert.equal(readFileSync(journalPath, 'utf8').split('\n').filter(Boolean).length, 2);
 });
@@ -398,16 +433,33 @@ await check('no secret ever enters a call record', async () => {
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('\nCapture runner — production binding');
 
-await check('the runner pins every specialist of a candidate to one provider and model', () => {
-  for (const fixtureId of REAL_FIXTURE_IDS) {
-    const refs = buildWorkerRefs(fixtureId);
-    assert.equal(refs.length, 3);
-    assert.deepEqual(refs.map((r) => r.id), REGISTERED_SPECIALISTS);
-    for (const ref of refs) {
-      assert.equal(ref.provider, PROVIDER_ALLOCATION[fixtureId].provider);
-      assert.equal(ref.model, PROVIDER_ALLOCATION[fixtureId].model);
-      assert.equal(ref.providesEvidence, false, 'all-off retrieval is enforced structurally, not by prompt');
-    }
+await check('every registered specialist resolves through the accepted role-provider map', () => {
+  const refs = buildWorkerRefs('fixture-id-cannot-affect-routing');
+  assert.equal(refs.length, 3);
+  assert.deepEqual(refs.map((r) => r.id), REGISTERED_SPECIALISTS);
+  for (const ref of refs) {
+    assert.deepEqual(
+      { provider: ref.provider, model: ref.model },
+      ROLE_PROVIDER_MAP[ref.id],
+      ref.id,
+    );
+    assert.equal(ref.providesEvidence, false, 'all-off retrieval is enforced structurally, not by prompt');
+  }
+});
+
+await check('one roster carries three heterogeneous provider/model pins at the same time', () => {
+  const refs = buildWorkerRefs('same-fixture');
+  assert.equal(new Set(refs.map((r) => `${r.provider}/${r.model}`)).size, 3);
+});
+
+await check('Chief planning remains pinned to openai/gpt-5', () => {
+  assert.deepEqual(CHIEF_PIN, { provider: 'openai', model: 'gpt-5' });
+});
+
+await check('C and D1 resolve identically whenever they target the same agent id', () => {
+  for (const agentId of REGISTERED_SPECIALISTS) {
+    assert.equal(cd1TargetInvariantHolds(agentId), true, agentId);
+    assert.deepEqual(routingFor(agentId), routingFor(agentId));
   }
 });
 
@@ -454,6 +506,23 @@ await check('a fully legal stub capture passes every check', () => {
   assert.ok(result.checks.length >= 100, `expected a substantial check count, got ${result.checks.length}`);
 });
 
+await check('a new capture records auditable heterogeneous allocation provenance', () => {
+  const manifest = JSON.parse(readFileSync(join(legal.realRoot, 'fxr-01', 'capture-manifest.json'), 'utf8'));
+  assert.equal(manifest.protocolVersion, 'M2B-PROTOCOL-0.3');
+  assert.equal(manifest.captureVersion, 'M2B-REAL-ROUND1-CAPTURE-2');
+  assert.equal(manifest.providerAllocation.mode, 'role-based-heterogeneous');
+  assert.deepEqual(manifest.providerAllocation.byAgent, ROLE_PROVIDER_MAP);
+  for (const worker of manifest.workers) {
+    assert.equal(worker.routingRole, worker.agentId);
+    assert.deepEqual(
+      { provider: worker.providerRequested, model: worker.modelRequested },
+      ROLE_PROVIDER_MAP[worker.agentId],
+    );
+    assert.equal(worker.providerResolved, ROLE_PROVIDER_MAP[worker.agentId].provider);
+    assert.equal(worker.modelResolved, ROLE_PROVIDER_MAP[worker.agentId].model);
+  }
+});
+
 await check('the legal stub capture spends exactly sixteen calls', () => {
   assert.equal(legal.session.globalLiveCallCount, 16);
   for (const attempt of legal.session.attempts) assert.equal(attempt.liveCallCount, 4);
@@ -498,6 +567,11 @@ const NEGATIVES = [
   }, '/13'],
   ['snapshot-provider-differs-from-raw', (dir) => {
     editJson(join(dir, 'fxr-01', 'available-roster.json'), (r) => { r.workers[0].provider = 'gemini'; });
+  }, '/17'],
+  ['role-allocation-manifest-differs-from-protocol', (dir) => {
+    editJson(join(dir, 'fxr-01', 'capture-manifest.json'), (m) => {
+      m.providerAllocation.byAgent.business_strategist.provider = 'openai';
+    });
   }, '/17'],
   ['requested-model-differs-from-resolved', (dir) => {
     editJson(join(dir, 'fxr-01', 'raw-calls.json'), (calls) => {
@@ -619,6 +693,7 @@ await check('a worker whose model resolves differently becomes a Round 1 failure
   }, { fresh: true });
   const result = verifyAt(run.realRoot);
   assert.equal(result.ok, false);
+  assert.equal(run.session.globalLiveCallCount, 16, 'one planning plus three worker calls per fixture; no retry');
   const snapshot = JSON.parse(readFileSync(join(run.realRoot, 'fxr-01', 'snapshot.json'), 'utf8'));
   for (const r of snapshot.workerResults) {
     assert.equal(r.output, undefined, 'text from an unpinned model must not enter the snapshot');
@@ -628,6 +703,24 @@ await check('a worker whose model resolves differently becomes a Round 1 failure
   const worker = raw.find((c) => c.stage === 'round1_worker');
   assert.ok(worker.responseText.length > 0, 'the raw response is still preserved as evidence');
   assert.equal(worker.pinMismatch, true);
+});
+
+await check('a worker whose provider resolves differently preserves raw evidence with no retry or fallback', async () => {
+  const run = await stubSession('provider-drift', {
+    providerFor: (provider, options) => (options.stage === 'round1_worker' ? 'wrong-provider' : provider),
+  }, { fresh: true });
+  assert.equal(run.session.globalLiveCallCount, 16, 'mismatches do not add retry or fallback calls');
+  for (const fixtureId of REAL_FIXTURE_IDS) {
+    const raw = JSON.parse(readFileSync(join(run.realRoot, fixtureId, 'raw-calls.json'), 'utf8'));
+    const workers = raw.filter((call) => call.stage === 'round1_worker');
+    assert.equal(workers.length, 3);
+    for (const call of workers) {
+      assert.equal(call.providerResolved, 'wrong-provider');
+      assert.ok(call.responseText.length > 0, 'raw response must be preserved');
+      assert.equal(call.pinMismatch, true);
+      assert.equal(call.success, false);
+    }
+  }
 });
 
 await check('a violation raised inside a worker call is latched even when the caller swallows the throw', async () => {
@@ -735,20 +828,11 @@ await check('R2 candidates resolve to the frozen replacement tasks, not the supe
   }
 });
 
-await check('R2 provider allocation is the authorized Option 3-prime slot assignment', () => {
-  assert.deepEqual(PROVIDER_ALLOCATION['fxr-05'], { provider: 'openai', model: 'gpt-5' });
-  assert.deepEqual(PROVIDER_ALLOCATION['fxr-06'], { provider: 'claude', model: 'claude-sonnet-5' });
-  assert.deepEqual(PROVIDER_ALLOCATION['fxr-07'], { provider: 'gemini', model: 'gemini-3.1-pro-preview' });
-  assert.deepEqual(PROVIDER_ALLOCATION['fxr-08'], { provider: 'openai', model: 'gpt-5' });
-  for (const id of CANDIDATE_SETS.R2.fixtureIds) {
-    const refs = buildWorkerRefs(id);
-    assert.deepEqual(refs.map((r) => r.id), REGISTERED_SPECIALISTS);
-    for (const ref of refs) {
-      assert.equal(ref.provider, PROVIDER_ALLOCATION[id].provider);
-      assert.equal(ref.model, PROVIDER_ALLOCATION[id].model);
-      assert.equal(ref.providesEvidence, false);
-    }
-  }
+await check('R2 preserves its historical Option 3-prime allocation provenance', () => {
+  assert.deepEqual(HISTORICAL_PROVIDER_ALLOCATION['fxr-05'], { provider: 'openai', model: 'gpt-5' });
+  assert.deepEqual(HISTORICAL_PROVIDER_ALLOCATION['fxr-06'], { provider: 'claude', model: 'claude-sonnet-5' });
+  assert.deepEqual(HISTORICAL_PROVIDER_ALLOCATION['fxr-07'], { provider: 'gemini', model: 'gemini-3.1-pro-preview' });
+  assert.deepEqual(HISTORICAL_PROVIDER_ALLOCATION['fxr-08'], { provider: 'openai', model: 'gpt-5' });
 });
 
 await check('the frozen R2 tasks match the hashes recorded in the candidate set manifest', () => {
@@ -823,6 +907,8 @@ await check('the R1 capture evidence on disk still verifies as four preserved fa
   assert.deepEqual(failedIds(result).sort(), [
     'fxr-01/10b', 'fxr-02/10b', 'fxr-02/12b', 'fxr-03/10b', 'fxr-04/10b', 'fxr-04/12b',
   ]);
+  assert.equal(result.checks.length, 180);
+  assert.equal(result.checks.length - result.failures.length, 174);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -849,17 +935,10 @@ await check('R3 tasks and character counts match the frozen manifest', () => {
   }
 });
 
-await check('R3 uses the authorized positive provider rotation with retrieval disabled', () => {
-  assert.deepEqual(PROVIDER_ALLOCATION['fxr-09'], { provider: 'openai', model: 'gpt-5' });
-  assert.deepEqual(PROVIDER_ALLOCATION['fxr-10'], { provider: 'claude', model: 'claude-sonnet-5' });
-  assert.deepEqual(PROVIDER_ALLOCATION['fxr-11'], { provider: 'gemini', model: 'gemini-3.1-pro-preview' });
-  for (const id of CANDIDATE_SETS.R3.fixtureIds) {
-    for (const ref of buildWorkerRefs(id)) {
-      assert.equal(ref.provider, PROVIDER_ALLOCATION[id].provider);
-      assert.equal(ref.model, PROVIDER_ALLOCATION[id].model);
-      assert.equal(ref.providesEvidence, false);
-    }
-  }
+await check('R3 preserves its historical positive provider rotation provenance', () => {
+  assert.deepEqual(HISTORICAL_PROVIDER_ALLOCATION['fxr-09'], { provider: 'openai', model: 'gpt-5' });
+  assert.deepEqual(HISTORICAL_PROVIDER_ALLOCATION['fxr-10'], { provider: 'claude', model: 'claude-sonnet-5' });
+  assert.deepEqual(HISTORICAL_PROVIDER_ALLOCATION['fxr-11'], { provider: 'gemini', model: 'gemini-3.1-pro-preview' });
 });
 
 await check('R3 task text does not expose experiment metadata to the planner', () => {
@@ -895,6 +974,14 @@ await check('a legal R3 stub capture spends exactly twelve calls and verifies cl
 await check('the R2 capture remains the same two F2 failures and nothing else', () => {
   const result = verifyAt(CANDIDATE_SETS.R2.realRoot, CANDIDATE_SETS.R2.globalCallBudget);
   assert.deepEqual(failedIds(result).sort(), ['fxr-05/12b', 'fxr-07/12b']);
+  assert.equal(result.checks.length, 180);
+  assert.equal(result.checks.length - result.failures.length, 178);
+});
+
+await check('the R3 capture remains 149 of 149 with no reinterpreted provenance', () => {
+  const result = verifyAt(CANDIDATE_SETS.R3.realRoot, CANDIDATE_SETS.R3.globalCallBudget);
+  assert.deepEqual(failedIds(result), []);
+  assert.equal(result.checks.length, 149);
 });
 
 rmSync(SCRATCH, { recursive: true, force: true });

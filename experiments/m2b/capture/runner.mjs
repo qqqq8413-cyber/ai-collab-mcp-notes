@@ -27,20 +27,21 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { resolveRoster } from '../../../dist/agents/registry.js';
 import { runRound1Stage, toRound1Snapshot } from '../../../dist/modes/orchestrator.js';
+import {
+  CHIEF_PIN, PROTOCOL_VERSION, ROLE_PROVIDER_MAP, routingFor,
+} from '../protocol/amendment-0-3.mjs';
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 export const canonical = (value) => JSON.stringify(value, null, 2);
 
-export const CAPTURE_VERSION = 'M2B-REAL-ROUND1-CAPTURE-1';
-export const PROTOCOL_VERSION = 'M2B-PROTOCOL-0.2';
+export const CAPTURE_VERSION = 'M2B-REAL-ROUND1-CAPTURE-2';
 export const RETRIEVAL_POLICY = 'all-off';
 export const TEMPERATURE_POLICY = 'provider-default-unprobed';
 
 /** The full registered specialist roster. The planner picks from these; it is not told which. */
 export const REGISTERED_SPECIALISTS = Object.freeze(['business_strategist', 'market_researcher', 'brand_creative']);
 
-/** Chief is pinned identically across every candidate, explicitly rather than by env default. */
-export const CHIEF_PIN = Object.freeze({ provider: 'openai', model: 'gpt-5' });
+export { CHIEF_PIN, PROTOCOL_VERSION };
 
 export const SYNTHETIC_ROOT = fileURLToPath(new URL('../fixtures/', import.meta.url));
 export const CANDIDATES_R2_ROOT = fileURLToPath(new URL('../candidates-r2/', import.meta.url));
@@ -55,9 +56,9 @@ export const CANDIDATES_R3_ROOT = fileURLToPath(new URL('../candidates-r3/', imp
  * replacement tasks with its own ids, its own source directory and its own output root,
  * so nothing about R1 can be overwritten, reused, or quietly absorbed into R2's result.
  *
- * Provider allocation follows Option 3-prime in both sets: every specialist of a candidate
- * shares one provider and model, which pins the C and D-1 target before a Gate exists to
- * choose it.
+ * These sets preserve the historical Option 3-prime allocation that produced their
+ * committed evidence. New captures use the protocol 0.3 role map below; the historical
+ * allocation remains here only so the old artifacts can still be verified as recorded.
  */
 export const CANDIDATE_SETS = Object.freeze({
   R1: Object.freeze({
@@ -108,8 +109,21 @@ export const CANDIDATE_SETS = Object.freeze({
 
 const mergeSets = (key) => Object.freeze(Object.assign({}, ...Object.values(CANDIDATE_SETS).map((set) => set[key])));
 
-/** Merged across sets, so a verifier can be handed one map and still bind every id uniquely. */
-export const PROVIDER_ALLOCATION = mergeSets('providerAllocation');
+/** Merged historical map used only to verify committed protocol 0.2 captures. */
+export const HISTORICAL_PROVIDER_ALLOCATION = mergeSets('providerAllocation');
+
+/**
+ * Backward-compatible allocation registry written to new session manifests.
+ *
+ * `byAgent` is the active protocol 0.3 routing truth. The historical fixture map is kept
+ * under an explicit name so old homogeneous captures remain auditable without being
+ * reinterpreted as heterogeneous evidence.
+ */
+export const PROVIDER_ALLOCATION = Object.freeze({
+  mode: 'role-based-heterogeneous',
+  byAgent: ROLE_PROVIDER_MAP,
+  historicalHomogeneousByFixture: HISTORICAL_PROVIDER_ALLOCATION,
+});
 export const SOURCE_CANDIDATE = mergeSets('sourceCandidate');
 
 export function candidateSetFor(fixtureId) {
@@ -137,15 +151,16 @@ export function sourceTaskPath(fixtureId) {
  * registry defines it — market_researcher is still the Research Analyst, it simply may not
  * search during this experiment.
  */
-export function buildWorkerRefs(fixtureId) {
-  const pin = PROVIDER_ALLOCATION[fixtureId];
-  if (!pin) throw new Error(`no provider allocation for ${fixtureId}`);
-  return REGISTERED_SPECIALISTS.map((id) => ({
-    id,
-    provider: pin.provider,
-    model: pin.model,
-    providesEvidence: false,
-  }));
+export function buildWorkerRefs(_fixtureId) {
+  return REGISTERED_SPECIALISTS.map((id) => {
+    const pin = routingFor(id);
+    return {
+      id,
+      provider: pin.provider,
+      model: pin.model,
+      providesEvidence: false,
+    };
+  });
 }
 
 /**
@@ -160,11 +175,10 @@ export async function captureCandidate({ fixtureId, recorder, outDir, meta, now 
   const task = readFileSync(taskPath, 'utf8');
   const taskSha256 = sha256(task);
 
-  const pin = PROVIDER_ALLOCATION[fixtureId];
   const { workers, warnings } = resolveRoster(buildWorkerRefs(fixtureId));
 
   const call = recorder.dispatcherFor(fixtureId, {
-    pins: { planning: CHIEF_PIN, round1_worker: pin },
+    pins: { planning: CHIEF_PIN, round1_worker: routingFor },
     workers,
   });
 
@@ -212,6 +226,7 @@ export async function captureCandidate({ fixtureId, recorder, outDir, meta, now 
       }
       perWorker.push({
         agentId: result.agentId,
+        routingRole: result.agentId,
         roleSha256: sha256(worker.role),
         missionSha256: sha256(result.mission),
         outputSha256: typeof result.output === 'string' ? sha256(result.output) : null,
@@ -272,7 +287,10 @@ export async function captureCandidate({ fixtureId, recorder, outDir, meta, now 
       resolvedModel: planningCall?.modelResolved ?? null,
       resolvedProvider: planningCall?.providerResolved ?? null,
     },
-    providerAllocation: pin,
+    providerAllocation: {
+      mode: PROVIDER_ALLOCATION.mode,
+      byAgent: PROVIDER_ALLOCATION.byAgent,
+    },
     retrievalPolicy: RETRIEVAL_POLICY,
     temperaturePolicy: TEMPERATURE_POLICY,
     actualComplexity: round1?.plan.complexity ?? null,

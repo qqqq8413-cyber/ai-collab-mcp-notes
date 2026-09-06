@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildRunReport } from '../../../dist/modes/orchestrator.js';
+import { PROTOCOL_VERSION as CURRENT_PROTOCOL_VERSION, routingFor } from '../protocol/amendment-0-3.mjs';
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 const canonical = (value) => JSON.stringify(value, null, 2);
@@ -142,13 +143,36 @@ export function verifyCapture({ realRoot, chiefPin, providerAllocation, sourceCa
       q(16, 'mission file matches the snapshot mission', missionFile === result.mission, 'exact');
       q('16b', 'mission appears verbatim in the prompt sent', raw ? raw.prompt.includes(result.mission) : false, 'prompt carries the mission');
 
-      // 17/18. provider and model, requested and resolved, on both sides
-      const pin = providerAllocation[fixtureId];
+      // 17/18. New captures bind the role to protocol 0.3's executable router. Historical
+      // protocol 0.2 captures retain their own homogeneous manifest provenance and are
+      // checked against the frozen historical registry, never today's role map.
+      const isRoleBased = manifest.protocolVersion === CURRENT_PROTOCOL_VERSION;
+      const historicalAllocation = providerAllocation?.historicalHomogeneousByFixture ?? providerAllocation;
+      let pin = null;
+      if (isRoleBased) {
+        try { pin = routingFor(result.agentId); } catch { pin = null; }
+      } else if (manifest.protocolVersion === 'M2B-PROTOCOL-0.2') {
+        pin = historicalAllocation?.[fixtureId] ?? null;
+      }
+      const manifestPin = isRoleBased
+        ? manifest.providerAllocation?.byAgent?.[result.agentId]
+        : manifest.providerAllocation;
+      const allocationModeMatches = isRoleBased
+        ? manifest.providerAllocation?.mode === 'role-based-heterogeneous'
+        : manifest.providerAllocation?.mode === undefined;
       q(17, 'worker provider binds snapshot, request and resolution',
-        Boolean(worker && raw) && worker.provider === pin.provider && raw.providerRequested === pin.provider && raw.providerResolved === pin.provider,
+        Boolean(worker && raw && pin && manifestPin && allocationModeMatches)
+          && manifestPin.provider === pin.provider
+          && worker.provider === pin.provider
+          && raw.providerRequested === pin.provider
+          && raw.providerResolved === pin.provider,
         raw ? `${raw.providerRequested} -> ${raw.providerResolved}` : 'no call');
       q(18, 'worker model binds snapshot, request and resolution',
-        Boolean(worker && raw) && worker.model === pin.model && raw.modelRequested === pin.model && raw.modelResolved === pin.model,
+        Boolean(worker && raw && pin && manifestPin && allocationModeMatches)
+          && manifestPin.model === pin.model
+          && worker.model === pin.model
+          && raw.modelRequested === pin.model
+          && raw.modelResolved === pin.model,
         raw ? `${raw.modelRequested} -> ${raw.modelResolved}` : 'no call');
 
       // 19. the frozen output is the provider's text, unchanged

@@ -98,11 +98,12 @@ export class WorkerBindingError extends Error {
  * contributing text under a model name that did not produce it.
  */
 export class ModelPinMismatch extends Error {
-  constructor(stage, requested, resolved) {
-    super(`MODEL_PIN_MISMATCH at stage "${stage}": requested ${requested}, resolved ${resolved}. Response preserved; call INVALID.`);
+  constructor(stage, expected, requested, resolved) {
+    super(`MODEL_PIN_MISMATCH at stage "${stage}": expected ${expected}, requested ${requested}, resolved ${resolved}. Response preserved; call INVALID.`);
     this.name = 'ModelPinMismatch';
     this.code = 'MODEL_PIN_MISMATCH';
     this.stage = stage;
+    this.expected = expected;
     this.requested = requested;
     this.resolved = resolved;
   }
@@ -175,7 +176,7 @@ export function createRecorder({ call, journalPath = null, now = () => new Date(
    * @param {string} fixtureId
    * @param {object} config
    * @param {{provider:string, model:string}} config.pins.planning
-   * @param {{provider:string, model:string}} config.pins.round1_worker
+   * @param {(agentId:string) => {provider:string, model:string}} config.pins.round1_worker
    * @param {Array<{id:string, role:string, provider:string, model:string}>} config.workers Resolved production roster.
    */
   const dispatcherFor = (fixtureId, { pins, workers }) => {
@@ -194,9 +195,6 @@ export function createRecorder({ call, journalPath = null, now = () => new Date(
       if (reserved >= globalBudget) throw halt(new CallBudgetExceeded('global', globalBudget));
       if (candidateCalls >= PER_CANDIDATE_CALL_BUDGET) throw halt(new CallBudgetExceeded(`candidate ${fixtureId}`, PER_CANDIDATE_CALL_BUDGET));
 
-      const pin = pins[stage];
-      if (!pin) throw new Error(`no pin for stage "${stage}"; the capture manifest is incomplete`);
-
       // Attribution has to happen before the call too: a worker call that cannot be tied
       // to exactly one specialist would produce an artifact nobody can verify, and there
       // is no point paying for it first.
@@ -208,6 +206,11 @@ export function createRecorder({ call, journalPath = null, now = () => new Date(
         if (matched.length !== 1) throw halt(new WorkerBindingError(matched.length));
         agentId = matched[0].id;
       }
+
+      const pin = stage === 'round1_worker'
+        ? pins.round1_worker?.(agentId)
+        : pins[stage];
+      if (!pin) throw new Error(`no pin for stage "${stage}"; the capture manifest is incomplete`);
 
       candidateCalls += 1;
       reserved += 1;
@@ -249,9 +252,13 @@ export function createRecorder({ call, journalPath = null, now = () => new Date(
         throw err;
       }
 
-      const requestedLabel = `${pin.provider}/${pin.model}`;
+      const expectedLabel = `${pin.provider}/${pin.model}`;
+      const requestedLabel = `${provider}/${options.model ?? null}`;
       const resolvedLabel = `${result.provider}/${result.model}`;
-      const pinMismatch = result.provider !== pin.provider || result.model !== pin.model;
+      const pinMismatch = provider !== pin.provider
+        || options.model !== pin.model
+        || result.provider !== pin.provider
+        || result.model !== pin.model;
 
       journal({
         ...base,
@@ -265,10 +272,10 @@ export function createRecorder({ call, journalPath = null, now = () => new Date(
         // A pin mismatch is not a successful call, however well-formed the text is.
         success: !pinMismatch,
         pinMismatch,
-        error: pinMismatch ? `MODEL_PIN_MISMATCH: requested ${requestedLabel}, resolved ${resolvedLabel}` : null,
+        error: pinMismatch ? `MODEL_PIN_MISMATCH: expected ${expectedLabel}, requested ${requestedLabel}, resolved ${resolvedLabel}` : null,
       });
 
-      if (pinMismatch) throw new ModelPinMismatch(stage, requestedLabel, resolvedLabel);
+      if (pinMismatch) throw new ModelPinMismatch(stage, expectedLabel, requestedLabel, resolvedLabel);
       return result;
     };
   };
