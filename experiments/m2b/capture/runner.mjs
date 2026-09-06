@@ -28,7 +28,8 @@ import { join } from 'node:path';
 import { resolveRoster } from '../../../dist/agents/registry.js';
 import { runRound1Stage, toRound1Snapshot } from '../../../dist/modes/orchestrator.js';
 import {
-  CHIEF_PIN, PROTOCOL_VERSION, ROLE_PROVIDER_MAP, routingFor,
+  ACQUISITION_POOL_SIZE, ARCHETYPE_SLOTS, CHIEF_PIN, PROTOCOL_VERSION,
+  ROLE_PROVIDER_MAP, WAVES, routingFor, slotsForWave,
 } from '../protocol/amendment-0-3.mjs';
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
@@ -46,6 +47,13 @@ export { CHIEF_PIN, PROTOCOL_VERSION };
 export const SYNTHETIC_ROOT = fileURLToPath(new URL('../fixtures/', import.meta.url));
 export const CANDIDATES_R2_ROOT = fileURLToPath(new URL('../candidates-r2/', import.meta.url));
 export const CANDIDATES_R3_ROOT = fileURLToPath(new URL('../candidates-r3/', import.meta.url));
+export const CANDIDATES_0_3_ROOT = fileURLToPath(new URL('../candidates-0-3/', import.meta.url));
+export const P03_REAL_ROOT = fileURLToPath(new URL('../fixtures-real-0-3/', import.meta.url));
+
+const P03_MANIFEST_PATH = join(CANDIDATES_0_3_ROOT, 'candidate-set-manifest.json');
+const P03_PROVENANCE_PATH = join(CANDIDATES_0_3_ROOT, 'freeze-provenance.json');
+const P03_SLOT_IDS = Object.freeze(Object.values(ARCHETYPE_SLOTS).flat());
+const P03_SOURCE_CANDIDATE = Object.freeze(Object.fromEntries(P03_SLOT_IDS.map((id) => [id, id])));
 
 /**
  * The candidate sets, each frozen before its own capture ran.
@@ -105,6 +113,14 @@ export const CANDIDATE_SETS = Object.freeze({
       'fxr-11': { provider: 'gemini', model: 'gemini-3.1-pro-preview' },
     }),
   }),
+  P03: Object.freeze({
+    setId: 'P03',
+    status: 'FROZEN PRE-LIVE ACQUISITION POOL',
+    fixtureIds: P03_SLOT_IDS,
+    sourceRoot: CANDIDATES_0_3_ROOT,
+    realRoot: P03_REAL_ROOT,
+    sourceCandidate: P03_SOURCE_CANDIDATE,
+  }),
 });
 
 const mergeSets = (key) => Object.freeze(Object.assign({}, ...Object.values(CANDIDATE_SETS).map((set) => set[key])));
@@ -139,7 +155,70 @@ export const REAL_ROOT = CANDIDATE_SETS.R1.realRoot;
 /** The one file a capture is allowed to read from its source candidate. */
 export function sourceTaskPath(fixtureId) {
   const set = candidateSetFor(fixtureId);
-  return join(set.sourceRoot, set.sourceCandidate[fixtureId], 'task.txt');
+  const path = join(set.sourceRoot, set.sourceCandidate[fixtureId], 'task.txt');
+  if (set.setId === 'P03') assertFrozenP03Pool(fixtureId, path);
+  return path;
+}
+
+/** Recomputes the frozen P03 manifest, protocol shape and selected task hash. */
+export function assertFrozenP03Pool(fixtureId = null, taskPath = null) {
+  const manifestBytes = readFileSync(P03_MANIFEST_PATH, 'utf8');
+  const manifest = JSON.parse(manifestBytes);
+  const provenance = JSON.parse(readFileSync(P03_PROVENANCE_PATH, 'utf8'));
+  const expectedSlots = new Set(P03_SLOT_IDS);
+
+  if (manifest.protocolVersion !== PROTOCOL_VERSION || provenance.protocolVersion !== PROTOCOL_VERSION) {
+    throw new Error('P03 freeze conflicts with the accepted protocol version');
+  }
+  if (manifest.candidateIds.length !== ACQUISITION_POOL_SIZE
+      || manifest.candidateIds.some((id) => !expectedSlots.has(id))
+      || new Set(manifest.candidateIds).size !== expectedSlots.size) {
+    throw new Error('P03 freeze conflicts with the accepted acquisition pool');
+  }
+  if (JSON.stringify(manifest.waveOrder) !== JSON.stringify(WAVES)) {
+    throw new Error('P03 freeze conflicts with the accepted protocol wave order');
+  }
+  if (sha256(manifestBytes) !== provenance.candidateSetManifestSha256) {
+    throw new Error('P03 candidate-set manifest hash does not match freeze provenance');
+  }
+  for (const id of P03_SLOT_IDS) {
+    if (manifest.taskSha256[id] !== provenance.taskSha256[id]) {
+      throw new Error(`P03 task hash provenance disagrees for ${id}`);
+    }
+  }
+  if (fixtureId !== null) {
+    if (!expectedSlots.has(fixtureId)) throw new Error(`unknown P03 slot "${fixtureId}"`);
+    const resolvedPath = taskPath ?? join(CANDIDATES_0_3_ROOT, fixtureId, 'task.txt');
+    const actual = sha256(readFileSync(resolvedPath, 'utf8'));
+    if (actual !== manifest.taskSha256[fixtureId]) {
+      throw new Error(`P03 frozen task hash mismatch for ${fixtureId}`);
+    }
+  }
+  return { manifest, provenance };
+}
+
+/** One-based CLI wave number to protocol-defined ordered slots. */
+export function selectWaveSlots(waveNumber, filledArchetypes = []) {
+  assertFrozenP03Pool();
+  if (!Number.isInteger(waveNumber) || waveNumber < 1 || waveNumber > WAVES.length) {
+    throw new Error(`wave must be an integer from 1 to ${WAVES.length}`);
+  }
+  const validArchetypes = new Set(Object.keys(ARCHETYPE_SLOTS));
+  const unknown = filledArchetypes.filter((name) => !validArchetypes.has(name));
+  if (unknown.length > 0) throw new Error(`unknown filled archetype(s): ${unknown.join(', ')}`);
+  return [...slotsForWave(waveNumber - 1, filledArchetypes)];
+}
+
+/** One planning plus at most one call per registered specialist for each selected slot. */
+export function waveCallBudget(selectedSlots) {
+  return selectedSlots.length * (1 + REGISTERED_SPECIALISTS.length);
+}
+
+export function waveOutputRoot(waveNumber) {
+  if (!Number.isInteger(waveNumber) || waveNumber < 1 || waveNumber > WAVES.length) {
+    throw new Error(`wave must be an integer from 1 to ${WAVES.length}`);
+  }
+  return join(P03_REAL_ROOT, `wave-${waveNumber}`);
 }
 
 /**

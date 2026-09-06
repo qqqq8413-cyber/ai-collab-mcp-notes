@@ -15,6 +15,7 @@
  */
 import assert from 'node:assert/strict';
 import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,11 +28,13 @@ import { runCaptureSession } from './capture/session.mjs';
 import { verifyCapture, verifySyntheticUnchanged } from './capture/capture-verify.mjs';
 import {
   REAL_FIXTURE_IDS, PROVIDER_ALLOCATION, HISTORICAL_PROVIDER_ALLOCATION, CHIEF_PIN, SOURCE_CANDIDATE,
-  SYNTHETIC_ROOT, CANDIDATES_R2_ROOT, CANDIDATES_R3_ROOT, CANDIDATE_SETS, candidateSetFor, sourceTaskPath,
-  REGISTERED_SPECIALISTS, buildWorkerRefs, canonical, sha256,
+  SYNTHETIC_ROOT, CANDIDATES_R2_ROOT, CANDIDATES_R3_ROOT, CANDIDATES_0_3_ROOT, P03_REAL_ROOT,
+  CANDIDATE_SETS, candidateSetFor, sourceTaskPath, REGISTERED_SPECIALISTS, buildWorkerRefs,
+  assertFrozenP03Pool, selectWaveSlots, waveCallBudget, waveOutputRoot, canonical, sha256,
 } from './capture/runner.mjs';
 import {
-  ROLE_PROVIDER_MAP, routingFor, cd1TargetInvariantHolds,
+  ACQUISITION_POOL_SIZE, ARCHETYPE_SLOTS, ROLE_PROVIDER_MAP, WAVES,
+  routingFor, cd1TargetInvariantHolds,
 } from './protocol/amendment-0-3.mjs';
 
 let passed = 0, failed = 0;
@@ -796,6 +799,198 @@ await check('the synthetic integrity check fails when archived ground truth is e
   });
   assert.equal(result.ok, false);
   assert.ok(result.failures.some((f) => f.id.includes('gold-issues.json')));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\nProtocol 0.3 candidate pool — frozen sources, waves and one-shot execution');
+
+const P03_MANIFEST_PATH = join(CANDIDATES_0_3_ROOT, 'candidate-set-manifest.json');
+const P03_PROVENANCE_PATH = join(CANDIDATES_0_3_ROOT, 'freeze-provenance.json');
+const PROTOCOL_SLOT_IDS = Object.values(ARCHETYPE_SLOTS).flat();
+
+await check('P03 registers exactly the nine accepted protocol slots', () => {
+  assert.equal(CANDIDATE_SETS.P03.setId, 'P03');
+  assert.equal(CANDIDATE_SETS.P03.fixtureIds.length, ACQUISITION_POOL_SIZE);
+  assert.deepEqual([...CANDIDATE_SETS.P03.fixtureIds], PROTOCOL_SLOT_IDS);
+  assert.equal(new Set(CANDIDATE_SETS.P03.fixtureIds).size, 9);
+});
+
+await check('S1, E1 and I1 resolve only to their frozen candidates-0-3 task paths', () => {
+  for (const slotId of ['S1', 'E1', 'I1']) {
+    const path = sourceTaskPath(slotId);
+    assert.equal(path, join(CANDIDATES_0_3_ROOT, slotId, 'task.txt'));
+    for (const historical of [SYNTHETIC_ROOT, CANDIDATES_R2_ROOT, CANDIDATES_R3_ROOT]) {
+      assert.equal(path.startsWith(historical), false, `${slotId} must not resolve under ${historical}`);
+    }
+  }
+});
+
+await check('all nine P03 task hashes recompute against both frozen records', () => {
+  const { manifest, provenance } = assertFrozenP03Pool();
+  assert.deepEqual(provenance, JSON.parse(readFileSync(P03_PROVENANCE_PATH, 'utf8')));
+  assert.equal(sha256(readFileSync(P03_MANIFEST_PATH, 'utf8')), provenance.candidateSetManifestSha256);
+  for (const slotId of PROTOCOL_SLOT_IDS) {
+    const actual = sha256(readFileSync(sourceTaskPath(slotId), 'utf8'));
+    assert.equal(actual, manifest.taskSha256[slotId], slotId);
+    assert.equal(actual, provenance.taskSha256[slotId], slotId);
+  }
+});
+
+await check('Wave 1 resolves exactly S1, E1, I1 in protocol order', () => {
+  assert.deepEqual(selectWaveSlots(1, []), ['S1', 'E1', 'I1']);
+  assert.deepEqual(selectWaveSlots(1, []), [...WAVES[0]]);
+});
+
+await check('Wave 2 skips STRATEGY when that archetype is already filled', () => {
+  assert.deepEqual(selectWaveSlots(2, ['STRATEGY']), ['E2', 'I2']);
+});
+
+await check('Wave 3 skips every slot when all archetypes are filled', () => {
+  assert.deepEqual(
+    selectWaveSlots(3, ['STRATEGY', 'EXECUTION_CONSTRAINT', 'EVIDENCE_INTERPRETATION']),
+    [],
+  );
+});
+
+await check('every selected wave preserves protocol order', () => {
+  for (let wave = 1; wave <= WAVES.length; wave += 1) {
+    const selected = selectWaveSlots(wave, ['STRATEGY']);
+    assert.deepEqual(selected, WAVES[wave - 1].filter((slot) => !slot.startsWith('S')));
+  }
+});
+
+await check('wave call budget is selected slot count times four', () => {
+  assert.equal(waveCallBudget(selectWaveSlots(1, [])), 12);
+  assert.equal(waveCallBudget(selectWaveSlots(2, ['STRATEGY'])), 8);
+  assert.equal(waveCallBudget([]), 0);
+});
+
+await check('P03 output roots are isolated by protocol and wave', () => {
+  assert.ok(P03_REAL_ROOT.includes('fixtures-real-0-3'));
+  assert.equal(waveOutputRoot(1), join(P03_REAL_ROOT, 'wave-1'));
+  for (const historical of Object.values(CANDIDATE_SETS).filter((set) => set.setId !== 'P03')) {
+    assert.notEqual(P03_REAL_ROOT, historical.realRoot);
+    assert.equal(waveOutputRoot(1).startsWith(historical.realRoot), false);
+  }
+});
+
+await check('live CLI rejects fresh and overwrite semantics before any capture path can run', () => {
+  for (const flag of ['--fresh', '--overwrite', '--delete-existing']) {
+    const result = spawnSync(process.execPath, [
+      join(M2B, 'capture', 'run-live.mjs'),
+      '--set=P03',
+      '--wave=1',
+      flag,
+      '--i-am-authorized-to-spend-live-calls',
+    ], { encoding: 'utf8' });
+    assert.equal(result.status, 2, flag);
+    assert.match(result.stderr, /test-only/, flag);
+  }
+  const source = readFileSync(join(M2B, 'capture', 'run-live.mjs'), 'utf8');
+  assert.ok(source.indexOf('if (existsSync(REAL_ROOT))') < source.indexOf('await runCaptureSession('));
+  assert.equal(/fresh\s*:/.test(source), false, 'live CLI must never pass fresh to the session');
+});
+
+await check('an existing session journal refuses rerun before the stub provider is reached', async () => {
+  const realRoot = join(SCRATCH, 'p03-existing-journal');
+  mkdirSync(realRoot, { recursive: true });
+  writeFileSync(join(realRoot, 'journal.ndjson'), '', 'utf8');
+  let providerCalls = 0;
+  const err = await mustReject(() => runCaptureSession({
+    call: async () => { providerCalls += 1; throw new Error('must not run'); },
+    realRoot,
+    fixtureIds: ['S3'],
+    meta: META,
+    globalBudget: 4,
+    waveNumber: 3,
+    filledArchetypes: ['EXECUTION_CONSTRAINT', 'EVIDENCE_INTERPRETATION'],
+  }), 'existing journal');
+  assert.match(String(err), /already exists/);
+  assert.equal(providerCalls, 0);
+});
+
+const P03_HISTORY_ROOT = join(SCRATCH, 'p03-history');
+const P03_WAVE1_SLOTS = selectWaveSlots(1, []);
+const P03_WAVE1_ROOT = join(P03_HISTORY_ROOT, 'wave-1');
+let p03Wave1 = null;
+
+await check('a legal P03 Wave 1 stub capture spends twelve calls and verifies cleanly', async () => {
+  const call = stubCall();
+  p03Wave1 = await runCaptureSession({
+    call,
+    realRoot: P03_WAVE1_ROOT,
+    fixtureIds: P03_WAVE1_SLOTS,
+    meta: META,
+    now: () => new Date('2026-09-06T00:00:00.000Z'),
+    globalBudget: waveCallBudget(P03_WAVE1_SLOTS),
+    attemptHistoryRoot: P03_HISTORY_ROOT,
+    waveNumber: 1,
+    filledArchetypes: [],
+  });
+  assert.deepEqual(p03Wave1.session.attempts.map((a) => a.fixtureId), ['S1', 'E1', 'I1']);
+  assert.equal(p03Wave1.session.candidateSet, 'P03');
+  assert.equal(p03Wave1.session.protocolVersion, 'M2B-PROTOCOL-0.3');
+  assert.equal(p03Wave1.session.globalCallBudget, 12);
+  assert.equal(p03Wave1.session.globalLiveCallCount, 12);
+  assert.equal(call.seen.length, 12);
+  const result = verifyAt(P03_WAVE1_ROOT, 12);
+  assert.deepEqual(failedIds(result), []);
+  for (const attempt of p03Wave1.session.attempts) {
+    const manifest = JSON.parse(readFileSync(join(P03_WAVE1_ROOT, attempt.fixtureId, 'capture-manifest.json'), 'utf8'));
+    assert.equal(manifest.providerAllocation.mode, 'role-based-heterogeneous');
+    assert.deepEqual(manifest.providerAllocation.byAgent, ROLE_PROVIDER_MAP);
+  }
+});
+
+await check('a gated P03 Wave 2 skips STRATEGY, adjusts budget and verifies cleanly', async () => {
+  const selected = selectWaveSlots(2, ['STRATEGY']);
+  const realRoot = join(P03_HISTORY_ROOT, 'wave-2');
+  const call = stubCall();
+  const out = await runCaptureSession({
+    call,
+    realRoot,
+    fixtureIds: selected,
+    meta: META,
+    now: () => new Date('2026-09-06T00:00:00.000Z'),
+    globalBudget: waveCallBudget(selected),
+    attemptHistoryRoot: P03_HISTORY_ROOT,
+    waveNumber: 2,
+    filledArchetypes: ['STRATEGY'],
+  });
+  assert.deepEqual(out.session.attempts.map((a) => a.fixtureId), ['E2', 'I2']);
+  assert.equal(out.session.globalCallBudget, 8);
+  assert.equal(out.session.globalLiveCallCount, 8);
+  assert.equal(call.seen.length, 8, 'no call is spent on skipped S2');
+  assert.deepEqual(failedIds(verifyAt(realRoot, 8)), []);
+});
+
+await check('a cross-wave duplicate slot is refused before any provider call', async () => {
+  let providerCalls = 0;
+  const err = await mustReject(() => runCaptureSession({
+    call: async () => { providerCalls += 1; throw new Error('must not run'); },
+    realRoot: join(P03_HISTORY_ROOT, 'duplicate-wave'),
+    fixtureIds: P03_WAVE1_SLOTS,
+    meta: META,
+    globalBudget: 12,
+    attemptHistoryRoot: P03_HISTORY_ROOT,
+    waveNumber: 1,
+  }), 'cross-wave duplicate');
+  assert.match(String(err), /already attempted in a prior wave/);
+  assert.equal(providerCalls, 0);
+});
+
+await check('P03 session rejects reordered or manually selected slots before any provider call', async () => {
+  let providerCalls = 0;
+  const err = await mustReject(() => runCaptureSession({
+    call: async () => { providerCalls += 1; throw new Error('must not run'); },
+    realRoot: join(SCRATCH, 'p03-manual-order'),
+    fixtureIds: ['E1', 'S1', 'I1'],
+    meta: META,
+    globalBudget: 12,
+    waveNumber: 1,
+  }), 'manual wave order');
+  assert.match(String(err), /slots must be S1, E1, I1/);
+  assert.equal(providerCalls, 0);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -14,11 +14,21 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { callProvider } from '../../../dist/providers/index.js';
 import { runCaptureSession } from './session.mjs';
-import { CANDIDATE_SETS, sourceTaskPath, SOURCE_CANDIDATE } from './runner.mjs';
+import {
+  CANDIDATE_SETS, sourceTaskPath, SOURCE_CANDIDATE,
+  selectWaveSlots, waveCallBudget, waveOutputRoot,
+} from './runner.mjs';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const PRODUCTION_BOUNDARY_COMMIT = 'd01043b6c520c29473e3960c60bad28aec9719ed';
 const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim();
+
+const destructiveFlag = process.argv.find((arg) =>
+  arg === '--overwrite' || arg === '--delete-existing' || arg === '--fresh' || arg.startsWith('--fresh='));
+if (destructiveFlag) {
+  console.error(`Refusing to run: ${destructiveFlag} is test-only. Live captures never overwrite or delete existing evidence.`);
+  process.exit(2);
+}
 
 if (!process.argv.includes('--i-am-authorized-to-spend-live-calls')) {
   console.error('Refusing to run: this issues real, paid provider calls and each candidate may be attempted only once.');
@@ -32,8 +42,42 @@ if (!set) {
   console.error(`unknown candidate set "${setId}"; expected one of ${Object.keys(CANDIDATE_SETS).join(', ')}`);
   process.exit(2);
 }
-const REAL_ROOT = set.realRoot;
-const REAL_FIXTURE_IDS = set.fixtureIds;
+
+const waveArg = process.argv.find((a) => a.startsWith('--wave='));
+const filledArg = process.argv.find((a) => a.startsWith('--filled-archetypes='));
+let waveNumber = null;
+let filledArchetypes = [];
+let REAL_ROOT = set.realRoot;
+let REAL_FIXTURE_IDS = set.fixtureIds;
+let GLOBAL_CALL_BUDGET = set.globalCallBudget;
+let ATTEMPT_HISTORY_ROOT = null;
+
+if (setId === 'P03') {
+  if (!waveArg) {
+    console.error('Refusing to run P03: pass --wave=1, --wave=2 or --wave=3.');
+    process.exit(2);
+  }
+  waveNumber = Number(waveArg.slice('--wave='.length));
+  filledArchetypes = filledArg
+    ? filledArg.slice('--filled-archetypes='.length).split(',').filter(Boolean)
+    : [];
+  try {
+    REAL_FIXTURE_IDS = selectWaveSlots(waveNumber, filledArchetypes);
+    REAL_ROOT = waveOutputRoot(waveNumber);
+    GLOBAL_CALL_BUDGET = waveCallBudget(REAL_FIXTURE_IDS);
+    ATTEMPT_HISTORY_ROOT = set.realRoot;
+  } catch (err) {
+    console.error(`Refusing to run P03: ${err.message}`);
+    process.exit(2);
+  }
+  if (REAL_FIXTURE_IDS.length === 0) {
+    console.error(`P03 Wave ${waveNumber}: every archetype is already filled; no calls are authorized.`);
+    process.exit(0);
+  }
+} else if (waveArg || filledArg) {
+  console.error(`Refusing to run: wave arguments apply only to --set=P03, not ${setId}.`);
+  process.exit(2);
+}
 
 const head = git('rev-parse', 'HEAD');
 
@@ -86,6 +130,10 @@ console.error(`captureHarnessCommit     ${meta.captureHarnessCommit}`);
 console.error(`productionBoundaryCommit ${meta.productionBoundaryCommit}`);
 console.error(`node                     ${meta.nodeVersion}`);
 console.error(`candidate set            ${setId}`);
+if (waveNumber !== null) {
+  console.error(`wave                     ${waveNumber}`);
+  console.error(`filled archetypes        ${filledArchetypes.join(', ') || 'none'}`);
+}
 console.error(`candidates               ${REAL_FIXTURE_IDS.join(', ')}\n`);
 
 const { session } = await runCaptureSession({
@@ -93,7 +141,10 @@ const { session } = await runCaptureSession({
   realRoot: REAL_ROOT,
   fixtureIds: REAL_FIXTURE_IDS,
   meta,
-  globalBudget: set.globalCallBudget,
+  globalBudget: GLOBAL_CALL_BUDGET,
+  attemptHistoryRoot: ATTEMPT_HISTORY_ROOT,
+  waveNumber,
+  filledArchetypes,
 });
 
 console.error('');
