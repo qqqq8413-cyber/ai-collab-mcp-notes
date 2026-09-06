@@ -431,8 +431,47 @@ export function buildOutputBanner(report: RunReport): string {
   return lines.length ? `${lines.join('\n')}\n\n` : '';
 }
 
-export async function runOrchestrator(options: OrchestratorOptions) {
-  const { task, orchestrator, workers, synthesizer = orchestrator, budget, call = callProvider } = options;
+export interface Round1StageInput {
+  task: string;
+  orchestrator: OrchestratorOptions['orchestrator'];
+  workers: Worker[];
+  budget?: PlanningBudget;
+  call?: typeof callProvider;
+}
+
+export interface Round1StageOutput {
+  plan: Plan;
+  planningAdjustments: string[];
+  workerResults: WorkerRunResult[];
+  /** The production run report, including the execution policy synthesis depends on. */
+  report: ReturnType<typeof buildRunReport> & { policy: ExecutionPolicy };
+  planningMs: number;
+  workersMs: number;
+  /** Elapsed from entry to the end of Round 1. */
+  round1Ms: number;
+  /**
+   * When Round 1 began, so a caller measuring a longer span — the whole orchestrator run,
+   * say — can time from the same origin rather than starting a second clock.
+   */
+  startedAt: number;
+}
+
+/**
+ * Everything a run does before synthesis: plan, execute Round 1, judge what came back.
+ *
+ * Extracted so there is one implementation of this half, callable on its own. Two things
+ * need it: `runOrchestrator`, which continues into synthesis, and an experiment that must
+ * obtain a genuine production Round 1 and stop — which was impossible while the two halves
+ * were welded together, because every eligible run necessarily continued into a synthesis
+ * call. The counterpart to `runSynthesisStage`, extracted earlier for the same reason.
+ *
+ * Behaviour is unchanged from the inline version, deliberately, down to the number of
+ * clock reads: `workersEnd` is captured once and used for both `workersMs` and `round1Ms`
+ * rather than sampled twice, so a caller with a stepped fake clock sees the same timings
+ * before and after the extraction.
+ */
+export async function runRound1Stage(input: Round1StageInput): Promise<Round1StageOutput> {
+  const { task, orchestrator, workers, budget, call = callProvider } = input;
   if (workers.length === 0) throw new Error('Orchestrator requires at least one worker');
 
   const startedAt = Date.now();
@@ -486,7 +525,8 @@ export async function runOrchestrator(options: OrchestratorOptions) {
       }
     })
   );
-  const workersMs = Date.now() - workersStart;
+  const workersEnd = Date.now();
+  const workersMs = workersEnd - workersStart;
 
   const runReport = buildRunReport(plan.complexity, workers, workerResults);
   const report = {
@@ -504,6 +544,24 @@ export async function runOrchestrator(options: OrchestratorOptions) {
       })),
     }),
   };
+
+  return {
+    plan,
+    planningAdjustments,
+    workerResults,
+    report,
+    planningMs,
+    workersMs,
+    round1Ms: workersEnd - startedAt,
+    startedAt,
+  };
+}
+
+export async function runOrchestrator(options: OrchestratorOptions) {
+  const { task, orchestrator, workers, synthesizer = orchestrator, budget, call = callProvider } = options;
+
+  const round1 = await runRound1Stage({ task, orchestrator, workers, budget, call });
+  const { plan, planningAdjustments, workerResults, report, planningMs, workersMs, startedAt } = round1;
 
   if (!report.policy.synthesize) {
     report.notes.push(`Synthesis skipped: ${report.policy.reason}.`);

@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-06, rev. 29)
+# ai-collab-mcp — Progress Report (2026-09-06, rev. 30)
 
 > ## 交接狀態
 >
@@ -18,7 +18,7 @@
 > | **M2-B Protocol** | **ARCHITECTURE ACCEPTED / HARNESS IMPLEMENTATION NEXT / LIVE PILOT NOT AUTHORIZED —— `M2_EFFECTIVENESS_EXPERIMENT.md` v0.2 @ `a308bc8`** |
 > | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
 > | **M2-B Fixture Freeze(synthetic)** | **SUPERSEDED —— GPT Fixture Review 判定 FIXTURE PROVENANCE BLOCKER;`fx-01…04` 改列 PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL,檔案原封保留於 `02cbb5f`** |
-> | **M2-B Real Round1 Capture** | **BLOCKED / PRE-SYNTHESIS BOUNDARY REQUIRED / NO LIVE AUTHORIZATION —— production 未提供 pre-synthesis capture boundary,本輪零 live call,詳見第二十九節** |
+> | **M2-B Real Round1 Capture** | **BOUNDARY IMPLEMENTED / AWAITING GPT BOUNDARY REVIEW / NO LIVE AUTHORIZATION —— `runRound1Stage()` 已抽出,offline parity byte-identical,零 live call** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
 > | **目前離線測試** | **212 項全過 = rev.19 的 208 + Gate semantics 新增 4** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
@@ -28,6 +28,83 @@
 > **Experimental Milestone 2-A 已完成本輪限定工程,現在 STOPPED / AWAITING ARCHITECTURE REVIEW,default OFF。** 使用者批准 Gate eligibility 由 post-synthesis unresolved conflict 改成 pre-synthesis material disagreement;唯一一次 Replay #4 使用與 #3 byte-identical 的 fixture,自然跑通 valid issue、sourceRef、Targeted R2 與 Decision Synthesis。212 項離線測試通過,既有 assertions 未放寬,16 組修改前/後 control capture byte-identical。這是機制驗證,尚未執行品質比較或 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 30 改了什麼(Pre-Synthesis Round1 Boundary Refactor —— offline only,零 live call)
+
+**⚠️ 本輪首次修改 production。唯一變動檔案:`src/modes/orchestrator.ts`(+61 / −3)。**
+**零 live provider call。** production 212 全過(未增未減),
+harness 110 + fixtures 44 + **新增 boundary 15** = 169 項 M2-B 離線測試,0 失敗。
+
+### 1. 抽出 `runRound1Stage()`,`runOrchestrator()` 委派給它
+
+```
+runOrchestrator()
+    ↓ 委派
+runRound1Stage()
+    ├─ planning        ├─ parse / validate / enforce plan
+    ├─ Round1 workers  ├─ buildRunReport
+    └─ deriveExecutionPolicy
+    ↓
+if !policy.synthesize  → 既有 direct/failed 回傳語意（未改）
+else                   → runSynthesisStage()
+```
+
+**舊的 inline 實作已刪除,不是複製。** planning／worker 只有一份實作。
+未加 `stopAfterRound1` 之類的 production flag —— 那會為了實驗需求擴大 orchestrator 的
+公開行為面。這是與既有 `runSynthesisStage()` 對稱的 stage primitive。
+
+### 2. Offline parity:byte-identical,含 timings
+
+改 code **之前**先在 `5cd2254` 抓 8 個 case 的 baseline,改完重跑:
+
+```
+before  sha256 c76f4c53eea90dcf88cd22a7a22b8c6712a159ae3b0274fcefc2519b718b11ab
+after   sha256 c76f4c53eea90dcf88cd22a7a22b8c6712a159ae3b0274fcefc2519b718b11ab   ← 相同
+```
+
+涵蓋 SIMPLE direct delivery、NORMAL synthesis、DEEP collaboration omitted／disabled／enabled、
+DEGRADED worker failure、all-workers-failed、malformed planning。
+比對範圍含 stage 序列、prompt、options、plan、planningAdjustments、workerResults、
+report、policy、finalOutput、collaboration 物件與 **timings**。
+
+`[FACT]` timings 能逐位元組相同,是因為抽取**沒有多讀一次時鐘**:
+`workersEnd` 取樣一次,同時供 `workersMs` 與 `round1Ms` 使用,而不是取樣兩次。
+有一條測試專門斷言 `runRound1Stage` 恰好讀 5 次 `Date.now()` —— 多一次就會讓
+stepped clock 下的所有 timing 漂移,靜默破壞 before/after 可比性。
+
+### 3. ⚠️ Replay #4 verifier 現在會失敗 —— 這是 fingerprint 正常運作
+
+```
+sealed 檔案是否被動        未動（git clean，hashes.json 目錄封印 INTACT）
+artifact 內部 fingerprint  before == after，INTACT
+16 組 disabled/omitted control  f50a7b2e… ← 與歷史值逐位元組相同，未漂移
+runtime fingerprint pin    FAIL ← dist/modes/orchestrator.js 的 hash 已變
+```
+
+verifier 在 `verify.mjs:31` 斷言**工作區**仍與產生 Replay #4 的 runtime 同 hash。
+production 被授權修改後,這個 pin 必然斷 —— **那正是 fingerprint 該做的事,不是回歸。**
+
+**未重新產生、未重新封印任何 sealed artifact。** 依 §20,被改變的歷史 control 是回歸的
+證據,不是可以覆寫的東西。改為新增 `capture/control-recheck.mjs`:把 sealed control harness
+逐字複製到暫存目錄、只改 dist 的相對路徑後執行,回答 fingerprint 停在之前的那個問題 ——
+**行為有沒有移動?沒有。** 該檢查已納入 boundary 測試套件。
+
+`[OPEN]` Replay #4 的 runtime-fingerprint pin 之後永遠會對這個分支失敗。
+是否要在未來的 harness 記錄一個「已知且已批准的 runtime 變更」清單,交 GPT 決定。
+
+### 4. Claim boundary(必須維持)
+
+```
+✅ boundary 已實作，offline parity byte-identical
+✅ production 212 未變，控制組未漂移
+✅ toRound1Snapshot 直接接受 production 物件，無實驗端重組
+❌ 未執行 Real Round1 capture       ❌ 零 live provider call
+❌ 未取得新 ground truth            ❌ 無任何 effectiveness 證據
+```
+
+**不得寫成 ROUND1 CAPTURED。** synthetic fixtures 仍為 archival / pre-flight only。
+
+---
 
 ## rev. 29 改了什麼(Real Round1 Capture 被 blocker 擋下 —— 零 live call,僅文件修正)
 

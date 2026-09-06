@@ -1,0 +1,827 @@
+[
+  {
+    "case": "A_simple_direct_delivery",
+    "stages": [
+      "planning",
+      "round1_worker"
+    ],
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nDecide whether to open a second production studio next year.\n\nAvailable specialists:\n- agentId: alpha | role: Alpha role\n- agentId: beta | role: Beta role\n- agentId: gamma | role: Gamma role\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "stub-chief",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nAssigned mission:\nMission for alpha\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "stub-alpha",
+          "system": "Alpha role",
+          "stage": "round1_worker"
+        }
+      }
+    ],
+    "thrown": null,
+    "result": {
+      "plan": {
+        "complexity": "simple",
+        "requiredCapabilities": [
+          "reasoning"
+        ],
+        "assignments": [
+          {
+            "agentId": "alpha",
+            "mission": "Mission for alpha",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline parity fixture"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "alpha",
+          "provider": "openai",
+          "mission": "Mission for alpha",
+          "output": "ALPHA-OUTPUT: first paragraph.\n\nSecond paragraph from alpha."
+        }
+      ],
+      "report": {
+        "status": "SUCCESS",
+        "requestedWorkers": 1,
+        "successfulWorkers": 1,
+        "failedWorkers": 0,
+        "failures": [],
+        "synthesisAllowed": true,
+        "evidenceLabel": "NOT_APPLICABLE",
+        "notes": [
+          "Synthesis skipped: simple_single_specialist_direct_delivery."
+        ],
+        "policy": {
+          "topology": "single",
+          "synthesize": false,
+          "reason": "simple_single_specialist_direct_delivery"
+        }
+      },
+      "finalOutput": "ALPHA-OUTPUT: first paragraph.\n\nSecond paragraph from alpha.",
+      "timings": {
+        "planningMs": 1000,
+        "workersMs": 1000,
+        "synthesisMs": 0,
+        "totalMs": 5000
+      }
+    }
+  },
+  {
+    "case": "B_normal_synthesis",
+    "stages": [
+      "planning",
+      "round1_worker",
+      "round1_worker",
+      "synthesis"
+    ],
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nDecide whether to open a second production studio next year.\n\nAvailable specialists:\n- agentId: alpha | role: Alpha role\n- agentId: beta | role: Beta role\n- agentId: gamma | role: Gamma role\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "stub-chief",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nAssigned mission:\nMission for alpha\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "stub-alpha",
+          "system": "Alpha role",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "claude",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nAssigned mission:\nMission for beta\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "stub-beta",
+          "system": "Beta role",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nResults from each specialist:\n### alpha\nMission: Mission for alpha\nResult: ALPHA-OUTPUT: first paragraph.\n\nSecond paragraph from alpha.\n\n### beta\nMission: Mission for beta\nResult: BETA-OUTPUT: first paragraph.\n\nSecond paragraph from beta.\n\nSynthesize these results into a single, coherent final answer to the original task.",
+        "options": {
+          "model": "stub-synth",
+          "stage": "synthesis"
+        }
+      }
+    ],
+    "thrown": null,
+    "result": {
+      "plan": {
+        "complexity": "normal",
+        "requiredCapabilities": [
+          "reasoning"
+        ],
+        "assignments": [
+          {
+            "agentId": "alpha",
+            "mission": "Mission for alpha",
+            "priority": "high"
+          },
+          {
+            "agentId": "beta",
+            "mission": "Mission for beta",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline parity fixture"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "alpha",
+          "provider": "openai",
+          "mission": "Mission for alpha",
+          "output": "ALPHA-OUTPUT: first paragraph.\n\nSecond paragraph from alpha."
+        },
+        {
+          "agentId": "beta",
+          "provider": "claude",
+          "mission": "Mission for beta",
+          "output": "BETA-OUTPUT: first paragraph.\n\nSecond paragraph from beta."
+        }
+      ],
+      "report": {
+        "status": "SUCCESS",
+        "requestedWorkers": 2,
+        "successfulWorkers": 2,
+        "failedWorkers": 0,
+        "failures": [],
+        "synthesisAllowed": true,
+        "evidenceLabel": "NOT_APPLICABLE",
+        "notes": [],
+        "policy": {
+          "topology": "collaborative",
+          "synthesize": true,
+          "reason": "non_simple_execution"
+        }
+      },
+      "finalOutput": "SYNTHESIS-OUTPUT: the answer.",
+      "timings": {
+        "planningMs": 1000,
+        "workersMs": 1000,
+        "synthesisMs": 1000,
+        "totalMs": 7000
+      }
+    }
+  },
+  {
+    "case": "C_deep_collaboration_omitted",
+    "stages": [
+      "planning",
+      "round1_worker",
+      "round1_worker",
+      "synthesis"
+    ],
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nDecide whether to open a second production studio next year.\n\nAvailable specialists:\n- agentId: alpha | role: Alpha role\n- agentId: beta | role: Beta role\n- agentId: gamma | role: Gamma role\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "stub-chief",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nAssigned mission:\nMission for alpha\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "stub-alpha",
+          "system": "Alpha role",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "claude",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nAssigned mission:\nMission for beta\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "stub-beta",
+          "system": "Beta role",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nResults from each specialist:\n### alpha\nMission: Mission for alpha\nResult: ALPHA-OUTPUT: first paragraph.\n\nSecond paragraph from alpha.\n\n### beta\nMission: Mission for beta\nResult: BETA-OUTPUT: first paragraph.\n\nSecond paragraph from beta.\n\nSynthesize these results into a single, coherent final answer to the original task.",
+        "options": {
+          "model": "stub-synth",
+          "stage": "synthesis"
+        }
+      }
+    ],
+    "thrown": null,
+    "result": {
+      "plan": {
+        "complexity": "deep",
+        "requiredCapabilities": [
+          "reasoning"
+        ],
+        "assignments": [
+          {
+            "agentId": "alpha",
+            "mission": "Mission for alpha",
+            "priority": "high"
+          },
+          {
+            "agentId": "beta",
+            "mission": "Mission for beta",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline parity fixture"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "alpha",
+          "provider": "openai",
+          "mission": "Mission for alpha",
+          "output": "ALPHA-OUTPUT: first paragraph.\n\nSecond paragraph from alpha."
+        },
+        {
+          "agentId": "beta",
+          "provider": "claude",
+          "mission": "Mission for beta",
+          "output": "BETA-OUTPUT: first paragraph.\n\nSecond paragraph from beta."
+        }
+      ],
+      "report": {
+        "status": "SUCCESS",
+        "requestedWorkers": 2,
+        "successfulWorkers": 2,
+        "failedWorkers": 0,
+        "failures": [],
+        "synthesisAllowed": true,
+        "evidenceLabel": "HYPOTHESIS",
+        "notes": [
+          "Deep task, but no evidence-gathering specialist was recruited. External facts in this answer (market size, pricing, competitor behaviour, growth rates) come from what the models already believed, not from gathered evidence."
+        ],
+        "policy": {
+          "topology": "collaborative",
+          "synthesize": true,
+          "reason": "non_simple_execution"
+        }
+      },
+      "finalOutput": "> **UNVERIFIED — HYPOTHESIS**\n> No external evidence was gathered for this answer. Treat it as a strategy\n> hypothesis to be validated, not as a conclusion. Pricing, market and growth\n> figures below are unchecked model assumptions.\n\nSYNTHESIS-OUTPUT: the answer.",
+      "timings": {
+        "planningMs": 1000,
+        "workersMs": 1000,
+        "synthesisMs": 1000,
+        "totalMs": 7000
+      }
+    }
+  },
+  {
+    "case": "D_deep_collaboration_disabled",
+    "stages": [
+      "planning",
+      "round1_worker",
+      "round1_worker",
+      "synthesis"
+    ],
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nDecide whether to open a second production studio next year.\n\nAvailable specialists:\n- agentId: alpha | role: Alpha role\n- agentId: beta | role: Beta role\n- agentId: gamma | role: Gamma role\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "stub-chief",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nAssigned mission:\nMission for alpha\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "stub-alpha",
+          "system": "Alpha role",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "claude",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nAssigned mission:\nMission for beta\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "stub-beta",
+          "system": "Beta role",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nResults from each specialist:\n### alpha\nMission: Mission for alpha\nResult: ALPHA-OUTPUT: first paragraph.\n\nSecond paragraph from alpha.\n\n### beta\nMission: Mission for beta\nResult: BETA-OUTPUT: first paragraph.\n\nSecond paragraph from beta.\n\nSynthesize these results into a single, coherent final answer to the original task.",
+        "options": {
+          "model": "stub-synth",
+          "stage": "synthesis"
+        }
+      }
+    ],
+    "thrown": null,
+    "result": {
+      "plan": {
+        "complexity": "deep",
+        "requiredCapabilities": [
+          "reasoning"
+        ],
+        "assignments": [
+          {
+            "agentId": "alpha",
+            "mission": "Mission for alpha",
+            "priority": "high"
+          },
+          {
+            "agentId": "beta",
+            "mission": "Mission for beta",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline parity fixture"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "alpha",
+          "provider": "openai",
+          "mission": "Mission for alpha",
+          "output": "ALPHA-OUTPUT: first paragraph.\n\nSecond paragraph from alpha."
+        },
+        {
+          "agentId": "beta",
+          "provider": "claude",
+          "mission": "Mission for beta",
+          "output": "BETA-OUTPUT: first paragraph.\n\nSecond paragraph from beta."
+        }
+      ],
+      "report": {
+        "status": "SUCCESS",
+        "requestedWorkers": 2,
+        "successfulWorkers": 2,
+        "failedWorkers": 0,
+        "failures": [],
+        "synthesisAllowed": true,
+        "evidenceLabel": "HYPOTHESIS",
+        "notes": [
+          "Deep task, but no evidence-gathering specialist was recruited. External facts in this answer (market size, pricing, competitor behaviour, growth rates) come from what the models already believed, not from gathered evidence."
+        ],
+        "policy": {
+          "topology": "collaborative",
+          "synthesize": true,
+          "reason": "non_simple_execution"
+        }
+      },
+      "finalOutput": "> **UNVERIFIED — HYPOTHESIS**\n> No external evidence was gathered for this answer. Treat it as a strategy\n> hypothesis to be validated, not as a conclusion. Pricing, market and growth\n> figures below are unchecked model assumptions.\n\nSYNTHESIS-OUTPUT: the answer.",
+      "timings": {
+        "planningMs": 1000,
+        "workersMs": 1000,
+        "synthesisMs": 1000,
+        "totalMs": 7000
+      }
+    }
+  },
+  {
+    "case": "E_deep_collaboration_enabled",
+    "stages": [
+      "planning",
+      "round1_worker",
+      "round1_worker",
+      "synthesis_gate",
+      "round2_worker",
+      "decision_synthesis"
+    ],
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nDecide whether to open a second production studio next year.\n\nAvailable specialists:\n- agentId: alpha | role: Alpha role\n- agentId: beta | role: Beta role\n- agentId: gamma | role: Gamma role\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "stub-chief",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nAssigned mission:\nMission for alpha\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "stub-alpha",
+          "system": "Alpha role",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "claude",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nAssigned mission:\nMission for beta\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "stub-beta",
+          "system": "Beta role",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nResults from each specialist:\n### alpha\nMission: Mission for alpha\nResult: ALPHA-OUTPUT: first paragraph.\n\nSecond paragraph from alpha.\n\n### beta\nMission: Mission for beta\nResult: BETA-OUTPUT: first paragraph.\n\nSecond paragraph from beta.\n\nSynthesize these results into a single, coherent final answer to the original task.\n\nOptional collaboration block\n----------------------------\nAfter the complete answer above, you may append one fenced block in exactly this form:\n\n```json\n{\"collaborationIssues\": [{\"targetAgentId\": \"...\", \"sourceRef\": \"...\", \"challenge\": \"...\", \"decisionSensitive\": true, \"action\": \"peer_challenge\"}]}\n```\n\nIf you include it:\n- The answer above must already be complete and usable on its own. This block is metadata, not part of the answer.\n- Evaluate peer-challenge eligibility from the original Round 1 specialist outputs, before considering whether your provisional synthesis can reconcile their disagreement.\n- A disagreement must be material, cross-agent and decision-sensitive: would a direct response by one specialist to another's specific argument have a meaningful chance of changing, strengthening, falsifying, or materially qualifying the final decision?\n- If so, emit a \"peer_challenge\" for the most decision-sensitive disagreement even if your provisional answer offers a compromise, conditional plan, Kill Switch, or reconciliation. Your ability to temporarily reconcile it does not remove the information value of a direct peer response.\n- Do not emit a peer challenge for wording, style, minor emphasis, already equivalent recommendations, or details that would not materially affect the decision.\n- At most one \"peer_challenge\" may be emitted. If several disagreements exist, select only the one whose resolution would have the greatest effect on the final decision.\n- \"targetAgentId\" is the specialist whose work is challenged, and must be one of: alpha, beta.\n- \"sourceRef\" is the passage the challenge comes from, written as \"<agentId>:<passageId>\". It must belong to a different specialist from \"targetAgentId\". Passage ids number the blank-line-separated paragraphs of each specialist's Result above, in order. The available references are:\n  alpha: alpha:p1, alpha:p2\n  beta: beta:p1, beta:p2\n- \"action\" is \"peer_challenge\" when another specialist's work contradicts or undermines it, or \"needs_evidence\" when a claim needs external verification. Only \"peer_challenge\" is acted on in this run.\n- Prefer omitting the block entirely to inventing a disagreement. A manufactured issue is worse than none.",
+        "options": {
+          "model": "stub-synth",
+          "stage": "synthesis_gate"
+        }
+      },
+      {
+        "provider": "claude",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nYour assigned mission (unchanged):\nMission for beta\n\nYour previous answer:\nBETA-OUTPUT: first paragraph.\n\nSecond paragraph from beta.\n\nThe passage from another specialist that the challenge comes from (alpha:p1):\nALPHA-OUTPUT: first paragraph.\n\nThe challenge to your previous answer:\nDoes the capacity assumption hold?\n\nRound 2 contract:\n- Address only this challenge. Do not restate or expand the rest of your answer beyond what the challenge affects.\n- If the challenge is wrong, say so plainly and explain why. Do not concede in order to agree.\n- If it is right, correct your answer and state what changed.\n- You have gathered no new external evidence in this round. Do not present anything as verified; mark what you cannot check as an assumption.\n- Stay inside your assigned mission, and preserve the original task's language, format and constraints.",
+        "options": {
+          "model": "stub-beta",
+          "system": "Beta role",
+          "stage": "round2_worker"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nResults from each specialist:\n### alpha\nMission: Mission for alpha\nResult: ALPHA-OUTPUT: first paragraph.\n\nSecond paragraph from alpha.\n\n### beta\nMission: Mission for beta\nResult: BETA-OUTPUT: first paragraph.\n\nSecond paragraph from beta.\n\nA cross-specialist challenge was raised and answered in a second round:\n- Challenged specialist: beta\n- Challenge raised from: alpha:p1\n- The challenge: Does the capacity assumption hold?\n- beta's revised answer after the challenge:\nREVISED-OUTPUT.\n\nDecision contract:\n- Produce the final answer to the original task.\n- Where the challenge changed the conclusion, use the revised position.\n- Where it did not, keep the original position and say briefly why the challenge did not change it.\n- If the disagreement is unresolved, state it plainly. Do not hide it inside a merged sentence.\n- Treat the Round 2 response as a challenge response, not as inherently more correct because it is newer or revised. Revision, recency, or agreement between specialists is not evidence. Evaluate the Round 2 response against the original reasoning, the peer challenge, and the task constraints.\n- The second round gathered no new external evidence. Do not describe anything as verified, confirmed or validated on the strength of the specialists agreeing with each other.",
+        "options": {
+          "model": "stub-synth",
+          "stage": "decision_synthesis"
+        }
+      }
+    ],
+    "thrown": null,
+    "result": {
+      "plan": {
+        "complexity": "deep",
+        "requiredCapabilities": [
+          "reasoning"
+        ],
+        "assignments": [
+          {
+            "agentId": "alpha",
+            "mission": "Mission for alpha",
+            "priority": "high"
+          },
+          {
+            "agentId": "beta",
+            "mission": "Mission for beta",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline parity fixture"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "alpha",
+          "provider": "openai",
+          "mission": "Mission for alpha",
+          "output": "ALPHA-OUTPUT: first paragraph.\n\nSecond paragraph from alpha."
+        },
+        {
+          "agentId": "beta",
+          "provider": "claude",
+          "mission": "Mission for beta",
+          "output": "BETA-OUTPUT: first paragraph.\n\nSecond paragraph from beta."
+        }
+      ],
+      "report": {
+        "status": "SUCCESS",
+        "requestedWorkers": 2,
+        "successfulWorkers": 2,
+        "failedWorkers": 0,
+        "failures": [],
+        "synthesisAllowed": true,
+        "evidenceLabel": "HYPOTHESIS",
+        "notes": [
+          "Deep task, but no evidence-gathering specialist was recruited. External facts in this answer (market size, pricing, competitor behaviour, growth rates) come from what the models already believed, not from gathered evidence."
+        ],
+        "policy": {
+          "topology": "collaborative",
+          "synthesize": true,
+          "reason": "non_simple_execution"
+        }
+      },
+      "finalOutput": "> **UNVERIFIED — HYPOTHESIS**\n> No external evidence was gathered for this answer. Treat it as a strategy\n> hypothesis to be validated, not as a conclusion. Pricing, market and growth\n> figures below are unchecked model assumptions.\n\nDECISION-OUTPUT.",
+      "collaboration": {
+        "status": "COMPLETED",
+        "reason": "round2_completed",
+        "answerSource": "round2_decision_synthesis",
+        "provisionalAnswer": "PROVISIONAL: open it.\n\nSecond paragraph of the provisional answer.",
+        "chunkMap": {
+          "alpha": [
+            "p1",
+            "p2"
+          ],
+          "beta": [
+            "p1",
+            "p2"
+          ]
+        },
+        "parse": {
+          "status": "parsed"
+        },
+        "issues": {
+          "emitted": 1,
+          "valid": 1,
+          "eligible": 1,
+          "recorded": [
+            {
+              "targetAgentId": "beta",
+              "sourceRef": "alpha:p1",
+              "challenge": "Does the capacity assumption hold?",
+              "decisionSensitive": true,
+              "action": "peer_challenge"
+            }
+          ],
+          "rejected": []
+        },
+        "selectedIssue": {
+          "targetAgentId": "beta",
+          "sourceRef": "alpha:p1",
+          "challenge": "Does the capacity assumption hold?",
+          "decisionSensitive": true,
+          "action": "peer_challenge"
+        },
+        "round2": {
+          "agentId": "beta",
+          "provider": "claude",
+          "peerExcerpt": {
+            "agentId": "alpha",
+            "chunkId": "p1",
+            "chunkIndex": 0,
+            "startChar": 0,
+            "endChar": 30,
+            "truncated": false,
+            "charLimit": 1000
+          },
+          "output": "REVISED-OUTPUT."
+        },
+        "timings": {
+          "gateMs": 1000,
+          "round2Ms": 1000,
+          "decisionSynthesisMs": 1000,
+          "totalMs": 6000
+        },
+        "notes": [
+          "beta was challenged from alpha:p1 and answered; the final answer came from a decision synthesis over that exchange. No new evidence was gathered."
+        ]
+      },
+      "timings": {
+        "planningMs": 1000,
+        "workersMs": 1000,
+        "synthesisMs": 1000,
+        "totalMs": 13000
+      }
+    }
+  },
+  {
+    "case": "F_deep_worker_failure_degraded",
+    "stages": [
+      "planning",
+      "round1_worker",
+      "round1_worker",
+      "round1_worker",
+      "synthesis"
+    ],
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nDecide whether to open a second production studio next year.\n\nAvailable specialists:\n- agentId: alpha | role: Alpha role\n- agentId: beta | role: Beta role\n- agentId: gamma | role: Gamma role\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "stub-chief",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nAssigned mission:\nMission for alpha\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "stub-alpha",
+          "system": "Alpha role",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "claude",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nAssigned mission:\nMission for beta\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "stub-beta",
+          "system": "Beta role",
+          "stage": "round1_worker"
+        }
+      },
+      {
+        "provider": "gemini",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nAssigned mission:\nMission for gamma\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "stub-gamma",
+          "system": "Gamma role",
+          "stage": "round1_worker",
+          "retrieval": {
+            "enabled": true
+          }
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nResults from each specialist:\n### alpha\nMission: Mission for alpha\nResult: ALPHA-OUTPUT: first paragraph.\n\nSecond paragraph from alpha.\n\n### beta\nMission: Mission for beta\nResult: BETA-OUTPUT: first paragraph.\n\nSecond paragraph from beta.\n\nNote: 1 specialist(s) failed and are missing from the above (gamma). Do not invent their contribution. Answer from what is present, and say plainly where the answer is thin because of it.\n\nSynthesize these results into a single, coherent final answer to the original task.",
+        "options": {
+          "model": "stub-synth",
+          "stage": "synthesis"
+        }
+      }
+    ],
+    "thrown": null,
+    "result": {
+      "plan": {
+        "complexity": "deep",
+        "requiredCapabilities": [
+          "reasoning"
+        ],
+        "assignments": [
+          {
+            "agentId": "alpha",
+            "mission": "Mission for alpha",
+            "priority": "high"
+          },
+          {
+            "agentId": "beta",
+            "mission": "Mission for beta",
+            "priority": "high"
+          },
+          {
+            "agentId": "gamma",
+            "mission": "Mission for gamma",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline parity fixture"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "alpha",
+          "provider": "openai",
+          "mission": "Mission for alpha",
+          "output": "ALPHA-OUTPUT: first paragraph.\n\nSecond paragraph from alpha."
+        },
+        {
+          "agentId": "beta",
+          "provider": "claude",
+          "mission": "Mission for beta",
+          "output": "BETA-OUTPUT: first paragraph.\n\nSecond paragraph from beta."
+        },
+        {
+          "agentId": "gamma",
+          "provider": "gemini",
+          "mission": "Mission for gamma",
+          "error": "Error: offline worker failure: gamma"
+        }
+      ],
+      "report": {
+        "status": "DEGRADED",
+        "requestedWorkers": 3,
+        "successfulWorkers": 2,
+        "failedWorkers": 1,
+        "failures": [
+          {
+            "agentId": "gamma",
+            "provider": "gemini",
+            "error": "Error: offline worker failure: gamma"
+          }
+        ],
+        "synthesisAllowed": true,
+        "evidenceLabel": "CONDITIONAL",
+        "notes": [
+          "1 of 3 specialists failed (gamma); the answer was built from a partial team.",
+          "Deep task, retrieval was attempted but nothing was gathered (gamma failed). The answer is unevidenced despite the plan calling for evidence."
+        ],
+        "policy": {
+          "topology": "collaborative",
+          "synthesize": true,
+          "reason": "non_simple_execution"
+        }
+      },
+      "finalOutput": "> **UNVERIFIED — CONDITIONAL**\n> No external evidence was gathered for this answer. Treat it as a strategy\n> hypothesis to be validated, not as a conclusion. Pricing, market and growth\n> figures below are unchecked model assumptions.\n>\n> **DEGRADED — 2/3 specialists returned.**\n> Missing: gamma.\n\nSYNTHESIS-OUTPUT: the answer.",
+      "timings": {
+        "planningMs": 1000,
+        "workersMs": 1000,
+        "synthesisMs": 1000,
+        "totalMs": 7000
+      }
+    }
+  },
+  {
+    "case": "G_all_workers_failed",
+    "stages": [
+      "planning",
+      "round1_worker"
+    ],
+    "calls": [
+      {
+        "provider": "openai",
+        "prompt": "Task:\nDecide whether to open a second production studio next year.\n\nAvailable specialists:\n- agentId: alpha | role: Alpha role\n- agentId: beta | role: Beta role\n- agentId: gamma | role: Gamma role\n\nRespond with ONLY a JSON object in exactly this shape:\n{\n  \"complexity\": \"simple\" | \"normal\" | \"deep\",\n  \"requiredCapabilities\": [\"capability\", ...],\n  \"assignments\": [\n    { \"agentId\": \"<id from the roster>\", \"mission\": \"...\", \"priority\": \"high\" | \"medium\" | \"low\" }\n  ],\n  \"requiresRedTeam\": false,\n  \"reason\": \"why this is the minimum sufficient collaboration for this task\"\n}\nNo prose, no markdown fences, just the JSON object.",
+        "options": {
+          "model": "stub-chief",
+          "system": "You are the Chief of Staff coordinating a team of AI specialists.\n\nYour job is NOT to maximise thinking, agents, or output. Your job is minimum sufficient\ncollaboration: reach a good decision using the fewest specialists and the smallest\ncontext that will still produce a high-quality answer.\n\nChoose specialists by the capability the task needs, never by which model happens to\nprovide it. A model's name is not a qualification, and no specialist is entitled to\nappear.\n\nThe limits below bound your judgement; they do not replace it. Two sound plans for the\nsame task may differ. Plan the job in front of you rather than reproducing a previous\nanswer.\n\nComplexity levels — classify the task into exactly one:\n- \"simple\" (at most 1 specialist): calculation, formatting, a short summary,\n  handling a single piece of information.\n- \"normal\" (at most 3 specialists): quote analysis, script evaluation, a business\n  proposal, an ordinary project decision.\n- \"deep\" (at most 4 specialists): company annual strategy, major investment,\n  high-risk contract, financial strategy, large brand project.\n\nPlanning rules (hard constraints):\n1. First decide whether this task genuinely needs more than one specialist.\n2. Classify complexity using the levels above. Judge by what is at stake, not by how much\n   text the answer needs.\n3. List the capabilities this task actually requires, then choose specialists for those capabilities.\n4. Assign AT MOST ONE mission per specialist. Never split one specialist's work into several\n   micro-tasks — give one coherent mission that names the areas it must cover.\n5. Do not recruit a specialist whose capabilities this task does not need.\n6. Every mission description must be under 600 characters.\n7. Do not request research or output that will not change the final decision.\n8. Do not have two specialists investigate the same question.\n9. Set requiresRedTeam to true only when you expect high-value disagreement worth an extra\n   round of challenge. Default to false.",
+          "stage": "planning"
+        }
+      },
+      {
+        "provider": "openai",
+        "prompt": "Original task:\nDecide whether to open a second production studio next year.\n\nAssigned mission:\nMission for alpha\n\nWorker contract:\n- Use the original task as immutable context for user language, requested format, constraints, scope, and explicit exclusions.\n- Execute only the assigned mission. Do not take over the full task, make final cross-specialist decisions, or perform responsibilities outside this mission.\n- If the original task and assigned mission appear to conflict, preserve the original task's constraints and answer only the part relevant to your assigned mission.",
+        "options": {
+          "model": "stub-alpha",
+          "system": "Alpha role",
+          "stage": "round1_worker"
+        }
+      }
+    ],
+    "thrown": null,
+    "result": {
+      "plan": {
+        "complexity": "deep",
+        "requiredCapabilities": [
+          "reasoning"
+        ],
+        "assignments": [
+          {
+            "agentId": "alpha",
+            "mission": "Mission for alpha",
+            "priority": "high"
+          }
+        ],
+        "requiresRedTeam": false,
+        "reason": "Offline parity fixture"
+      },
+      "planningAdjustments": [],
+      "workerResults": [
+        {
+          "agentId": "alpha",
+          "provider": "openai",
+          "mission": "Mission for alpha",
+          "error": "Error: offline worker failure: alpha"
+        }
+      ],
+      "report": {
+        "status": "FAILED",
+        "requestedWorkers": 1,
+        "successfulWorkers": 0,
+        "failedWorkers": 1,
+        "failures": [
+          {
+            "agentId": "alpha",
+            "provider": "openai",
+            "error": "Error: offline worker failure: alpha"
+          }
+        ],
+        "synthesisAllowed": false,
+        "evidenceLabel": "HYPOTHESIS",
+        "notes": [
+          "No specialist returned a result; synthesis was skipped.",
+          "Deep task, but no evidence-gathering specialist was recruited. External facts in this answer (market size, pricing, competitor behaviour, growth rates) come from what the models already believed, not from gathered evidence.",
+          "Synthesis skipped: no_successful_workers."
+        ],
+        "policy": {
+          "topology": "single",
+          "synthesize": false,
+          "reason": "no_successful_workers"
+        }
+      },
+      "finalOutput": null,
+      "timings": {
+        "planningMs": 1000,
+        "workersMs": 1000,
+        "synthesisMs": 0,
+        "totalMs": 5000
+      }
+    }
+  },
+  {
+    "case": "H_planning_malformed",
+    "malformed": {
+      "message": "Error: Chief did not return a JSON object. Raw output: not json at all",
+      "stages": [
+        "planning"
+      ]
+    }
+  }
+]
