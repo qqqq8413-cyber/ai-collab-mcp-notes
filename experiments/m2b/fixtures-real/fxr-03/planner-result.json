@@ -1,0 +1,21 @@
+{
+  "complexity": "normal",
+  "requiredCapabilities": [
+    "商業策略與風險分析",
+    "市場研究與實驗設計"
+  ],
+  "assignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "整合 Pilot 證據做出 A/B/C 決策；點出哪些事實支持/不支持外部擴張；界定最關鍵未知（如冷啟動需求、CAC/LTV、配送可行性）；提出未來90天資源配置與里程碑（配送時段方案 vs 付費獲客測試）；標記一項一旦錯誤最可能翻轉決策的假設；列出決策門檻與衝突觀點的取捨原則。",
+      "priority": "high"
+    },
+    {
+      "agentId": "market_researcher",
+      "mission": "評估受邀熟客 Pilot 的外部有效性；定義冷客需求與訊息契合度的核心假設；設計90天驗證計畫：渠道與受眾、樣本量與成功門檻、定價與訊息A/B、無折扣CAC/LTV先驗、留存/推薦追蹤；納入配送時段偏好調查/實驗以估算阻礙規模，並規劃執行與量測。",
+      "priority": "medium"
+    }
+  ],
+  "requiresRedTeam": false,
+  "reason": "這是一次關於是否擴張的商業決策，需要整合理性決策與外部驗證設計。商業策略師負責決策、資源與風險；市場研究負責將偏樣本 Pilot 外推並設計90天冷啟動驗證。品牌/創意非關鍵，兩名即可達成最小充分協作。"
+}

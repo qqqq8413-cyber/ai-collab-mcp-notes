@@ -1,0 +1,21 @@
+{
+  "complexity": "normal",
+  "requiredCapabilities": [
+    "business strategy and financial tradeoff analysis",
+    "brand strategy and pricing power"
+  ],
+  "assignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Deliver a recommendation A/B/C with rationale: model impact on existing B2B revenue/pipeline and sales capacity; allocate limited lecturer hours across B2B vs public classes; compare unit economics, cash needs, and risks for A vs B vs C (incl. platform rev share, CAC, ops build); identify the single most decision-flipping assumption; design a 90‑day validation plan with KPIs and go/no‑go criteria.",
+      "priority": "high"
+    },
+    {
+      "agentId": "brand_creative",
+      "mission": "Evaluate long‑term brand and pricing power by option; risks to premium positioning and channel conflict with B2B; propose offer design to preserve brand (format, tiers, syllabus boundaries), mitigation if partnering with a platform (brand presence, data, upsell paths), messaging to reassure enterprise buyers, and minimal brand assets for a pilot.",
+      "priority": "medium"
+    }
+  ],
+  "requiresRedTeam": false,
+  "reason": "Decision hinges on financial/operational tradeoffs and long-term brand/pricing control. Business strategist can decide A/B/C with lecturer time and economics; brand strategist ensures positioning and pricing power are preserved. Market research is not essential for the initial decision given current inputs and a 90‑day validation plan."
+}

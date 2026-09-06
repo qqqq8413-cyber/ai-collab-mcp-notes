@@ -1,0 +1,1 @@
+Decide A/B/C with explicit trade-offs under staffing and cash limits; design a plan that protects current service quality, defines staffing/scheduling for two sites, sets hard launch prerequisites, names the decisive assumption that could flip the choice, and lays out a 90-day validation/contingency path considering the 3-month site hold and recruitment lead times.

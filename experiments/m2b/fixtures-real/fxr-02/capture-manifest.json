@@ -1,0 +1,92 @@
+{
+  "fixtureId": "fxr-02",
+  "sourceCandidateId": "fx-02",
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-1",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "executionHead": "c5a4a370726b301d74a1d4792fe2232e09ff3e42",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "c5a4a370726b301d74a1d4792fe2232e09ff3e42",
+  "nodeVersion": "v24.15.0",
+  "taskSha256": "3fb2ab8cff043cd9e125f8568e938c72754551dfb0498c85a9382265f20d04b3",
+  "startedAt": "2026-09-06T04:40:25.234Z",
+  "completedAt": "2026-09-06T04:42:22.674Z",
+  "captureStatus": "FAILED",
+  "eligibility": {
+    "F1": false,
+    "F2": false,
+    "F3": true
+  },
+  "failureReasons": [
+    "F1: complexity is normal, not deep",
+    "F2: 1 specialist(s) returned output, fewer than two"
+  ],
+  "fatalError": null,
+  "chiefPin": {
+    "provider": "openai",
+    "requestedModel": "gpt-5",
+    "resolvedModel": "gpt-5",
+    "resolvedProvider": "openai"
+  },
+  "providerAllocation": {
+    "provider": "claude",
+    "model": "claude-sonnet-5"
+  },
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "actualComplexity": "normal",
+  "plannerAssignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Decide A/B/C with explicit trade-offs under staffing and cash limits; design a plan that protects current service quality, defines staffing/scheduling for two sites, sets hard launch prerequisites, names the decisive assumption that could flip the choice, and lays out a 90-day validation/contingency path considering the 3-month site hold and recruitment lead times.",
+      "priority": "high"
+    }
+  ],
+  "planningAdjustments": [],
+  "round1Status": "SUCCESS",
+  "successfulWorkerCount": 1,
+  "failedWorkerCount": 0,
+  "liveCallCount": 2,
+  "agentOrder": [
+    "business_strategist"
+  ],
+  "availableRosterSha256": "fce2fab8f9a3f54be464bcc5b25284488c484ac5d215a94d913a931d9633062d",
+  "snapshotSha256": "7de669983eb34247e6a55738ddf7e0094ffe13abf7905379b90da9c48f99cafe",
+  "rawCallsSha256": "e12d0a3d96b5823773674e77db569beb5bda15168ea3ff1eb1dd09cd3cf75004",
+  "runtimeFingerprintStart": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEnd": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "postRound1Execution": "NONE",
+  "gateExecution": "NONE",
+  "synthesisExecution": "NONE",
+  "workers": [
+    {
+      "agentId": "business_strategist",
+      "roleSha256": "c96ca15e20caa8b0018dcf6c88487641679d376f5a970e4a4bf8fcd28f183996",
+      "missionSha256": "c42f9813070aeca62764e8f27070544e619ccd560f57c1d95f253a7ac0e76055",
+      "outputSha256": "c62944160d1802eb6a20fde49687180f910d79de37e8f295900abedbcc151adf",
+      "providerRequested": "claude",
+      "providerResolved": "claude",
+      "modelRequested": "claude-sonnet-5",
+      "modelResolved": "claude-sonnet-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    }
+  ],
+  "fileHashes": {
+    "task.txt": "3fb2ab8cff043cd9e125f8568e938c72754551dfb0498c85a9382265f20d04b3",
+    "available-roster.json": "fce2fab8f9a3f54be464bcc5b25284488c484ac5d215a94d913a931d9633062d",
+    "planner-result.json": "8203d467716042561f9d8876fc824896e8934c7aea1a4ffd51b86c149f212ecd",
+    "planning-adjustments.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "snapshot.json": "7de669983eb34247e6a55738ddf7e0094ffe13abf7905379b90da9c48f99cafe",
+    "report.json": "cc6d4c6d73cd5369237fa905ab8f9f5fd8ebe4c68e47014e582da29e581f5885",
+    "mission-business_strategist.txt": "c42f9813070aeca62764e8f27070544e619ccd560f57c1d95f253a7ac0e76055",
+    "round1-business_strategist.md": "c62944160d1802eb6a20fde49687180f910d79de37e8f295900abedbcc151adf",
+    "raw-calls.json": "e12d0a3d96b5823773674e77db569beb5bda15168ea3ff1eb1dd09cd3cf75004"
+  },
+  "manifestSha256": "d66f62cf8744a1e7631f07cefca00c043fa820cf1ed479f419cb0b3a9c082c02"
+}

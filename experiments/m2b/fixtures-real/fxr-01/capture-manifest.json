@@ -1,0 +1,113 @@
+{
+  "fixtureId": "fxr-01",
+  "sourceCandidateId": "fx-01",
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-1",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "executionHead": "c5a4a370726b301d74a1d4792fe2232e09ff3e42",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "c5a4a370726b301d74a1d4792fe2232e09ff3e42",
+  "nodeVersion": "v24.15.0",
+  "taskSha256": "5bb8b4a5f8dc747dc4bda9a60eb5a8ca845bf877e219a44fcd1c64b3c3d22556",
+  "startedAt": "2026-09-06T04:38:58.325Z",
+  "completedAt": "2026-09-06T04:40:25.232Z",
+  "captureStatus": "FAILED",
+  "eligibility": {
+    "F1": false,
+    "F2": true,
+    "F3": true
+  },
+  "failureReasons": [
+    "F1: complexity is normal, not deep"
+  ],
+  "fatalError": null,
+  "chiefPin": {
+    "provider": "openai",
+    "requestedModel": "gpt-5",
+    "resolvedModel": "gpt-5",
+    "resolvedProvider": "openai"
+  },
+  "providerAllocation": {
+    "provider": "openai",
+    "model": "gpt-5"
+  },
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "actualComplexity": "normal",
+  "plannerAssignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Deliver a recommendation A/B/C with rationale: model impact on existing B2B revenue/pipeline and sales capacity; allocate limited lecturer hours across B2B vs public classes; compare unit economics, cash needs, and risks for A vs B vs C (incl. platform rev share, CAC, ops build); identify the single most decision-flipping assumption; design a 90‑day validation plan with KPIs and go/no‑go criteria.",
+      "priority": "high"
+    },
+    {
+      "agentId": "brand_creative",
+      "mission": "Evaluate long‑term brand and pricing power by option; risks to premium positioning and channel conflict with B2B; propose offer design to preserve brand (format, tiers, syllabus boundaries), mitigation if partnering with a platform (brand presence, data, upsell paths), messaging to reassure enterprise buyers, and minimal brand assets for a pilot.",
+      "priority": "medium"
+    }
+  ],
+  "planningAdjustments": [],
+  "round1Status": "SUCCESS",
+  "successfulWorkerCount": 2,
+  "failedWorkerCount": 0,
+  "liveCallCount": 3,
+  "agentOrder": [
+    "business_strategist",
+    "brand_creative"
+  ],
+  "availableRosterSha256": "41a461070de65514e1a2cddf8a3ead57b48e05d1ad56efe2d28384020fe39f4b",
+  "snapshotSha256": "7ee0b629a7cb881c3de0708ba46f19927911c398cdbaa802e6423e3a36155820",
+  "rawCallsSha256": "604f6e08a835d5d04621f22f2585cf2da8cef9dc4c59e93f241abf70ac9d7940",
+  "runtimeFingerprintStart": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEnd": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "postRound1Execution": "NONE",
+  "gateExecution": "NONE",
+  "synthesisExecution": "NONE",
+  "workers": [
+    {
+      "agentId": "business_strategist",
+      "roleSha256": "c96ca15e20caa8b0018dcf6c88487641679d376f5a970e4a4bf8fcd28f183996",
+      "missionSha256": "764fac7a5d7168a4022b4483225e3c7eed0dc32cc276ed39d1024fd28dad5b78",
+      "outputSha256": "1ba25d3677d76e3aca66ae167ded6e967c0fa246c9e7ca29b778fc374dcb8ee9",
+      "providerRequested": "openai",
+      "providerResolved": "openai",
+      "modelRequested": "gpt-5",
+      "modelResolved": "gpt-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    },
+    {
+      "agentId": "brand_creative",
+      "roleSha256": "758c34dbd9c86ee261a68e61c6a23608c2d1297b5985bdbac02f6bf39a89554d",
+      "missionSha256": "1a9305628ff4fb4ed3ce6ae0cf30776c95c2a8da0a24f25b63e610728bcc0e2b",
+      "outputSha256": "d5fcd239dc7654adf75d6cc65425733243b2ddd393e867f009ec873f3ca1f5d1",
+      "providerRequested": "openai",
+      "providerResolved": "openai",
+      "modelRequested": "gpt-5",
+      "modelResolved": "gpt-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    }
+  ],
+  "fileHashes": {
+    "task.txt": "5bb8b4a5f8dc747dc4bda9a60eb5a8ca845bf877e219a44fcd1c64b3c3d22556",
+    "available-roster.json": "41a461070de65514e1a2cddf8a3ead57b48e05d1ad56efe2d28384020fe39f4b",
+    "planner-result.json": "1fd0c59b5a122e212918e06c58da8f7c6756d67732da060a888127cad4aa9cee",
+    "planning-adjustments.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "snapshot.json": "7ee0b629a7cb881c3de0708ba46f19927911c398cdbaa802e6423e3a36155820",
+    "report.json": "cfeb598a7fd9fa5204619965736ddbafb7416c3e2b80d90d8f8281cd93cac19b",
+    "mission-business_strategist.txt": "764fac7a5d7168a4022b4483225e3c7eed0dc32cc276ed39d1024fd28dad5b78",
+    "round1-business_strategist.md": "1ba25d3677d76e3aca66ae167ded6e967c0fa246c9e7ca29b778fc374dcb8ee9",
+    "mission-brand_creative.txt": "1a9305628ff4fb4ed3ce6ae0cf30776c95c2a8da0a24f25b63e610728bcc0e2b",
+    "round1-brand_creative.md": "d5fcd239dc7654adf75d6cc65425733243b2ddd393e867f009ec873f3ca1f5d1",
+    "raw-calls.json": "604f6e08a835d5d04621f22f2585cf2da8cef9dc4c59e93f241abf70ac9d7940"
+  },
+  "manifestSha256": "6359acb3e888d6e928560678fc651cd6722dcbdff7b771cace5c36c016285183"
+}

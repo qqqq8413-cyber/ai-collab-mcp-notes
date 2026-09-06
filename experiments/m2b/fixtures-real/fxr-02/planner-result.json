@@ -1,0 +1,19 @@
+{
+  "complexity": "normal",
+  "requiredCapabilities": [
+    "business strategy",
+    "operations planning",
+    "workforce planning",
+    "risk assessment",
+    "financial trade-offs"
+  ],
+  "assignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Decide A/B/C with explicit trade-offs under staffing and cash limits; design a plan that protects current service quality, defines staffing/scheduling for two sites, sets hard launch prerequisites, names the decisive assumption that could flip the choice, and lays out a 90-day validation/contingency path considering the 3-month site hold and recruitment lead times.",
+      "priority": "high"
+    }
+  ],
+  "requiresRedTeam": false,
+  "reason": "This is a single-site expansion timing and staffing risk decision with operational constraints; it needs integrated strategy, ops, and workforce planning, which one business strategist can cover without market or brand work."
+}

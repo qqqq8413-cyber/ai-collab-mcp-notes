@@ -1,0 +1,92 @@
+{
+  "fixtureId": "fxr-04",
+  "sourceCandidateId": "fx-04",
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-1",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "executionHead": "c5a4a370726b301d74a1d4792fe2232e09ff3e42",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "c5a4a370726b301d74a1d4792fe2232e09ff3e42",
+  "nodeVersion": "v24.15.0",
+  "taskSha256": "91d612e5ada72b93801881c93fb9520d11e3c207d4b403a81fa939402d0d13c1",
+  "startedAt": "2026-09-06T04:43:22.814Z",
+  "completedAt": "2026-09-06T04:44:18.323Z",
+  "captureStatus": "FAILED",
+  "eligibility": {
+    "F1": false,
+    "F2": false,
+    "F3": true
+  },
+  "failureReasons": [
+    "F1: complexity is normal, not deep",
+    "F2: 1 specialist(s) returned output, fewer than two"
+  ],
+  "fatalError": null,
+  "chiefPin": {
+    "provider": "openai",
+    "requestedModel": "gpt-5",
+    "resolvedModel": "gpt-5",
+    "resolvedProvider": "openai"
+  },
+  "providerAllocation": {
+    "provider": "openai",
+    "model": "gpt-5"
+  },
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "actualComplexity": "normal",
+  "plannerAssignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "基於已知條件做A/B/C決策；點出導入後最可能失敗點與採用門檻；聚焦先解決的具體痛點（客戶回饋散落/漏改）；明確列出一項關鍵假設與翻盤條件；設計90天小規模驗證計畫（角色、流程、儀表板、最小填寫規則、成功/終止門檻）；不做外部工具研究，僅依內部現實與成本抗拒評估；保留並處理可能改變決策的分歧。",
+      "priority": "high"
+    }
+  ],
+  "planningAdjustments": [],
+  "round1Status": "SUCCESS",
+  "successfulWorkerCount": 1,
+  "failedWorkerCount": 0,
+  "liveCallCount": 2,
+  "agentOrder": [
+    "business_strategist"
+  ],
+  "availableRosterSha256": "41a461070de65514e1a2cddf8a3ead57b48e05d1ad56efe2d28384020fe39f4b",
+  "snapshotSha256": "d67dc87de378fe4df2acb81feaab14c7ec000adb375068aeb3800ea0bd8b98ab",
+  "rawCallsSha256": "1e1f72d6159f502d9906acd77d43a728a53e322e7c6f41347e634714ac3b2edf",
+  "runtimeFingerprintStart": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEnd": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "postRound1Execution": "NONE",
+  "gateExecution": "NONE",
+  "synthesisExecution": "NONE",
+  "workers": [
+    {
+      "agentId": "business_strategist",
+      "roleSha256": "c96ca15e20caa8b0018dcf6c88487641679d376f5a970e4a4bf8fcd28f183996",
+      "missionSha256": "d3b5a8986a49f6e069019bb6478e761961fe055e0e0bdc21e2f48dfcc5ea6288",
+      "outputSha256": "3955ef13a13d4f1639c5f90a87567584f6b6dc41ecc0a223639f2373db11e3ca",
+      "providerRequested": "openai",
+      "providerResolved": "openai",
+      "modelRequested": "gpt-5",
+      "modelResolved": "gpt-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    }
+  ],
+  "fileHashes": {
+    "task.txt": "91d612e5ada72b93801881c93fb9520d11e3c207d4b403a81fa939402d0d13c1",
+    "available-roster.json": "41a461070de65514e1a2cddf8a3ead57b48e05d1ad56efe2d28384020fe39f4b",
+    "planner-result.json": "09b2f3628f91551a293b9670a294f5659491ca9d47bf6dc9e889e74937a01b76",
+    "planning-adjustments.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "snapshot.json": "d67dc87de378fe4df2acb81feaab14c7ec000adb375068aeb3800ea0bd8b98ab",
+    "report.json": "cc6d4c6d73cd5369237fa905ab8f9f5fd8ebe4c68e47014e582da29e581f5885",
+    "mission-business_strategist.txt": "d3b5a8986a49f6e069019bb6478e761961fe055e0e0bdc21e2f48dfcc5ea6288",
+    "round1-business_strategist.md": "3955ef13a13d4f1639c5f90a87567584f6b6dc41ecc0a223639f2373db11e3ca",
+    "raw-calls.json": "1e1f72d6159f502d9906acd77d43a728a53e322e7c6f41347e634714ac3b2edf"
+  },
+  "manifestSha256": "b8a1b10295408f7c27c150d564882f5256cd3c2c2dff1b0689fd5a96c1fe36f1"
+}
