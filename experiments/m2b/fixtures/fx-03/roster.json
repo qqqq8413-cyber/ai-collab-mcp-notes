@@ -1,0 +1,6 @@
+{
+  "specialists": [
+    { "id": "demand_research",     "provider": "gemini", "model": "gemini-3.1-pro-preview", "role": "Demand Research Analyst — 需求訊號、產品市場適配、市場機會" },
+    { "id": "retention_analysis",  "provider": "gemini", "model": "gemini-3.1-pro-preview", "role": "Retention Analyst — 留存結構、樣本組成、訊號可靠度" }
+  ]
+}

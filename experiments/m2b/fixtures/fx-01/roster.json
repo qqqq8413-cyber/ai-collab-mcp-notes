@@ -1,0 +1,6 @@
+{
+  "specialists": [
+    { "id": "market_positioning",   "provider": "openai", "model": "gpt-5", "role": "Market Positioning Strategist — 市場定位、通路選擇、客群取得、品牌資產" },
+    { "id": "delivery_operations",  "provider": "openai", "model": "gpt-5", "role": "Delivery Operations Lead — 交付產能、講師時間配置、營運系統、服務品質" }
+  ]
+}

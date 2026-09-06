@@ -1,0 +1,83 @@
+{
+  "fixtureId": "fx-03",
+  "archetypeCode": "EVIDENCE_INTERPRETATION_CONFLICT",
+  "status": "FROZEN_PRE_ARM",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "fixtureSha256": "658c6d268c8e13d5ebc11a0d2468767561e2785b474b2d3d4350f80b3392d319",
+  "snapshotSha256": "ce367a8e4ef8822669a532b8d1c529087060333963e2512d7790cc450f7efafe",
+  "rosterSha256": "d5a7cb3361702af1224d2c1504c3b3e75c36ca792d9e7191f4d2962d366a7bfd",
+  "fileHashes": {
+    "task.txt": "943978d99d7981bf1da5d9fe4cac5442981570ae94d3851fe2ad05a4f8f0d4f3",
+    "roster.json": "fcefd76d5bfc0980d399c87538ecb1d543f44ebc2bcbbbdc2ba32318ef5ed623",
+    "mission-demand_research.txt": "5248277b7ef516a67579cd3738fe55b66b669abb32bea7eaeda7caf1bb6d9a2b",
+    "round1-demand_research.md": "3fe13ae60aa02210745940a32af6a077e46729e8d4cadf1acfd53ad7b62a07ea",
+    "mission-retention_analysis.txt": "8177028819d4775b50873e0cca19ee13701b202bb750b64365fb5b2afd3eb257",
+    "round1-retention_analysis.md": "dda4a0ac5ce63e6b4b632d7ebc2ecfbbf70f328b102cb2f5c7c64af3e5bb24a8"
+  },
+  "passageCounts": {
+    "demand_research": 18,
+    "retention_analysis": 19
+  },
+  "passageIds": {
+    "demand_research": [
+      "demand_research:p1",
+      "demand_research:p2",
+      "demand_research:p3",
+      "demand_research:p4",
+      "demand_research:p5",
+      "demand_research:p6",
+      "demand_research:p7",
+      "demand_research:p8",
+      "demand_research:p9",
+      "demand_research:p10",
+      "demand_research:p11",
+      "demand_research:p12",
+      "demand_research:p13",
+      "demand_research:p14",
+      "demand_research:p15",
+      "demand_research:p16",
+      "demand_research:p17",
+      "demand_research:p18"
+    ],
+    "retention_analysis": [
+      "retention_analysis:p1",
+      "retention_analysis:p2",
+      "retention_analysis:p3",
+      "retention_analysis:p4",
+      "retention_analysis:p5",
+      "retention_analysis:p6",
+      "retention_analysis:p7",
+      "retention_analysis:p8",
+      "retention_analysis:p9",
+      "retention_analysis:p10",
+      "retention_analysis:p11",
+      "retention_analysis:p12",
+      "retention_analysis:p13",
+      "retention_analysis:p14",
+      "retention_analysis:p15",
+      "retention_analysis:p16",
+      "retention_analysis:p17",
+      "retention_analysis:p18",
+      "retention_analysis:p19"
+    ]
+  },
+  "eligibility": {
+    "archetypeCode": "EVIDENCE_INTERPRETATION_CONFLICT",
+    "f1": "DEEP：需要判讀證據品質並決定資源投向。",
+    "f2": "兩位成功的 Round 1 specialist：demand_research、retention_analysis。",
+    "f3": "兩份 Round 1 輸出皆完整，無失敗 worker。",
+    "f4": "任務明示「所有人看到的是同一份事實」；兩份 Round 1 文本對同一組 Pilot 事實得出相反推論（需求已驗證 vs 樣本組成造成的假訊號）。",
+    "f5": "任務列出八項 Pilot 事實，足以判斷答案是否處理了樣本組成、填答率與價格未被測到。",
+    "f6": "所有事實由任務本身給定。",
+    "f7": "任務刻意不給任何數值，只給定性描述（「比例很高」「個位數」「約六成」）；決策不依賴任何計算。"
+  },
+  "option3Prime": {
+    "targetProvider": "gemini",
+    "targetModel": "gemini-3.1-pro-preview"
+  },
+  "runtimeCommit": "ef06304e2109a9a5e8422ed1bcf9439b623adafb",
+  "chunkerVersion": "3a3d72bf78afd5dc69e9392e6a925e9a3b5d12f051c8b4327f024173b561e522",
+  "createdAt": "2026-09-06T03:16:27.073Z",
+  "frozenAt": "2026-09-06T03:16:27.073Z",
+  "armExecution": "NONE"
+}

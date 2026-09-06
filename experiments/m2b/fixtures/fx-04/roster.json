@@ -1,0 +1,6 @@
+{
+  "specialists": [
+    { "id": "team_workflow",   "provider": "openai", "model": "gpt-5", "role": "Team Workflow Lead — 團隊工作流程、採用門檻、行政負擔" },
+    { "id": "client_delivery", "provider": "openai", "model": "gpt-5", "role": "Client Delivery Lead — 客戶交付品質、回饋追蹤、交付前檢核" }
+  ]
+}

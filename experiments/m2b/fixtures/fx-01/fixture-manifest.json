@@ -1,0 +1,75 @@
+{
+  "fixtureId": "fx-01",
+  "archetypeCode": "STRATEGY_CONFLICT",
+  "status": "FROZEN_PRE_ARM",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "fixtureSha256": "7a0d9d8270baf078e9bf30ef3f8b4f53c4173e8d1475529d6f856dc61bc088cb",
+  "snapshotSha256": "e5c7b435ded065f92553bd9fb17666fedf4924ba24033f429a37d95ed43081a3",
+  "rosterSha256": "94c08d8207e4d250f9553178f742d29a55dca22cee75c3f3996a9ea9b2de02d8",
+  "fileHashes": {
+    "task.txt": "5bb8b4a5f8dc747dc4bda9a60eb5a8ca845bf877e219a44fcd1c64b3c3d22556",
+    "roster.json": "33b245ade9363901301521458826b4e358dd3fd859394d1f14f1df408e8178d9",
+    "mission-market_positioning.txt": "2474811412df5feeef3fd8c87d22670419171c87a3742efc7da2e42334e2bd82",
+    "round1-market_positioning.md": "d78dbd8f6447fe9f4c9370d19bd6e7de7f9bde105a04e25f068ee70fba0d8890",
+    "mission-delivery_operations.txt": "53125e1de68e05f2db0e9b7e8aada6072accb13e3f8779323a749491a0dad47e",
+    "round1-delivery_operations.md": "655228cf1f73e55bcfd88d5522423cb3d7e6968088db3a7444dff50881346dcc"
+  },
+  "passageCounts": {
+    "market_positioning": 15,
+    "delivery_operations": 14
+  },
+  "passageIds": {
+    "market_positioning": [
+      "market_positioning:p1",
+      "market_positioning:p2",
+      "market_positioning:p3",
+      "market_positioning:p4",
+      "market_positioning:p5",
+      "market_positioning:p6",
+      "market_positioning:p7",
+      "market_positioning:p8",
+      "market_positioning:p9",
+      "market_positioning:p10",
+      "market_positioning:p11",
+      "market_positioning:p12",
+      "market_positioning:p13",
+      "market_positioning:p14",
+      "market_positioning:p15"
+    ],
+    "delivery_operations": [
+      "delivery_operations:p1",
+      "delivery_operations:p2",
+      "delivery_operations:p3",
+      "delivery_operations:p4",
+      "delivery_operations:p5",
+      "delivery_operations:p6",
+      "delivery_operations:p7",
+      "delivery_operations:p8",
+      "delivery_operations:p9",
+      "delivery_operations:p10",
+      "delivery_operations:p11",
+      "delivery_operations:p12",
+      "delivery_operations:p13",
+      "delivery_operations:p14"
+    ]
+  },
+  "eligibility": {
+    "archetypeCode": "STRATEGY_CONFLICT",
+    "f1": "DEEP：三個互斥選項，需要跨領域取捨與 90 天驗證設計。",
+    "f2": "兩位成功的 Round 1 specialist：market_positioning、delivery_operations。",
+    "f3": "兩份 Round 1 輸出皆完整，無失敗 worker。",
+    "f4": "兩位專家在原始 Round 1 文本中選擇了不同選項（B vs C），且各自的理由指向不同的限制因素（通路取得 vs 講師產能）。",
+    "f5": "原始任務列出七項已知條件，足以判斷答案是否處理了產能、品牌錨定與漏斗上游。",
+    "f6": "所有事實由任務本身給定，不需要任何即時外部資料。",
+    "f7": "任務中無金額、無需計算；把數量描述改為定性敘述後決策仍成立。"
+  },
+  "option3Prime": {
+    "targetProvider": "openai",
+    "targetModel": "gpt-5"
+  },
+  "runtimeCommit": "ef06304e2109a9a5e8422ed1bcf9439b623adafb",
+  "chunkerVersion": "3a3d72bf78afd5dc69e9392e6a925e9a3b5d12f051c8b4327f024173b561e522",
+  "createdAt": "2026-09-06T03:16:27.073Z",
+  "frozenAt": "2026-09-06T03:16:27.073Z",
+  "armExecution": "NONE"
+}

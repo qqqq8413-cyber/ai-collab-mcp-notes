@@ -1,0 +1,75 @@
+{
+  "fixtureId": "fx-04",
+  "archetypeCode": "NEGATIVE_CONTROL",
+  "status": "FROZEN_PRE_ARM",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "fixtureSha256": "0843db6a86d709dcfe6249970b59e83a017f747bdb15beb962003f3a6700fec9",
+  "snapshotSha256": "efb51f05330c03baafe8832230a5d70a1fa936b4445f177acfed9bd2b31cf25e",
+  "rosterSha256": "8faf6dea63690294065bf58974d4f2d8907aee085292b6eac215bc450bedc81b",
+  "fileHashes": {
+    "task.txt": "91d612e5ada72b93801881c93fb9520d11e3c207d4b403a81fa939402d0d13c1",
+    "roster.json": "9b835ae7063e7d9ddc1a63fe0bfe38cc01e85929ab3d567902818be52ef21500",
+    "mission-team_workflow.txt": "afadbd79cfa5c02ab6d1ad72e9277bdefe476ce5cfa67b15b41502e45061864b",
+    "round1-team_workflow.md": "a9af31ee243ff18eecad5cb3d0fef38b96eef137a54662395a722f0c6b2c6328",
+    "mission-client_delivery.txt": "91e8d40777e7e8b024e25fe22dd7ce9ea5ce9cc159c528c97a8ec709b0501f38",
+    "round1-client_delivery.md": "d6d90eb6698c4f8d36fc6f3c90853bddf3912fcc174bdfa9f7dd051e6dada751"
+  },
+  "passageCounts": {
+    "team_workflow": 13,
+    "client_delivery": 16
+  },
+  "passageIds": {
+    "team_workflow": [
+      "team_workflow:p1",
+      "team_workflow:p2",
+      "team_workflow:p3",
+      "team_workflow:p4",
+      "team_workflow:p5",
+      "team_workflow:p6",
+      "team_workflow:p7",
+      "team_workflow:p8",
+      "team_workflow:p9",
+      "team_workflow:p10",
+      "team_workflow:p11",
+      "team_workflow:p12",
+      "team_workflow:p13"
+    ],
+    "client_delivery": [
+      "client_delivery:p1",
+      "client_delivery:p2",
+      "client_delivery:p3",
+      "client_delivery:p4",
+      "client_delivery:p5",
+      "client_delivery:p6",
+      "client_delivery:p7",
+      "client_delivery:p8",
+      "client_delivery:p9",
+      "client_delivery:p10",
+      "client_delivery:p11",
+      "client_delivery:p12",
+      "client_delivery:p13",
+      "client_delivery:p14",
+      "client_delivery:p15",
+      "client_delivery:p16"
+    ]
+  },
+  "eligibility": {
+    "archetypeCode": "NEGATIVE_CONTROL",
+    "f1": "DEEP：仍需處理採用門檻、失敗模式與 90 天驗證。",
+    "f2": "兩位成功的 Round 1 specialist：team_workflow、client_delivery。",
+    "f3": "兩份 Round 1 輸出皆完整，無失敗 worker。",
+    "f4": "兩份 Round 1 文本推薦相同選項、相同分階段方式與相同的三個月檢核點；差異僅在強調點（採用門檻 vs 回饋落點）與措辭。",
+    "f5": "任務列出七項已知條件，足以判斷答案是否處理了行政負擔與採用風險。",
+    "f6": "所有事實由任務本身給定。",
+    "f7": "任務中無金額、無需計算。"
+  },
+  "option3Prime": {
+    "targetProvider": "openai",
+    "targetModel": "gpt-5"
+  },
+  "runtimeCommit": "ef06304e2109a9a5e8422ed1bcf9439b623adafb",
+  "chunkerVersion": "3a3d72bf78afd5dc69e9392e6a925e9a3b5d12f051c8b4327f024173b561e522",
+  "createdAt": "2026-09-06T03:16:27.073Z",
+  "frozenAt": "2026-09-06T03:16:27.073Z",
+  "armExecution": "NONE"
+}

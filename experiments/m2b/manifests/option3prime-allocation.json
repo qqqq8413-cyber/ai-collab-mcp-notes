@@ -1,0 +1,26 @@
+{
+  "rationale": "In a frozen Round-1 replay only the challenged specialist issues a call, so the non-target specialist's provider never executes. Assigning both specialists in a fixture the same provider therefore costs nothing and makes target-provider coverage deterministic rather than dependent on which specialist the Gate happens to pick.",
+  "decisionSynthesizer": {
+    "provider": "openai",
+    "requestedModel": "gpt-5"
+  },
+  "byFixture": {
+    "fx-01": {
+      "targetProvider": "openai",
+      "targetModel": "gpt-5"
+    },
+    "fx-02": {
+      "targetProvider": "claude",
+      "targetModel": "claude-sonnet-5"
+    },
+    "fx-03": {
+      "targetProvider": "gemini",
+      "targetModel": "gemini-3.1-pro-preview"
+    },
+    "fx-04": {
+      "targetProvider": "openai",
+      "targetModel": "gpt-5"
+    }
+  },
+  "claimBoundary": "Execution coverage only. One fixture per provider does not support any cross-provider generalization claim."
+}

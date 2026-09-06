@@ -1,0 +1,75 @@
+{
+  "fixtureId": "fx-02",
+  "archetypeCode": "EXECUTION_CONSTRAINT_CONFLICT",
+  "status": "FROZEN_PRE_ARM",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "fixtureSha256": "d7a88244030ac28748ec4cd4a29a8c245f5536c4f406e9fb608313ace42ad66b",
+  "snapshotSha256": "d75df0cc56719b4c240ba4212b3b93d19a7c640a45a0762cf58f48c67fad3b9d",
+  "rosterSha256": "c61b1a3a201f871bd126c3ed862002dc50b2ab0b5fc972b82479ebe64a8a36f4",
+  "fileHashes": {
+    "task.txt": "3fb2ab8cff043cd9e125f8568e938c72754551dfb0498c85a9382265f20d04b3",
+    "roster.json": "e21727ee8d431fe9ad1162322f303a2410be32e9b5c401bb0bbb6f85f39368b4",
+    "mission-clinical_staffing.txt": "9778daf55a34d5a8a69b5b463a2bd7797a0fe0d0340365041da749919ea0778d",
+    "round1-clinical_staffing.md": "75a22d5bd32374ab1db62a5e9b59cf9f3f157a9c89dab46dbe1bf448924bb713",
+    "mission-growth_planning.txt": "a922a775479613794f543b51b8b125b642948084ebc36e5c1337214bfef369d3",
+    "round1-growth_planning.md": "3d88cf95a7dc482d6d6a880dff30428cd9f429177210c37e8ebd063ec8951b60"
+  },
+  "passageCounts": {
+    "clinical_staffing": 14,
+    "growth_planning": 15
+  },
+  "passageIds": {
+    "clinical_staffing": [
+      "clinical_staffing:p1",
+      "clinical_staffing:p2",
+      "clinical_staffing:p3",
+      "clinical_staffing:p4",
+      "clinical_staffing:p5",
+      "clinical_staffing:p6",
+      "clinical_staffing:p7",
+      "clinical_staffing:p8",
+      "clinical_staffing:p9",
+      "clinical_staffing:p10",
+      "clinical_staffing:p11",
+      "clinical_staffing:p12",
+      "clinical_staffing:p13",
+      "clinical_staffing:p14"
+    ],
+    "growth_planning": [
+      "growth_planning:p1",
+      "growth_planning:p2",
+      "growth_planning:p3",
+      "growth_planning:p4",
+      "growth_planning:p5",
+      "growth_planning:p6",
+      "growth_planning:p7",
+      "growth_planning:p8",
+      "growth_planning:p9",
+      "growth_planning:p10",
+      "growth_planning:p11",
+      "growth_planning:p12",
+      "growth_planning:p13",
+      "growth_planning:p14",
+      "growth_planning:p15"
+    ]
+  },
+  "eligibility": {
+    "archetypeCode": "EXECUTION_CONSTRAINT_CONFLICT",
+    "f1": "DEEP：時程選項加上前置條件設計，需要跨領域取捨。",
+    "f2": "兩位成功的 Round 1 specialist：clinical_staffing、growth_planning。",
+    "f3": "兩份 Round 1 輸出皆完整，無失敗 worker。",
+    "f4": "兩位專家在 Round 1 文本中都明確表示方向本身沒有爭議，但對「今年下半年在現有人力下是否做得到」給出相反判斷。",
+    "f5": "任務給定招募週期、主治獸醫人數、輪值配置與物件保留期，足以判斷可行性論證是否成立。",
+    "f6": "所有事實由任務本身給定。",
+    "f7": "任務中出現的數量（三位主治獸醫、四個月、三個月）為條件描述而非計算對象。"
+  },
+  "option3Prime": {
+    "targetProvider": "claude",
+    "targetModel": "claude-sonnet-5"
+  },
+  "runtimeCommit": "ef06304e2109a9a5e8422ed1bcf9439b623adafb",
+  "chunkerVersion": "3a3d72bf78afd5dc69e9392e6a925e9a3b5d12f051c8b4327f024173b561e522",
+  "createdAt": "2026-09-06T03:16:27.073Z",
+  "frozenAt": "2026-09-06T03:16:27.073Z",
+  "armExecution": "NONE"
+}

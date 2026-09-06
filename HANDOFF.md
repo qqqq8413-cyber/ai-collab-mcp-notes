@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-06, rev. 26)
+# ai-collab-mcp — Progress Report (2026-09-06, rev. 27)
 
 > ## 交接狀態
 >
@@ -16,7 +16,8 @@
 > | **M2-A Controlled Replay #4** | **FULL MECHANISM RUNTIME PASS —— 一次自然 valid issue → R2 → Decision Synthesis,不代表品質或產品價值已驗證** |
 > | **rev.20 Independent Code Review** | **ACCEPT WITH DOCUMENTATION CORRECTION —— 無 runtime defect;3 項文件/命名修正 + 1 項規格 concern 待 review,詳見第二十五節** |
 > | **M2-B Protocol** | **ARCHITECTURE ACCEPTED / HARNESS IMPLEMENTATION NEXT / LIVE PILOT NOT AUTHORIZED —— `M2_EFFECTIVENESS_EXPERIMENT.md` v0.2 @ `a308bc8`** |
-> | **M2-B Harness** | **REVISED / AWAITING FINAL GPT HARNESS REVIEW / NO LIVE AUTHORIZATION —— H-01…H-05 + D-01 已處理,110 項離線測試,`src/` diff 為空** |
+> | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
+> | **M2-B Fixture Freeze** | **RUNTIME SIDE FROZEN / AWAITING CLEAN-ROOM ANNOTATION / LIVE PILOT NOT AUTHORIZED —— 4 個 fixture 已凍結,clean-room packet 已產出並 hash,尚未取得標註** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
 > | **目前離線測試** | **212 項全過 = rev.19 的 208 + Gate semantics 新增 4** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
@@ -26,6 +27,91 @@
 > **Experimental Milestone 2-A 已完成本輪限定工程,現在 STOPPED / AWAITING ARCHITECTURE REVIEW,default OFF。** 使用者批准 Gate eligibility 由 post-synthesis unresolved conflict 改成 pre-synthesis material disagreement;唯一一次 Replay #4 使用與 #3 byte-identical 的 fixture,自然跑通 valid issue、sourceRef、Targeted R2 與 Decision Synthesis。212 項離線測試通過,既有 assertions 未放寬,16 組修改前/後 control capture byte-identical。這是機制驗證,尚未執行品質比較或 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 27 改了什麼(M2-B Fixture Freeze —— runtime side 完成,ground truth 待標註)
+
+**`src/` diff 為空。production 212 全過,Replay #4 封印仍 VERIFIED,兩份 GEMINI packet 未動。**
+harness 測試 110、新增 fixture 測試 34,合計 **144 項離線測試,0 失敗**。
+**本輪零 provider 呼叫、零 Gate 執行、零 arm 執行。**
+
+### 1. Contamination 裁決已執行
+
+GPT 裁定 **Replay #3/#4 fixture 移出 Phase 1 fixture set** ——
+它已暴露於 Gate 輸出、`selectedIssue`、challenge、R2、Decision Synthesis 與歷史觸發行為,
+無法滿足 clean pre-arm 邊界。**不嘗試改派標註者搶救。**
+它仍是 M2-A 的歷史證據,sealed artifacts 未刪未改。
+新增測試逐項斷言四個 fixture 都不重用 replay 的 specialist id、任務內容或 snapshot hash。
+
+### 2. 四個全新 fixture(runtime side 已凍結)
+
+| id | archetype | specialists | Option 3′ target |
+|---|---|---|---|
+| `fx-01` | STRATEGY_CONFLICT | market_positioning / delivery_operations | openai / gpt-5 |
+| `fx-02` | EXECUTION_CONSTRAINT_CONFLICT | clinical_staffing / growth_planning | claude / claude-sonnet-5 |
+| `fx-03` | EVIDENCE_INTERPRETATION_CONFLICT | demand_research / retention_analysis | gemini / gemini-3.1-pro-preview |
+| `fx-04` | NEGATIVE_CONTROL | team_workflow / client_delivery | openai / gpt-5 |
+
+每個 fixture 有 `fixture-manifest.json`,含 F1–F7 逐項 eligibility 理由。
+**理由只引用原始任務與 Round 1 文本**;測試斷言其中不出現
+`triggered` / `Gate selected` / `Replay` / `selectedIssue` 等字樣 —— 依 §7,那類推理會使候選失格。
+
+### 3. Clean-room packet 已產出並凍結
+
+```
+packet-conflict.md   sha256 4af963eed0dce280…   25,376 bytes
+packet-gold.md       sha256 463e117b17d2ef77…   25,198 bytes
+```
+
+只含:標註指示、原始任務、角色與 mission、完整 Round 1、確定性 passage id。
+洩漏掃描涵蓋 40 個禁用詞(Gate 行為、實驗結構、fixture 身分三類),**掃描不過就不產出 packet**。
+⚠️ 掃描是 **lexical diagnostic,不是語意保證**。
+packet 呈現順序為 `fx-03, fx-01, fx-04, fx-02` —— 刻意不讓 negative control 落在最後。
+
+### 4. GI-5 runtime / evaluation 路徑隔離
+
+`fixtures.mjs` 只讀 `experiments/m2b/fixtures/`,且全部是具名檔案讀取、無遞迴走訪。
+四條測試:loader 開啟的路徑全在 fixtures/ 底下、runtime fixture 目錄不含 ground-truth 檔、
+載入後的 fixture 物件不含 `goldIssues` / `materialConflict`、`loadFixture` 函式本體無通往
+evaluation 的程式路徑。
+
+### 5. Option 3′ 分配已凍結(未執行)
+
+三個 positive fixture 的 target provider 輪換 openai / claude / gemini。
+**同一 fixture 內兩位 specialist 指派同一 provider** —— 因為在 frozen Round-1 replay 中
+只有被挑戰的 specialist 會發出呼叫,非 target 的 provider 永不執行,
+所以這樣做零成本、且讓 target provider 覆蓋變成**確定的**而非取決於 Gate 挑誰。
+Decision synthesizer 全程固定 openai / gpt-5。
+**只建立 execution coverage,不宣稱 cross-provider generalization。**
+
+### 6. ⚠️ 本階段尚未完成 —— 缺 ground truth
+
+依 GPT §1,**Claude 不得撰寫 `conflict-labels.json` 與 `gold-issues.json` 的內容**。
+兩者必須由**兩個各自全新的 clean-room Gemini session** 產出
+(conflict labelling 一個、gold issues 另一個,且 gold 標註者不得看到 conflict 標註結果)。
+
+因此 acceptance criteria 第 5、6、7 項尚未滿足。
+測試已寫好並在標註缺席時自動 skip;標註送回後會自動生效,包含
+**negative control 獨立驗證**:若 `fx-04` 被獨立標為 `materialConflict=true`,測試會 FAIL ——
+依 protocol **不得編輯標註,必須更換候選**。
+
+### 7. Claim boundary(必須維持)
+
+```
+✅ runtime-side fixture 已凍結並 hash    ✅ clean-room packet 已凍結
+✅ 路徑隔離已結構性測試                  ✅ Option 3′ 分配已凍結
+❌ 尚未取得 clean-room 標註              ❌ 尚未 GPT Fixture Review
+❌ 零 Gate / arm / provider 執行          ❌ 未跑 temperature probe
+❌ 無任何 effectiveness 證據
+```
+
+**不得寫成 PILOT READY / EFFECTIVENESS VALIDATED / GATE VALIDATED / PRODUCTION READY。**
+
+### 8. 順帶修掉已核准的 doc debt
+
+`arms.mjs` 檔頭的 `6 per fixture-repetition` 改為明確區分
+**TRIGGERED = 6 / NO-TRIGGER = 2**。無功能變更,未獨立開 commit。
+
+---
 
 ## rev. 26 改了什麼(H-05 provenance + D-01 wording —— experiments/ only,src/ zero-change)
 

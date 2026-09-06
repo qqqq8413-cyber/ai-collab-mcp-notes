@@ -1,0 +1,6 @@
+{
+  "specialists": [
+    { "id": "clinical_staffing", "provider": "claude", "model": "claude-sonnet-5", "role": "Clinical Staffing Lead — 臨床人力、排班可行性、招募週期、現場交付品質" },
+    { "id": "growth_planning",   "provider": "claude", "model": "claude-sonnet-5", "role": "Growth Planning Strategist — 成長時機、需求缺口、物件機會成本、分階段落地" }
+  ]
+}

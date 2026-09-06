@@ -1,12 +1,20 @@
 /**
  * The four Phase 1 arm runners (protocol v0.2 §3.1).
  *
+ * A TRIGGERED repetition — the Gate selected an issue:
+ *
  *   B        synthesis only                                        1 billable call
  *   B'       shared synthesis_gate provisional, no Round 2         1 billable call (the shared gate)
  *   C        shared gate -> round2_worker -> decision_synthesis    2 billable calls
  *   D1       shared gate -> self_review   -> decision_synthesis    2 billable calls
  *                                                                  ----------------
- *                                                                  6 per fixture-repetition
+ *                                                                  TRIGGERED = 6 per repetition
+ *
+ * A NO-TRIGGER repetition — the Gate selected nothing — costs 2. C degenerates to B'
+ * (same finalOutput, no second round) and D1 is skipped with nothing to review. That is a
+ * valid observation and must not be discarded; see the H-03 amendment.
+ *
+ *                                                                  NO-TRIGGER = 2 per repetition
  *
  * B', C and D1 are built on ONE gate response, not three samples of it. That is not a cost
  * optimization first — protocol §5.1: the gate's own output flipped a headline decision
