@@ -34,7 +34,7 @@ STATUS:  DRAFT
 | A-2 | Primary estimand `P(deep ∧ assigned ≥ 2 | CBRP)` | **ARCHITECTURE-DECIDED** | Named *reference-population assignment rate* |
 | A-3 | Six primary-intent strata | **ARCHITECTURE-DECIDED** | Census §3 |
 | A-4 | Equal weighting, 10 tasks per stratum | **ARCHITECTURE-DECIDED** | Never a usage-frequency claim |
-| A-5 | N = 60 | **ARCHITECTURE-DECIDED** | Derived from θ, not from cost |
+| A-5 | N = 60 | **ARCHITECTURE-DECIDED** | N = 59 is the statistical minimum; **60 is the smallest balanced six-stratum design** meeting it. Derived from θ, never from cost |
 | A-6 | θ_feas = 5% | **ARCHITECTURE-DECIDED** | Design decision, not a definition of "rare" |
 | A-7 | Decision zones VIABLE / TOO_SPARSE / INCONCLUSIVE | **ARCHITECTURE-DECIDED** | Census §5.2 |
 | A-8 | Routing rubric operational enough for two reviewers to agree | **PROPOSED** | Drafted in Census §3.2; **agreement is asserted, never measured** — see D-3 |
@@ -46,10 +46,13 @@ STATUS:  DRAFT
 
 | # | Item | Status | Note |
 |---|---|---|---|
-| B-1 | Exact one-sided Clopper–Pearson bounds, α = 0.05 | **ARCHITECTURE-DECIDED** | |
-| B-2 | Interval **implementation** | **OPEN** | Three candidates and tradeoffs in Census §5.3; must be pinned before execution |
+| B-0 | Model: independent, **non-identically** distributed Bernoulli; estimand `p̄ = (1/N)Σpi`; count is Poisson-binomial, never an ordinary Binomial | **ARCHITECTURE-DECIDED** | Census §2.2 |
+| B-1 | **M-CBRP-STAT-01** — heterogeneous-Bernoulli-valid Buehler-optimal one-sided bounds (Mattner–Tasto), α = 0.05, β = 0.95 | **ARCHITECTURE-DECIDED** | Method chosen; **implementation still open — see B-2** |
+| B-1b | MT endpoints: `k = 1` lower `(1−β)/N`, `k = N−1` upper `1−(1−β)/N`, CP interior | **ARCHITECTURE-DECIDED** | Census §5.2 |
+| B-1c | Independence is a **modeling assumption**, not attested by fingerprint / model pin / provider pin | **ARCHITECTURE-DECIDED** | Census §5.2.1 |
+| B-2 | Interval **implementation**, including the two MT special cases | **OPEN** | Census §5.3; must be pinned before execution |
 | B-3 | Numerical convention — tolerance, iteration bound, reported precision | **OPEN** | |
-| B-4 | Edge cases `k = 0` and `k = n` | **OPEN** | `k = 0` decides TOO_SPARSE, so its handling is load-bearing |
+| B-4 | Edge cases `k = 0`, `k = 1`, `k = N−1`, `k = N` | **OPEN** | `k = 0` decides TOO_SPARSE, so its handling is load-bearing; `k = 1` and `k = N−1` are where MT and CP differ |
 | B-5 | Independent reproduction path for both bounds | **OPEN** | A second toolchain as cross-check, not as source of truth |
 | B-6 | Point estimate reported descriptively only | **ARCHITECTURE-DECIDED** | The ≥ 10% point-estimate rule is explicitly rejected |
 | B-7 | Decision-rule version string recorded in the artifact | **OPEN** | |
@@ -105,9 +108,9 @@ STATUS:  DRAFT
 
 | # | Item | Status | Note |
 |---|---|---|---|
-| F-1 | Planning-only harness | **OPEN** | Currently **PARTIAL**; nothing implemented |
-| F-2 | `runPlanningStage()` behaviour-preserving extraction | **OPEN** | Concept accepted as sound; **not implemented, not authorized** |
-| F-3 | Proof the extraction moved no behaviour | **OPEN** | `test-round1-boundary.mjs` is the existing pattern |
+| F-1 | Planning-only harness | **OPEN** | `runPlanningStage()` exists; the **census** harness around it does not |
+| F-2 | `runPlanningStage()` behaviour-preserving extraction | **IMPLEMENTED** | See CENSUS-REQ-01 |
+| F-3 | Proof the extraction moved no behaviour | **VERIFIED** | Full Round 1 output, provider call order and the five-read stepped clock all asserted unchanged |
 | F-4 | Chief system prompt unchanged | **ARCHITECTURE-DECIDED** | |
 | F-5 | `SPECIALIST_CAP`, registry, planner logic unchanged | **ARCHITECTURE-DECIDED** | |
 | F-6 | Planning provider/model pin | **OPEN** | P03 used `openai/gpt-5`; not carried over by default |
@@ -184,17 +187,31 @@ eventDeep ｜ eventAssignedGte2 ｜ eventJoint
 
 ---
 
+## K. Engineering requirements for a live census
+
+Raised by the planning-stage extraction and the statistical correction. **Do not
+read any of 03–06 as implemented; they are not.**
+
+| # | Requirement | Status | Note |
+|---|---|---|---|
+| **CENSUS-REQ-01** | `runPlanningStage()` parity — a production plan obtainable with zero worker calls, behaviour provably unmoved | **IMPLEMENTED** | Extracted; 32 planning-stage tests and 18 Round 1 boundary tests, both in the root test command |
+| **CENSUS-REQ-02** | Post-enforcement event source — the formal assignment count is `runPlanningStage().plan.assignments.length`, never the raw Chief JSON | **ARCHITECTURE-DECIDED** | Documented in Census §2.2; a test pins that raw 5 becomes enforced 4. **The census consumer of it does not exist yet** |
+| **CENSUS-REQ-03** | Durable **pre-dispatch** attempt reservation — a task must be recorded as attempted before its call leaves, so a crash cannot hide a spent attempt | **OPEN** | Not implemented. The capture recorder reserves a budget slot pre-call and journals post-settle; a census needs the attempt itself durable before dispatch |
+| **CENSUS-REQ-04** | Source ↔ dist execution binding — proof that the executed `dist/` was built from the authorized source HEAD | **OPEN** | Not implemented. The runtime fingerprint hashes both trees but does **not** establish that one was compiled from the other |
+| **CENSUS-REQ-05** | Zod installed-byte provenance | **OPEN** | Not implemented. Zod parses the plan, so it is on the path that produces the event; a census must attest its installed bytes as the provider SDKs are attested. Package versions unchanged by this round |
+| **CENSUS-REQ-06** | Census-specific recorder and artifact contract | **OPEN** | Not implemented. Draft schema in §G; no recorder, no session driver, no analysis runner |
+
 ## J. Readiness summary
 
 ```
-68 checklist items
+77 checklist items
 
-ARCHITECTURE-DECIDED   24
+ARCHITECTURE-DECIDED   28
 PROPOSED                8
-OPEN                   34
+OPEN                   36
 DRAFT                   2
-IMPLEMENTED             0
-VERIFIED                0
+IMPLEMENTED             2     （CENSUS-REQ-01 and F-2: the same extraction）
+VERIFIED                1     （F-3: parity proven by deterministic test）
 ```
 
 **Not preregistration-ready.** The blocking clusters, in the order they gate
@@ -206,8 +223,10 @@ each other:
    before a single task is written, or the pool inherits whatever was convenient.
 3. **C-8** — the 60 tasks. Nothing can be frozen until they exist, and they may
    not be authored until the items above are settled.
-4. **F-1 … F-3** — the planning-only harness. Not implementable until GPT
-   authorizes the `runPlanningStage()` extraction.
+4. **CENSUS-REQ-03 … 06** — the census harness itself. `runPlanningStage()` now
+   exists (CENSUS-REQ-01), so the remaining engineering is the recorder, the
+   durable attempt reservation, the source↔dist binding and Zod provenance.
+   None is implemented, and none is authorized by the packet that produced this.
 
 `[OPEN]` One structural gap worth naming: **A-8 asserts the routing rubric is
 operational, and nothing currently measures it.** D-3's two-reviewer design is

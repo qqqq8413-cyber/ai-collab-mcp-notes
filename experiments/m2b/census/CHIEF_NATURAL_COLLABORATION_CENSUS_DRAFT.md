@@ -69,13 +69,39 @@ actual user traffic ｜ real-world prevalence
 production telemetry ｜ production-wide usage distribution
 ```
 
-### 2.2 Primary estimand
+### 2.2 Primary estimand — an average, not a common rate
+
+For task *i*, define the indicator
 
 ```
-P( complexity = deep  AND  assigned specialist count >= 2  |  CBRP )
+Yi = 1   iff the POST-ENFORCEMENT production plan satisfies
+         complexity = deep  AND  assignments.length >= 2
+```
+
+Each `Yi` has **its own** success probability `pi`. The tasks are sixty different
+decisions in six different strata; nothing makes them equiprobable, and asserting
+`p1 = p2 = … = p60` would be a claim about the Chief that this study is supposed
+to measure rather than assume.
+
+The estimand is therefore the **average**:
+
+```
+p̄ = (1/N) · Σ pi          over the frozen CBRP population
 ```
 
 Required name for this quantity: **reference-population assignment rate**.
+
+**Model assumption:** independent, potentially **non-identically distributed**
+Bernoulli observations. The count `K = Σ Yi` is a **Poisson-binomial** count, an
+inhomogeneous Bernoulli chain — **not** an ordinary Binomial random variable, and
+it must never be called one.
+
+`[FACT]` The event source is the **post-enforcement** plan. `plan.assignments`
+has already been through `planSchema`, `extractJsonObject` and
+`enforceConstraints`, so it is what production would actually have dispatched.
+**The raw Chief JSON assignment count must never be the formal event source** —
+a planner that asks for five specialists when two are unknown and the cap is four
+has proposed five and produced four, and the four is what happened.
 
 **Allowed scoping** — every claim must carry one of these:
 
@@ -320,9 +346,14 @@ For **zero** observed events, the exact one-sided 95% upper bound is
 | 45 | 6.44% | **No** — still above θ, verdict would be INCONCLUSIVE |
 | **60** | **4.87%** | **Yes** — crosses below θ = 5% |
 
-N = 60 is the design target because it is the point at which the cheapest
-possible outcome — seeing nothing at all — is still informative. It also divides
-cleanly: **6 strata × 10 tasks**.
+`[FACT]` **N = 59 is the smallest integer** satisfying the zero-event condition:
+`1 − 0.05^(1/59) = 4.951% ≤ 5%`, while N = 58 gives 5.034%. Solving
+`1 − 0.05^(1/N) ≤ 0.05` gives `N ≥ 58.404`.
+
+CBRP additionally requires six equal strata with equal task counts. **N = 60 is
+therefore the smallest *balanced six-stratum design*** satisfying the condition —
+`6 × 10` — and that, not the statistical minimum, is why it is the design target.
+Stating it the other way round would be false.
 
 `[DESIGN]` Sample size is **not** justified by runtime or wall-clock cost. The
 previous draft's timing estimates are demoted to non-decisional provenance:
@@ -331,8 +362,27 @@ future operator can plan a session, and **no design choice rests on them**.
 
 ### 5.2 Decision rule
 
-Exact binomial (Clopper–Pearson) one-sided bounds, α = 0.05, against
-θ_feas = 5%:
+**Method: heterogeneous-Bernoulli-valid Buehler-optimal one-sided bounds**
+(Mattner–Tasto), α = 0.05, β = 0.95, against θ_feas = 5%.
+
+The name matters. Ordinary Clopper–Pearson is derived for *identically*
+distributed trials; using it here and calling it Clopper–Pearson would assert the
+homogeneity §2.2 explicitly refuses. The Buehler-optimal construction for the
+average success probability of independent **non-identical** Bernoulli trials is
+valid without that assumption. At β = 0.95 **most interior endpoints coincide
+exactly with the ordinary one-sided CP endpoints**; only the extreme cases differ:
+
+```
+lower bound      k = 0        0
+                 k = 1        (1 - beta) / N          = 0.05/60 = 0.0833%
+                 k >= 2       ordinary one-sided CP lower endpoint  g_N(k)
+
+upper bound      k <= N-2     ordinary one-sided CP upper endpoint
+                 k = N-1      1 - (1 - beta) / N      = 99.9167%
+                 k = N        1
+```
+
+Decision zones:
 
 ```
 VIABLE         one-sided 95% LOWER bound  >  5%
@@ -345,20 +395,44 @@ preregistered implementation, not read from this table):
 
 | events k | point | 95% lower | 95% upper | zone |
 |---|---|---|---|---|
-| 0 | 0.00% | — | 4.87% | **TOO_SPARSE** |
-| 1 | 1.67% | 0.09% | 7.66% | INCONCLUSIVE |
-| 2 | 3.33% | 0.60% | 10.12% | INCONCLUSIVE |
-| 3 | 5.00% | 1.38% | 12.42% | INCONCLUSIVE |
-| 4 | 6.67% | 2.31% | 14.61% | INCONCLUSIVE |
-| 5 | 8.33% | 3.34% | 16.73% | INCONCLUSIVE |
-| 6 | 10.00% | 4.45% | 18.79% | INCONCLUSIVE |
-| 7 | 11.67% | 5.61% | 20.80% | **VIABLE** |
-| ≥ 8 | — | > 6.8% | — | **VIABLE** |
+| 0 | 0.00% | 0.0000% | 4.8703% | **TOO_SPARSE** |
+| 1 | 1.67% | 0.0833% ← MT | 7.6640% | INCONCLUSIVE |
+| 2 | 3.33% | 0.5955% | 10.1236% | INCONCLUSIVE |
+| 3 | 5.00% | 1.3765% | 12.4187% | INCONCLUSIVE |
+| 4 | 6.67% | 2.3091% | 14.6097% | INCONCLUSIVE |
+| 5 | 8.33% | 3.3411% | 16.7263% | INCONCLUSIVE |
+| 6 | 10.00% | 4.4453% | 18.7857% | INCONCLUSIVE |
+| 7 | 11.67% | 5.6055% | 20.7991% | **VIABLE** |
+| ≥ 8 | — | ≥ 6.8110% | — | **VIABLE** |
+
+`[FACT]` **The correction does not move the accepted operational zones.** Only
+`k = 1`'s lower endpoint changes at all — from CP's 0.0855% to MT's 0.0833% —
+and both sit far below θ, so `k = 1` is INCONCLUSIVE either way. `k = 0` remains
+TOO_SPARSE, `k ≥ 7` remains VIABLE. The methodology was corrected without
+silently relocating the threshold it is judged against.
 
 The point estimate is **reported descriptively and never decides anything**.
 Row `k = 6` is why: its point estimate is exactly 10%, and under the rejected
 "point estimate ≥ 10%" rule it would have been called viable, while its true
 rate is not distinguishable from 4.4%.
+
+### 5.2.1 The independence assumption
+
+`[DESIGN]` The confidence interpretation assumes the sixty planning observations
+are **independent**. That is a **modeling assumption**, and it is not established
+by anything the harness records:
+
+```
+runtime fingerprint   attests this repository's src/ and dist/, not the backend
+model pin             attests what was requested and reported, not backend state
+provider pin          attests routing, not statistical independence
+dependency provenance attests installed bytes, not server behaviour
+```
+
+Execution controls — a fixed model pin, no retries, a single session, a
+preregistered order — **reduce avoidable nonstationarity**. They do not prove
+backend stochastic independence, and no artifact this study can produce would.
+Any result must state the assumption rather than imply it was verified.
 
 `[OPEN]` **The rule is asymmetric and this must be stated in any result.** Only
 `k = 0` can produce TOO_SPARSE, so the design rules *in* far more readily than it
@@ -368,21 +442,25 @@ require a larger N, is an architecture decision this draft does not make.
 
 ### 5.3 Exact interval implementation — OPEN
 
-`[OPEN]` Not chosen here, deliberately. The bounds decide the study's verdict, so
-the implementation must be preregistered rather than picked at analysis time.
+`[OPEN]` **M-CBRP-STAT-01 — heterogeneous Bernoulli interval specification.**
+Not chosen here, deliberately. The bounds decide the study's verdict, so the
+implementation must be preregistered rather than picked at analysis time. It must
+implement the MT endpoints of §5.2, **including the `k = 1` and `k = N−1` special
+cases** — an implementation that silently used CP throughout would be wrong in
+exactly the two places the correction exists for.
 
 | Approach | For | Against |
 |---|---|---|
-| Beta-quantile identity (`L = BetaInv(α; k, n−k+1)`, `U = BetaInv(1−α; k+1, n−k)`) | Standard, one line given a beta quantile | Adds a dependency, or a hand-written incomplete-beta |
+| Beta-quantile identity for the CP interior (`L = BetaInv(α; k, n−k+1)`, `U = BetaInv(1−α; k+1, n−k)`), with the MT endpoints special-cased | Standard, one line given a beta quantile | Adds a dependency, or a hand-written incomplete-beta; the special cases must not be forgotten |
 | Bisection on the exact binomial CDF | No dependency; the CDF is a short exact sum at n = 60 | Convergence tolerance and iteration count must be preregistered |
 | Independent recomputation in R/Python (`binom.test`, `scipy.stats.beta.ppf`) as a **cross-check** | An external second implementation is the strongest audit | Requires a second toolchain; must be a check, not the source of truth |
 
 Must be pinned before preregistration:
 
 ```
-alpha = 0.05, one-sided                numerical tolerance / iteration bound
-edge cases k = 0 and k = n             rounding and reported precision
-how bounds are independently reproduced by a reviewer
+alpha = 0.05, beta = 0.95, one-sided    numerical tolerance / iteration bound
+MT special cases k = 1 and k = N-1     edge cases k = 0 and k = N
+rounding and reported precision        independent reproduction by a reviewer
 ```
 
 ---

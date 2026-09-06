@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  13020178d4d5e9e19e27572e1c2077002c5bbd92
+stateVerifiedThrough  f5c566f43722ccdd1bdb8f016aa5416b517c19c7
 production            src/** 停在 d01043b（accepted pre-synthesis boundary）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -372,6 +372,41 @@ planning-only 觀察不到。禁止寫成「F2 pass」「F2 rate」「successful
 Phase 2:**NOT DESIGNED / NOT PREREGISTERED / NOT AUTHORIZED。**
 
 `[DESIGN]` blinded authoring **降低**出題者偏誤,**不消除**它。
+
+`[DECISION]` **統計模型已更正為 heterogeneous(CWP-6A)。** 六十個觀察不是同分佈的
+Bernoulli trial:每個 task 有自己的 `pi`,estimand 是平均值 `p̄ = (1/N)Σpi`,
+計數 `K` 是 **Poisson-binomial**,**不得**稱為 ordinary Binomial。
+區間方法為 **heterogeneous-Bernoulli-valid Buehler-optimal one-sided bounds**
+(Mattner–Tasto),β = 0.95;內部端點多半與 ordinary one-sided CP 重合,
+差異只在 `k = 1`(lower `(1−β)/N`)與 `k = N−1`(upper `1−(1−β)/N`)。
+**決策分區未因此更動**:`k = 0` TOO_SPARSE ｜ `k = 1..6` INCONCLUSIVE ｜ `k ≥ 7` VIABLE。
+
+`[FACT]` **N = 59 才是滿足零事件條件的最小整數**(4.951% ≤ 5%,N = 58 為 5.034%)。
+N = 60 是**滿足該條件的最小「六層等量平衡設計」**(6 × 10) —— 不得寫成「最小的 N」。
+
+`[DESIGN]` **independence 是模型假設,不是被證明的性質。** runtime fingerprint、
+model pin、provider pin、dependency provenance 都**不**證明 backend 的統計獨立性;
+執行控制只降低可避免的 nonstationarity。
+
+`[FACT]` **formal event source 是 post-enforcement 的
+`runPlanningStage().plan.assignments.length`**,絕不是 Chief 的原始 JSON 數量。
+
+**`runPlanningStage()` 已抽出(CENSUS-REQ-01,IMPLEMENTED)** ——
+production 的 planning 半段現在可單獨呼叫、零 worker call,
+`runRound1Stage()` 改為呼叫它,行為與五次時鐘讀取皆經確定性測試證明未位移。
+`planSchema` / `extractJsonObject` / `enforceConstraints` **維持 private**,無重複實作。
+
+其餘 census 工程需求**皆未實作**:
+
+```
+CENSUS-REQ-03  durable pre-dispatch attempt reservation     未實作
+CENSUS-REQ-04  source ↔ dist execution binding              未實作（fingerprint 不證明編譯關係）
+CENSUS-REQ-05  Zod installed-byte provenance                未實作（Zod 參與 plan 解析，
+                                                             未來 census provenance 必須涵蓋它；
+                                                             本輪未動任何套件版本，
+                                                             歷史 CAPTURE-3 主張不受影響）
+CENSUS-REQ-06  census recorder / artifact contract           未實作
+```
 
 ```
 study status              NOT PREREGISTERED ｜ NOT AUTHORIZED
