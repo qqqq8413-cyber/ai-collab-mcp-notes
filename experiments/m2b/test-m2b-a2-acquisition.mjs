@@ -11,7 +11,7 @@
  */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,6 +22,7 @@ import {
   NEGATIVE_CONTROL_CAPTURE_DIR, NO_A2_BATCH, A2_BATCH, NO_F4_ELIGIBLE_CANDIDATES,
   STOP_REQUIRED, NEGATIVE_CONTROL_UNEXPECTED_TRUE, A2LeakageDetected, A2CaptureError,
   A2_INSTRUCTIONS, CASE_PAYLOAD_FORBIDDEN_TERMS,
+  A2ProvenanceError, ROUND1_PRESENT, PRE_ROUND1_FATAL, validatePriorProvenanceChain,
   loadRealCapture, isAdmissible, passagesForCapture, passageIdsForCapture, orderCases,
   caseIdFor, scanCasePayload, scanInternalIdentities, assertA2PacketClean,
   negativeControlAlreadyUsed, buildA2AcquisitionBatch, validateAnnotation,
@@ -90,6 +91,45 @@ function makeCapture(dir, {
     captureStatus: 'CAPTURED',
     eligibility: { F1: complexity === 'deep', F2: workers.length >= 2, F3: reportStatus === 'SUCCESS' },
     agentOrder: workers.map((w) => w.agentId),
+    fileHashes: Object.fromEntries(Object.entries(files).map(([k, v]) => [k, sha256(v)])),
+  };
+  writeFileSync(join(dir, 'capture-manifest.json'), canonical({ ...rest, manifestSha256: sha256(canonical(rest)) }));
+  return dir;
+}
+
+/**
+ * Writes the shape production seals when the planning call dies before Round 1 exists.
+ *
+ * Taken from `captureCandidate`: with `round1 === null` it seals task.txt,
+ * available-roster.json and raw-calls.json and nothing else, and every Round-1 field on
+ * the manifest stays null. This helper reproduces that exactly, because a test that
+ * invented a friendlier shape would be testing a capture production never writes.
+ */
+function makeFatalCapture(dir, { fixtureId, task, fatalError = 'Error: planning provider failure' }) {
+  mkdirSync(dir, { recursive: true });
+  const files = {
+    'task.txt': task,
+    'available-roster.json': canonical({ refs: [], workers: [], warnings: [] }),
+    'raw-calls.json': canonical([]),
+  };
+  for (const [name, content] of Object.entries(files)) writeFileSync(join(dir, name), content);
+
+  const rest = {
+    fixtureId,
+    captureVersion: 'M2B-REAL-ROUND1-CAPTURE-2',
+    protocolVersion: PROTOCOL_VERSION,
+    taskSha256: sha256(task),
+    captureStatus: 'FAILED',
+    eligibility: { F1: false, F2: false, F3: false },
+    failureReasons: [`fatal: ${fatalError}`],
+    fatalError,
+    actualComplexity: null,
+    round1Status: null,
+    successfulWorkerCount: 0,
+    failedWorkerCount: 0,
+    agentOrder: null,
+    snapshotSha256: null,
+    workers: [],
     fileHashes: Object.fromEntries(Object.entries(files).map(([k, v]) => [k, sha256(v)])),
   };
   writeFileSync(join(dir, 'capture-manifest.json'), canonical({ ...rest, manifestSha256: sha256(canonical(rest)) }));
@@ -712,6 +752,246 @@ await check('the acquisition path does not import or reuse the legacy builder', 
   }
 });
 
+console.log('\nC-01 — fatal and pre-Round1 captures');
+
+await check('T-R1: a legal pre-Round1 fatal capture loads instead of crashing', () => {
+  const dir = makeFatalCapture(join(SCRATCH, 'fatal-1'), { fixtureId: 'S1', task: '一家公司要決定併購後的品牌整合方案。' });
+  const capture = loadRealCapture(dir);
+  assert.equal(capture.captureOutcome, PRE_ROUND1_FATAL);
+  assert.deepEqual(capture.eligibility, { F1: false, F2: false, F3: false });
+  assert.equal(capture.admitted, false);
+  assert.equal(isAdmissible(capture), false);
+  // Enough survives to record why it was rejected, without inventing a round it never had.
+  assert.equal(capture.fixtureId, 'S1');
+  assert.equal(capture.captureDir, dir);
+  assert.ok(capture.task.length > 0);
+  assert.equal(capture.taskSha256, sha256(capture.task));
+  assert.equal(capture.manifestSha256.length, 64);
+  assert.match(capture.fatalError, /planning provider failure/);
+  assert.deepEqual(capture.workerResults, []);
+  assert.deepEqual(capture.agentOrder, []);
+});
+
+await check('T-R2: a wave mixing one fatal capture with two eligible ones still builds', () => {
+  const fatal = makeFatalCapture(join(SCRATCH, 'mixed-s1'), { fixtureId: 'S1', task: '混合波：策略題的原始任務內容。' });
+  const wave = makeWaveOne(join(SCRATCH, 'mixed'), { suffix: ' 混合波' });
+  const result = buildA2AcquisitionBatch({ candidateCaptureDirs: [fatal, wave.E1, wave.I1] });
+  assert.equal(result.status, A2_BATCH);
+  assert.deepEqual([...result.admitted].sort(), ['E1', 'I1']);
+  assert.equal(result.rejected.length, 1);
+  assert.equal(result.rejected[0].fixtureId, 'S1');
+  assert.equal(result.rejected[0].captureOutcome, PRE_ROUND1_FATAL);
+  assert.match(result.rejected[0].fatalError, /planning provider failure/);
+  // First non-empty batch, so the control travels with it.
+  assert.equal(result.negativeControlIncluded, true);
+  assert.equal(result.provenance.cases.length, 3);
+  assert.ok(!result.provenance.cases.some((c) => c.internalFixtureId === 'S1'), 'a fatal capture never becomes a case');
+  assert.deepEqual(verifyProvenance(result.provenance).failures, []);
+});
+
+await check('T-R2b: the fatal reason stays in hidden provenance and never reaches A2', () => {
+  const fatal = makeFatalCapture(join(SCRATCH, 'leaky-s1'), {
+    fixtureId: 'S1', task: '洩漏檢查：策略題的原始任務內容。',
+    fatalError: 'ModelPinMismatch: expected openai/gpt-5, resolved claude/claude-sonnet-5',
+  });
+  const wave = makeWaveOne(join(SCRATCH, 'leaky'), { suffix: ' 洩漏檢查' });
+  const result = buildA2AcquisitionBatch({ candidateCaptureDirs: [fatal, wave.E1, wave.I1] });
+  assert.match(result.provenance.rejected[0].fatalError, /gpt-5/);
+  assert.ok(!result.packet.text.includes('gpt-5'));
+  assert.ok(!result.packet.text.includes('ModelPinMismatch'));
+  assert.deepEqual(scanInternalIdentities(result.packet.text), []);
+});
+
+await check('T-R3: a wave where every capture died fatally returns NO_A2_BATCH', () => {
+  const dirs = [
+    makeFatalCapture(join(SCRATCH, 'all-fatal-s'), { fixtureId: 'S1', task: '全部失敗：策略題。' }),
+    makeFatalCapture(join(SCRATCH, 'all-fatal-e'), { fixtureId: 'E1', task: '全部失敗：執行限制題。' }),
+    makeFatalCapture(join(SCRATCH, 'all-fatal-i'), { fixtureId: 'I1', task: '全部失敗：證據解讀題。' }),
+  ];
+  const result = buildA2AcquisitionBatch({ candidateCaptureDirs: dirs });
+  assert.equal(result.status, NO_A2_BATCH);
+  assert.equal(result.reason, NO_F4_ELIGIBLE_CANDIDATES);
+  assert.equal(result.negativeControlIncluded, false, 'the control must not go out alone');
+  assert.equal(result.packet, null);
+  assert.equal(result.provenance, null);
+  assert.equal(result.rejected.length, 3);
+  assert.ok(result.rejected.every((r) => r.captureOutcome === PRE_ROUND1_FATAL));
+});
+
+await check('T-R3b: a wave mixing fatal captures with F1/F2/F3 failures is still NO_A2_BATCH', () => {
+  const dirs = [
+    makeFatalCapture(join(SCRATCH, 'mix-fatal'), { fixtureId: 'S1', task: '混合失敗：策略題。' }),
+    makeCapture(join(SCRATCH, 'mix-f1'), {
+      fixtureId: 'E1', task: '混合失敗：執行限制題。', complexity: 'normal',
+      workers: [{ agentId: 'business_strategist', mission: 'm', output: body('a', 2) }, { agentId: 'brand_creative', mission: 'm', output: body('b', 2) }],
+    }),
+  ];
+  const result = buildA2AcquisitionBatch({ candidateCaptureDirs: dirs });
+  assert.equal(result.status, NO_A2_BATCH);
+  assert.equal(result.reason, NO_F4_ELIGIBLE_CANDIDATES);
+  assert.deepEqual(result.rejected.map((r) => r.captureOutcome).sort(), [PRE_ROUND1_FATAL, ROUND1_PRESENT]);
+});
+
+await check('T-R4: a capture that declares a round but is missing it is corruption, not a failure', () => {
+  const dir = makeCapture(join(SCRATCH, 'deleted-round'), {
+    fixtureId: 'I1', task: '宣稱有 Round1 卻被刪除。',
+    workers: [
+      { agentId: 'business_strategist', mission: 'm', output: body('a', 2) },
+      { agentId: 'brand_creative', mission: 'm', output: body('b', 2) },
+    ],
+  });
+  rmSync(join(dir, 'snapshot.json'));
+  rmSync(join(dir, 'report.json'));
+  const err = mustRejectSync(() => loadRealCapture(dir));
+  assert.ok(err instanceof A2CaptureError, 'corruption must not be downgraded to an ineligible candidate');
+  assert.match(String(err), /missing snapshot\.json|missing report\.json/);
+});
+
+await check('T-R4b: a capture sealing only one of snapshot/report is corruption', () => {
+  const dir = makeFatalCapture(join(SCRATCH, 'half-sealed'), { fixtureId: 'E1', task: '只封了一半。' });
+  const m = JSON.parse(readFileSync(join(dir, 'capture-manifest.json'), 'utf8'));
+  const { manifestSha256, ...rest } = m;
+  writeFileSync(join(dir, 'snapshot.json'), canonical({ task: 'x', complexity: 'deep', agentOrder: [], workers: [], workerResults: [] }));
+  rest.fileHashes['snapshot.json'] = sha256(readFileSync(join(dir, 'snapshot.json'), 'utf8'));
+  writeFileSync(join(dir, 'capture-manifest.json'), canonical({ ...rest, manifestSha256: sha256(canonical(rest)) }));
+  const err = mustRejectSync(() => loadRealCapture(dir));
+  assert.ok(err instanceof A2CaptureError);
+  assert.match(String(err), /only one of snapshot\.json \/ report\.json/);
+});
+
+await check('T-R4c: a capture with no round and no fatal error does not match any legal shape', () => {
+  const dir = makeFatalCapture(join(SCRATCH, 'no-reason'), { fixtureId: 'S2', task: '沒有 Round1 也沒有 fatal。' });
+  const m = JSON.parse(readFileSync(join(dir, 'capture-manifest.json'), 'utf8'));
+  const { manifestSha256, ...rest } = m;
+  rest.fatalError = null;
+  rest.captureStatus = 'CAPTURED';
+  writeFileSync(join(dir, 'capture-manifest.json'), canonical({ ...rest, manifestSha256: sha256(canonical(rest)) }));
+  const err = mustRejectSync(() => loadRealCapture(dir));
+  assert.ok(err instanceof A2CaptureError);
+  assert.match(String(err), /does not match the fatal shape/);
+});
+
+await check('T-R5: a fatal capture whose task or seal was tampered with is rejected', () => {
+  const tamperedTask = makeFatalCapture(join(SCRATCH, 'fatal-task-tamper'), { fixtureId: 'S3', task: '原始任務。' });
+  writeFileSync(join(tamperedTask, 'task.txt'), '被改過的任務。');
+  const taskErr = mustRejectSync(() => loadRealCapture(tamperedTask));
+  assert.ok(taskErr instanceof A2CaptureError);
+  assert.match(String(taskErr), /does not match its sealed hash/);
+
+  const tamperedSeal = makeFatalCapture(join(SCRATCH, 'fatal-seal-tamper'), { fixtureId: 'E3', task: '另一個原始任務。' });
+  const m = JSON.parse(readFileSync(join(tamperedSeal, 'capture-manifest.json'), 'utf8'));
+  m.fatalError = 'Error: something friendlier';
+  writeFileSync(join(tamperedSeal, 'capture-manifest.json'), canonical(m));
+  const sealErr = mustRejectSync(() => loadRealCapture(tamperedSeal));
+  assert.ok(sealErr instanceof A2CaptureError);
+  assert.match(String(sealErr), /does not match its own seal/);
+});
+
+console.log('\nC-02 — prior provenance validation');
+
+await check('T-R12: an empty chain yields a FRESH first batch at index 1', () => {
+  const chain = validatePriorProvenanceChain([]);
+  assert.deepEqual(chain, { batchCount: 0, lastBatchIndex: 0, negativeControlUsed: false, sessionStart: 'FRESH' });
+  assert.equal(batch1.provenance.a2SessionStart, 'FRESH');
+  assert.equal(batch1.provenance.batchIndex, 1);
+  assert.equal(validatePriorProvenanceChain().batchCount, 0);
+});
+
+const chainWave2 = makeWaveOne(join(SCRATCH, 'chain-w2'), { suffix: ' 鏈第二波' });
+const chainBatch2 = buildA2AcquisitionBatch({
+  candidateCaptureDirs: [chainWave2.S1, chainWave2.E1],
+  priorProvenance: [batch1.provenance],
+});
+
+await check('T-R6: a valid chain is accepted, continues the session and does not repeat the control', () => {
+  const chain = validatePriorProvenanceChain([batch1.provenance]);
+  assert.equal(chain.batchCount, 1);
+  assert.equal(chain.lastBatchIndex, 1);
+  assert.equal(chain.negativeControlUsed, true);
+  assert.equal(chain.sessionStart, 'CONTINUE');
+
+  assert.equal(chainBatch2.provenance.a2SessionStart, 'CONTINUE');
+  assert.equal(chainBatch2.provenance.batchIndex, 2);
+  assert.equal(chainBatch2.negativeControlIncluded, false);
+
+  const chain3 = validatePriorProvenanceChain([batch1.provenance, chainBatch2.provenance]);
+  assert.equal(chain3.lastBatchIndex, 2);
+  assert.equal(chain3.negativeControlUsed, true);
+});
+
+await check('T-R7: a wrong a2SessionId is rejected rather than starting a new annotator', () => {
+  const bad = { ...batch1.provenance, a2SessionId: 'A2-ACQUISITION-2' };
+  const err = mustRejectSync(() => validatePriorProvenanceChain([bad]));
+  assert.ok(err instanceof A2ProvenanceError);
+  assert.match(String(err), /a2SessionId/);
+  assert.ok(mustRejectSync(() => buildA2AcquisitionBatch({ candidateCaptureDirs: [chainWave2.S1], priorProvenance: [bad] })) instanceof A2ProvenanceError);
+});
+
+await check('T-R8: a wrong protocolVersion is rejected', () => {
+  const bad = { ...batch1.provenance, protocolVersion: 'M2B-PROTOCOL-0.2' };
+  const err = mustRejectSync(() => validatePriorProvenanceChain([bad]));
+  assert.ok(err instanceof A2ProvenanceError);
+  assert.match(String(err), /protocolVersion/);
+});
+
+await check('T-R8b: a wrong orderingRule is rejected', () => {
+  const bad = { ...batch1.provenance, orderingRule: 'slot-order' };
+  const err = mustRejectSync(() => validatePriorProvenanceChain([bad]));
+  assert.ok(err instanceof A2ProvenanceError);
+  assert.match(String(err), /orderingRule/);
+});
+
+await check('T-R9: a non-sequential batchIndex is rejected', () => {
+  const skipped = { ...batch1.provenance, batchIndex: 2 };
+  assert.match(String(mustRejectSync(() => validatePriorProvenanceChain([skipped]))), /batchIndex is 2, expected 1/);
+
+  const repeated = [batch1.provenance, { ...chainBatch2.provenance, batchIndex: 1 }];
+  assert.match(String(mustRejectSync(() => validatePriorProvenanceChain(repeated))), /batchIndex is 1, expected 2/);
+});
+
+await check('T-R9b: a chain whose second entry claims to be FRESH is rejected', () => {
+  const bad = [batch1.provenance, { ...chainBatch2.provenance, a2SessionStart: 'FRESH' }];
+  const err = mustRejectSync(() => validatePriorProvenanceChain(bad));
+  assert.ok(err instanceof A2ProvenanceError);
+  assert.match(String(err), /a2SessionStart/);
+});
+
+await check('T-R10: a chain entry whose recorded hashes no longer recompute is rejected', () => {
+  const tampered = { ...batch1.provenance, packetSha256: sha256('a different packet') };
+  const err = mustRejectSync(() => validatePriorProvenanceChain([tampered]));
+  assert.ok(err instanceof A2ProvenanceError);
+  assert.match(String(err), /does not recompute/);
+
+  const reordered = {
+    ...batch1.provenance,
+    cases: [batch1.provenance.cases[1], batch1.provenance.cases[0], ...batch1.provenance.cases.slice(2)]
+      .map((c, i) => ({ ...c, caseId: caseIdFor(i) })),
+  };
+  assert.match(String(mustRejectSync(() => validatePriorProvenanceChain([reordered]))), /does not recompute/);
+});
+
+await check('T-R11: a chain claiming the control twice is rejected', () => {
+  const second = { ...chainBatch2.provenance, negativeControlIncluded: true };
+  const err = mustRejectSync(() => validatePriorProvenanceChain([batch1.provenance, second]));
+  assert.ok(err instanceof A2ProvenanceError);
+  assert.match(String(err), /already recorded as used/);
+});
+
+await check('T-R11b: a chain is validated before it can change what this batch contains', () => {
+  // A chain that wrongly says the control is unused would otherwise send it a second time.
+  const lying = { ...batch1.provenance, negativeControlIncluded: false };
+  const err = mustRejectSync(() => buildA2AcquisitionBatch({
+    candidateCaptureDirs: [chainWave2.I1], priorProvenance: [lying],
+  }));
+  assert.ok(err instanceof A2ProvenanceError, 'the flag alone must not be trusted');
+  assert.match(String(err), /does not recompute/);
+});
+
+await check('T-R11c: a non-array or non-object chain is rejected', () => {
+  assert.ok(mustRejectSync(() => validatePriorProvenanceChain('not an array')) instanceof A2ProvenanceError);
+  assert.ok(mustRejectSync(() => validatePriorProvenanceChain([null])) instanceof A2ProvenanceError);
+});
+
 console.log('\nT-18 — no provider calls');
 
 await check('the module imports nothing that can reach a provider', () => {
@@ -738,9 +1018,18 @@ await check('this suite performs no capture attempt and writes nothing into a ca
   for (const forbidden of ['capture/session', 'capture/run-live', 'capture/recorder', 'capture/runner']) {
     assert.ok(!imports.some((i) => i.includes(forbidden)), `test suite must not reach ${forbidden}`);
   }
-  const writes = [...source.matchAll(/writeFileSync\(join\((\w+)/g)].map((m) => m[1]);
-  assert.ok(writes.every((v) => v === 'dir'), 'every write goes through the temp-dir capture builder');
+  // No write in this suite may be rooted anywhere but the temp dir: the committed
+  // captures it reads are frozen evidence, and a test that edited one in place would
+  // corrupt the artifact the whole experiment rests on.
+  const writeRoots = [...source.matchAll(/writeFileSync\(join\((\w+)/g)].map((m) => m[1]);
+  for (const root of new Set(writeRoots)) {
+    const assignment = new RegExp(`(?:const|let)\\s+${root}\\s*=|\\b${root}\\b\\s*(?:,|\\))`).test(source);
+    assert.ok(assignment, `write root ${root} must be a local variable`);
+    assert.ok(!['REPO', 'M2B', 'NEGATIVE_CONTROL_CAPTURE_DIR'].includes(root), `never write under ${root}`);
+  }
+  assert.ok(!/writeFileSync\(\s*['"`]/.test(source), 'no write to a literal path');
   assert.ok(SCRATCH.startsWith(tmpdir()), 'all writes go to a temp dir');
+  for (const dir of [SCRATCH]) assert.ok(!dir.includes('experiments/m2b/fixtures'), 'never a capture root');
 });
 
 function mustRejectSync(fn) {

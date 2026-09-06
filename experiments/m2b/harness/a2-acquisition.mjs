@@ -54,6 +54,16 @@ export const NEGATIVE_CONTROL_CAPTURE_DIR = fileURLToPath(
   new URL(`../fixtures-real-r2/${NEGATIVE_CONTROL.fixtureId}/`, import.meta.url),
 );
 
+/**
+ * The two capture shapes production can seal.
+ *
+ * A capture that died before Round 1 existed is legal one-shot evidence, not a broken
+ * file: the planning call failed, the attempt is spent, and it may not be retried. It has
+ * no snapshot and no report because there was never a round to snapshot.
+ */
+export const ROUND1_PRESENT = 'ROUND1_PRESENT';
+export const PRE_ROUND1_FATAL = 'PRE_ROUND1_FATAL';
+
 export const NO_A2_BATCH = 'NO_A2_BATCH';
 export const A2_BATCH = 'A2_BATCH';
 export const NO_F4_ELIGIBLE_CANDIDATES = 'NO_F4_ELIGIBLE_CANDIDATES';
@@ -61,6 +71,7 @@ export const STOP_REQUIRED = 'STOP_REQUIRED';
 export const NEGATIVE_CONTROL_UNEXPECTED_TRUE = 'NEGATIVE_CONTROL_UNEXPECTED_TRUE';
 
 export class A2CaptureError extends Error { constructor(m) { super(m); this.name = 'A2CaptureError'; } }
+export class A2ProvenanceError extends Error { constructor(m) { super(m); this.name = 'A2ProvenanceError'; } }
 export class A2LeakageDetected extends Error {
   constructor(term, context) {
     super(`A2 acquisition packet contains "${term}" — ${context}. Packet is INVALID.`);
@@ -108,9 +119,65 @@ export function loadRealCapture(captureDir) {
     files[name] = content;
   }
 
+  const task = files['task.txt'];
+  if (typeof task !== 'string') {
+    throw new A2CaptureError(`${manifest.fixtureId}: capture does not seal task.txt`);
+  }
+
+  // Which shape is this? The sealed manifest decides, not the directory listing: a
+  // capture that *declares* a round and is missing it is corrupt, and a capture that
+  // never had one is evidence. Collapsing those two would turn a tampered artifact into
+  // an ordinary ineligible candidate, which is the one mistake that cannot be noticed
+  // later — the packet would simply be built from a smaller set.
+  const declaresSnapshot = 'snapshot.json' in manifest.fileHashes;
+  const declaresReport = 'report.json' in manifest.fileHashes;
+  const fatalError = manifest.fatalError ?? null;
+
+  if (declaresSnapshot !== declaresReport) {
+    throw new A2CaptureError(
+      `${manifest.fixtureId}: capture seals only one of snapshot.json / report.json; the shape is not one production produces`,
+    );
+  }
+
+  if (!declaresSnapshot) {
+    // Everything below has to agree, or this is not the legal fatal shape.
+    const inconsistent = [
+      fatalError === null || String(fatalError).length === 0 ? 'no fatalError recorded' : null,
+      manifest.snapshotSha256 != null ? 'snapshotSha256 is set' : null,
+      manifest.round1Status != null ? 'round1Status is set' : null,
+      manifest.actualComplexity != null ? 'actualComplexity is set' : null,
+      manifest.agentOrder != null ? 'agentOrder is set' : null,
+      manifest.successfulWorkerCount !== 0 ? 'successfulWorkerCount is not zero' : null,
+      Array.isArray(manifest.workers) && manifest.workers.length !== 0 ? 'workers is not empty' : null,
+      manifest.captureStatus !== 'FAILED' ? `captureStatus is ${manifest.captureStatus}` : null,
+    ].filter(Boolean);
+    if (inconsistent.length) {
+      throw new A2CaptureError(
+        `${manifest.fixtureId}: capture has no Round 1 but does not match the fatal shape (${inconsistent.join('; ')})`,
+      );
+    }
+
+    return Object.freeze({
+      fixtureId: manifest.fixtureId,
+      captureDir,
+      captureOutcome: PRE_ROUND1_FATAL,
+      fatalError: String(fatalError),
+      task,
+      taskSha256: sha256(task),
+      manifestSha256,
+      agentOrder: [],
+      workerResults: [],
+      // A candidate with no Round 1 reaches no eligibility boundary. It is spent evidence,
+      // never a retry and never a repair.
+      eligibility: Object.freeze({ F1: false, F2: false, F3: false }),
+      admitted: false,
+      reportedEligibility: manifest.eligibility ?? null,
+      reportedCaptureStatus: manifest.captureStatus ?? null,
+    });
+  }
+
   const snapshot = JSON.parse(files['snapshot.json']);
   const report = JSON.parse(files['report.json']);
-  const task = files['task.txt'];
 
   // The specialists that actually produced text. Not the ones that were asked.
   const workerResults = snapshot.workerResults
@@ -140,6 +207,8 @@ export function loadRealCapture(captureDir) {
   return Object.freeze({
     fixtureId: manifest.fixtureId,
     captureDir,
+    captureOutcome: ROUND1_PRESENT,
+    fatalError,
     task,
     taskSha256: sha256(task),
     manifestSha256,
@@ -393,6 +462,62 @@ export function negativeControlAlreadyUsed(priorProvenance = []) {
 }
 
 /**
+ * Validates the chain of earlier batches before any of it is allowed to decide anything.
+ *
+ * Prior provenance is protocol state, not a note from whoever ran the last wave. It
+ * decides whether the negative control has already been spent, what this batch's index
+ * is, and whether A2 is being started or continued — so a chain that is merely *asserted*
+ * would let a single wrong flag either send the control twice or never send it at all,
+ * and neither is visible in the resulting annotations. Every entry is therefore
+ * re-verified against the captures on disk, and anything that does not add up stops the
+ * build rather than being reset to a default.
+ */
+export function validatePriorProvenanceChain(priorProvenance = []) {
+  if (!Array.isArray(priorProvenance)) {
+    throw new A2ProvenanceError('prior provenance must be an array of earlier batch manifests');
+  }
+
+  let negativeControlUsed = false;
+  priorProvenance.forEach((entry, index) => {
+    const at = `prior batch ${index + 1}`;
+    if (!entry || typeof entry !== 'object') throw new A2ProvenanceError(`${at}: not a provenance manifest`);
+    if (entry.protocolVersion !== PROTOCOL_VERSION) {
+      throw new A2ProvenanceError(`${at}: protocolVersion is "${entry.protocolVersion}", expected ${PROTOCOL_VERSION}`);
+    }
+    if (entry.a2SessionId !== A2_SESSION_ID) {
+      throw new A2ProvenanceError(`${at}: a2SessionId is "${entry.a2SessionId}", expected ${A2_SESSION_ID}`);
+    }
+    if (entry.orderingRule !== ORDERING_RULE) {
+      throw new A2ProvenanceError(`${at}: orderingRule is "${entry.orderingRule}", expected ${ORDERING_RULE}`);
+    }
+    if (entry.batchIndex !== index + 1) {
+      throw new A2ProvenanceError(`${at}: batchIndex is ${entry.batchIndex}, expected ${index + 1}`);
+    }
+    const expectedStart = index === 0 ? 'FRESH' : 'CONTINUE';
+    if (entry.a2SessionStart !== expectedStart) {
+      throw new A2ProvenanceError(`${at}: a2SessionStart is "${entry.a2SessionStart}", expected ${expectedStart}`);
+    }
+    if (entry.negativeControlIncluded === true) {
+      // Twice is not a stricter control, it is a different experiment.
+      if (negativeControlUsed) throw new A2ProvenanceError(`${at}: the negative control is already recorded as used in an earlier batch`);
+      negativeControlUsed = true;
+    }
+    const verification = verifyProvenance(entry);
+    if (!verification.ok) {
+      throw new A2ProvenanceError(`${at}: provenance does not recompute (${verification.failures.map((f) => f.id).join(', ')})`);
+    }
+  });
+
+  const last = priorProvenance[priorProvenance.length - 1] ?? null;
+  return Object.freeze({
+    batchCount: priorProvenance.length,
+    lastBatchIndex: last ? last.batchIndex : 0,
+    negativeControlUsed,
+    sessionStart: priorProvenance.length === 0 ? 'FRESH' : 'CONTINUE',
+  });
+}
+
+/**
  * Builds one acquisition batch, or refuses to build one.
  *
  * @param {object} args
@@ -406,11 +531,22 @@ export function buildA2AcquisitionBatch({
   builderCommit = null,
   executionHead = null,
 }) {
+  // Validated before it is read, and before any capture is loaded: a corrupt chain must
+  // stop the build outright, not quietly change what this batch contains.
+  const chain = validatePriorProvenanceChain(priorProvenance);
+
   const candidates = candidateCaptureDirs.map(loadRealCapture);
   const admitted = candidates.filter(isAdmissible);
   const rejected = candidates
     .filter((c) => !isAdmissible(c))
-    .map((c) => ({ fixtureId: c.fixtureId, eligibility: c.eligibility }));
+    .map((c) => ({
+      fixtureId: c.fixtureId,
+      eligibility: c.eligibility,
+      captureOutcome: c.captureOutcome,
+      // Kept for the hidden rejection record only. It can name a provider or a model, so
+      // it must never travel with anything A2 sees.
+      fatalError: c.fatalError ?? null,
+    }));
 
   // D-3. An empty batch is a real outcome, not a reason to send the control alone: a
   // control annotated by itself tells the annotator what it is.
@@ -426,7 +562,7 @@ export function buildA2AcquisitionBatch({
     });
   }
 
-  const includeNegativeControl = !negativeControlAlreadyUsed(priorProvenance);
+  const includeNegativeControl = !chain.negativeControlUsed;
   const negativeControl = includeNegativeControl ? loadRealCapture(negativeControlCaptureDir) : null;
   const ordered = orderCases(includeNegativeControl ? [...admitted, negativeControl] : admitted);
 
@@ -439,8 +575,8 @@ export function buildA2AcquisitionBatch({
   const provenance = Object.freeze({
     protocolVersion: PROTOCOL_VERSION,
     a2SessionId: A2_SESSION_ID,
-    a2SessionStart: priorProvenance.length === 0 ? 'FRESH' : 'CONTINUE',
-    batchIndex: priorProvenance.length + 1,
+    a2SessionStart: chain.sessionStart,
+    batchIndex: chain.lastBatchIndex + 1,
     packetSha256,
     packetBytes: Buffer.byteLength(text),
     orderingRule: ORDERING_RULE,
