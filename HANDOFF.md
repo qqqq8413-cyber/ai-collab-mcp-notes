@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-06, rev. 32)
+# ai-collab-mcp — Progress Report (2026-09-06, rev. 33)
 
 > ## 交接狀態
 >
@@ -15,14 +15,15 @@
 > | **M2-A Controlled Replay #3** | **NOT EXERCISED —— gate 首次真正執行,但認出分歧後選擇在答案內解決,未輸出區塊,詳見第二十三節** |
 > | **M2-A Controlled Replay #4** | **FULL MECHANISM RUNTIME PASS —— 一次自然 valid issue → R2 → Decision Synthesis,不代表品質或產品價值已驗證** |
 > | **rev.20 Independent Code Review** | **ACCEPT WITH DOCUMENTATION CORRECTION —— 無 runtime defect;3 項文件/命名修正 + 1 項規格 concern 待 review,詳見第二十五節** |
-> | **M2-B Protocol** | **ARCHITECTURE ACCEPTED / HARNESS IMPLEMENTATION NEXT / LIVE PILOT NOT AUTHORIZED —— `M2_EFFECTIVENESS_EXPERIMENT.md` v0.2 @ `a308bc8`** |
+> | **M2-B Protocol** | **ARCHITECTURE ACCEPTED / HARNESS ACCEPTED / LIVE PILOT NOT AUTHORIZED —— `M2_EFFECTIVENESS_EXPERIMENT.md` v0.2 @ `a308bc8`** |
 > | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
 > | **M2-B Fixture Freeze(synthetic)** | **SUPERSEDED —— GPT Fixture Review 判定 FIXTURE PROVENANCE BLOCKER;`fx-01…04` 改列 PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL,檔案原封保留於 `02cbb5f`** |
 > | **M2-B Pre-Synthesis Boundary** | **ACCEPTED(GPT)—— `runRound1Stage()` 已抽出,offline parity byte-identical** |
 > | **M2-B Real Round1 Capture — Set R1** | **FAILED(保存為失敗證據)—— fxr-01…04 四題全 FAIL F1,證據保留於 `81ac330`,詳見第二十七節** |
 > | **M2-B Real Round1 Capture — Set R2** | **PARTIAL / REPLACEMENT SET R2 INCOMPLETE / CANDIDATE REPLACEMENT REQUIRES GPT / LIVE PILOT NOT AUTHORIZED —— fxr-05…08 四題 F1 全過(`deep`),但 fxr-05 / fxr-07 各只獲派一位 specialist 而 FAIL F2。10 次 live call,證據保留於 `7af382d`,詳見第二十八節** |
+> | **M2-B Real Round1 Capture — Set R3** | **PARTIAL / R3 POSITIVE SET INCOMPLETE / REQUIRES GPT ARCHITECTURE REVIEW / LIVE PILOT NOT AUTHORIZED —— fxr-09…11 的 F1/F2/F3 全過,但三題皆 FAILED_PRE_GATE_SCREEN。9 次 live call,證據保留於 `6aee7b0`,詳見第二十九節** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
-> | **目前離線測試** | **production 212 / harness 110 / synthetic fixtures 44 / round1 boundary 15 / capture 74 —— 全過,無任何 expectation 因 live 結果而放寬** |
+> | **目前離線測試** | **production 212 / harness 110 / synthetic fixtures 44 / round1 boundary 15 / capture 81 —— 全過;R3 artifact verifier 149/149 + synthetic integrity 36/36,無 expectation 因 live 結果而放寬** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
 > | **Step 8 Implementation** | **DEFERRED —— Milestone 2 驗證後再回來** |
 > | 未完成的程式修改 | **無** |
@@ -30,6 +31,73 @@
 > **Experimental Milestone 2-A 已完成本輪限定工程,現在 STOPPED / AWAITING ARCHITECTURE REVIEW,default OFF。** 使用者批准 Gate eligibility 由 post-synthesis unresolved conflict 改成 pre-synthesis material disagreement;唯一一次 Replay #4 使用與 #3 byte-identical 的 fixture,自然跑通 valid issue、sourceRef、Targeted R2 與 Decision Synthesis。212 項離線測試通過,既有 assertions 未放寬,16 組修改前/後 control capture byte-identical。這是機制驗證,尚未執行品質比較或 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 33 改了什麼(M2-B Replacement Real Round1 Capture — Set R3)
+
+**本輪未修改 production。`src/` 與 accepted boundary `d01043b` 是同一 Git tree。**
+Live stage 僅 `planning` 與 `round1_worker`,本輪 **9 次 live call**(R3 hard ceiling 12)。
+無 synthesis、無 Gate、無 Round2、無 self-review、無 Decision Synthesis、無 temperature probe、
+無 Gemini annotation、無 pilot。
+
+### 29. M2-B Replacement Real Round1 Capture(fxr-09…fxr-11 / Set R3)
+
+GPT 授權 exactly three new positive candidates。三份 task 在 provider call 前逐字凍結並 push;
+freeze/harness commit=`1fb5eb5fc4808c35a5ac0ddd30e78f031b09b59d`。
+每題只執行一次,沒有 retry、replacement、planning dry-run 或 Gate pre-screen。
+
+**結果:Round1 capture 3/3 CAPTURED,但 positive pre-Gate screen 0/3 通過,因此本輪仍是 PARTIAL。**
+
+| fixture | complexity | planner assignments | 成功 worker | RunStatus | worker provider/model | calls | F1/F2/F3 | pre-Gate screen | 最終判定 |
+|---|---|---|---:|---|---|---:|---|---|---|
+| fxr-09 | `deep` | business_strategist,brand_creative | 2 | SUCCESS | openai/gpt-5 | 3 | PASS/PASS/PASS | 兩位都明確選 A | FAILED_PRE_GATE_SCREEN |
+| fxr-10 | `deep` | business_strategist,brand_creative | 2 | SUCCESS | claude/claude-sonnet-5 | 3 | PASS/PASS/PASS | 兩位都支持第18週第一波、其餘分波 | FAILED_PRE_GATE_SCREEN |
+| fxr-11 | `deep` | business_strategist,brand_creative | 2 | SUCCESS | gemini/gemini-3.1-pro-preview | 3 | PASS/PASS/PASS | 兩位都明確選 B | FAILED_PRE_GATE_SCREEN |
+
+**[FACT] F1/F2/F3 全部成立。** 三題皆由 production Chief 判為 `deep`,皆獲派
+business_strategist + brand_creative,六個 worker 都成功,production report 全為 SUCCESS。
+requested/resolved provider/model 逐 call 一致;retrieval requested=false/result=null;
+temperature 未設定;runtime fingerprint start/end 都是 `54e0d585…`。
+
+**[FACT] 三題都沒有 obvious material decision disagreement。** 只讀 task、actual missions 與
+actual Round1 outputs:
+
+- `fxr-09`:兩位都直接選 A,差異只在風險與護欄的著墨。
+- `fxr-10`:business_strategist 直接選 B;brand_creative 雖不承擔最後 A/B/C 商業選擇,
+  但核心交付結論同樣支持「第18週第一波、其餘分波」來緩解 CD 單點瓶頸,即 B 的決策內容。
+- `fxr-11`:兩位都直接選 B,對 56% 新客、21% 升級、促銷/選址偏差、-9% 高價營收與
+  品牌印象變化的決策方向相同。
+
+這是 `FAILED_PRE_GATE_SCREEN`,不是 Gate recall 結果。**Gate 從未執行。** Screen 的逐字引文、
+raw outputs、missions、planner result、call provenance、hashes 與完整評估見
+`experiments/m2b/fixtures-real-r3/`;evidence commit=
+`6aee7b0705bd3f13ecba0429263057155181057c`。
+
+**[DECISION] 依 failure path 停止。** Provisional final set=`NOT ASSEMBLED`;
+packets=`NOT GENERATED — R3 incomplete`。沒有建立 R4、沒有交 Gemini、沒有開始 arm/pilot。
+這三題同時證明 production 可自然到達 DEEP + 2 specialists,但不能推論「多 specialist 自然產生
+decision conflict」,也不是 M2-A effectiveness evidence。
+
+### 累計 real-Round1 live call
+
+```text
+historical failed capture (R1)   10
+replacement capture (R2)         10
+replacement capture (R3)          9
+cumulative real-Round1 work       29
+```
+
+### 驗證與歷史狀態
+
+- production 212 / harness 110 / synthetic fixtures 44 / round1 boundary 15 / capture 81:全過。
+- R3 capture verifier:149/149;synthetic integrity:36/36。
+- `fxr-01…08`、synthetic fixtures/evaluation 與 Replay #4 historical Git trees 未變。
+- Replay #4 artifact seal:**INTACT**。
+- historical runtime fingerprint:**MISMATCH —— EXPECTED AFTER APPROVED `d01043b` REFACTOR**。
+- historical disabled/omitted behavioral control:**PASS**,16 cases,`f50a7b2e…`。
+
+**狀態:STOPPED / AWAITING GPT ARCHITECTURE REVIEW。LIVE PILOT NOT AUTHORIZED。**
+
+---
 
 ## rev. 32 改了什麼(M2-B Replacement Real Round1 Capture — Set R2)
 
