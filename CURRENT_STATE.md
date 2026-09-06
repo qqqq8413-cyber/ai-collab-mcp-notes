@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  9a6e7150baccf9a76cd60e9ea99d8264409e9634
+stateVerifiedThrough  3b79da52c733ef67a8012939e35e113d574f5c10
 production            src/** 停在 d01043b（accepted pre-synthesis boundary）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -277,7 +277,8 @@ provider heterogeneity caused the observed conflict
 | **CWP-3R** | fatal capture handling ＋ prior A2 provenance continuity validation | ACCEPTED | `183b88669edaf46a634efd5d6c67d9194cb7c7b1` |
 | **P-1** | request-side provider/model pin mismatch 的 pre-call guard | CLOSED / ACCEPTED | `a275d010703bf382dcccf1b621607b4eac582c97` |
 | **CWP-4A** | journal↔raw-call seq 相等、gapless sequence、P03 wave-order 驗證 | ACCEPTED | `732d567fddf03cd3964dbd483defd112227e5922` |
-| **CWP-4B** | capture-scoped transport no-retry ＋ dependency provenance ＋ CAPTURE-3 | ACCEPTED | `9a6e7150baccf9a76cd60e9ea99d8264409e9634` |
+| **CWP-4B** | capture-scoped transport no-retry ＋ CAPTURE-3 schema | ACCEPTED | `9a6e7150baccf9a76cd60e9ea99d8264409e9634` |
+| **CWP-4B-R** | dependency byte-provenance ＋ 已提交 baseline 的強制比對 | ACCEPTED | `3b79da52c733ef67a8012939e35e113d574f5c10` |
 
 ### PRE-LIVE BLOCKER LEDGER
 
@@ -298,7 +299,7 @@ provider heterogeneity caused the observed conflict
 | **C-02** | prior A2 provenance 未經連續性驗證就被信任 | CLOSED by **CWP-3R** |
 | **P-1** | request-side provider/model 不符只在 provider call 之後才被發現 | CLOSED by **P-1** @ `a275d01` |
 | **D-01** | 本檔未記錄 harness 尚不支援 0.3 | CLOSED by `bb2214f` 的更新 |
-| **T-RETRY-01** | SDK transport retry accounting gap —— 一次 logical dispatch 可能是多次 HTTP attempt | **CLOSED FOR FUTURE CAPTURES** by **CWP-4B** @ `9a6e715` |
+| **T-RETRY-01** | SDK transport retry accounting gap —— 一次 logical dispatch 可能是多次 HTTP attempt | **CLOSED FOR FUTURE CAPTURES** by **CWP-4B ＋ CWP-4B-R** @ `3b79da5` |
 
 未關閉、但**不是** engineering blocker 的兩項,列出以免被誤讀成已消失:
 
@@ -388,7 +389,46 @@ OpenAI / Anthropic adapter 以 per-request option 遵守它
 `test-m2b-transport-policy.mjs` 以 stubbed fetch 對真實 adapter＋真實 SDK 實測(500 → 恰好 1 次 fetch),
 而不是引用文件。
 
+**歷史宣稱的正確措辭(只此一句,不得延伸):**
+
+```
+CWP-4B 之前，一次 logical OpenAI / Anthropic dispatch 在 SDK 內部
+最多可能產生三次 transport attempt。
+
+Wave 1 / Wave 2 的實際 transport retry 次數 —— UNKNOWN。
+```
+
+**不得**由此推算任何歷史或未來的 HTTP 請求總數:Wave 3 的 role 指派尚未觀察,
+而歷史 artifact 中的 attempt 次數不可觀測。
+
 **Closure 是 prospective 的。** 它**不會**回溯替 Wave 1 / Wave 2 補上 transport-attempt 證據。
+
+#### Dependency byte-provenance（CWP-4B-R)
+
+版本字串是標籤,本機修改不會改變它;entrypoint 雜湊也不夠 ——
+OpenAI 與 Anthropic 決定是否重試的程式碼在 `client.js`,不在 `index.mjs`。
+因此身分的單位是**整個已安裝套件的 deterministic digest**:
+
+```
+排序後的 package-relative 路徑 → 每個檔案自身的 sha256
+→ 對這份 canonical 文字再取一次 sha256
+不跟隨 symlink（套件內的連結可以指向任何地方）
+只涵蓋 node_modules/{openai, @anthropic-ai/sdk, @google/generative-ai}
+```
+
+`APPROVED_DEPENDENCY_BASELINE` 是**已提交的**基準,即 transport 證明實際跑過的那棵樹:
+
+```
+packageLockSha256
+每個 SDK：lockedVersion ｜ lockIntegrity ｜ transportProvenVersion
+          ｜ installedManifestSha256 ｜ runtimeEntrypointRelative
+          ｜ runtimePackageDigest ｜ runtimePackageFileCount
+```
+
+**記錄不等於強制。** live preflight 與 CAPTURE-3 verifier 透過**同一個比較函式**
+對這份 baseline 做等值比對,任一欄位不符即在第一個 provider call 之前停止。
+拒絕訊息刻意不提供修法 —— 新的樹是否仍滿足 transport 證明,是要有人拿著測試去判斷的問題,
+preflight 若自行 `npm install` 等於用假設回答它。
 
 ### 歷史 retry 語意（不得寫錯)
 
@@ -410,8 +450,9 @@ CWP-4B 的作法是**另外新增** dependency provenance(package-lock SHA-256�
 locked/installed 版本、已安裝 manifest 與 resolved entrypoint 的雜湊),
 而**不是**改變 fingerprint 的既有含義 —— 那會靜默地重新描述每一份已存在的 artifact。
 
-live 前的 fail-closed preflight:installed ≠ locked,或 installed ≠ transport 證明所用版本,
-一律在**第一個 provider call 之前**停止。不自動 `npm install`,不自動修復依賴樹。
+live 前的 fail-closed preflight 逐項比對 package-lock sha256、locked version、lock integrity、
+installed version、installed manifest 雜湊、runtime package digest、package-relative entrypoint,
+任一不符一律在**第一個 provider call 之前**停止。不自動 `npm install`,不自動修復依賴樹。
 
 ### Capture schema 版本
 
@@ -846,11 +887,11 @@ R1 / R2 verifier 的失敗項**全部是 F1/F2 eligibility gate 本身**,不是�
 ---
 
 ```
-STATE ALIGNED THROUGH 9a6e715 /
+STATE ALIGNED THROUGH 3b79da5 /
 P03 WAVE 1 + WAVE 2 EXECUTED — 6/9 ATTEMPTED, 0 ARCHETYPES FILLED /
 FAILURE MODES MIXED: WAVE 1 F2 ×3 ｜ WAVE 2 F1 ×2 + F2 ×1 /
 MULTI-PROVIDER ROUND1 WORKER EXECUTION NOW OBSERVED（claude + openai）/
-T-RETRY-01 CLOSED FOR FUTURE CAPTURES @ 9a6e715（PROSPECTIVE ONLY）/
+T-RETRY-01 CLOSED FOR FUTURE CAPTURES @ 3b79da5（PROSPECTIVE ONLY）/
 NEXT PROTOCOL STEP = WAVE 3，METHODOLOGY READY，LIVE NOT AUTHORIZED /
 LIVE = NONE / EXECUTION AUTHORIZATION: NOT GRANTED
 ```
