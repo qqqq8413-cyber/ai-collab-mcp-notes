@@ -88,7 +88,13 @@ console.error(`node                     ${meta.nodeVersion}`);
 console.error(`candidate set            ${setId}`);
 console.error(`candidates               ${REAL_FIXTURE_IDS.join(', ')}\n`);
 
-const { session } = await runCaptureSession({ call: callProvider, realRoot: REAL_ROOT, fixtureIds: REAL_FIXTURE_IDS, meta });
+const { session } = await runCaptureSession({
+  call: callProvider,
+  realRoot: REAL_ROOT,
+  fixtureIds: REAL_FIXTURE_IDS,
+  meta,
+  globalBudget: set.globalCallBudget,
+});
 
 console.error('');
 for (const attempt of session.attempts) {

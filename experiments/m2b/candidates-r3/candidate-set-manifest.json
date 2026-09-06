@@ -1,0 +1,51 @@
+{
+  "set": "R3",
+  "status": "FROZEN_PRE_CAPTURE",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "authorizedBy": "GPT CODEX TASK AUTHORIZATION — M2-B REPLACEMENT REAL ROUND1 CAPTURE — SET R3",
+  "expectedStartingHead": "d9ad17599b3a8c6a918062d899ba34f6b17c8e3b",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "livePolicy": "ROUND1_CAPTURE_ONLY",
+  "globalLiveCallBudget": 12,
+  "note": "R3 contains exactly three positive candidates. The tasks are frozen byte-for-byte before live execution. Their intended slots are experiment metadata only and must never enter planner prompts or future clean-room packets.",
+  "antiCherryPicking": "Exactly these three tasks were authorized and frozen. No planning dry-run, Gate pre-screen, temperature probe, provider call, rewrite, replacement, retry or extra candidate is permitted before or after this freeze.",
+  "historicalGitTreesAtStartingHead": {
+    "experiments/m2b/fixtures-real": "28937aa5902bc2d2c6d69c37adabda2a92509c75",
+    "experiments/m2b/fixtures-real-r2": "b6c7c3d3c5940369e127f00dc93ac2794c330445",
+    "experiments/m2b/fixtures": "f1311c2deb481e7b63f0f04fd9f03e415a86990a",
+    "experiments/m2b/evaluation": "5b1bdb88fae99de84e336a99af8704fcd5bff8eb",
+    "diagnostics/m2a-live/controlled-replay-4": "16f655c2fa577c1b31121e5059c71b5e86b01798"
+  },
+  "candidates": [
+    {
+      "candidateId": "r3-01",
+      "fixtureId": "fxr-09",
+      "intendedSlot": "STRATEGY_CONFLICT",
+      "selectedFor": "24-month company-level growth strategy with material channel, pricing, customer-data and brand tradeoffs",
+      "taskSha256": "0aa4859ee1a6027becf4183f5d98784c1c2b908e67c30a974afcab7699bbe525",
+      "taskChars": 914
+    },
+    {
+      "candidateId": "r3-02",
+      "fixtureId": "fxr-10",
+      "intendedSlot": "EXECUTION_CONSTRAINT_CONFLICT",
+      "selectedFor": "largest company contract with a fixed public deadline, centralized execution support and concentrated creative approval capacity",
+      "taskSha256": "e1eb8ec9d5812ec93803b9c5450f3e0ace9768cb45a7480923309488007088b1",
+      "taskChars": 1155
+    },
+    {
+      "candidateId": "r3-03",
+      "fixtureId": "fxr-11",
+      "intendedSlot": "EVIDENCE_INTERPRETATION_CONFLICT",
+      "selectedFor": "three-year national investment decision based on a non-random nine-month test with conflicting growth and brand signals",
+      "taskSha256": "726adca19d4bee91a16896dee4f6971e204d91914f8e5eaa0eb29855dc5afecf",
+      "taskChars": 1080
+    }
+  ],
+  "providerAllocation": {
+    "fxr-09": { "provider": "openai", "model": "gpt-5" },
+    "fxr-10": { "provider": "claude", "model": "claude-sonnet-5" },
+    "fxr-11": { "provider": "gemini", "model": "gemini-3.1-pro-preview" }
+  },
+  "exposureRule": "intendedSlot, selectedFor and provisional positive identity are experiment-internal. They must never appear in task.txt, planner prompts, missions, runtime output or future clean-room packets."
+}

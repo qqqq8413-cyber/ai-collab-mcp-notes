@@ -44,6 +44,7 @@ export const CHIEF_PIN = Object.freeze({ provider: 'openai', model: 'gpt-5' });
 
 export const SYNTHETIC_ROOT = fileURLToPath(new URL('../fixtures/', import.meta.url));
 export const CANDIDATES_R2_ROOT = fileURLToPath(new URL('../candidates-r2/', import.meta.url));
+export const CANDIDATES_R3_ROOT = fileURLToPath(new URL('../candidates-r3/', import.meta.url));
 
 /**
  * The candidate sets, each frozen before its own capture ran.
@@ -65,6 +66,7 @@ export const CANDIDATE_SETS = Object.freeze({
     fixtureIds: Object.freeze(['fxr-01', 'fxr-02', 'fxr-03', 'fxr-04']),
     sourceRoot: SYNTHETIC_ROOT,
     realRoot: fileURLToPath(new URL('../fixtures-real/', import.meta.url)),
+    globalCallBudget: 16,
     sourceCandidate: Object.freeze({ 'fxr-01': 'fx-01', 'fxr-02': 'fx-02', 'fxr-03': 'fx-03', 'fxr-04': 'fx-04' }),
     providerAllocation: Object.freeze({
       'fxr-01': { provider: 'openai', model: 'gpt-5' },
@@ -79,12 +81,27 @@ export const CANDIDATE_SETS = Object.freeze({
     fixtureIds: Object.freeze(['fxr-05', 'fxr-06', 'fxr-07', 'fxr-08']),
     sourceRoot: CANDIDATES_R2_ROOT,
     realRoot: fileURLToPath(new URL('../fixtures-real-r2/', import.meta.url)),
+    globalCallBudget: 16,
     sourceCandidate: Object.freeze({ 'fxr-05': 'r2-01', 'fxr-06': 'r2-02', 'fxr-07': 'r2-03', 'fxr-08': 'r2-04' }),
     providerAllocation: Object.freeze({
       'fxr-05': { provider: 'openai', model: 'gpt-5' },
       'fxr-06': { provider: 'claude', model: 'claude-sonnet-5' },
       'fxr-07': { provider: 'gemini', model: 'gemini-3.1-pro-preview' },
       'fxr-08': { provider: 'openai', model: 'gpt-5' },
+    }),
+  }),
+  R3: Object.freeze({
+    setId: 'R3',
+    status: 'REPLACEMENT POSITIVE SET',
+    fixtureIds: Object.freeze(['fxr-09', 'fxr-10', 'fxr-11']),
+    sourceRoot: CANDIDATES_R3_ROOT,
+    realRoot: fileURLToPath(new URL('../fixtures-real-r3/', import.meta.url)),
+    globalCallBudget: 12,
+    sourceCandidate: Object.freeze({ 'fxr-09': 'r3-01', 'fxr-10': 'r3-02', 'fxr-11': 'r3-03' }),
+    providerAllocation: Object.freeze({
+      'fxr-09': { provider: 'openai', model: 'gpt-5' },
+      'fxr-10': { provider: 'claude', model: 'claude-sonnet-5' },
+      'fxr-11': { provider: 'gemini', model: 'gemini-3.1-pro-preview' },
     }),
   }),
 });

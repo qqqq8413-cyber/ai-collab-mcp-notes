@@ -27,7 +27,7 @@ import { runCaptureSession } from './capture/session.mjs';
 import { verifyCapture, verifySyntheticUnchanged } from './capture/capture-verify.mjs';
 import {
   REAL_FIXTURE_IDS, PROVIDER_ALLOCATION, CHIEF_PIN, SOURCE_CANDIDATE,
-  SYNTHETIC_ROOT, CANDIDATES_R2_ROOT, CANDIDATE_SETS, candidateSetFor, sourceTaskPath,
+  SYNTHETIC_ROOT, CANDIDATES_R2_ROOT, CANDIDATES_R3_ROOT, CANDIDATE_SETS, candidateSetFor, sourceTaskPath,
   REGISTERED_SPECIALISTS, buildWorkerRefs, canonical, sha256,
 } from './capture/runner.mjs';
 
@@ -114,12 +114,13 @@ async function stubSession(name, callOptions = {}, sessionOptions = {}) {
   return { ...out, realRoot, call };
 }
 
-const verifyAt = (realRoot) => verifyCapture({
+const verifyAt = (realRoot, globalCallBudget = GLOBAL_CALL_BUDGET) => verifyCapture({
   realRoot,
   chiefPin: CHIEF_PIN,
   providerAllocation: PROVIDER_ALLOCATION,
   sourceCandidate: SOURCE_CANDIDATE,
   sourceTaskPathFor: sourceTaskPath,
+  globalCallBudget,
 });
 
 /** Copies a legal capture, applies one tampering, and returns the verifier result. */
@@ -228,6 +229,24 @@ await check('the global budget stops the seventeenth call before it is issued', 
   assert.ok(err instanceof CallBudgetExceeded);
   assert.equal(err.code, 'CALL_BUDGET_EXCEEDED');
   assert.equal(providerCalls, GLOBAL_CALL_BUDGET, 'the seventeenth call must never reach a provider');
+});
+
+await check('the R3 budget stops a thirteenth call before it is issued', async () => {
+  let providerCalls = 0;
+  const recorder = createRecorder({
+    call: async (provider, prompt, options) => { providerCalls += 1; return { provider, model: options.model, text: 'stub' }; },
+    now: () => new Date('2026-09-06T00:00:00.000Z'),
+    globalBudget: 12,
+  });
+  for (const fixtureId of CANDIDATE_SETS.R3.fixtureIds) {
+    const dispatch = recorder.dispatcherFor(fixtureId, { pins: PINS, workers: RECORDER_WORKERS });
+    await dispatch('openai', 'p', { stage: 'planning', model: 'gpt-5' });
+    for (const w of RECORDER_WORKERS) await dispatch('openai', 'p', { stage: 'round1_worker', model: 'gpt-5', system: w.role });
+  }
+  const dispatch = recorder.dispatcherFor('fxr-r3-overflow', { pins: PINS, workers: RECORDER_WORKERS });
+  const err = await mustReject(() => dispatch('openai', 'p', { stage: 'planning', model: 'gpt-5' }), 'R3 budget');
+  assert.ok(err instanceof CallBudgetExceeded);
+  assert.equal(providerCalls, 12, 'the thirteenth call must never reach a provider');
 });
 
 await check('concurrent worker dispatches cannot overshoot the global budget', async () => {
@@ -804,6 +823,78 @@ await check('the R1 capture evidence on disk still verifies as four preserved fa
   assert.deepEqual(failedIds(result).sort(), [
     'fxr-01/10b', 'fxr-02/10b', 'fxr-02/12b', 'fxr-03/10b', 'fxr-04/10b', 'fxr-04/12b',
   ]);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\nReplacement set R3 — exact freeze, 12-call ceiling and isolation');
+
+await check('R3 has exactly the three authorized fixture ids and its own roots', () => {
+  assert.deepEqual([...CANDIDATE_SETS.R3.fixtureIds], ['fxr-09', 'fxr-10', 'fxr-11']);
+  assert.equal(CANDIDATE_SETS.R3.globalCallBudget, 12);
+  assert.ok(CANDIDATE_SETS.R3.sourceRoot.includes('candidates-r3'));
+  assert.ok(CANDIDATE_SETS.R3.realRoot.includes('fixtures-real-r3'));
+  assert.notEqual(CANDIDATE_SETS.R3.sourceRoot, CANDIDATE_SETS.R2.sourceRoot);
+  assert.notEqual(CANDIDATE_SETS.R3.realRoot, CANDIDATE_SETS.R2.realRoot);
+});
+
+await check('R3 tasks and character counts match the frozen manifest', () => {
+  const manifest = JSON.parse(readFileSync(join(CANDIDATES_R3_ROOT, 'candidate-set-manifest.json'), 'utf8'));
+  assert.equal(manifest.candidates.length, 3);
+  assert.equal(manifest.globalLiveCallBudget, 12);
+  for (const entry of manifest.candidates) {
+    const task = readFileSync(sourceTaskPath(entry.fixtureId), 'utf8');
+    assert.equal(sha256(task), entry.taskSha256, entry.fixtureId);
+    assert.equal([...task].length, entry.taskChars, entry.fixtureId);
+    assert.equal(SOURCE_CANDIDATE[entry.fixtureId], entry.candidateId);
+  }
+});
+
+await check('R3 uses the authorized positive provider rotation with retrieval disabled', () => {
+  assert.deepEqual(PROVIDER_ALLOCATION['fxr-09'], { provider: 'openai', model: 'gpt-5' });
+  assert.deepEqual(PROVIDER_ALLOCATION['fxr-10'], { provider: 'claude', model: 'claude-sonnet-5' });
+  assert.deepEqual(PROVIDER_ALLOCATION['fxr-11'], { provider: 'gemini', model: 'gemini-3.1-pro-preview' });
+  for (const id of CANDIDATE_SETS.R3.fixtureIds) {
+    for (const ref of buildWorkerRefs(id)) {
+      assert.equal(ref.provider, PROVIDER_ALLOCATION[id].provider);
+      assert.equal(ref.model, PROVIDER_ALLOCATION[id].model);
+      assert.equal(ref.providesEvidence, false);
+    }
+  }
+});
+
+await check('R3 task text does not expose experiment metadata to the planner', () => {
+  const forbidden = [
+    /complexity/i, /specialist/i, /archetype/i, /negative control/i,
+    /多位專家/, /至少兩位/, /控制組/, /負控/, /專家.{0,4}不同意/, /disagree/i,
+  ];
+  for (const id of CANDIDATE_SETS.R3.fixtureIds) {
+    const task = readFileSync(sourceTaskPath(id), 'utf8');
+    for (const pattern of forbidden) assert.ok(!pattern.test(task), `${id} leaks ${pattern}`);
+  }
+});
+
+await check('a legal R3 stub capture spends exactly twelve calls and verifies cleanly', async () => {
+  const realRoot = join(SCRATCH, 'legal-r3');
+  const out = await runCaptureSession({
+    call: stubCall(),
+    realRoot,
+    fixtureIds: CANDIDATE_SETS.R3.fixtureIds,
+    meta: META,
+    now: () => new Date('2026-09-06T00:00:00.000Z'),
+    fresh: true,
+    globalBudget: CANDIDATE_SETS.R3.globalCallBudget,
+  });
+  assert.equal(out.session.candidateSet, 'R3');
+  assert.equal(out.session.globalCallBudget, 12);
+  assert.equal(out.session.globalLiveCallCount, 12);
+  assert.deepEqual(out.session.attempts.map((a) => a.fixtureId), ['fxr-09', 'fxr-10', 'fxr-11']);
+  const result = verifyAt(realRoot, CANDIDATE_SETS.R3.globalCallBudget);
+  assert.deepEqual(failedIds(result), []);
+});
+
+await check('the R2 capture remains the same two F2 failures and nothing else', () => {
+  const result = verifyAt(CANDIDATE_SETS.R2.realRoot, CANDIDATE_SETS.R2.globalCallBudget);
+  assert.deepEqual(failedIds(result).sort(), ['fxr-05/12b', 'fxr-07/12b']);
 });
 
 rmSync(SCRATCH, { recursive: true, force: true });

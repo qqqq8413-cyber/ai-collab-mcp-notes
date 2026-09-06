@@ -20,6 +20,7 @@ const capture = verifyCapture({
   providerAllocation: PROVIDER_ALLOCATION,
   sourceCandidate: SOURCE_CANDIDATE,
   sourceTaskPathFor: sourceTaskPath,
+  globalCallBudget: set.globalCallBudget,
 });
 const synthetic = verifySyntheticUnchanged({
   syntheticRoot: SYNTHETIC_ROOT,

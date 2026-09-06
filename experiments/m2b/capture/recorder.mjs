@@ -28,7 +28,7 @@ const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 /** Stages this round is authorized to send to a provider. Everything else is a violation. */
 export const ALLOWED_STAGES = Object.freeze(['planning', 'round1_worker']);
 
-/** 4 candidates x (1 planning + at most 3 Round 1 workers). */
+/** Historical R1/R2 ceiling. New sets may pass a narrower explicit ceiling. */
 export const GLOBAL_CALL_BUDGET = 16;
 export const PER_CANDIDATE_CALL_BUDGET = 4;
 

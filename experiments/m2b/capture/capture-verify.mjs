@@ -33,7 +33,7 @@ const EVALUATION_ARTIFACT_PATTERNS = Object.freeze(['conflict-label', 'gold-issu
  *   candidate set keeps its own source directory, and so a test can verify a capture that
  *   lives anywhere on disk.
  */
-export function verifyCapture({ realRoot, chiefPin, providerAllocation, sourceCandidate, sourceTaskPathFor }) {
+export function verifyCapture({ realRoot, chiefPin, providerAllocation, sourceCandidate, sourceTaskPathFor, globalCallBudget = GLOBAL_CALL_BUDGET }) {
   const checks = [];
   const check = (id, name, ok, detail = '') => {
     checks.push({ id, name, ok: Boolean(ok), detail: String(detail) });
@@ -196,8 +196,11 @@ export function verifyCapture({ realRoot, chiefPin, providerAllocation, sourceCa
 
   // 24. global call budget, recounted across every candidate
   const globalCalls = all.reduce((n, a) => n + a.rawCalls.length, 0);
-  check(24, 'global call count within budget', globalCalls <= GLOBAL_CALL_BUDGET, `${globalCalls} <= ${GLOBAL_CALL_BUDGET}`);
+  check(24, 'global call count within budget', globalCalls <= globalCallBudget, `${globalCalls} <= ${globalCallBudget}`);
   check('24b', 'global call count matches the session record', globalCalls === session.globalLiveCallCount, `${globalCalls}`);
+  check('24c', 'session records the authorized global call budget',
+    session.globalCallBudget == null || session.globalCallBudget === globalCallBudget,
+    `${session.globalCallBudget ?? 'historical-unrecorded'} vs ${globalCallBudget}`);
 
   // 25 (session scope). The journal is the write-ahead record; nothing may exist outside it.
   const journalPath = join(realRoot, 'journal.ndjson');

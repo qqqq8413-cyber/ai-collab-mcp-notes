@@ -1,5 +1,5 @@
 /**
- * Drives one M2-B Real Round 1 capture session: four candidates, one attempt each.
+ * Drives one M2-B Real Round 1 capture session: one candidate set, one attempt each.
  *
  * Separated from the CLI so the whole session — recorder, production Round 1, artifact
  * writing, sealing — can be exercised offline against a deterministic stub provider. The
@@ -110,6 +110,7 @@ export async function runCaptureSession({
     ...meta,
     retrievalPolicy: RETRIEVAL_POLICY,
     temperaturePolicy: TEMPERATURE_POLICY,
+    globalCallBudget: globalBudget ?? 16,
     chiefPin: CHIEF_PIN,
     providerAllocation: PROVIDER_ALLOCATION,
     sourceCandidate: SOURCE_CANDIDATE,

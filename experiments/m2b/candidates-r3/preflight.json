@@ -1,0 +1,34 @@
+{
+  "recordedAt": "2026-09-06T05:43:30Z",
+  "mode": "CONTROLLED LIVE FIXTURE CAPTURE",
+  "livePolicy": "ROUND1_CAPTURE_ONLY",
+  "startingHead": "d9ad17599b3a8c6a918062d899ba34f6b17c8e3b",
+  "branch": "experimental/m2a-peer-challenge",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "productionSrcTreeSha1": "378f80cbc713e22ad136d4b7ee26de221132de49",
+  "productionSrcUnchangedFromBoundary": true,
+  "runtimeFingerprintSha256": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "taskFreeze": {
+    "fxr-09": "0aa4859ee1a6027becf4183f5d98784c1c2b908e67c30a974afcab7699bbe525",
+    "fxr-10": "e1eb8ec9d5812ec93803b9c5450f3e0ace9768cb45a7480923309488007088b1",
+    "fxr-11": "726adca19d4bee91a16896dee4f6971e204d91914f8e5eaa0eb29855dc5afecf"
+  },
+  "offlineTests": {
+    "production": { "passed": 212, "failed": 0 },
+    "m2bHarness": { "passed": 110, "failed": 0 },
+    "syntheticFixtures": { "passed": 44, "failed": 0 },
+    "round1Boundary": { "passed": 15, "failed": 0 },
+    "captureAndR3Extension": { "passed": 81, "failed": 0 }
+  },
+  "historicalCaptureVerification": {
+    "R1": "exactly the six recorded F1/F2 failures; no integrity failures",
+    "R2": "exactly the two recorded F2 failures; no integrity failures"
+  },
+  "historicalDisabledOmittedControl": {
+    "cases": 16,
+    "sha256": "f50a7b2ee2a8b7f896dc6a6b88692d612281553011a1de685b2e39c9a567c698",
+    "drifted": false
+  },
+  "replay4ArtifactSeal": "INTACT",
+  "newLiveCallsBeforeFreeze": 0
+}
