@@ -1,372 +1,544 @@
-# Chief Natural Collaboration Census — DRAFT
+# Chief Natural Collaboration Census — CBRP — DRAFT
 
 ```
 STATUS:  DRAFT
          NOT ACCEPTED
          NOT PREREGISTERED
          NOT AUTHORIZED FOR LIVE EXECUTION
+
+REVISION: methodology revised after Gemini census review (NEEDS REVISION)
+          and GPT architecture verdict (ACCEPT WITH CORRECTIONS)
 ```
 
-> This is a **new study**, not an amendment. It is deliberately **not** called
-> protocol 0.4: naming it as a protocol version would imply it inherits M2-B's
-> accepted structure, and the whole point is that it asks a prior question M2-B
-> assumed an answer to.
+> A **new study**, deliberately not called protocol 0.4: naming it as a protocol
+> version would imply it inherits M2-B's accepted structure, when its whole point
+> is that it asks a prior question M2-B assumed an answer to.
 >
-> Nothing here is authorized. No task pool is frozen, no sample size is chosen,
-> no harness is built. Every number below is a proposal for review.
+> No task pool exists. No harness exists. No sample has been drawn. Companion
+> documents: [`CBRP_AUTHORING_AND_REVIEW_DRAFT.md`](CBRP_AUTHORING_AND_REVIEW_DRAFT.md),
+> [`CBRP_PREREGISTRATION_CHECKLIST_DRAFT.md`](CBRP_PREREGISTRATION_CHECKLIST_DRAFT.md).
 
 ---
 
-## 1. Primary research question
+## 1. What changed in this revision, and why
 
-> **How often does unchanged production Chief naturally choose multi-specialist
-> collaboration across a broad, production-like task population?**
+The first draft asked about a "broad production-like task population". Gemini's
+methodology review returned **NEEDS REVISION**; GPT's verdict was **ACCEPT WITH
+CORRECTIONS**. The accepted concerns:
 
-and specifically:
-
-```
-P( complexity = deep  AND  assigned specialist count >= 2 )
-```
-
-### 1.1 What this measures, and what it does not
-
-This census measures **assignment behaviour**. It does not measure protocol F2.
-
-```
-F2 (protocol)          >= 2 SUCCESSFUL specialists      requires Round 1 execution
-census (phase 1)       >= 2 ASSIGNED specialists        requires planning only
-```
-
-A planning-only census can only observe the **precursor** of F2. Assignment is
-necessary for F2 and not sufficient for it: a worker can be assigned and then
-fail, which is exactly the case `report.status` and `successfulWorkerCount`
-exist to distinguish. Every result in this study must therefore be written as
-"assigned ≥ 2", never as "F2 pass".
-
-This distinction is kept explicit throughout because collapsing it would
-reintroduce, in the measurement, precisely the assumption the study exists to
-check.
-
----
-
-## 2. Why this study exists
-
-`[FACT]` P03 preregistered nine candidates across three archetypes and attempted
-all nine, one attempt each. **`deep` AND `assigned ≥ 2` occurred 0 times.**
-
-```
-Wave 1   S1 / E1 / I1   deep   ｜ 1 specialist each
-Wave 2   S2 / E2        normal ｜ 2 specialists each
-         I2             deep   ｜ 1 specialist
-Wave 3   S3             normal ｜ 1 specialist
-         E3 / I3        deep   ｜ 1 specialist each
-
-F1 failures 3/9 ｜ F2 failures 7/9 ｜ F3 failures 0/9 ｜ admitted 0/9
-```
-
-P03 assumed that `deep` + multi-specialist cases could be acquired by authoring
-tasks intended to produce them. It never established how often such cases occur
-naturally. Those are different claims, and only the first was ever tested.
-
-`[FACT]` Nine observations with zero events bound the frequency only weakly. The
-one-sided 95% upper bound from P03 alone is **≈ 28%** — which is compatible with
-"common but unlucky" and with "genuinely rare" at the same time. P03 is
-therefore strong evidence *about P03* and insufficient to estimate a
-production-wide rate.
-
-Until that rate is characterized, changing `Chief`, `F1`, `F2`, the task
-construction rules, or the effectiveness question would be tuning against a
-sample of nine.
-
----
-
-## 3. Design principles
-
-Everything the census observes must be production behaviour, unmodified:
-
-```
-Chief system prompt      UNCHANGED
-Chief planning behaviour UNCHANGED
-SPECIALIST_CAP           UNCHANGED
-Agent registry           UNCHANGED
-```
-
-Role→provider mapping is **irrelevant to task selection** and must not enter it.
-
-### 3.1 Task content prohibitions
-
-No census task may mention:
-
-```
-provider names ｜ model names ｜ a desired specialist count
-F1 ｜ F2 ｜ peer challenge ｜ experiment eligibility ｜ archetype labels
-```
-
-### 3.2 The authoring rule that matters most
-
-Task authors **must not** design cases to force `deep`, multiple specialists,
-`market_researcher`, `brand_creative`, or any role combination.
-
-> **The desired outcome is measurement, not qualification.**
-
-A task written to elicit two specialists measures the author, not the Chief. If
-the census population were selected for the property being measured, a high
-observed rate would be an artifact and a low one would be uninterpretable. This
-is the specific failure the census exists to avoid repeating, so it is stated as
-a rule rather than as guidance.
-
----
-
-## 4. Task population
-
-A production-like population, stratified by the kinds of decision the product is
-actually used for. **Strata are not chosen by expected specialist count**, and
-each is justified below by why it belongs in a realistic population — never by
-what it is likely to elicit.
-
-| Stratum | Why it belongs in a production-like population |
+| Concern | Resolution in this revision |
 |---|---|
-| Business strategy | The archetypal reason a user opens an orchestrator: an open decision with several defensible answers |
-| Operations / execution | The most common *ordinary* request; scheduling, capacity, sequencing questions dominate real usage |
-| Brand / creative | A distinct output mode — judgement about positioning and voice rather than about numbers |
-| Research / evidence interpretation | Users bring data they already have and ask what it means; this is a recurring product shape |
-| Product / service design | Scope-and-tradeoff decisions, a standing category in the product's own examples |
-| Financial / resource allocation | Budget and headcount decisions are among the most frequently delegated real tasks |
-| High-stakes contracts / commitments | Low frequency, high consequence; excluded only by an unrealistic population |
-| Ordinary project decisions | Deliberately mundane. A population made only of weighty questions is not production-like, and its absence would bias every rate upward |
+| Target population was undefined | §2 defines **CBRP** as an explicit, preregistered, equally weighted synthetic reference frame |
+| "production-wide" was an overclaim without usage weights | §2.2 forbids it outright; every result is scoped to CBRP |
+| The original strata overlapped | §3 reduces to six primary-intent strata with a deterministic routing rubric |
+| Some stratum descriptions asserted usage frequency | §3 justifies each stratum by what it *is*, never by how often it occurs |
+| N = 45 was chosen before an operational threshold existed | §4 fixes θ_feas first, then §5 derives N = 60 from it |
+| Authoring intention alone is not a bias control | §6 and the authoring document replace intention with a blinded procedure |
 
-The last row is load-bearing. A census composed only of hard problems would
-measure Chief's behaviour on hard problems and be reported as its behaviour in
-general.
+Two of Gemini's points were **accepted as already correct** and are preserved
+unchanged: the `assigned ≥ 2` versus F2 distinction (§7), and the
+behaviour-preserving `runPlanningStage()` extraction concept (§10).
 
-`[OPEN]` Stratum weights are not proposed here. Equal allocation is the simplest
-defensible default; a usage-weighted allocation would be better if usage data
-exists. This is an architecture decision, not an engineering one.
+Four corrections **to** Gemini, applied here:
 
-**No task pool is created by this draft.** Authoring, structural review, hashing
-and freezing would be a separate authorized round, on the P03 pattern.
+```
+do NOT adopt an arbitrary point-estimate >= 10% decision rule   →  §5.2
+blinding REDUCES author bias; it does not eliminate it          →  §6
+historical enterprise prompts are not required for this study   →  §3.3
+no production-wide prevalence claim is permitted                →  §2.2, §9
+```
 
 ---
 
-## 5. Sample size — three candidate designs
+## 2. Target frame — the Chief Balanced Reference Population
 
-Phase 1 costs **one planning call per task**. Observed P03 planning calls:
-min 6.9 s, median 14.0 s, max 45.9 s, mean 18.5 s (n = 9, `openai/gpt-5`).
+### 2.1 Definition
 
-If the census observes **zero** `deep ∧ assigned ≥ 2` events, the one-sided 95%
-upper bound on the true rate is `1 − 0.05^(1/N)`:
+> **CBRP** — a synthetic, preregistered, **equally weighted** reference frame of
+> six primary-intent task strata, ten tasks each, N = 60.
 
-| N | live planning calls | ≈ wall clock at observed mean | 95% upper bound if zero events | rule-of-three approx |
+CBRP is a **controlled scientific reference population**. It is deliberately
+balanced rather than representative, because a balanced frame is the one thing a
+synthetic population can honestly be: it is a fixed, stated, reproducible
+measurement condition rather than a guess at a distribution nobody has measured.
+
+CBRP is **not** any of:
+
+```
+actual user traffic ｜ real-world prevalence
+production telemetry ｜ production-wide usage distribution
+```
+
+### 2.2 Primary estimand
+
+```
+P( complexity = deep  AND  assigned specialist count >= 2  |  CBRP )
+```
+
+Required name for this quantity: **reference-population assignment rate**.
+
+**Allowed scoping** — every claim must carry one of these:
+
+```
+"within CBRP"
+"under this balanced synthetic reference frame"
+"CBRP precursor rate"
+```
+
+**Forbidden wording**, unless explicitly and truthfully scoped to CBRP:
+
+```
+production-wide natural base rate ｜ actual user rate ｜ real-world prevalence
+"Chief usually…" ｜ "Chief rarely…"
+```
+
+The equal 1/6 weighting is a design choice. **It must never be read as a claim
+that the six strata occur equally often in production.**
+
+---
+
+## 3. The six strata
+
+Exactly six. Every task belongs to **exactly one**.
+
+```
+1. Strategy / Commitment
+2. Operations / Execution
+3. Brand / Creative
+4. Evidence Interpretation
+5. Product / Service Design
+6. Finance / Resource Allocation
+```
+
+### 3.1 The routing rule
+
+> **A task's stratum is determined by its PRIMARY REQUESTED OUTPUT** — the thing
+> the asker wants back — **not by every domain that appears in the text.**
+
+This is the rule the whole rubric rests on. Realistic decisions are
+multi-domain by nature; a rubric keyed on "which domains appear" would route
+almost everything to whichever stratum was checked first, and two reviewers
+would rarely agree. Keying on the requested deliverable makes the question
+answerable from the task's final paragraph.
+
+**Operational test.** Read only the final request. Ask: *what artifact would a
+complete answer hand back?* That artifact's kind selects the stratum.
+
+### 3.2 Per-stratum rubric
+
+Each stratum is justified by what kind of decision it is, never by how often it
+occurs or by what it might elicit.
+
+---
+
+#### 1. Strategy / Commitment
+
+**Inclusion.** The requested output is a **choice among mutually exclusive
+directions**, or a commitment whose reversal is costly: which market, which
+partner, whether to sign, which of A/B/C.
+
+**Exclusion / handoff.** If the direction is already chosen and the request is
+how to carry it out → *Operations / Execution*. If the request is which of
+several claimants gets a fixed pool of money or people → *Finance / Resource
+Allocation*.
+
+**Positive examples.** Whether to accept an acquisition offer. Which of three
+expansion markets to enter. Whether to renew an exclusive distribution
+agreement.
+
+**Near-boundary.** *"We have decided to enter Market B; sequence the entry."* →
+Operations / Execution: the commitment is made and the deliverable is a plan.
+
+**Note.** High-stakes contracts are a task **form**, not a stratum. They usually
+route here because the requested output is a commitment decision — but a
+contract task whose request is "model the cash-flow impact" routes to Finance.
+
+---
+
+#### 2. Operations / Execution
+
+**Inclusion.** The direction is settled; the requested output is **how to
+execute** — sequencing, capacity, staffing, timelines, throughput, rollout.
+
+**Exclusion / handoff.** If the request is whether to do it at all → *Strategy /
+Commitment*. If the deliverable is what the offering itself should be →
+*Product / Service Design*.
+
+**Positive examples.** Sequence a three-site rollout under a fixed installation
+crew. Restructure a support rota to cut escalation time.
+
+**Near-boundary.** *"Should we hire two engineers or outsource, given this
+backlog?"* → Finance / Resource Allocation if the request is how to spend a
+fixed budget; Operations if the request is how to clear the backlog and staffing
+is one lever among several.
+
+---
+
+#### 3. Brand / Creative
+
+**Inclusion.** The requested output is a **judgement about identity, positioning,
+naming, voice or creative direction** — an artifact whose quality is judged by
+resonance and coherence rather than by arithmetic.
+
+**Exclusion / handoff.** If the request is which market to pursue → *Strategy*.
+If the request is what the product should do → *Product / Service Design*.
+
+**Positive examples.** How to reposition a heritage brand for a younger segment.
+Whether to retire a sub-brand and what to say when doing so.
+
+**Near-boundary.** *"Our positioning is confusing customers; fix the onboarding
+flow."* → Product / Service Design: the deliverable is the flow, not the
+positioning.
+
+---
+
+#### 4. Evidence Interpretation
+
+**Inclusion.** The asker supplies data, findings or conflicting reports, and the
+requested output is **what it means** — a reading, a diagnosis, a judgement about
+sufficiency.
+
+**Exclusion / handoff.** If evidence is supplied but the request is which option
+to pick → *Strategy*. If the request is which budget line to fund → *Finance*.
+
+**Positive examples.** Two studies disagree on a treatment's efficacy; which
+reading is better supported. A retention cohort table shows an anomaly; what is
+it.
+
+**Near-boundary.** *"Given this churn data, should we cut the mid tier?"* →
+Strategy / Commitment: the deliverable is a decision, and the data is input.
+
+---
+
+#### 5. Product / Service Design
+
+**Inclusion.** The requested output is **what the offering should be** — scope,
+feature set, tiers, service model, customer-facing mechanics.
+
+**Exclusion / handoff.** If the request is how to build or ship it →
+*Operations*. If the request is what it should be *called* or stand for →
+*Brand / Creative*.
+
+**Positive examples.** Design a tiering structure for a diagnostics service.
+Decide what a self-serve plan should include.
+
+**Near-boundary.** *"Design a mid tier that fits within this budget."* →
+Product / Service Design, because the deliverable is the tier; the budget is a
+constraint, not the request.
+
+---
+
+#### 6. Finance / Resource Allocation
+
+**Inclusion.** The requested output is **how to divide a finite resource** —
+money, headcount, capacity — among competing claimants, or a judgement about
+financial structure.
+
+**Exclusion / handoff.** If a budget merely constrains a design or plan → the
+stratum of that design or plan.
+
+**Positive examples.** Allocate a fixed capital budget across three plants.
+Decide the split between retention and acquisition spend.
+
+**Near-boundary.** *"We are expanding into two adjacent products; how should we
+allocate the fixed launch budget between them?"* → **Finance / Resource
+Allocation.** The expansion is context; the request is the split.
+
+---
+
+#### 3.3 Two rules the rubric exists to enforce
+
+**When two domains appear**, route by the final requested output. Worked pair:
+
+```
+product expansion, final question = allocate a fixed budget
+    → Finance / Resource Allocation
+
+financially constrained, final deliverable = a service design
+    → Product / Service Design
+```
+
+**"Ordinary" is not a stratum.** Difficulty must vary **within** all six. A
+stratum that collected only the easy cases would make the others artificially
+hard, and the difficulty gradient would then be confounded with stratum
+identity.
+
+`[DESIGN]` Historical enterprise prompts are **not required** for this first
+study. CBRP is explicitly a synthetic balanced frame, not a sample of real
+traffic; requiring real prompts would change the study into one this packet is
+not designing.
+
+---
+
+## 4. Operational feasibility threshold
+
+```
+theta_feas = 0.05        [DESIGN DECISION]
+```
+
+At a precursor rate of 5%, the expected number of planning tasks per observed
+`deep ∧ assigned ≥ 2` event is `1 / 0.05 = 20`.
+
+That figure is already **optimistic**, because the precursor sits *before* every
+later loss:
+
+```
+precursor: deep AND assigned >= 2
+    ↓ worker execution success
+    ↓ F2: >= 2 SUCCESSFUL specialists
+    ↓ formal F4: material cross-agent decision-sensitive disagreement
+    ↓ final usable acquisition yield
+```
+
+So for **this** M2-B acquisition architecture, a precursor rate below 5% is
+treated as **operationally too sparse**.
+
+`[DESIGN DECISION]` — and explicitly **not** any of:
+
+```
+a scientific definition of "rare"
+a universal product threshold
+proof of infeasibility
+an estimate of real-world prevalence
+```
+
+---
+
+## 5. Sample size and decision rule
+
+### 5.1 Why N = 60 follows from θ_feas
+
+The threshold is fixed first; the sample size is then whatever can actually
+reach a verdict against it.
+
+For **zero** observed events, the exact one-sided 95% upper bound is
+`1 − 0.05^(1/N)`:
+
+| N | zero-event 95% upper bound | can a zero result conclude TOO_SPARSE? |
+|---|---|---|
+| 30 | 9.50% | No — far above θ |
+| 45 | 6.44% | **No** — still above θ, verdict would be INCONCLUSIVE |
+| **60** | **4.87%** | **Yes** — crosses below θ = 5% |
+
+N = 60 is the design target because it is the point at which the cheapest
+possible outcome — seeing nothing at all — is still informative. It also divides
+cleanly: **6 strata × 10 tasks**.
+
+`[DESIGN]` Sample size is **not** justified by runtime or wall-clock cost. The
+previous draft's timing estimates are demoted to non-decisional provenance:
+P03's nine planning calls ran 6.9 s–45.9 s (mean 18.5 s), recorded only so a
+future operator can plan a session, and **no design choice rests on them**.
+
+### 5.2 Decision rule
+
+Exact binomial (Clopper–Pearson) one-sided bounds, α = 0.05, against
+θ_feas = 5%:
+
+```
+VIABLE         one-sided 95% LOWER bound  >  5%
+TOO_SPARSE     one-sided 95% UPPER bound  <= 5%
+INCONCLUSIVE   otherwise
+```
+
+Computed zones at N = 60 (`[SIGNAL]` — recomputed at analysis time by the
+preregistered implementation, not read from this table):
+
+| events k | point | 95% lower | 95% upper | zone |
 |---|---|---|---|---|
-| **30** | 30 | ~9 min | **9.50%** | 10% |
-| **45** | 45 | ~14 min | **6.44%** | 6.7% |
-| **60** | 60 | ~19 min | **4.87%** | 5% |
+| 0 | 0.00% | — | 4.87% | **TOO_SPARSE** |
+| 1 | 1.67% | 0.09% | 7.66% | INCONCLUSIVE |
+| 2 | 3.33% | 0.60% | 10.12% | INCONCLUSIVE |
+| 3 | 5.00% | 1.38% | 12.42% | INCONCLUSIVE |
+| 4 | 6.67% | 2.31% | 14.61% | INCONCLUSIVE |
+| 5 | 8.33% | 3.34% | 16.73% | INCONCLUSIVE |
+| 6 | 10.00% | 4.45% | 18.79% | INCONCLUSIVE |
+| 7 | 11.67% | 5.61% | 20.80% | **VIABLE** |
+| ≥ 8 | — | > 6.8% | — | **VIABLE** |
 
-*(Approximation labels: the bound is the exact Clopper–Pearson one-sided limit
-for zero successes; "rule of three" is the familiar `3/N` approximation, shown
-only to make the exact figure legible. Wall clock is a mean-based estimate, not
-a guarantee — the observed spread is 6.9–45.9 s and calls may run serially.)*
+The point estimate is **reported descriptively and never decides anything**.
+Row `k = 6` is why: its point estimate is exactly 10%, and under the rejected
+"point estimate ≥ 10%" rule it would have been called viable, while its true
+rate is not distinguishable from 4.4%.
 
-### 5.1 What each buys
+`[OPEN]` **The rule is asymmetric and this must be stated in any result.** Only
+`k = 0` can produce TOO_SPARSE, so the design rules *in* far more readily than it
+rules *out*. A single event makes a sparse-but-nonzero rate unresolvable at
+N = 60. Whether that asymmetry is acceptable, or whether TOO_SPARSE should
+require a larger N, is an architecture decision this draft does not make.
 
-- **N = 30** — distinguishes "roughly a coin-flip" from "under 10%". Cheapest,
-  and enough to refute a claim that the joint case is *common*. It cannot
-  distinguish 2% from 8%, which is the range where the interesting follow-up
-  decisions differ.
-- **N = 45** — the first size at which a zero result bounds the rate under ~6.5%,
-  which is low enough to say the joint case is *rare in this population* without
-  overclaiming. Non-zero results also start to be estimable rather than merely
-  present.
-- **N = 60** — buys the 5% threshold and roughly a 50% cost increase over N = 45
-  for a ~1.6 percentage-point tightening. Worth it only if a decision actually
-  turns on 5% versus 6.5%.
+### 5.3 Exact interval implementation — OPEN
 
-### 5.2 Recommendation
+`[OPEN]` Not chosen here, deliberately. The bounds decide the study's verdict, so
+the implementation must be preregistered rather than picked at analysis time.
+
+| Approach | For | Against |
+|---|---|---|
+| Beta-quantile identity (`L = BetaInv(α; k, n−k+1)`, `U = BetaInv(1−α; k+1, n−k)`) | Standard, one line given a beta quantile | Adds a dependency, or a hand-written incomplete-beta |
+| Bisection on the exact binomial CDF | No dependency; the CDF is a short exact sum at n = 60 | Convergence tolerance and iteration count must be preregistered |
+| Independent recomputation in R/Python (`binom.test`, `scipy.stats.beta.ppf`) as a **cross-check** | An external second implementation is the strongest audit | Requires a second toolchain; must be a check, not the source of truth |
+
+Must be pinned before preregistration:
 
 ```
-PROPOSAL ONLY — NOT ACCEPTED
-
-N = 45, allocated across the eight strata
+alpha = 0.05, one-sided                numerical tolerance / iteration bound
+edge cases k = 0 and k = n             rounding and reported precision
+how bounds are independently reproduced by a reviewer
 ```
-
-Reasoning: the decision this census feeds is qualitative — whether P03's
-population was unrepresentative, or whether the joint condition is genuinely
-rare. N = 45 separates those two readings; N = 30 leaves them overlapping; N = 60
-sharpens a number no current decision depends on. If a stratum-level rate is
-later wanted rather than a pooled one, N = 45 is too small for that and the size
-should be reconsidered at that point rather than inflated now on speculation.
 
 ---
 
-## 6. Phase 1 — planning-only census
+## 6. Bias control — blinded authoring
+
+Author intention is not a control. Procedure is.
+
+`[DESIGN]` **Blinding REDUCES author bias. It does NOT eliminate it.** An author
+who has never seen the event definition can still, unprompted, write tasks that
+feel like they need a team. The claim available is that a specific and
+identifiable channel — writing toward a known target — has been removed.
+
+Full envelope: [`CBRP_AUTHORING_AND_REVIEW_DRAFT.md`](CBRP_AUTHORING_AND_REVIEW_DRAFT.md).
+
+---
+
+## 7. Phase 1 measures assignment, not F2
 
 ```
-one Chief planning call per frozen task
-
-NO Round 1 worker execution   NO synthesis   NO Gate
-NO A2                         NO peer challenge   NO effectiveness arm
+census Phase 1 event    assigned specialist count >= 2      planning only
+protocol F2             SUCCESSFUL specialist count >= 2    requires Round 1
 ```
 
-### 6.1 Recorded per task
+Assignment is **necessary and not sufficient** for F2: a worker can be assigned
+and then fail, which is exactly what `report.status` and `successfulWorkerCount`
+exist to separate.
+
+**Forbidden Phase 1 wording:**
 
 ```
-task id ｜ task sha256 ｜ stratum
-complexity
-requiredCapabilities
-assignments ｜ assignment count ｜ assigned agent ids
-requiresRedTeam
-Chief reason (verbatim)
-planning provider/model pin provenance (requested and resolved)
-runtime provenance (runtime fingerprint, dependency provenance, execution head)
+"F2 pass" ｜ "F2 rate" ｜ "successful collaboration rate"
 ```
 
-### 6.2 Primary descriptive measures
+### 7.1 Phase 2
 
 ```
-P(deep)
-P(assigned >= 2)
-P(deep AND assigned >= 2)          ← the question
+NOT DESIGNED ｜ NOT PREREGISTERED ｜ NOT AUTHORIZED
+```
+
+Not designed in this packet. What would have to exist before one could even be
+*proposed*: a Phase 1 result and its verdict; an architecture decision on
+whether worker execution on CBRP tasks is worth its cost; a call budget and a
+retry/transport policy for worker calls; and a stated position on whether Phase 2
+would reuse the frozen CBRP pool or require a fresh one, since running workers
+over tasks whose planning results are already known is a different design with
+different contamination risks.
+
+---
+
+## 8. Recorded per task, and primary measures
+
+Draft artifact contract: §20 of
+[`CBRP_PREREGISTRATION_CHECKLIST_DRAFT.md`](CBRP_PREREGISTRATION_CHECKLIST_DRAFT.md).
+
+```
+P(deep | CBRP)
+P(assigned >= 2 | CBRP)
+P(deep AND assigned >= 2 | CBRP)          ← the estimand
 distribution of assignment counts
 role assignment frequencies
 role combination frequencies
 complexity x assignment-count contingency table
 ```
 
-All descriptive. **No causal language** anywhere in the results: not "because",
-not "due to", not "driven by".
+All descriptive. **No causal language anywhere**: not "because", not "due to",
+not "driven by".
 
 ---
 
-## 7. Scientific boundary
+## 9. Claim boundary
 
-The census may **not** conclude any of:
-
-```
-multi-specialist improves quality
-deep causes fewer specialists
-task type causes role selection
-retrieval policy causes researcher selection
-provider mapping causes planner behaviour
-peer challenge works  ｜  peer challenge fails
-```
-
-It characterizes **observed Chief allocation behaviour under a preregistered task
-population**, and nothing else. In particular it is not an effectiveness study
-and produces no evidence about C versus D₁.
-
-### 7.1 Wording already fixed by architecture review
-
-These are `[FACT]` and may be written as such:
+The census may **not** establish any of:
 
 ```
-Within P03, all six deep candidates were assigned one specialist.
-The two multi-specialist candidates were classified normal.
+production-wide prevalence ｜ actual user behaviour prevalence
+worker success ｜ F2 success ｜ collaboration quality
+peer-challenge effectiveness
+task-type causation ｜ complexity causation
+provider effect ｜ model effect ｜ role-selection causation
 ```
 
-This is `[SIGNAL]`:
+Allowed conclusion shape:
 
-```
-The observed P03 sample suggests that task complexity classification and
-specialist necessity are distinct planning dimensions for production Chief.
-```
+> **"Within the preregistered CBRP reference frame, …"**
 
-This is `[INFERENCE]`:
+### 9.1 Wording fixed by the P03 architecture review, carried forward
 
-```
-The P03 task population may not have sampled the kind of naturally occurring
-case that jointly satisfies deep + multi-specialist collaboration.
-```
+`[FACT]` Within P03, all six deep candidates were assigned one specialist.
+`[FACT]` The two multi-specialist candidates were classified normal.
+`[SIGNAL]` The observed P03 sample suggests that task complexity classification
+and specialist necessity are distinct planning dimensions for production Chief.
+`[INFERENCE]` The P03 task population may not have sampled the kind of naturally
+occurring case that jointly satisfies deep + multi-specialist collaboration.
 
-None of the following is established, and none may be written as fact:
+Not established, and not writable as fact: inverse or absent correlation between
+complexity and specialist count; Chief systematically avoiding multi-specialist
+deep tasks; a Chief defect; an F2 defect; retrieval causing `market_researcher`'s
+absence; provider mapping causing role selection; M2-B being infeasible; peer
+challenge being ineffective; P03 proving production-wide collaboration behaviour.
 
-```
-inverse correlation between complexity and specialist count
-specialist count is uncorrelated with complexity
-Chief systematically avoids multi-specialist deep tasks
-Chief has a design defect        ｜  F2 is defective
-market_researcher was absent because retrieval was disabled
-provider mapping caused role selection
-M2-B is infeasible               ｜  peer challenge is ineffective
-P03 proves production-wide collaboration behaviour
-```
+### 9.2 M-ACQ-01 stays open
+
+CBRP would characterize a **balanced-reference precursor rate**. It would not by
+itself establish production telemetry prevalence. **M-ACQ-01 is not closed by
+this study**, whatever its result.
 
 ---
 
-## 8. Follow-up decision logic — drafted, not selected
-
-`[OPEN]` These are future architecture decisions. Listing them now keeps the
-census from being read after the fact in whichever direction its result points.
-
-- **If `deep ∧ assigned ≥ 2` is reasonably common** → P03 likely sampled an
-  unrepresentative task population. A new acquisition population may be
-  justified **while preserving F1 and F2 unchanged**.
-- **If `deep ∧ assigned ≥ 2` is very rare** → reconsider whether M2-B's
-  conditioning population matches actual product collaboration behaviour. This
-  is a question about the experiment's target population, not about whether the
-  gates are correct.
-- **If `assigned ≥ 2` is common but `deep ∧ assigned ≥ 2` is rare** →
-  investigate whether complexity and collaboration need **separate conditioning
-  definitions** in a future protocol.
-
-None of these is implemented, chosen, or ranked here.
-
----
-
-## 9. Feasibility — what exists today
+## 10. Feasibility — what exists today
 
 ```
 PLANNING-ONLY HARNESS:  PARTIAL
 ```
 
-**What exists.** `dist/agents/chief.js` exports `CHIEF_SYSTEM_PROMPT`,
-`buildPlanningPrompt` and `SPECIALIST_CAP`, so the production planning prompt can
-be constructed without running any worker. The capture recorder's stage
-allowlist is `['planning', 'round1_worker']`, so a planning-only round already
-sits inside its authorized scope, and its pre-call guards, budget reservation,
-transport no-retry injection and journal apply unchanged.
+**Exists.** `dist/agents/chief.js` exports `CHIEF_SYSTEM_PROMPT`,
+`buildPlanningPrompt` and `SPECIALIST_CAP`. The capture recorder's stage
+allowlist is `['planning', 'round1_worker']`, so a planning-only round is already
+inside its authorized scope, with its pre-call guards, budget reservation,
+transport no-retry injection and journal applying unchanged.
 
-**What is missing.** There is no stage primitive that stops after planning.
-`runRound1Stage()` performs planning and then dispatches workers through
-`Promise.all` in the same function, and the three pieces that turn a raw planning
-response into the plan production actually acts on are module-private:
+**Missing.** No stage primitive stops after planning — `runRound1Stage()` plans
+and then dispatches workers through `Promise.all` in one function — and the three
+pieces that turn a raw planning response into the plan production acts on are
+module-private:
 
 ```
-planSchema           not exported   zod validation of the planner's JSON
-extractJsonObject    not exported   fence-tolerant JSON extraction
-enforceConstraints   not exported   caps, dedup, roster validation, adjustments
+planSchema ｜ extractJsonObject ｜ enforceConstraints
 ```
 
-A census that re-implemented those would be measuring its own parser rather than
-production's planner — which is the same class of mistake as re-implementing
-segmentation, and it was rejected there for the same reason. The archived
-`test-chief-live.mjs` did exactly this: it hand-rolled fence-stripping and its
-own assertions, so its results were never production-equivalent.
+A census that re-implemented those would measure its own parser rather than
+production's planner: the same class of mistake as re-implementing segmentation,
+rejected there for the same reason. The archived `test-chief-live.mjs` did
+exactly this, hand-rolling fence-stripping and its own assertions, so its results
+were never production-equivalent.
 
-**Smallest engineering boundary required** (described, deliberately not built):
+**Smallest behaviour-preserving boundary** (described, deliberately not built):
 
 > Extract the planning half of `runRound1Stage()` into an exported
-> `runPlanningStage()` returning the same `plan` and `planningAdjustments` that
-> `runRound1Stage()` computes, and have `runRound1Stage()` call it. That is a
-> pure refactor with no behavioural change, provable by the existing
-> `test-round1-boundary.mjs` pattern — which already exists precisely to prove
-> that extracting a stage moved no behaviour.
+> `runPlanningStage()`, and have `runRound1Stage()` call it. The extraction must
+> preserve `CHIEF_SYSTEM_PROMPT`, `buildPlanningPrompt`, `planSchema`,
+> `extractJsonObject`, `enforceConstraints`, specialist-cap logic, dedup, roster
+> validation, planning adjustments, provider/model behaviour and error semantics.
+> Provable by the existing `test-round1-boundary.mjs` pattern, which exists
+> precisely to show that extracting a stage moved no behaviour.
 
-`[OPEN]` Whether to make that change, and whether the census should reuse the
-capture recorder or get its own thinner one, are architecture decisions.
-
-**Not done in this round:** no harness, no export, no task pool, no provider
-call, no `src/**` change.
+**Not done here:** no harness, no export, no task pool, no `src/**` change, no
+provider call.
 
 ---
 
-## 10. What this draft is not
+## 11. What this draft is not
 
 ```
-not accepted            not preregistered        not authorized
-not protocol 0.4        not an effectiveness study
-does not change F1-F7   does not change Chief    does not change P03 evidence
+not accepted        not preregistered      not authorized
+not protocol 0.4    not an effectiveness study
+does not change F1-F7 ｜ Chief ｜ P03 evidence ｜ M-ACQ-01 status
+0 tasks authored ｜ 0 harness code ｜ 0 provider calls
 ```
-
-P03 remains closed at 9/9 attempted, 0 admitted. Its negative result stands
-exactly as recorded; this study exists because that result raised a question it
-cannot itself answer.

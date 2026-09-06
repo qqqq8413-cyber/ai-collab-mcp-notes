@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  730d35037db23c49a17ccf4b98e7c79fc6a9e35b
+stateVerifiedThrough  13020178d4d5e9e19e27572e1c2077002c5bbd92
 production            src/** 停在 d01043b（accepted pre-synthesis boundary）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -337,8 +337,50 @@ P03 假設「`deep` + multi-specialist 的案例可以被取得」,但**從未�
 `[DECISION]` **在這個 base-rate 問題被 characterize 之前,不得重新設計或執行
 M2-B effectiveness experiment。**
 
-處理方向的草案(**未接受、未預先登記、未授權**):
-`experiments/m2b/census/CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md`
+處理方向的草案(**未接受、未預先登記、未授權**),共三份,經 Gemini census 方法學審查
+(NEEDS REVISION)與 GPT 裁定(ACCEPT WITH CORRECTIONS)後修訂:
+
+```
+experiments/m2b/census/CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md   方法學本體
+experiments/m2b/census/CBRP_AUTHORING_AND_REVIEW_DRAFT.md            出題與結構審查控制
+experiments/m2b/census/CBRP_PREREGISTRATION_CHECKLIST_DRAFT.md       preregistration 就緒清單
+```
+
+**CBRP —— Chief Balanced Reference Population**(DRAFT / METHODOLOGY REVISION):
+一個**合成、預先登記、等權重**的參照框架,六個 primary-intent strata、每組十題。
+
+```
+primary estimand   P( complexity = deep AND assigned specialist count >= 2 | CBRP )
+名稱               reference-population assignment rate
+
+N = 60             [ARCHITECTURE DESIGN DECISION]  由 theta 反推，不由成本或 wall-clock 決定
+theta_feas = 5%    [ARCHITECTURE DESIGN DECISION]  operational feasibility threshold，
+                                                   不是「罕見」的科學定義，也不是普遍門檻
+decision rule      VIABLE 單尾 95% 下界 > 5% ｜ TOO_SPARSE 單尾 95% 上界 ≤ 5% ｜ 其餘 INCONCLUSIVE
+                   point estimate 只作描述性報告，不得單獨決定架構決策
+                   明確拒絕「point estimate ≥ 10%」這種決策規則
+```
+
+`[DECISION]` **CBRP 是受控的科學參照母體,不是 production telemetry。**
+所有結論必須限定在「within the preregistered CBRP reference frame」;
+**不得**宣稱 production-wide prevalence、actual user rate、real-world prevalence,
+也不得寫「Chief usually…」「Chief rarely…」。等權重 1/6 是設計選擇,
+**絕不可**被讀成 production 的實際使用頻率。
+
+`[DECISION]` **Phase 1 量的是 `assigned ≥ 2`,不是 F2。** F2 要求 *successful* specialist,
+planning-only 觀察不到。禁止寫成「F2 pass」「F2 rate」「successful collaboration rate」。
+Phase 2:**NOT DESIGNED / NOT PREREGISTERED / NOT AUTHORIZED。**
+
+`[DESIGN]` blinded authoring **降低**出題者偏誤,**不消除**它。
+
+```
+study status              NOT PREREGISTERED ｜ NOT AUTHORIZED
+planning-only harness     PARTIAL（未實作；runPlanningStage() 抽取僅為概念，未授權）
+task pool                 不存在 —— 0 題已出
+provider calls            0
+M-ACQ-01                  仍 OPEN —— CBRP 只刻畫 balanced-reference precursor rate，
+                          不會單憑自身確立 production telemetry prevalence
+```
 
 ### 目前的 M2-B 狀態（不得混淆 acquisition 與 effectiveness)
 
@@ -861,9 +903,11 @@ NEXT P03 WAVE             NONE（池已用盡；不得新增第十題）
 
 BLOCKING QUESTION         M-ACQ-01 —— natural eligibility base rate UNKNOWN
 
-DRAFTED, NOT ACCEPTED     Chief Natural Collaboration Census
-                          experiments/m2b/census/CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md
+DRAFTED, NOT ACCEPTED     CBRP Natural Collaboration Census（三份文件）
+                          experiments/m2b/census/
+                          CBRP ｜ N=60 ｜ 6 strata x 10 ｜ theta_feas=5%
                           DRAFT ｜ NOT PREREGISTERED ｜ NOT AUTHORIZED
+                          0 tasks authored ｜ harness NOT implemented
 
 STATUS                    等待 GPT architecture interpretation
 ```
@@ -1013,6 +1057,7 @@ P03 CLOSED — 9/9 ATTEMPTED, 0 ADMITTED, 0 ARCHETYPES FILLED /
 F1 FAIL 3/9 ｜ F2 FAIL 7/9 ｜ F3 FAIL 0/9 ｜ ONE SPECIALIST 7/9 /
 A2 = 0 EXECUTIONS ｜ EFFECTIVENESS EXPERIMENT NOT EXECUTED ｜ C vs D₁ UNANSWERED /
 NEW OPEN BLOCKER M-ACQ-01 — NATURAL ELIGIBILITY BASE RATE UNKNOWN /
-CENSUS DRAFTED, NOT ACCEPTED, NOT AUTHORIZED /
+CBRP CENSUS METHODOLOGY REVISED — N=60 / 6 STRATA / theta=5% —
+DRAFT, NOT PREREGISTERED, NOT AUTHORIZED, 0 TASKS AUTHORED /
 LIVE = NONE / EXECUTION AUTHORIZATION: NOT GRANTED
 ```
