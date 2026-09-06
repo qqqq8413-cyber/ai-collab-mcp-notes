@@ -14,7 +14,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { callProvider } from '../../../dist/providers/index.js';
 import { runCaptureSession } from './session.mjs';
-import { REAL_ROOT, REAL_FIXTURE_IDS, sourceTaskPath, SOURCE_CANDIDATE } from './runner.mjs';
+import { CANDIDATE_SETS, sourceTaskPath, SOURCE_CANDIDATE } from './runner.mjs';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const PRODUCTION_BOUNDARY_COMMIT = 'd01043b6c520c29473e3960c60bad28aec9719ed';
@@ -25,6 +25,15 @@ if (!process.argv.includes('--i-am-authorized-to-spend-live-calls')) {
   console.error('Pass --i-am-authorized-to-spend-live-calls to proceed.');
   process.exit(2);
 }
+
+const setId = (process.argv.find((a) => a.startsWith('--set=')) ?? '--set=R1').slice('--set='.length);
+const set = CANDIDATE_SETS[setId];
+if (!set) {
+  console.error(`unknown candidate set "${setId}"; expected one of ${Object.keys(CANDIDATE_SETS).join(', ')}`);
+  process.exit(2);
+}
+const REAL_ROOT = set.realRoot;
+const REAL_FIXTURE_IDS = set.fixtureIds;
 
 const head = git('rev-parse', 'HEAD');
 
@@ -76,9 +85,10 @@ console.error(`executionHead            ${meta.executionHead}`);
 console.error(`captureHarnessCommit     ${meta.captureHarnessCommit}`);
 console.error(`productionBoundaryCommit ${meta.productionBoundaryCommit}`);
 console.error(`node                     ${meta.nodeVersion}`);
+console.error(`candidate set            ${setId}`);
 console.error(`candidates               ${REAL_FIXTURE_IDS.join(', ')}\n`);
 
-const { session } = await runCaptureSession({ call: callProvider, realRoot: REAL_ROOT, meta });
+const { session } = await runCaptureSession({ call: callProvider, realRoot: REAL_ROOT, fixtureIds: REAL_FIXTURE_IDS, meta });
 
 console.error('');
 for (const attempt of session.attempts) {

@@ -1,0 +1,43 @@
+{
+  "set": "R2",
+  "status": "FROZEN_PRE_CAPTURE",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "authorizedBy": "GPT ARCHITECTURE AUTHORIZATION — M2-B REPLACEMENT REAL ROUND1 CAPTURE — SET R2",
+  "note": "Replacement candidate set for the four R1 candidates, all of which the production Chief classified as normal and which therefore failed F1. The R1 attempts are preserved as failed capture evidence and are not superseded, reused or absorbed here. Selection rationale lives in this file and never in task.txt: a task that told the planner what to conclude would make the resulting complexity a property of the prompt rather than of the decision, which is the thing under test.",
+  "antiCherryPicking": "Exactly four tasks were authored and frozen. No fifth candidate was written and discarded, no complexity was pre-checked against a model, no planning dry-run was made, and no provider was called before this freeze commit.",
+  "candidates": [
+    {
+      "candidateId": "r2-01",
+      "fixtureId": "fxr-05",
+      "intendedSlot": "STRATEGY_CONFLICT",
+      "selectedFor": "24-month company-level growth strategy with substantial resource lock-in",
+      "taskSha256": "89632d813c73a98f139f1d3e94c00992c8134849cb09d55dc2ced20b716cc64c",
+      "taskChars": 722
+    },
+    {
+      "candidateId": "r2-02",
+      "fixtureId": "fxr-06",
+      "intendedSlot": "EXECUTION_CONSTRAINT_CONFLICT",
+      "selectedFor": "largest company contract, fixed deadline, large national brand project, material execution risk",
+      "taskSha256": "e50b4d66bde3e943a55b04f3eb163f742da2267859fec22d04451afb574ec951",
+      "taskChars": 732
+    },
+    {
+      "candidateId": "r2-03",
+      "fixtureId": "fxr-07",
+      "intendedSlot": "EVIDENCE_INTERPRETATION_CONFLICT",
+      "selectedFor": "multi-year irreversible location investment, annual investment decision",
+      "taskSha256": "d9723f4cc122c0d4ac22ba51b4659fb6c1f60d5b0bedc3ec9a83303fb6c1cfbb",
+      "taskChars": 765
+    },
+    {
+      "candidateId": "r2-04",
+      "fixtureId": "fxr-08",
+      "intendedSlot": "NEGATIVE_CONTROL",
+      "selectedFor": "post-acquisition company-wide brand architecture across 60 locations",
+      "taskSha256": "b2dd92e0c216603551fac43b6ccfb82822a430e2f1ebee9a74782c0dbf6bd053",
+      "taskChars": 684
+    }
+  ],
+  "exposureRule": "intendedSlot is experiment-internal. It must never appear in a clean-room packet, in a mission, or anywhere an annotator can see it."
+}

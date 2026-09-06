@@ -27,7 +27,8 @@ import { runCaptureSession } from './capture/session.mjs';
 import { verifyCapture, verifySyntheticUnchanged } from './capture/capture-verify.mjs';
 import {
   REAL_FIXTURE_IDS, PROVIDER_ALLOCATION, CHIEF_PIN, SOURCE_CANDIDATE,
-  SYNTHETIC_ROOT, REGISTERED_SPECIALISTS, buildWorkerRefs, canonical, sha256,
+  SYNTHETIC_ROOT, CANDIDATES_R2_ROOT, CANDIDATE_SETS, candidateSetFor, sourceTaskPath,
+  REGISTERED_SPECIALISTS, buildWorkerRefs, canonical, sha256,
 } from './capture/runner.mjs';
 
 let passed = 0, failed = 0;
@@ -118,7 +119,7 @@ const verifyAt = (realRoot) => verifyCapture({
   chiefPin: CHIEF_PIN,
   providerAllocation: PROVIDER_ALLOCATION,
   sourceCandidate: SOURCE_CANDIDATE,
-  syntheticRoot: SYNTHETIC_ROOT,
+  sourceTaskPathFor: sourceTaskPath,
 });
 
 /** Copies a legal capture, applies one tampering, and returns the verifier result. */
@@ -391,15 +392,29 @@ await check('the runner pins every specialist of a candidate to one provider and
   }
 });
 
-await check('the runner reads only task.txt from a superseded synthetic candidate', () => {
+await check('the runner reads only task.txt from a source candidate', () => {
+  // The R1 candidates' missions, Round 1 texts, roster and ground truth are archival. If
+  // any of them reached the planner they could shape assignments or eligibility, which is
+  // the contamination the whole re-capture exists to remove. Asserted structurally: one
+  // resolver, one filename, and no other file read from a source directory.
   const source = readFileSync(join(M2B, 'capture', 'runner.mjs'), 'utf8');
-  const body = source.split('export async function captureCandidate')[1];
-  for (const forbidden of ['roster.json', 'snapshot.json', 'conflict-labels', 'gold-issues', 'round1-', 'mission-']) {
-    const readsIt = new RegExp(`sourceTaskPath[\\s\\S]{0,400}${forbidden.replace('.', '\\.')}`).test(body);
-    assert.ok(!readsIt, `capture must not read ${forbidden} from the synthetic fixture`);
+  const resolver = source.split('export function sourceTaskPath')[1].split('\n}')[0];
+  assert.ok(resolver.includes("'task.txt'"), 'the resolver names task.txt');
+  for (const forbidden of ['roster.json', 'snapshot.json', 'conflict-labels', 'gold-issues', 'round1-', 'mission-', 'fixture-manifest']) {
+    assert.ok(!resolver.includes(forbidden), `the resolver must not reach ${forbidden}`);
   }
-  assert.ok(source.includes("join(SYNTHETIC_ROOT, SOURCE_CANDIDATE[fixtureId], 'task.txt')"), 'task.txt is the only synthetic path');
-  assert.equal((source.match(/SYNTHETIC_ROOT/g) ?? []).length, 2, 'exactly one declaration and one use of the synthetic root');
+
+  const body = source.split('export async function captureCandidate')[1];
+  const reads = [...body.matchAll(/readFileSync\(([^,)]+)/g)].map((m) => m[1].trim());
+  assert.deepEqual(reads, ['taskPath'], 'captureCandidate reads exactly one file, the task');
+  assert.ok(/const taskPath = sourceTaskPath\(fixtureId\);/.test(body), 'and it gets that path from the resolver');
+
+  // No source root may be dereferenced anywhere except inside the resolver.
+  const outsideResolver = source.replace(resolver, '');
+  for (const root of ['SYNTHETIC_ROOT', 'CANDIDATES_R2_ROOT']) {
+    const uses = (outsideResolver.match(new RegExp(root, 'g')) ?? []).length;
+    assert.equal(uses, 2, `${root} may only be declared and placed in a candidate set, not read directly`);
+  }
 });
 
 await check('capture calls runRound1Stage and never runOrchestrator', () => {
@@ -669,6 +684,126 @@ await check('the synthetic integrity check fails when archived ground truth is e
   });
   assert.equal(result.ok, false);
   assert.ok(result.failures.some((f) => f.id.includes('gold-issues.json')));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\nReplacement set R2 — identity, isolation and frozen tasks');
+
+await check('the candidate sets are disjoint and cover every known fixture id', () => {
+  const seen = new Set();
+  for (const set of Object.values(CANDIDATE_SETS)) {
+    for (const id of set.fixtureIds) {
+      assert.ok(!seen.has(id), `${id} appears in more than one candidate set`);
+      seen.add(id);
+    }
+  }
+  assert.deepEqual([...CANDIDATE_SETS.R1.fixtureIds], ['fxr-01', 'fxr-02', 'fxr-03', 'fxr-04']);
+  assert.deepEqual([...CANDIDATE_SETS.R2.fixtureIds], ['fxr-05', 'fxr-06', 'fxr-07', 'fxr-08']);
+});
+
+await check('R2 writes to its own root, so R1 evidence cannot be overwritten', () => {
+  assert.notEqual(CANDIDATE_SETS.R1.realRoot, CANDIDATE_SETS.R2.realRoot);
+  assert.ok(CANDIDATE_SETS.R2.realRoot.includes('fixtures-real-r2'));
+  assert.notEqual(CANDIDATE_SETS.R1.sourceRoot, CANDIDATE_SETS.R2.sourceRoot);
+});
+
+await check('R2 candidates resolve to the frozen replacement tasks, not the superseded synthetic ones', () => {
+  for (const id of CANDIDATE_SETS.R2.fixtureIds) {
+    const path = sourceTaskPath(id);
+    assert.ok(path.startsWith(CANDIDATES_R2_ROOT), `${id} must read from candidates-r2, got ${path}`);
+    assert.ok(!path.includes('/fixtures/'), `${id} must not read a synthetic fixture`);
+    assert.ok(readFileSync(path, 'utf8').length > 400);
+  }
+});
+
+await check('R2 provider allocation is the authorized Option 3-prime slot assignment', () => {
+  assert.deepEqual(PROVIDER_ALLOCATION['fxr-05'], { provider: 'openai', model: 'gpt-5' });
+  assert.deepEqual(PROVIDER_ALLOCATION['fxr-06'], { provider: 'claude', model: 'claude-sonnet-5' });
+  assert.deepEqual(PROVIDER_ALLOCATION['fxr-07'], { provider: 'gemini', model: 'gemini-3.1-pro-preview' });
+  assert.deepEqual(PROVIDER_ALLOCATION['fxr-08'], { provider: 'openai', model: 'gpt-5' });
+  for (const id of CANDIDATE_SETS.R2.fixtureIds) {
+    const refs = buildWorkerRefs(id);
+    assert.deepEqual(refs.map((r) => r.id), REGISTERED_SPECIALISTS);
+    for (const ref of refs) {
+      assert.equal(ref.provider, PROVIDER_ALLOCATION[id].provider);
+      assert.equal(ref.model, PROVIDER_ALLOCATION[id].model);
+      assert.equal(ref.providesEvidence, false);
+    }
+  }
+});
+
+await check('the frozen R2 tasks match the hashes recorded in the candidate set manifest', () => {
+  const manifest = JSON.parse(readFileSync(join(CANDIDATES_R2_ROOT, 'candidate-set-manifest.json'), 'utf8'));
+  assert.equal(manifest.candidates.length, 4);
+  for (const entry of manifest.candidates) {
+    const task = readFileSync(sourceTaskPath(entry.fixtureId), 'utf8');
+    assert.equal(sha256(task), entry.taskSha256, entry.fixtureId);
+    assert.equal(SOURCE_CANDIDATE[entry.fixtureId], entry.candidateId);
+  }
+});
+
+await check('no R2 task tells the planner what to conclude', () => {
+  // A task that named the complexity, the roster size, or the intended archetype would make
+  // the result a property of the prompt rather than of the decision under test.
+  const forbidden = [
+    /deep/i, /complexity/i, /specialist/i, /archetype/i, /negative control/i,
+    /多位專家/, /至少兩位/, /控制組/, /負控/, /專家.{0,4}不同意/, /disagree/i,
+  ];
+  for (const id of CANDIDATE_SETS.R2.fixtureIds) {
+    const task = readFileSync(sourceTaskPath(id), 'utf8');
+    for (const pattern of forbidden) {
+      assert.ok(!pattern.test(task), `${id} leaks ${pattern} to the planner`);
+    }
+  }
+});
+
+await check('the intended archetype labels live only in provenance, never in a task', () => {
+  const manifest = readFileSync(join(CANDIDATES_R2_ROOT, 'candidate-set-manifest.json'), 'utf8');
+  for (const label of ['STRATEGY_CONFLICT', 'EXECUTION_CONSTRAINT_CONFLICT', 'EVIDENCE_INTERPRETATION_CONFLICT', 'NEGATIVE_CONTROL']) {
+    assert.ok(manifest.includes(label), `${label} must be recorded in provenance`);
+    for (const id of CANDIDATE_SETS.R2.fixtureIds) {
+      assert.ok(!readFileSync(sourceTaskPath(id), 'utf8').includes(label), `${label} must not appear in a task`);
+    }
+  }
+});
+
+await check('a session refuses to mix candidates from two sets', async () => {
+  await mustReject(
+    () => runCaptureSession({
+      call: stubCall(),
+      realRoot: join(SCRATCH, 'mixed'),
+      fixtureIds: ['fxr-01', 'fxr-05'],
+      meta: META,
+    }),
+    'mixed sets'
+  );
+});
+
+await check('a legal R2 stub capture verifies clean and is recorded under its own set', async () => {
+  const realRoot = join(SCRATCH, 'legal-r2');
+  const out = await runCaptureSession({
+    call: stubCall(),
+    realRoot,
+    fixtureIds: CANDIDATE_SETS.R2.fixtureIds,
+    meta: META,
+    now: () => new Date('2026-09-06T00:00:00.000Z'),
+    fresh: true,
+  });
+  assert.equal(out.session.candidateSet, 'R2');
+  assert.deepEqual(out.session.attempts.map((a) => a.fixtureId), ['fxr-05', 'fxr-06', 'fxr-07', 'fxr-08']);
+  assert.deepEqual(out.session.attempts.map((a) => a.sourceCandidateId), ['r2-01', 'r2-02', 'r2-03', 'r2-04']);
+  const result = verifyAt(realRoot);
+  assert.deepEqual(failedIds(result), []);
+  assert.equal(out.session.globalLiveCallCount, 16);
+});
+
+await check('the R1 capture evidence on disk still verifies as four preserved failures', () => {
+  const result = verifyAt(CANDIDATE_SETS.R1.realRoot);
+  // Exactly the six eligibility failures, and nothing else: the R1 record must stay
+  // readable as an honest failure, not be repaired into a pass or degraded into corruption.
+  assert.deepEqual(failedIds(result).sort(), [
+    'fxr-01/10b', 'fxr-02/10b', 'fxr-02/12b', 'fxr-03/10b', 'fxr-04/10b', 'fxr-04/12b',
+  ]);
 });
 
 rmSync(SCRATCH, { recursive: true, force: true });

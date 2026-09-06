@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { createRecorder, ScopeViolation, RetrievalPolicyViolation, TemperaturePolicyViolation, CallBudgetExceeded } from './recorder.mjs';
 import { runtimeFingerprint, fingerprintDiff } from './runtime-fingerprint.mjs';
 import {
-  captureCandidate, sealManifest, canonical, sha256,
+  captureCandidate, sealManifest, canonical, sha256, candidateSetFor,
   REAL_FIXTURE_IDS, CHIEF_PIN, PROVIDER_ALLOCATION, SOURCE_CANDIDATE,
   CAPTURE_VERSION, PROTOCOL_VERSION, RETRIEVAL_POLICY, TEMPERATURE_POLICY,
 } from './runner.mjs';
@@ -46,6 +46,14 @@ export async function runCaptureSession({
   const startedAt = now().toISOString();
   const results = [];
   let roundEndingViolation = null;
+
+  // Every candidate in one session must belong to one set: mixing them would produce a
+  // session record whose call accounting and ceiling span two separate authorizations.
+  for (const fixtureId of fixtureIds) {
+    if (candidateSetFor(fixtureId).setId !== candidateSetFor(fixtureIds[0]).setId) {
+      throw new Error(`candidate "${fixtureId}" belongs to a different set than "${fixtureIds[0]}"`);
+    }
+  }
 
   for (const fixtureId of fixtureIds) {
     let result = null;
@@ -93,9 +101,12 @@ export async function runCaptureSession({
     result.manifest = sealed;
   }
 
+  const set = candidateSetFor(fixtureIds[0]);
   const session = {
     captureVersion: CAPTURE_VERSION,
     protocolVersion: PROTOCOL_VERSION,
+    candidateSet: set.setId,
+    candidateSetFixtureIds: [...set.fixtureIds],
     ...meta,
     retrievalPolicy: RETRIEVAL_POLICY,
     temperaturePolicy: TEMPERATURE_POLICY,

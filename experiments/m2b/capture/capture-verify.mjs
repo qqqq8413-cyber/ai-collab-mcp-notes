@@ -26,7 +26,14 @@ export const PER_CANDIDATE_CALL_BUDGET = 4;
 /** Filename fragments that mean ground truth has leaked into the runtime fixture path. */
 const EVALUATION_ARTIFACT_PATTERNS = Object.freeze(['conflict-label', 'gold-issue', 'annotation', 'packet-', 'archetype']);
 
-export function verifyCapture({ realRoot, chiefPin, providerAllocation, sourceCandidate, syntheticRoot }) {
+/**
+ * @param {object} input
+ * @param {(fixtureId: string) => string} input.sourceTaskPathFor
+ *   Resolves a fixture's source task file. Passed in rather than derived here so each
+ *   candidate set keeps its own source directory, and so a test can verify a capture that
+ *   lives anywhere on disk.
+ */
+export function verifyCapture({ realRoot, chiefPin, providerAllocation, sourceCandidate, sourceTaskPathFor }) {
   const checks = [];
   const check = (id, name, ok, detail = '') => {
     checks.push({ id, name, ok: Boolean(ok), detail: String(detail) });
@@ -49,7 +56,7 @@ export function verifyCapture({ realRoot, chiefPin, providerAllocation, sourceCa
     // 1. task hash, and byte-identical reuse of the source candidate's task
     const task = read('task.txt');
     p(1, 'task hash matches manifest', sha256(task) === manifest.taskSha256, `${sha256(task)} vs ${manifest.taskSha256}`);
-    const sourceTask = readFileSync(join(syntheticRoot, sourceCandidate[fixtureId], 'task.txt'), 'utf8');
+    const sourceTask = readFileSync(sourceTaskPathFor(fixtureId), 'utf8');
     p('1b', 'task bytes identical to source candidate', task === sourceTask, 'task text was reused verbatim');
 
     // 2. raw calls hash

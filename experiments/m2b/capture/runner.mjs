@@ -39,32 +39,76 @@ export const TEMPERATURE_POLICY = 'provider-default-unprobed';
 /** The full registered specialist roster. The planner picks from these; it is not told which. */
 export const REGISTERED_SPECIALISTS = Object.freeze(['business_strategist', 'market_researcher', 'brand_creative']);
 
-/** Every specialist of a candidate shares one provider and model, so C and D-1 targets are pinned before the Gate exists. */
-export const PROVIDER_ALLOCATION = Object.freeze({
-  'fxr-01': { provider: 'openai', model: 'gpt-5' },
-  'fxr-02': { provider: 'claude', model: 'claude-sonnet-5' },
-  'fxr-03': { provider: 'gemini', model: 'gemini-3.1-pro-preview' },
-  'fxr-04': { provider: 'openai', model: 'gpt-5' },
-});
-
-/** Chief is pinned identically across all four, explicitly rather than by env default. */
+/** Chief is pinned identically across every candidate, explicitly rather than by env default. */
 export const CHIEF_PIN = Object.freeze({ provider: 'openai', model: 'gpt-5' });
 
-export const SOURCE_CANDIDATE = Object.freeze({
-  'fxr-01': 'fx-01',
-  'fxr-02': 'fx-02',
-  'fxr-03': 'fx-03',
-  'fxr-04': 'fx-04',
+export const SYNTHETIC_ROOT = fileURLToPath(new URL('../fixtures/', import.meta.url));
+export const CANDIDATES_R2_ROOT = fileURLToPath(new URL('../candidates-r2/', import.meta.url));
+
+/**
+ * The candidate sets, each frozen before its own capture ran.
+ *
+ * R1 reused the task text of the four superseded synthetic candidates. The production
+ * Chief classified all four as `normal`, so all four failed F1 — honestly, and that
+ * evidence is preserved rather than replaced. R2 is a distinct set of four authored
+ * replacement tasks with its own ids, its own source directory and its own output root,
+ * so nothing about R1 can be overwritten, reused, or quietly absorbed into R2's result.
+ *
+ * Provider allocation follows Option 3-prime in both sets: every specialist of a candidate
+ * shares one provider and model, which pins the C and D-1 target before a Gate exists to
+ * choose it.
+ */
+export const CANDIDATE_SETS = Object.freeze({
+  R1: Object.freeze({
+    setId: 'R1',
+    status: 'FAILED — all four classified normal, preserved as capture evidence',
+    fixtureIds: Object.freeze(['fxr-01', 'fxr-02', 'fxr-03', 'fxr-04']),
+    sourceRoot: SYNTHETIC_ROOT,
+    realRoot: fileURLToPath(new URL('../fixtures-real/', import.meta.url)),
+    sourceCandidate: Object.freeze({ 'fxr-01': 'fx-01', 'fxr-02': 'fx-02', 'fxr-03': 'fx-03', 'fxr-04': 'fx-04' }),
+    providerAllocation: Object.freeze({
+      'fxr-01': { provider: 'openai', model: 'gpt-5' },
+      'fxr-02': { provider: 'claude', model: 'claude-sonnet-5' },
+      'fxr-03': { provider: 'gemini', model: 'gemini-3.1-pro-preview' },
+      'fxr-04': { provider: 'openai', model: 'gpt-5' },
+    }),
+  }),
+  R2: Object.freeze({
+    setId: 'R2',
+    status: 'REPLACEMENT SET',
+    fixtureIds: Object.freeze(['fxr-05', 'fxr-06', 'fxr-07', 'fxr-08']),
+    sourceRoot: CANDIDATES_R2_ROOT,
+    realRoot: fileURLToPath(new URL('../fixtures-real-r2/', import.meta.url)),
+    sourceCandidate: Object.freeze({ 'fxr-05': 'r2-01', 'fxr-06': 'r2-02', 'fxr-07': 'r2-03', 'fxr-08': 'r2-04' }),
+    providerAllocation: Object.freeze({
+      'fxr-05': { provider: 'openai', model: 'gpt-5' },
+      'fxr-06': { provider: 'claude', model: 'claude-sonnet-5' },
+      'fxr-07': { provider: 'gemini', model: 'gemini-3.1-pro-preview' },
+      'fxr-08': { provider: 'openai', model: 'gpt-5' },
+    }),
+  }),
 });
 
-export const REAL_FIXTURE_IDS = Object.freeze(['fxr-01', 'fxr-02', 'fxr-03', 'fxr-04']);
+const mergeSets = (key) => Object.freeze(Object.assign({}, ...Object.values(CANDIDATE_SETS).map((set) => set[key])));
 
-export const SYNTHETIC_ROOT = fileURLToPath(new URL('../fixtures/', import.meta.url));
-export const REAL_ROOT = fileURLToPath(new URL('../fixtures-real/', import.meta.url));
+/** Merged across sets, so a verifier can be handed one map and still bind every id uniquely. */
+export const PROVIDER_ALLOCATION = mergeSets('providerAllocation');
+export const SOURCE_CANDIDATE = mergeSets('sourceCandidate');
 
-/** The one file the capture is allowed to take from a superseded synthetic candidate. */
+export function candidateSetFor(fixtureId) {
+  const set = Object.values(CANDIDATE_SETS).find((s) => s.fixtureIds.includes(fixtureId));
+  if (!set) throw new Error(`no candidate set defines "${fixtureId}"`);
+  return set;
+}
+
+/** R1's ids, kept as the default so existing callers and tests keep their meaning. */
+export const REAL_FIXTURE_IDS = CANDIDATE_SETS.R1.fixtureIds;
+export const REAL_ROOT = CANDIDATE_SETS.R1.realRoot;
+
+/** The one file a capture is allowed to read from its source candidate. */
 export function sourceTaskPath(fixtureId) {
-  return join(SYNTHETIC_ROOT, SOURCE_CANDIDATE[fixtureId], 'task.txt');
+  const set = candidateSetFor(fixtureId);
+  return join(set.sourceRoot, set.sourceCandidate[fixtureId], 'task.txt');
 }
 
 /**
