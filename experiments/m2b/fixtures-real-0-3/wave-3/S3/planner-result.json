@@ -1,0 +1,18 @@
+{
+  "complexity": "normal",
+  "requiredCapabilities": [
+    "business model strategy",
+    "financial trade-off analysis",
+    "operations capacity planning",
+    "risk/brand impact assessment"
+  ],
+  "assignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Choose A/B/C strictly from given facts. Balance capacity limits, lower-pay fixed-slot contract, standardized shorter sessions, brand promise of unhurried care, uneven site utilization, seasonality, 1+ year hiring lag, and two leases expiring. Deliver: decision with core reason, strongest counterargument, flip conditions, and 3-year internal mechanisms (ops/scheduling, clinical QA/standards, pricing/mix, throughput governance).",
+      "priority": "high"
+    }
+  ],
+  "requiresRedTeam": false,
+  "reason": "Single strategic trade-off decision with operational and brand risk implications fits a business strategist. No external research or creative work is needed; all inputs are provided. One specialist can produce a high-quality, actionable recommendation."
+}

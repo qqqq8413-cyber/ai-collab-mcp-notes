@@ -1,0 +1,18 @@
+{
+  "complexity": "deep",
+  "requiredCapabilities": [
+    "business strategy",
+    "causal interpretation",
+    "risk assessment",
+    "financial logic"
+  ],
+  "assignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Choose A/B/C by interpreting the trial: quantify revenue change via AOV (+27%) vs traffic (-15%); benchmark vs +3% non-test stores. Adjust for confounds (regional ads, selection bias of high-traffic stores, area footfall, high-rent site underperformance). Flag overinterpreted results, differences not caused by format, and specify new evidence that would change the call. Conclude if evidence justifies a 3-year standard given optometrist bottleneck and longer lead times.",
+      "priority": "high"
+    }
+  ],
+  "requiresRedTeam": false,
+  "reason": "A single critical business strategist can interpret the quasi-experiment, assess causality and operational risks, and make the A/B/C call without external research or creative input."
+}

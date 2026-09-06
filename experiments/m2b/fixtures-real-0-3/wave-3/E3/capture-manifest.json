@@ -1,0 +1,107 @@
+{
+  "fixtureId": "E3",
+  "sourceCandidateId": "E3",
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-3",
+  "protocolVersion": "M2B-PROTOCOL-0.3",
+  "executionHead": "57f858601de660a368eabd541522423436151b20",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "57f858601de660a368eabd541522423436151b20",
+  "nodeVersion": "v24.15.0",
+  "taskSha256": "eed2ea25f22f33a98b005ac3227fd04c847dd04888ee8fb4744cc95f9717f6e7",
+  "startedAt": "2026-09-06T18:00:30.279Z",
+  "completedAt": "2026-09-06T18:01:36.712Z",
+  "captureStatus": "FAILED",
+  "eligibility": {
+    "F1": true,
+    "F2": false,
+    "F3": true
+  },
+  "failureReasons": [
+    "F2: 1 specialist(s) returned output, fewer than two"
+  ],
+  "fatalError": null,
+  "chiefPin": {
+    "provider": "openai",
+    "requestedModel": "gpt-5",
+    "resolvedModel": "gpt-5",
+    "resolvedProvider": "openai"
+  },
+  "providerAllocation": {
+    "mode": "role-based-heterogeneous",
+    "byAgent": {
+      "business_strategist": {
+        "provider": "claude",
+        "model": "claude-sonnet-5"
+      },
+      "market_researcher": {
+        "provider": "gemini",
+        "model": "gemini-3.1-pro-preview"
+      },
+      "brand_creative": {
+        "provider": "openai",
+        "model": "gpt-5"
+      }
+    }
+  },
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "transportRetryPolicy": "explicit-no-retry",
+  "transportMaxRetries": 0,
+  "actualComplexity": "deep",
+  "plannerAssignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Decide A/B/C using given constraints; assess if current ops/quality can support the commitment; identify conditions that would flip the choice; and draft the top non-negotiable pre-signing clauses (scope, SLAs, liability, audit/QA, ramp-up, delay remedies, subcontract control).",
+      "priority": "high"
+    }
+  ],
+  "planningAdjustments": [],
+  "round1Status": "SUCCESS",
+  "successfulWorkerCount": 1,
+  "failedWorkerCount": 0,
+  "liveCallCount": 2,
+  "agentOrder": [
+    "business_strategist"
+  ],
+  "availableRosterSha256": "1d02b2c50fb0156841e31c730efd44e15660cec596d5ce49fca43100fd42dfe9",
+  "snapshotSha256": "dce4e8c167db27dd43bd64d6788ae393cc1852bda2eabced1b6eed87b96385bf",
+  "rawCallsSha256": "298d205fd5008714fa0ea5d9b794c5b30a7e76974d991fc4d99a0b233bf8add3",
+  "runtimeFingerprintStart": "ce08b4fc127c34ee7062ae0f9b52c9c4a1bbfbfd95b3a87079fba41f7b7c9029",
+  "runtimeFingerprintEnd": "ce08b4fc127c34ee7062ae0f9b52c9c4a1bbfbfd95b3a87079fba41f7b7c9029",
+  "postRound1Execution": "NONE",
+  "gateExecution": "NONE",
+  "synthesisExecution": "NONE",
+  "workers": [
+    {
+      "agentId": "business_strategist",
+      "routingRole": "business_strategist",
+      "roleSha256": "c96ca15e20caa8b0018dcf6c88487641679d376f5a970e4a4bf8fcd28f183996",
+      "missionSha256": "90591c9b002e1e8cfd8507ead1afd13fe77baac38b6ea9510c87022c4c2fbb5e",
+      "outputSha256": "4998080b2374856a9d64d3e3f21596e6f18fd4d9773ea25ee43d99b546c9ccae",
+      "providerRequested": "claude",
+      "providerResolved": "claude",
+      "modelRequested": "claude-sonnet-5",
+      "modelResolved": "claude-sonnet-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    }
+  ],
+  "fileHashes": {
+    "task.txt": "eed2ea25f22f33a98b005ac3227fd04c847dd04888ee8fb4744cc95f9717f6e7",
+    "available-roster.json": "1d02b2c50fb0156841e31c730efd44e15660cec596d5ce49fca43100fd42dfe9",
+    "planner-result.json": "eb150d90a21c3576ea19d01adcaad9223e7ab8de2ee54472d42198282388070b",
+    "planning-adjustments.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "snapshot.json": "dce4e8c167db27dd43bd64d6788ae393cc1852bda2eabced1b6eed87b96385bf",
+    "report.json": "7a3d1fd43cdde3ae661187bfa1e741a548644de46ce82ef546d4454fd5e67841",
+    "mission-business_strategist.txt": "90591c9b002e1e8cfd8507ead1afd13fe77baac38b6ea9510c87022c4c2fbb5e",
+    "round1-business_strategist.md": "4998080b2374856a9d64d3e3f21596e6f18fd4d9773ea25ee43d99b546c9ccae",
+    "raw-calls.json": "298d205fd5008714fa0ea5d9b794c5b30a7e76974d991fc4d99a0b233bf8add3"
+  },
+  "manifestSha256": "a0642e48ce650861ef578f07db0952ba7d67de0d0e186fd3e3cfe452cd822108"
+}

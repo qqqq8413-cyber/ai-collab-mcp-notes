@@ -1,0 +1,1 @@
+Decide A/B/C using given constraints; assess if current ops/quality can support the commitment; identify conditions that would flip the choice; and draft the top non-negotiable pre-signing clauses (scope, SLAs, liability, audit/QA, ramp-up, delay remedies, subcontract control).

@@ -1,0 +1,15 @@
+{
+  "status": "SUCCESS",
+  "requestedWorkers": 1,
+  "successfulWorkers": 1,
+  "failedWorkers": 0,
+  "failures": [],
+  "synthesisAllowed": true,
+  "evidenceLabel": "NOT_APPLICABLE",
+  "notes": [],
+  "policy": {
+    "topology": "single",
+    "synthesize": true,
+    "reason": "non_simple_execution"
+  }
+}

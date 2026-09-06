@@ -1,0 +1,17 @@
+{
+  "complexity": "deep",
+  "requiredCapabilities": [
+    "business strategy and risk assessment",
+    "operational capacity and quality systems evaluation",
+    "contract/terms prioritization and risk allocation"
+  ],
+  "assignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Decide A/B/C using given constraints; assess if current ops/quality can support the commitment; identify conditions that would flip the choice; and draft the top non-negotiable pre-signing clauses (scope, SLAs, liability, audit/QA, ramp-up, delay remedies, subcontract control).",
+      "priority": "high"
+    }
+  ],
+  "requiresRedTeam": false,
+  "reason": "This is a high-stakes strategic/operational contract decision based solely on provided facts. A single business strategist can integrate risk, capacity, quality, and contract terms. No external market or brand work is needed, so additional specialists would not change the decision."
+}
