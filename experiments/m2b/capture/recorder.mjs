@@ -7,8 +7,12 @@
  *
  * Everything here exists because a live call costs money and cannot be taken back. So the
  * guards are all *pre-call*: a violation must stop the request before it is issued, not be
- * noticed in the artifact afterwards. The four that can end the whole round are scope,
- * retrieval, budget and journal integrity.
+ * noticed in the artifact afterwards. The ones that can end the whole round are scope,
+ * retrieval, temperature, budget and request-side routing.
+ *
+ * Pin checking is two-layered and the layers are not interchangeable. The request side is
+ * decided before the call and refuses it; the resolved side can only be known afterwards
+ * and marks the paid-for call invalid without discarding it.
  *
  * ## What "resolved" means here (and does not)
  *
@@ -86,6 +90,28 @@ export class WorkerBindingError extends Error {
     this.name = 'WorkerBindingError';
     this.code = 'INVALID_CAPTURE';
     this.matches = matches;
+  }
+}
+
+/**
+ * The request itself was addressed to the wrong provider or model.
+ *
+ * Deliberately a different error from `ModelPinMismatch`, because the evidence they leave
+ * behind is different in kind. This one means the harness was about to ask the wrong model
+ * a question: nothing was sent, no response exists, and no money was spent. The other means
+ * the right question was asked and something else answered it. Collapsing them would let a
+ * routing defect that cost nothing be filed next to one that produced a real, invalid
+ * artifact, and the two need different handling for the rest of the experiment's life.
+ */
+export class RequestPinMismatch extends Error {
+  constructor(stage, agentId, expected, requested) {
+    super(`REQUEST_PIN_MISMATCH at stage "${stage}"${agentId ? ` for ${agentId}` : ''}: expected ${expected}, requested ${requested}. Provider NOT called.`);
+    this.name = 'RequestPinMismatch';
+    this.code = 'REQUEST_PIN_MISMATCH';
+    this.stage = stage;
+    this.agentId = agentId;
+    this.expected = expected;
+    this.requested = requested;
   }
 }
 
@@ -212,6 +238,21 @@ export function createRecorder({ call, journalPath = null, now = () => new Date(
         : pins[stage];
       if (!pin) throw new Error(`no pin for stage "${stage}"; the capture manifest is incomplete`);
 
+      // The request side of the pin is knowable here, before anything is spent, so it is
+      // checked here. Under Option 3'-H the roster is heterogeneous and each specialist
+      // carries a different provider, which makes a mis-addressed request a real
+      // possibility rather than a theoretical one — and a routing defect that is only
+      // noticed in the response has already been paid for, once per worker, for the rest
+      // of the round.
+      if (provider !== pin.provider || options.model !== pin.model) {
+        throw halt(new RequestPinMismatch(
+          stage,
+          agentId,
+          `${pin.provider}/${pin.model}`,
+          `${provider}/${options.model ?? null}`,
+        ));
+      }
+
       candidateCalls += 1;
       reserved += 1;
       const startedAt = now().toISOString();
@@ -255,10 +296,10 @@ export function createRecorder({ call, journalPath = null, now = () => new Date(
       const expectedLabel = `${pin.provider}/${pin.model}`;
       const requestedLabel = `${provider}/${options.model ?? null}`;
       const resolvedLabel = `${result.provider}/${result.model}`;
-      const pinMismatch = provider !== pin.provider
-        || options.model !== pin.model
-        || result.provider !== pin.provider
-        || result.model !== pin.model;
+      // Request side is already guaranteed by the pre-call guard, so this is purely the
+      // adapter's answer. Semantics unchanged from CWP-1: response preserved, call
+      // counted, call invalid, no retry and no fallback.
+      const pinMismatch = result.provider !== pin.provider || result.model !== pin.model;
 
       journal({
         ...base,

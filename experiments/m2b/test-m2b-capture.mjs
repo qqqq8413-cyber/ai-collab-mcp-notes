@@ -14,14 +14,14 @@
  *    by corrupting a legal capture and watching the named check go red.
  */
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync, mkdirSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   createRecorder, ScopeViolation, RetrievalPolicyViolation, TemperaturePolicyViolation,
-  CallBudgetExceeded, WorkerBindingError, ModelPinMismatch, DuplicateAttempt,
+  CallBudgetExceeded, WorkerBindingError, ModelPinMismatch, RequestPinMismatch, DuplicateAttempt,
   ALLOWED_STAGES, GLOBAL_CALL_BUDGET,
 } from './capture/recorder.mjs';
 import { runCaptureSession } from './capture/session.mjs';
@@ -434,6 +434,207 @@ await check('no secret ever enters a call record', async () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+console.log('\nRequest-side pin guard — a mis-addressed request never reaches a provider');
+
+await check('T-P1-1: a planning call to the wrong provider is refused before the provider is reached', async () => {
+  const f = recorderFixture();
+  const err = await mustReject(
+    () => f.dispatch('claude', 'p', { stage: 'planning', model: CHIEF_PIN.model }),
+    'planning provider mismatch',
+  );
+  assert.ok(err instanceof RequestPinMismatch);
+  assert.equal(err.code, 'REQUEST_PIN_MISMATCH');
+  assert.equal(err.expected, `${CHIEF_PIN.provider}/${CHIEF_PIN.model}`);
+  assert.equal(err.requested, `claude/${CHIEF_PIN.model}`);
+  assert.match(String(err), /Provider NOT called/);
+  assert.equal(f.providerCalls, 0, 'the provider must not have been called');
+  assert.equal(f.recorder.liveCallCount, 0);
+  assert.equal(f.recorder.reservedCallCount, 0, 'a refused request claims no budget slot');
+  assert.equal(f.recorder.violation.code, 'REQUEST_PIN_MISMATCH');
+});
+
+await check('T-P1-2: a planning call to the wrong model is refused before the provider is reached', async () => {
+  const f = recorderFixture();
+  const err = await mustReject(
+    () => f.dispatch(CHIEF_PIN.provider, 'p', { stage: 'planning', model: 'wrong-model' }),
+    'planning model mismatch',
+  );
+  assert.ok(err instanceof RequestPinMismatch);
+  assert.equal(err.requested, `${CHIEF_PIN.provider}/wrong-model`);
+  assert.equal(f.providerCalls, 0);
+  assert.equal(f.recorder.liveCallCount, 0);
+  assert.equal(f.recorder.reservedCallCount, 0);
+});
+
+await check('T-P1-3: a worker call to the wrong provider is refused after attribution, before the call', async () => {
+  for (const worker of RECORDER_WORKERS) {
+    const f = recorderFixture();
+    const wrong = worker.provider === 'openai' ? 'claude' : 'openai';
+    const err = await mustReject(() => dispatchWorker(f.dispatch, worker, { provider: wrong }), worker.id);
+    assert.ok(err instanceof RequestPinMismatch, worker.id);
+    // Attribution still happened: the error names the specialist it was addressed to.
+    assert.equal(err.agentId, worker.id);
+    assert.equal(err.expected, `${routingFor(worker.id).provider}/${routingFor(worker.id).model}`);
+    assert.equal(f.providerCalls, 0, worker.id);
+    assert.equal(f.recorder.liveCallCount, 0);
+    assert.equal(f.recorder.reservedCallCount, 0);
+  }
+});
+
+await check('T-P1-4: a worker call to the wrong model is refused before the provider is reached', async () => {
+  for (const worker of RECORDER_WORKERS) {
+    const f = recorderFixture();
+    const err = await mustReject(() => dispatchWorker(f.dispatch, worker, { model: 'wrong-model' }), worker.id);
+    assert.ok(err instanceof RequestPinMismatch, worker.id);
+    assert.equal(err.requested, `${worker.provider}/wrong-model`);
+    assert.equal(f.providerCalls, 0, worker.id);
+    assert.equal(f.recorder.reservedCallCount, 0);
+  }
+});
+
+await check('T-P1-5: a correctly addressed request still reaches the provider', async () => {
+  const f = recorderFixture();
+  await f.dispatch(CHIEF_PIN.provider, 'p', { stage: 'planning', model: CHIEF_PIN.model });
+  assert.equal(f.providerCalls, 1);
+  assert.equal(f.recorder.liveCallCount, 1);
+  assert.equal(f.recorder.reservedCallCount, 1);
+  assert.equal(f.recorder.violation, null, 'a legal call is not a violation');
+
+  for (const worker of RECORDER_WORKERS) {
+    const w = recorderFixture();
+    await dispatchWorker(w.dispatch, worker);
+    assert.equal(w.providerCalls, 1, worker.id);
+    assert.equal(w.recorder.liveCallCount, 1);
+    assert.equal(w.recorder.reservedCallCount, 1);
+    assert.equal(w.recorder.calls[0].pinMismatch, false);
+    assert.equal(w.recorder.calls[0].success, true);
+  }
+});
+
+await check('T-P1-6: resolved-side drift is still post-call evidence, not a refusal', async () => {
+  const f = recorderFixture({
+    call: async (provider, prompt, options) => ({ provider: 'wrong-provider', model: options.model, text: 'stub' }),
+  });
+  const err = await mustReject(
+    () => f.dispatch(CHIEF_PIN.provider, 'p', { stage: 'planning', model: CHIEF_PIN.model }),
+    'resolved drift',
+  );
+  assert.ok(err instanceof ModelPinMismatch, 'the paid-for call keeps its own error type');
+  assert.ok(!(err instanceof RequestPinMismatch));
+  assert.equal(err.code, 'MODEL_PIN_MISMATCH');
+  assert.equal(f.recorder.liveCallCount, 1, 'the call happened and is counted');
+  assert.equal(f.recorder.reservedCallCount, 1);
+  const record = f.recorder.calls[0];
+  assert.equal(record.providerResolved, 'wrong-provider');
+  assert.equal(record.responseText, 'stub', 'raw response preserved');
+  assert.equal(record.pinMismatch, true);
+  assert.equal(record.success, false);
+  assert.match(record.error, /MODEL_PIN_MISMATCH/);
+});
+
+await check('T-P1-6b: a resolved model drift is caught the same way', async () => {
+  const f = recorderFixture({
+    call: async (provider) => ({ provider, model: 'some-other-model', text: 'stub' }),
+  });
+  const err = await mustReject(
+    () => f.dispatch(CHIEF_PIN.provider, 'p', { stage: 'planning', model: CHIEF_PIN.model }),
+    'resolved model drift',
+  );
+  assert.ok(err instanceof ModelPinMismatch);
+  assert.equal(f.recorder.liveCallCount, 1);
+  assert.equal(f.recorder.calls[0].modelResolved, 'some-other-model');
+});
+
+await check('T-P1-7: a refused request writes no live-call record to the journal', async () => {
+  const journalPath = join(mkdtempSync(join(tmpdir(), 'm2b-p1-')), 'journal.ndjson');
+  let calledProvider = 0;
+  const recorder = createRecorder({
+    call: async (provider, prompt, options) => { calledProvider += 1; return { provider, model: options.model, text: 'stub' }; },
+    journalPath,
+    now: () => new Date('2026-09-06T00:00:00.000Z'),
+  });
+  const dispatch = recorder.dispatcherFor('fxr-01', { pins: PINS, workers: RECORDER_WORKERS });
+  await mustReject(() => dispatch('claude', 'p', { stage: 'planning', model: CHIEF_PIN.model }), 'refused');
+  assert.equal(calledProvider, 0);
+  assert.equal(recorder.liveCallCount, 0);
+  assert.equal(existsSync(journalPath), false, 'nothing was appended, so the journal was never created');
+
+  // And a legal call afterwards does write one, so the absence above is the guard, not a
+  // broken journal path.
+  await dispatch(CHIEF_PIN.provider, 'p', { stage: 'planning', model: CHIEF_PIN.model });
+  const lines = readFileSync(journalPath, 'utf8').split('\n').filter(Boolean);
+  assert.equal(lines.length, 1);
+  assert.equal(JSON.parse(lines[0]).providerRequested, CHIEF_PIN.provider);
+});
+
+await check('T-P1-8: a refused request does not consume the budget it would have used', async () => {
+  let calledProvider = 0;
+  const recorder = createRecorder({
+    call: async (provider, prompt, options) => { calledProvider += 1; return { provider, model: options.model, text: 'stub' }; },
+    now: () => new Date('2026-09-06T00:00:00.000Z'),
+    globalBudget: 1,
+  });
+  const dispatch = recorder.dispatcherFor('fxr-01', { pins: PINS, workers: RECORDER_WORKERS });
+  await mustReject(() => dispatch('claude', 'p', { stage: 'planning', model: CHIEF_PIN.model }), 'refused');
+  assert.equal(recorder.reservedCallCount, 0);
+
+  await dispatch(CHIEF_PIN.provider, 'p', { stage: 'planning', model: CHIEF_PIN.model });
+  assert.equal(calledProvider, 1, 'the one budgeted call is still available after a refusal');
+  assert.equal(recorder.reservedCallCount, 1);
+});
+
+await check('T-P1-9: the violation latch survives a worker try/catch swallowing the throw', async () => {
+  const f = recorderFixture();
+  const worker = RECORDER_WORKERS[0];
+  const wrong = worker.provider === 'openai' ? 'claude' : 'openai';
+  // Exactly what production does around each Round 1 worker call.
+  let swallowed = null;
+  try {
+    await dispatchWorker(f.dispatch, worker, { provider: wrong });
+  } catch (e) {
+    swallowed = e;
+  }
+  assert.ok(swallowed instanceof RequestPinMismatch);
+  assert.equal(f.recorder.violation.code, 'REQUEST_PIN_MISMATCH', 'the round must still know');
+  assert.match(f.recorder.violation.message, /Provider NOT called/);
+  assert.equal(f.recorder.violation.stage, 'round1_worker');
+  assert.equal(f.providerCalls, 0);
+});
+
+await check('T-P1-10: the earlier pre-call guards still fire, and still fire first', async () => {
+  // Each of these is dispatched with a provider/model that would ALSO fail the new pin
+  // guard, so a passing assertion proves the older guard still runs ahead of it.
+  const wrong = { provider: 'claude', model: 'wrong-model' };
+
+  const scope = recorderFixture();
+  assert.ok(await mustReject(
+    () => scope.dispatch(wrong.provider, 'p', { stage: 'synthesis', model: wrong.model }), 'scope',
+  ) instanceof ScopeViolation);
+  assert.equal(scope.providerCalls, 0);
+
+  const retrieval = recorderFixture();
+  assert.ok(await mustReject(
+    () => retrieval.dispatch(wrong.provider, 'p', { stage: 'planning', model: wrong.model, retrieval: { enabled: false } }), 'retrieval',
+  ) instanceof RetrievalPolicyViolation);
+
+  const temperature = recorderFixture();
+  assert.ok(await mustReject(
+    () => temperature.dispatch(wrong.provider, 'p', { stage: 'planning', model: wrong.model, temperature: 0 }), 'temperature',
+  ) instanceof TemperaturePolicyViolation);
+
+  const binding = recorderFixture();
+  assert.ok(await mustReject(
+    () => binding.dispatch(wrong.provider, 'p', { stage: 'round1_worker', model: wrong.model, system: 'not a registered role' }), 'binding',
+  ) instanceof WorkerBindingError);
+  assert.equal(binding.providerCalls, 0);
+
+  const budget = createRecorder({ call: async () => ({ provider: 'x', model: 'y', text: 't' }), globalBudget: 0 });
+  const dispatch = budget.dispatcherFor('fxr-01', { pins: PINS, workers: RECORDER_WORKERS });
+  assert.ok(await mustReject(
+    () => dispatch(wrong.provider, 'p', { stage: 'planning', model: wrong.model }), 'budget',
+  ) instanceof CallBudgetExceeded);
+});
+
 console.log('\nCapture runner — production binding');
 
 await check('every registered specialist resolves through the accepted role-provider map', () => {
