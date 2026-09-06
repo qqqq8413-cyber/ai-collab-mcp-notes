@@ -31,6 +31,7 @@ import {
   SYNTHETIC_ROOT, CANDIDATES_R2_ROOT, CANDIDATES_R3_ROOT, CANDIDATES_0_3_ROOT, P03_REAL_ROOT,
   CANDIDATE_SETS, candidateSetFor, sourceTaskPath, REGISTERED_SPECIALISTS, buildWorkerRefs,
   assertFrozenP03Pool, selectWaveSlots, waveCallBudget, waveOutputRoot, canonical, sha256,
+  CAPTURE_VERSION, TRANSPORT_MAX_RETRIES, TRANSPORT_RETRY_POLICY,
 } from './capture/runner.mjs';
 import {
   ACQUISITION_POOL_SIZE, ARCHETYPE_SLOTS, ROLE_PROVIDER_MAP, WAVES,
@@ -714,7 +715,8 @@ await check('a fully legal stub capture passes every check', () => {
 await check('a new capture records auditable heterogeneous allocation provenance', () => {
   const manifest = JSON.parse(readFileSync(join(legal.realRoot, 'fxr-01', 'capture-manifest.json'), 'utf8'));
   assert.equal(manifest.protocolVersion, 'M2B-PROTOCOL-0.3');
-  assert.equal(manifest.captureVersion, 'M2B-REAL-ROUND1-CAPTURE-2');
+  assert.equal(manifest.captureVersion, CAPTURE_VERSION);
+  assert.equal(CAPTURE_VERSION, 'M2B-REAL-ROUND1-CAPTURE-3', 'transport provenance is CAPTURE-3');
   assert.equal(manifest.providerAllocation.mode, 'role-based-heterogeneous');
   assert.deepEqual(manifest.providerAllocation.byAgent, ROLE_PROVIDER_MAP);
   for (const worker of manifest.workers) {
@@ -1196,6 +1198,101 @@ await check('P03 session rejects reordered or manually selected slots before any
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+console.log('\nTransport provenance — CAPTURE-3 records it, CAPTURE-2 is not judged by it');
+
+await check('C/D: a legal CAPTURE-3 capture carries the transport policy on session, manifest and every call', () => {
+  const session = JSON.parse(readFileSync(join(legal.realRoot, 'capture-session.json'), 'utf8'));
+  assert.equal(session.captureVersion, CAPTURE_VERSION);
+  assert.equal(session.transportRetryPolicy, TRANSPORT_RETRY_POLICY);
+  assert.equal(session.transportMaxRetries, TRANSPORT_MAX_RETRIES);
+  for (const fixtureId of REAL_FIXTURE_IDS) {
+    const manifest = JSON.parse(readFileSync(join(legal.realRoot, fixtureId, 'capture-manifest.json'), 'utf8'));
+    assert.equal(manifest.transportRetryPolicy, TRANSPORT_RETRY_POLICY, fixtureId);
+    assert.equal(manifest.transportMaxRetries, 0, fixtureId);
+    const raw = JSON.parse(readFileSync(join(legal.realRoot, fixtureId, 'raw-calls.json'), 'utf8'));
+    assert.ok(raw.length > 0);
+    for (const call of raw) {
+      assert.equal(call.transportRetryPolicy, TRANSPORT_RETRY_POLICY, `${fixtureId}/${call.seq}`);
+      assert.equal(call.transportMaxRetriesRequested, 0, `${fixtureId}/${call.seq}`);
+    }
+  }
+  assert.deepEqual(failedIds(verifyAt(legal.realRoot)), []);
+});
+
+await check('C: NEGATIVE: a CAPTURE-3 call with no recorded retry policy is rejected', () => {
+  const result = tamper(legal.realRoot, 'transport-policy-absent', (dir) => {
+    const path = join(dir, 'fxr-01', 'raw-calls.json');
+    const calls = JSON.parse(readFileSync(path, 'utf8'));
+    delete calls[0].transportRetryPolicy;
+    delete calls[0].transportMaxRetriesRequested;
+    writeFileSync(path, canonical(calls));
+  });
+  assert.ok(someFailureMatches(result, '/34b'), failedIds(result).join(', '));
+  assert.ok(someFailureMatches(result, '/34c'), failedIds(result).join(', '));
+});
+
+await check('D: NEGATIVE: a CAPTURE-3 call requesting a nonzero retry count is rejected', () => {
+  const result = tamper(legal.realRoot, 'transport-retries-nonzero', (dir) => {
+    const path = join(dir, 'fxr-02', 'raw-calls.json');
+    const calls = JSON.parse(readFileSync(path, 'utf8'));
+    calls[calls.length - 1].transportMaxRetriesRequested = 2;
+    writeFileSync(path, canonical(calls));
+  });
+  assert.ok(someFailureMatches(result, '/34c'), failedIds(result).join(', '));
+});
+
+await check('D: NEGATIVE: a CAPTURE-3 manifest declaring a different policy is rejected', () => {
+  const result = tamper(legal.realRoot, 'transport-manifest-policy', (dir) => {
+    const path = join(dir, 'fxr-03', 'capture-manifest.json');
+    const manifest = JSON.parse(readFileSync(path, 'utf8'));
+    manifest.transportRetryPolicy = 'sdk-default';
+    writeFileSync(path, canonical(manifest));
+  });
+  assert.ok(someFailureMatches(result, '/34'), failedIds(result).join(', '));
+});
+
+await check('NEGATIVE: a CAPTURE-3 session with no dependency provenance is rejected', () => {
+  const result = tamper(legal.realRoot, 'dependency-absent', (dir) => {
+    const path = join(dir, 'capture-session.json');
+    const session = JSON.parse(readFileSync(path, 'utf8'));
+    delete session.dependencyProvenance;
+    writeFileSync(path, canonical(session));
+  });
+  assert.ok(someFailureMatches(result, '35b'), failedIds(result).join(', '));
+  assert.ok(someFailureMatches(result, '35c'), failedIds(result).join(', '));
+});
+
+await check('NEGATIVE: a CAPTURE-3 session whose SDK drifted from the proven version is rejected', () => {
+  const result = tamper(legal.realRoot, 'dependency-drift', (dir) => {
+    const path = join(dir, 'capture-session.json');
+    const session = JSON.parse(readFileSync(path, 'utf8'));
+    session.dependencyProvenance.packages = session.dependencyProvenance.packages.map((pkg) =>
+      (pkg.name === '@google/generative-ai' ? { ...pkg, lockedVersion: '0.24.9', installedVersion: '0.24.9' } : pkg));
+    writeFileSync(path, canonical(session));
+  });
+  assert.ok(someFailureMatches(result, '35d'), failedIds(result).join(', '));
+});
+
+await check('E: CAPTURE-2 evidence stays verifiable and is never judged on transport provenance', () => {
+  // Wave 1 and Wave 2 predate the field. Their silence must not be read as a policy, in
+  // either direction: not as compliance, and not as a failure.
+  for (const [label, root, budget] of [
+    ['wave-1', waveOutputRoot(1), waveCallBudget(['S1', 'E1', 'I1'])],
+    ['wave-2', waveOutputRoot(2), waveCallBudget(['S2', 'E2', 'I2'])],
+  ]) {
+    const session = JSON.parse(readFileSync(join(root, 'capture-session.json'), 'utf8'));
+    assert.equal(session.captureVersion, 'M2B-REAL-ROUND1-CAPTURE-2', label);
+    assert.equal(session.transportRetryPolicy, undefined, `${label} never recorded one`);
+    const result = verifyAt(root, budget);
+    for (const failure of result.failures) {
+      assert.ok(!String(failure.id).includes('/34'), `${label}: ${failure.id} must not judge CAPTURE-2 on transport`);
+      assert.ok(!String(failure.id).startsWith('35'), `${label}: ${failure.id} must not judge CAPTURE-2 on dependencies`);
+    }
+    // The only failures are the eligibility gates the run legitimately failed.
+    assert.ok(result.failures.every((f) => /\/(10b|12b)$/.test(String(f.id))), failedIds(result).join(', '));
+  }
+});
+
 console.log('\nReplacement set R2 — identity, isolation and frozen tasks');
 
 await check('the candidate sets are disjoint and cover every known fixture id', () => {

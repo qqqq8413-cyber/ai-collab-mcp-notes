@@ -68,6 +68,19 @@ export interface CallOptions {
   retrieval?: RetrievalRequest;
   /** Diagnostic label for tests and reporting; never sent to a provider. */
   stage?: CallStage;
+  /**
+   * Forbids the SDK from retrying this request at the transport layer.
+   *
+   * Only `0`, and only ever set by a caller that needs one logical invocation to mean at
+   * most one HTTP attempt — today that is the M2-B capture path, where a logical call
+   * budget is also the money it can spend. The OpenAI and Anthropic SDKs both default to
+   * two retries, so without this a single recorded call could be three requests, and the
+   * artifact would understate what was actually sent.
+   *
+   * Absent means "leave the SDK alone". Ordinary product calls must keep their retries:
+   * a transient 500 in normal operation should be retried, not surfaced to a user.
+   */
+  transportMaxRetries?: 0;
 }
 
 export interface CallResult {

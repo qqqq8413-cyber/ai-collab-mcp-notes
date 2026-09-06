@@ -18,6 +18,7 @@ import {
   CANDIDATE_SETS, sourceTaskPath, SOURCE_CANDIDATE,
   selectWaveSlots, waveCallBudget, waveOutputRoot,
 } from './runner.mjs';
+import { assertDependenciesMatchLock } from './dependency-provenance.mjs';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const PRODUCTION_BOUNDARY_COMMIT = 'd01043b6c520c29473e3960c60bad28aec9719ed';
@@ -113,6 +114,18 @@ for (const fixtureId of REAL_FIXTURE_IDS) {
   }
 }
 
+// The last precondition before money can be spent. A provider SDK that disagrees with
+// the lockfile, or that is not the version the transport no-retry proof was run against,
+// invalidates the one-call-one-request claim this capture will make. Never repaired
+// automatically: npm install is a decision, not a preflight step.
+let dependencies;
+try {
+  dependencies = await assertDependenciesMatchLock();
+} catch (err) {
+  console.error(String(err.message ?? err));
+  process.exit(2);
+}
+
 const meta = {
   executionHead: head,
   productionBoundaryCommit: PRODUCTION_BOUNDARY_COMMIT,
@@ -129,6 +142,11 @@ console.error(`executionHead            ${meta.executionHead}`);
 console.error(`captureHarnessCommit     ${meta.captureHarnessCommit}`);
 console.error(`productionBoundaryCommit ${meta.productionBoundaryCommit}`);
 console.error(`node                     ${meta.nodeVersion}`);
+console.error(`package-lock sha256      ${dependencies.packageLockSha256}`);
+for (const pkg of dependencies.packages) {
+  console.error(`  ${pkg.name.padEnd(24)} ${pkg.installedVersion} (locked ${pkg.lockedVersion}, transport-proven ${pkg.transportProvenVersion})`);
+}
+console.error(`transport retry policy   explicit-no-retry (maxRetries = 0 on every call)`);
 console.error(`candidate set            ${setId}`);
 if (waveNumber !== null) {
   console.error(`wave                     ${waveNumber}`);

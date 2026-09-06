@@ -72,6 +72,14 @@ export async function callGemini(prompt: string, options: CallOptions = {}): Pro
     ...(wantsRetrieval ? { tools: [{ googleSearch: {} } as never] } : {}),
   });
 
+  // `transportMaxRetries` needs no plumbing here and is deliberately not forwarded.
+  // @google/generative-ai 0.24.1 has no retry control because it has no retry: its
+  // `makeRequest` awaits `fetchFn(url, fetchOptions)` exactly once and throws on the
+  // first non-ok response. One `generateContent` is therefore already one HTTP attempt.
+  // That is a property of the installed bytes rather than of the documentation, so
+  // `test-m2b-transport-policy.mjs` proves it against this exact dependency with a
+  // stubbed fetch, and the live preflight refuses to run if the installed version drifts
+  // from the one that was proven.
   const result = await genModel.generateContent({
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: {

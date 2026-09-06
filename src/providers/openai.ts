@@ -19,12 +19,18 @@ export async function callOpenAI(prompt: string, options: CallOptions = {}): Pro
   if (options.system) messages.push({ role: 'system', content: options.system });
   messages.push({ role: 'user', content: prompt });
 
-  const response = await getClient().chat.completions.create({
-    model,
-    messages,
-    temperature: options.temperature,
-    max_completion_tokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
-  });
+  // Request-scoped, so ordinary callers keep the client default of two retries.
+  const requestOptions = options.transportMaxRetries === 0 ? { maxRetries: 0 } : undefined;
+
+  const response = await getClient().chat.completions.create(
+    {
+      model,
+      messages,
+      temperature: options.temperature,
+      max_completion_tokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
+    },
+    requestOptions
+  );
   const text = response.choices[0]?.message?.content ?? '';
   if (!text.trim()) {
     throw new Error(

@@ -17,6 +17,8 @@ import {
   selectWaveSlots, waveCallBudget,
 } from './runner.mjs';
 import { ONE_ATTEMPT_PER_TASK } from '../protocol/amendment-0-3.mjs';
+import { TRANSPORT_MAX_RETRIES, TRANSPORT_RETRY_POLICY } from './recorder.mjs';
+import { dependencyProvenance } from './dependency-provenance.mjs';
 
 /** Violations that end the round rather than the candidate. */
 const ROUND_ENDING = [ScopeViolation, RetrievalPolicyViolation, TemperaturePolicyViolation, CallBudgetExceeded];
@@ -161,6 +163,8 @@ export async function runCaptureSession({
     ...meta,
     retrievalPolicy: RETRIEVAL_POLICY,
     temperaturePolicy: TEMPERATURE_POLICY,
+    transportRetryPolicy: TRANSPORT_RETRY_POLICY,
+    transportMaxRetries: TRANSPORT_MAX_RETRIES,
     globalCallBudget: effectiveGlobalBudget,
     waveNumber,
     filledArchetypes,
@@ -174,6 +178,10 @@ export async function runCaptureSession({
     runtimeFingerprintStartSha256: fingerprintStartSha256,
     runtimeFingerprintEndSha256: fingerprintEndSha256,
     runtimeFingerprintDrift: fingerprintDiff(fingerprintStart, fingerprintEnd),
+    // Recorded beside the fingerprint, never folded into it: the fingerprint's claim is
+    // about src/ and dist/, and widening it after the fact would re-describe every
+    // artifact that already carries one.
+    dependencyProvenance: await dependencyProvenance(),
     attempts: results.map((r) => ({
       fixtureId: r.fixtureId,
       sourceCandidateId: SOURCE_CANDIDATE[r.fixtureId],

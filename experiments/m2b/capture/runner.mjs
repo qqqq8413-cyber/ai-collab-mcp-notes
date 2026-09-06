@@ -31,18 +31,26 @@ import {
   ACQUISITION_POOL_SIZE, ARCHETYPE_SLOTS, CHIEF_PIN, PROTOCOL_VERSION,
   ROLE_PROVIDER_MAP, WAVES, routingFor, slotsForWave,
 } from '../protocol/amendment-0-3.mjs';
+import { TRANSPORT_MAX_RETRIES, TRANSPORT_RETRY_POLICY } from './recorder.mjs';
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 export const canonical = (value) => JSON.stringify(value, null, 2);
 
-export const CAPTURE_VERSION = 'M2B-REAL-ROUND1-CAPTURE-2';
+/**
+ * Bumped from CAPTURE-2 because the artifact schema gained transport provenance.
+ *
+ * Not a protocol change: the methodology is untouched and this is still 0.3. The version
+ * exists so a verifier can tell a capture that never recorded its transport policy from
+ * one that recorded it as zero, instead of reading the absence as compliance.
+ */
+export const CAPTURE_VERSION = 'M2B-REAL-ROUND1-CAPTURE-3';
 export const RETRIEVAL_POLICY = 'all-off';
 export const TEMPERATURE_POLICY = 'provider-default-unprobed';
 
 /** The full registered specialist roster. The planner picks from these; it is not told which. */
 export const REGISTERED_SPECIALISTS = Object.freeze(['business_strategist', 'market_researcher', 'brand_creative']);
 
-export { CHIEF_PIN, PROTOCOL_VERSION };
+export { CHIEF_PIN, PROTOCOL_VERSION, TRANSPORT_MAX_RETRIES, TRANSPORT_RETRY_POLICY };
 
 export const SYNTHETIC_ROOT = fileURLToPath(new URL('../fixtures/', import.meta.url));
 export const CANDIDATES_R2_ROOT = fileURLToPath(new URL('../candidates-r2/', import.meta.url));
@@ -372,6 +380,8 @@ export async function captureCandidate({ fixtureId, recorder, outDir, meta, now 
     },
     retrievalPolicy: RETRIEVAL_POLICY,
     temperaturePolicy: TEMPERATURE_POLICY,
+    transportRetryPolicy: TRANSPORT_RETRY_POLICY,
+    transportMaxRetries: TRANSPORT_MAX_RETRIES,
     actualComplexity: round1?.plan.complexity ?? null,
     plannerAssignments: round1?.plan.assignments ?? null,
     planningAdjustments: round1?.planningAdjustments ?? null,

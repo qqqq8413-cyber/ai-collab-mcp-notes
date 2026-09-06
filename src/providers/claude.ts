@@ -15,13 +15,19 @@ function getClient(): Anthropic {
 export async function callClaude(prompt: string, options: CallOptions = {}): Promise<CallResult> {
   assertProviderConfigured('claude');
   const model = options.model || PROVIDERS.claude.defaultModel;
-  const response = await getClient().messages.create({
-    model,
-    max_tokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
-    temperature: options.temperature,
-    system: options.system,
-    messages: [{ role: 'user', content: prompt }],
-  });
+  // Request-scoped, so ordinary callers keep the client default of two retries.
+  const requestOptions = options.transportMaxRetries === 0 ? { maxRetries: 0 } : undefined;
+
+  const response = await getClient().messages.create(
+    {
+      model,
+      max_tokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
+      temperature: options.temperature,
+      system: options.system,
+      messages: [{ role: 'user', content: prompt }],
+    },
+    requestOptions
+  );
   const text = response.content
     .filter((block): block is Anthropic.TextBlock => block.type === 'text')
     .map((block) => block.text)

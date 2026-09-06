@@ -32,6 +32,20 @@ const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 /** Stages this round is authorized to send to a provider. Everything else is a violation. */
 export const ALLOWED_STAGES = Object.freeze(['planning', 'round1_worker']);
 
+/**
+ * Transport retries are forbidden for every capture call.
+ *
+ * The recorder's budget counts logical dispatches. The OpenAI and Anthropic SDKs default
+ * to two retries each, so without this a candidate whose budget says four calls could
+ * issue twelve requests, and the artifact would record the smaller number. Making the
+ * ceiling mean requests as well as dispatches costs one option per call.
+ *
+ * Injected here rather than asked of production: the orchestrator must not have to know
+ * it is being captured, and an ordinary product call must keep its retries.
+ */
+export const TRANSPORT_MAX_RETRIES = 0;
+export const TRANSPORT_RETRY_POLICY = 'explicit-no-retry';
+
 /** Historical R1/R2 ceiling. New sets may pass a narrower explicit ceiling. */
 export const GLOBAL_CALL_BUDGET = 16;
 export const PER_CANDIDATE_CALL_BUDGET = 4;
@@ -255,6 +269,9 @@ export function createRecorder({ call, journalPath = null, now = () => new Date(
 
       candidateCalls += 1;
       reserved += 1;
+      // The capture's own option, added on the way out. Production never sets it, and
+      // nothing downstream of here may remove it.
+      const callOptions = { ...options, transportMaxRetries: TRANSPORT_MAX_RETRIES };
       const startedAt = now().toISOString();
       const startMs = Date.now();
       const base = {
@@ -264,6 +281,8 @@ export function createRecorder({ call, journalPath = null, now = () => new Date(
         agentId,
         providerRequested: provider,
         modelRequested: options.model ?? null,
+        transportRetryPolicy: TRANSPORT_RETRY_POLICY,
+        transportMaxRetriesRequested: callOptions.transportMaxRetries,
         systemPrompt: options.system ?? null,
         systemPromptSha256: options.system ? sha256(options.system) : null,
         prompt,
@@ -275,7 +294,7 @@ export function createRecorder({ call, journalPath = null, now = () => new Date(
 
       let result;
       try {
-        result = await call(provider, prompt, options);
+        result = await call(provider, prompt, callOptions);
       } catch (err) {
         journal({
           ...base,

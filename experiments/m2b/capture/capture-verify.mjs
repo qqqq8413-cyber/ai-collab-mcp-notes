@@ -16,6 +16,11 @@ import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { buildRunReport } from '../../../dist/modes/orchestrator.js';
 import { PROTOCOL_VERSION as CURRENT_PROTOCOL_VERSION, routingFor } from '../protocol/amendment-0-3.mjs';
+import { TRANSPORT_RETRY_POLICY } from './recorder.mjs';
+import { PROVIDER_PACKAGES } from './dependency-provenance.mjs';
+
+/** The first capture schema that records transport provenance. Earlier ones cannot. */
+export const TRANSPORT_PROVENANCE_CAPTURE_VERSION = 'M2B-REAL-ROUND1-CAPTURE-3';
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 const canonical = (value) => JSON.stringify(value, null, 2);
@@ -208,6 +213,23 @@ export function verifyCapture({ realRoot, chiefPin, providerAllocation, sourceCa
     // 21. temperature never specified
     p(21, 'temperature was never requested', rawCalls.every((c) => c.temperatureRequested === null), TEMPERATURE_DETAIL(manifest));
 
+    // 34. transport retry provenance, required only of the schema that records it.
+    //
+    // CAPTURE-2 artifacts predate the field. Reading their silence as compliance would
+    // manufacture evidence they never carried, so the checks are gated on the version the
+    // capture declares rather than applied to whatever happens to be on disk.
+    if (manifest.captureVersion === TRANSPORT_PROVENANCE_CAPTURE_VERSION) {
+      p(34, 'manifest declares the explicit no-retry transport policy',
+        manifest.transportRetryPolicy === TRANSPORT_RETRY_POLICY && manifest.transportMaxRetries === 0,
+        `${manifest.transportRetryPolicy} / ${manifest.transportMaxRetries}`);
+      p('34b', 'every call recorded the transport policy',
+        rawCalls.length > 0 && rawCalls.every((c) => c.transportRetryPolicy === TRANSPORT_RETRY_POLICY),
+        `${rawCalls.filter((c) => c.transportRetryPolicy === TRANSPORT_RETRY_POLICY).length}/${rawCalls.length}`);
+      p('34c', 'every call requested zero transport retries',
+        rawCalls.length > 0 && rawCalls.every((c) => c.transportMaxRetriesRequested === 0),
+        rawCalls.map((c) => c.transportMaxRetriesRequested).join(',') || 'no calls');
+    }
+
     // 22/26/27/28/29. stage discipline
     const stages = [...new Set(rawCalls.map((c) => c.stage))];
     p(22, 'only planning and round1_worker stages appear', rawCalls.every((c) => ALLOWED_STAGES.includes(c.stage)), stages.join(', ') || 'none');
@@ -261,6 +283,37 @@ export function verifyCapture({ realRoot, chiefPin, providerAllocation, sourceCa
   const journalSeqs = journal.map((c) => c?.seq).sort((x, y) => x - y);
   check('25c', 'journal sequence is complete and gapless', validIdentities(journal)
     && journalSeqs.every((s, i) => s === i + 1), journalSeqs.join(','));
+
+  // 35 (session scope). Transport policy and dependency provenance, CAPTURE-3 onwards.
+  //
+  // The dependency record is deliberately not folded into the runtime fingerprint. The
+  // fingerprint's claim is about src/ and dist/; this one is about which SDK bytes the
+  // calls went through, and one of those SDKs carries a claim of its own — Gemini's
+  // one-fetch behaviour is a property of the installed package, not of an option we set.
+  if (session.captureVersion === TRANSPORT_PROVENANCE_CAPTURE_VERSION) {
+    check(35, 'session declares the explicit no-retry transport policy',
+      session.transportRetryPolicy === TRANSPORT_RETRY_POLICY && session.transportMaxRetries === 0,
+      `${session.transportRetryPolicy} / ${session.transportMaxRetries}`);
+    const dep = session.dependencyProvenance;
+    check('35b', 'session records package-lock provenance',
+      typeof dep?.packageLockSha256 === 'string' && dep.packageLockSha256.length === 64,
+      dep?.packageLockSha256 ?? 'absent');
+    check('35c', 'session identifies every provider SDK that could have been used',
+      Array.isArray(dep?.packages)
+        && PROVIDER_PACKAGES.every((name) => {
+          const pkg = dep.packages.find((entry) => entry.name === name);
+          return pkg
+            && typeof pkg.lockedVersion === 'string'
+            && typeof pkg.installedVersion === 'string'
+            && pkg.lockedVersion === pkg.installedVersion
+            && typeof pkg.resolvedEntrypointSha256 === 'string';
+        }),
+      (dep?.packages ?? []).map((pkg) => `${pkg.name}@${pkg.installedVersion}`).join(', ') || 'absent');
+    check('35d', 'every recorded SDK matches the version the transport proof was run against',
+      (dep?.packages ?? []).every((pkg) => pkg.transportProvenVersion === null
+        || pkg.installedVersion === pkg.transportProvenVersion),
+      (dep?.packages ?? []).map((pkg) => `${pkg.name}: ${pkg.installedVersion} vs ${pkg.transportProvenVersion}`).join('; ') || 'absent');
+  }
 
   // 31. runtime fingerprint unchanged across the whole capture
   check(31, 'runtime fingerprint start equals end',
