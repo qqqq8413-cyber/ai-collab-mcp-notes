@@ -10,7 +10,7 @@
  * throws on sight, so a boundary leak fails loudly rather than quietly costing a call.
  */
 import assert from 'node:assert/strict';
-import { runRound1Stage, runOrchestrator, toRound1Snapshot } from '../../dist/modes/orchestrator.js';
+import { runRound1Stage, runPlanningStage, runOrchestrator, toRound1Snapshot } from '../../dist/modes/orchestrator.js';
 import { recheckControl, HISTORICAL_CONTROL_SHA256 } from './capture/control-recheck.mjs';
 
 let passed = 0, failed = 0;
@@ -251,6 +251,121 @@ await check('the stage reads the clock exactly as many times as the old inline c
 });
 
 /* =========================================== historical control integrity */
+console.log('\nPlanning-stage extraction parity');
+
+await check('the whole Round 1 output is unchanged after planning moved into its own stage', async () => {
+  // Every field of the public contract, on a fixture that exercises the constraint layer:
+  // one unknown agent, one over-long mission, and a priority order that is not input order.
+  const raw = {
+    complexity: 'deep',
+    requiredCapabilities: ['reasoning', 'finance'],
+    requiresRedTeam: true,
+    reason: 'Offline parity fixture',
+    assignments: [
+      { agentId: 'nobody', mission: 'Mission for nobody', priority: 'high' },
+      { agentId: 'alpha', mission: 'q'.repeat(603), priority: 'low' },
+      { agentId: 'beta', mission: 'Mission for beta', priority: 'high' },
+      { agentId: 'gamma', mission: 'Mission for gamma', priority: 'medium' },
+    ],
+  };
+  const seen = [];
+  const call = async (provider, prompt, options) => {
+    seen.push({ provider, stage: options.stage, system: options.system, model: options.model });
+    if (options.stage === 'planning') return { provider, model: options.model, text: JSON.stringify(raw) };
+    return { provider, model: options.model, text: `output for ${options.system}` };
+  };
+
+  const originalNow = Date.now;
+  let tick = 0;
+  Date.now = () => (tick += 1000);
+  let out;
+  try {
+    out = await runRound1Stage({ task: TASK, orchestrator: { provider: 'openai', model: 'stub-chief' }, workers: WORKERS, call });
+  } finally {
+    Date.now = originalNow;
+  }
+
+  // Plan and adjustments come through the extracted stage unchanged.
+  assert.equal(out.plan.complexity, 'deep');
+  assert.equal(out.plan.requiresRedTeam, true);
+  assert.deepEqual(out.plan.requiredCapabilities, ['reasoning', 'finance']);
+  assert.deepEqual(out.plan.assignments.map((a) => a.agentId), ['beta', 'gamma', 'alpha'],
+    'priority order, not input order');
+  assert.equal(out.plan.assignments.find((a) => a.agentId === 'alpha').mission.length, 600);
+  assert.deepEqual(out.planningAdjustments, [
+    'Dropped mission for unknown agentId "nobody".',
+    'Truncated mission for "alpha" from 603 to 600 characters.',
+  ]);
+
+  // Worker results follow assignment order, one per assignment, with retrieval only where
+  // the roster says the specialist is evidence-capable.
+  assert.deepEqual(out.workerResults.map((r) => r.agentId), ['beta', 'gamma', 'alpha']);
+  assert.deepEqual(out.workerResults.map((r) => r.provider), ['claude', 'gemini', 'openai']);
+  assert.ok(out.workerResults.every((r) => typeof r.output === 'string' && !r.error));
+
+  // Report and policy still derive from the same facts.
+  assert.equal(out.report.status, 'SUCCESS');
+  assert.equal(out.report.requestedWorkers, 3);
+  assert.equal(out.report.successfulWorkers, 3);
+  assert.ok(out.report.policy, 'execution policy is still attached');
+
+  // Stepped-clock timings: five reads at 1000/2000/3000/4000/5000.
+  assert.equal(out.startedAt, 1000);
+  assert.equal(out.planningMs, 1000, 'planningEnd - planningStart');
+  assert.equal(out.workersMs, 1000, 'workersEnd - workersStart');
+  assert.equal(out.round1Ms, 4000, 'workersEnd - startedAt');
+
+  // Provider call order: planning first, then the workers in assignment order.
+  assert.deepEqual(seen.map((c) => c.stage), ['planning', 'round1_worker', 'round1_worker', 'round1_worker']);
+  assert.deepEqual(seen.slice(1).map((c) => c.system), ['Beta role', 'Gamma role', 'Alpha role']);
+  assert.deepEqual(seen.slice(1).map((c) => c.provider), ['claude', 'gemini', 'openai']);
+});
+
+await check('runRound1Stage and runPlanningStage agree on plan and adjustments', async () => {
+  const raw = {
+    complexity: 'normal',
+    requiredCapabilities: ['reasoning'],
+    requiresRedTeam: false,
+    reason: 'Offline parity fixture',
+    assignments: [
+      { agentId: 'alpha', mission: 'Mission for alpha', priority: 'high' },
+      { agentId: 'alpha', mission: 'Duplicate for alpha', priority: 'high' },
+      { agentId: 'beta', mission: 'Mission for beta', priority: 'medium' },
+    ],
+  };
+  const planningOnly = async (provider, prompt, options) => {
+    assert.equal(options.stage, 'planning', 'runPlanningStage must not dispatch a worker');
+    return { provider, model: options.model, text: JSON.stringify(raw) };
+  };
+  const both = async (provider, prompt, options) =>
+    options.stage === 'planning'
+      ? { provider, model: options.model, text: JSON.stringify(raw) }
+      : { provider, model: options.model, text: 'worker output' };
+
+  const orchestrator = { provider: 'openai', model: 'stub-chief' };
+  const direct = await runPlanningStage({ task: TASK, orchestrator, workers: WORKERS, call: planningOnly });
+  const viaRound1 = await runRound1Stage({ task: TASK, orchestrator, workers: WORKERS, call: both });
+
+  assert.deepEqual(viaRound1.plan, direct.plan);
+  assert.deepEqual(viaRound1.planningAdjustments, direct.planningAdjustments);
+});
+
+await check('an empty roster is still rejected before any clock read or provider call', async () => {
+  const call = async () => { throw new Error('provider must not be reached'); };
+  const originalNow = Date.now;
+  let reads = 0;
+  Date.now = () => { reads++; return 1000 + reads * 1000; };
+  try {
+    const err = await mustReject(
+      () => runRound1Stage({ task: TASK, orchestrator: { provider: 'openai', model: 'stub-chief' }, workers: [], call }),
+      'empty roster');
+    assert.match(String(err), /Orchestrator requires at least one worker/);
+    assert.equal(reads, 0, 'the rejection must precede startedAt');
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
 console.log('\nHistorical control integrity');
 
 await check("the refactor did not move M2-A's disabled/omitted behaviour", () => {

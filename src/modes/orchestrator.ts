@@ -431,6 +431,66 @@ export function buildOutputBanner(report: RunReport): string {
   return lines.length ? `${lines.join('\n')}\n\n` : '';
 }
 
+export interface PlanningStageInput {
+  task: string;
+  orchestrator: OrchestratorOptions['orchestrator'];
+  workers: Worker[];
+  budget?: PlanningBudget;
+  call?: typeof callProvider;
+}
+
+export interface PlanningStageOutput {
+  /** The plan production acts on: post-schema, post-constraint-enforcement. */
+  plan: Plan;
+  planningAdjustments: string[];
+  planningMs: number;
+}
+
+/**
+ * The planning half of Round 1, on its own: one Chief call, parsed and constrained.
+ *
+ * Extracted for a caller that needs a genuine production plan and must not run a single
+ * worker — the same reason `runRound1Stage` was extracted from `runOrchestrator`, one
+ * level further in. `runRound1Stage` now calls this, so there is exactly one
+ * implementation of planning rather than two that can drift.
+ *
+ * The return is deliberately narrow. `plan`, `planningAdjustments` and `planningMs` are
+ * what the orchestrator needs; the raw planner text, the provider pin and anything an
+ * experiment might want to record are not returned, because production has no use for
+ * them and putting them here would make the experiment's needs part of the production
+ * contract.
+ *
+ * Two clock reads, matching what the inline code did, so a caller with a stepped fake
+ * clock sees identical timings before and after the extraction.
+ */
+export async function runPlanningStage(input: PlanningStageInput): Promise<PlanningStageOutput> {
+  const { task, orchestrator, workers, budget, call = callProvider } = input;
+  // Repeated rather than delegated so `runRound1Stage` can reject an empty roster before
+  // it starts its own clock; a shared guard would have to run after `startedAt`, which
+  // would add a clock read to the rejection path.
+  if (workers.length === 0) throw new Error('Orchestrator requires at least one worker');
+
+  const planningStart = Date.now();
+  const planResult = await call(
+    orchestrator.provider,
+    buildPlanningPrompt(task, workers, budget),
+    {
+      model: orchestrator.model,
+      // The standing brief goes in the system slot, where it is separate from — and not
+      // rewritable by — the task text. Overridable so a caller can run a different Chief,
+      // which is also what makes the default testable against alternatives.
+      system: orchestrator.systemPrompt ?? CHIEF_SYSTEM_PROMPT,
+      stage: 'planning',
+    }
+  );
+  const rawPlan = planSchema.parse(extractJsonObject(planResult.text));
+  const planningAdjustments: string[] = [];
+  const plan = enforceConstraints(rawPlan, workers, budget, planningAdjustments);
+  const planningMs = Date.now() - planningStart;
+
+  return { plan, planningAdjustments, planningMs };
+}
+
 export interface Round1StageInput {
   task: string;
   orchestrator: OrchestratorOptions['orchestrator'];
@@ -469,6 +529,11 @@ export interface Round1StageOutput {
  * clock reads: `workersEnd` is captured once and used for both `workersMs` and `round1Ms`
  * rather than sampled twice, so a caller with a stepped fake clock sees the same timings
  * before and after the extraction.
+ *
+ * The planning half now lives in `runPlanningStage`, which this calls. That moved no
+ * behaviour and no clock read: a successful run still takes exactly five — startedAt,
+ * planningStart, planningEnd, workersStart, workersEnd — and the empty-roster rejection
+ * still happens before the first of them.
  */
 export async function runRound1Stage(input: Round1StageInput): Promise<Round1StageOutput> {
   const { task, orchestrator, workers, budget, call = callProvider } = input;
@@ -476,23 +541,9 @@ export async function runRound1Stage(input: Round1StageInput): Promise<Round1Sta
 
   const startedAt = Date.now();
 
-  const planningStart = Date.now();
-  const planResult = await call(
-    orchestrator.provider,
-    buildPlanningPrompt(task, workers, budget),
-    {
-      model: orchestrator.model,
-      // The standing brief goes in the system slot, where it is separate from — and not
-      // rewritable by — the task text. Overridable so a caller can run a different Chief,
-      // which is also what makes the default testable against alternatives.
-      system: orchestrator.systemPrompt ?? CHIEF_SYSTEM_PROMPT,
-      stage: 'planning',
-    }
-  );
-  const rawPlan = planSchema.parse(extractJsonObject(planResult.text));
-  const planningAdjustments: string[] = [];
-  const plan = enforceConstraints(rawPlan, workers, budget, planningAdjustments);
-  const planningMs = Date.now() - planningStart;
+  const { plan, planningAdjustments, planningMs } = await runPlanningStage({
+    task, orchestrator, workers, budget, call,
+  });
 
   const workersStart = Date.now();
   const workerResults: WorkerRunResult[] = await Promise.all(
