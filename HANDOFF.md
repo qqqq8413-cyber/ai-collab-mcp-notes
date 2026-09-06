@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-06, rev. 30)
+# ai-collab-mcp — Progress Report (2026-09-06, rev. 31)
 
 > ## 交接狀態
 >
@@ -18,9 +18,10 @@
 > | **M2-B Protocol** | **ARCHITECTURE ACCEPTED / HARNESS IMPLEMENTATION NEXT / LIVE PILOT NOT AUTHORIZED —— `M2_EFFECTIVENESS_EXPERIMENT.md` v0.2 @ `a308bc8`** |
 > | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
 > | **M2-B Fixture Freeze(synthetic)** | **SUPERSEDED —— GPT Fixture Review 判定 FIXTURE PROVENANCE BLOCKER;`fx-01…04` 改列 PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL,檔案原封保留於 `02cbb5f`** |
-> | **M2-B Real Round1 Capture** | **BOUNDARY IMPLEMENTED / AWAITING GPT BOUNDARY REVIEW / NO LIVE AUTHORIZATION —— `runRound1Stage()` 已抽出,offline parity byte-identical,零 live call** |
+> | **M2-B Pre-Synthesis Boundary** | **ACCEPTED(GPT)—— `runRound1Stage()` 已抽出,offline parity byte-identical** |
+> | **M2-B Real Round1 Capture** | **PARTIAL / CANDIDATE REPLACEMENT REQUIRES GPT / LIVE PILOT NOT AUTHORIZED —— 四題各一次 attempt,四題全 FAIL F1(production 判 `normal` 非 `deep`),其中兩題另 FAIL F2。10 次 live call,證據全數保留於 `81ac330`,詳見第二十七節** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
-> | **目前離線測試** | **212 項全過 = rev.19 的 208 + Gate semantics 新增 4** |
+> | **目前離線測試** | **production 212 / harness 110 / synthetic fixtures 44 / round1 boundary 15 / capture 64(新增)—— 全過,無任何 expectation 因 live 結果而放寬** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
 > | **Step 8 Implementation** | **DEFERRED —— Milestone 2 驗證後再回來** |
 > | 未完成的程式修改 | **無** |
@@ -28,6 +29,65 @@
 > **Experimental Milestone 2-A 已完成本輪限定工程,現在 STOPPED / AWAITING ARCHITECTURE REVIEW,default OFF。** 使用者批准 Gate eligibility 由 post-synthesis unresolved conflict 改成 pre-synthesis material disagreement;唯一一次 Replay #4 使用與 #3 byte-identical 的 fixture,自然跑通 valid issue、sourceRef、Targeted R2 與 Decision Synthesis。212 項離線測試通過,既有 assertions 未放寬,16 組修改前/後 control capture byte-identical。這是機制驗證,尚未執行品質比較或 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 31 改了什麼(M2-B Real Round1 Capture —— 授權 live,結果 PARTIAL)
+
+**本輪未修改 production。`src/` 與 `dist/` 零變動,production SHA 仍為 `d01043b`。**
+Live provider stage 僅 `planning` 與 `round1_worker`,共 **10 次 live call**(hard maximum 16)。
+無 synthesis、無 Gate、無 Round 2、無 Decision Synthesis、無 temperature probe、無 pilot。
+
+### 27. M2-B Real Round1 Capture(fxr-01…fxr-04)
+
+**目的**:為四個既有 candidate task 取得真正由 production `runRound1Stage()` 產生的 Round 1,
+以取代 provenance 是事後補上的 synthetic fixture。
+
+**結果:四題全部 FAIL,本輪 PARTIAL。**
+
+| fixture | 來源 | complexity | planner assignments | 成功 worker | RunStatus | provider/model | calls | 判定 |
+|---|---|---|---|---|---|---|---|---|
+| fxr-01 | fx-01 | `normal` | business_strategist, brand_creative | 2 | SUCCESS | openai/gpt-5 | 3 | **FAILED(F1)** |
+| fxr-02 | fx-02 | `normal` | business_strategist | 1 | SUCCESS | claude/claude-sonnet-5 | 2 | **FAILED(F1, F2)** |
+| fxr-03 | fx-03 | `normal` | business_strategist, market_researcher | 2 | SUCCESS | gemini/gemini-3.1-pro-preview | 3 | **FAILED(F1)** |
+| fxr-04 | fx-04 | `normal` | business_strategist | 1 | SUCCESS | openai/gpt-5 | 2 | **FAILED(F1, F2)** |
+
+**[FACT] production Chief 把四題全判為 `normal`,不是 `deep`。** 四題的 planning prompt 都完整帶入
+task 原文與三位 registered specialist,`enforceConstraints` 一次都沒有觸發調整,Chief 也各自給出
+連貫的理由。對照 Chief 自己的 brief —— `deep` 是「company annual strategy、major investment、
+high-risk contract、financial strategy、large brand project」,`normal` 是「an ordinary project
+decision」—— 這四題是中小企業營運決策,落在 `normal` 是合理判斷,不是 harness 故障。
+
+**[FACT] 這正是 synthetic fixture 無法顯示的事。** 舊 fixture loader 是把 `complexity: 'deep'`
+**寫死**的,沒有任何 planner 指派過它。本輪重新 capture 的目的是把虛構的 provenance 換成真實的
+provenance,而真實 provenance 說的第一件事,就是那批 fixture 賴以成立的前提不成立。
+
+**[FACT] capture 本身的完整性另行成立。** offline verifier 重算 179 項檢查,失敗的只有 F1/F2
+這 6 項 eligibility gate 本身:pin 的 provider/model 在 request 與 resolve 兩側都吻合、retrieval
+全程 all-off、temperature 從未設定、只出現 planning 與 round1_worker、runtime fingerprint 起訖相同、
+每份凍結輸出與 raw provider text 逐位元組相等。另有 36 項檢查確認被取代的 synthetic 素材未被更動。
+
+**[SIGNAL] 初步 archetype screen(僅憑 Round 1 證據,不做最終 F4)**
+- `fxr-03`:兩位 specialist 都明確建議 **B**,理由同樣是 sampling bias / halo effect。
+  符合 §21 對 positive candidate 的明確失敗樣態 → `CANDIDATE_FAILED_PRE_GATE_SCREEN`。
+- `fxr-01`:business_strategist 選 B;brand_creative 明講「不直接替你選 A/B/C」,只給品牌與定價護欄。
+  兩者不是相同結論,但也沒有形成 decision-sensitive 對立 → **INDETERMINATE**,不代 Gemini 決定。
+- `fxr-02`、`fxr-04`:各只有一位 specialist,cross-agent 分歧在結構上不可能存在 → **不可 screen**。
+
+**[DECISION] 依 §40 走 PARTIAL path。** 未產生 clean-room real packet、未自行設計 replacement task、
+未 retry、未呼叫 Gemini annotator。四次 attempt 的證據(含失敗)全部保留並提交。
+
+**[OPEN] candidate replacement 需要 GPT 裁決。** 現有四題在 production 判準下不會進入 DEEP,
+因此無法支撐需要 `deep` + ≥2 specialist 的 M2-B 設計。這是 task 選擇的問題,不是 harness 的問題。
+
+### 本輪 commit
+
+- `c5a4a37` capture harness(offline only,live 之前先 commit + push)
+- `81ac330` REAL ROUND1 CAPTURE EVIDENCE(四次 attempt,含四次失敗)
+
+### Replay #4 狀態(三分法,不得再只寫 VERIFIED)
+
+- artifact seal:**INTACT**
+- historical runtime fingerprint:**MISMATCH —— EXPECTED AFTER APPROVED `d01043b` REFACTOR**
+- historical disabled/omitted behavioral control recheck:**PASS**(`f50a7b2e…`,無 drift)
 
 ## rev. 30 改了什麼(Pre-Synthesis Round1 Boundary Refactor —— offline only,零 live call)
 
