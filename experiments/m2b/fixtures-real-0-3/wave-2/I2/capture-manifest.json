@@ -1,0 +1,105 @@
+{
+  "fixtureId": "I2",
+  "sourceCandidateId": "I2",
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-2",
+  "protocolVersion": "M2B-PROTOCOL-0.3",
+  "executionHead": "b8479a9a81bec1cbadb75e677583ff43e4af84c2",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "b8479a9a81bec1cbadb75e677583ff43e4af84c2",
+  "nodeVersion": "v24.15.0",
+  "taskSha256": "30e9cf842737ebaf8acd07414bb3a01cc9beec225d50dd54f18f5dc7eec5a512",
+  "startedAt": "2026-09-06T16:49:07.885Z",
+  "completedAt": "2026-09-06T16:51:26.345Z",
+  "captureStatus": "FAILED",
+  "eligibility": {
+    "F1": true,
+    "F2": false,
+    "F3": true
+  },
+  "failureReasons": [
+    "F2: 1 specialist(s) returned output, fewer than two"
+  ],
+  "fatalError": null,
+  "chiefPin": {
+    "provider": "openai",
+    "requestedModel": "gpt-5",
+    "resolvedModel": "gpt-5",
+    "resolvedProvider": "openai"
+  },
+  "providerAllocation": {
+    "mode": "role-based-heterogeneous",
+    "byAgent": {
+      "business_strategist": {
+        "provider": "claude",
+        "model": "claude-sonnet-5"
+      },
+      "market_researcher": {
+        "provider": "gemini",
+        "model": "gemini-3.1-pro-preview"
+      },
+      "brand_creative": {
+        "provider": "openai",
+        "model": "gpt-5"
+      }
+    }
+  },
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "actualComplexity": "deep",
+  "plannerAssignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Choose A/B/C using only the test data. Reconcile survey vs behavior (stated vs revealed preference). Flag the most overinterpreted metric and why. State what specific new results would change the choice. Judge if evidence supports a 3‑year structural reallocation and under what conditions/risks. Deliver a concise, defensible recommendation.",
+      "priority": "high"
+    }
+  ],
+  "planningAdjustments": [],
+  "round1Status": "SUCCESS",
+  "successfulWorkerCount": 1,
+  "failedWorkerCount": 0,
+  "liveCallCount": 2,
+  "agentOrder": [
+    "business_strategist"
+  ],
+  "availableRosterSha256": "1d02b2c50fb0156841e31c730efd44e15660cec596d5ce49fca43100fd42dfe9",
+  "snapshotSha256": "50ac3b80d2f634d4a587ece3f7487a429d507d8655179ad2762935c1a328f41c",
+  "rawCallsSha256": "77b8a273cd5c5b1a157bc73cb988e1395424c1e0ecc92a7ac2151eb8bded943b",
+  "runtimeFingerprintStart": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEnd": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "postRound1Execution": "NONE",
+  "gateExecution": "NONE",
+  "synthesisExecution": "NONE",
+  "workers": [
+    {
+      "agentId": "business_strategist",
+      "routingRole": "business_strategist",
+      "roleSha256": "c96ca15e20caa8b0018dcf6c88487641679d376f5a970e4a4bf8fcd28f183996",
+      "missionSha256": "66c6d640c850c45aeb7909ddaf1c4d7dc089a927abc9a3d67f7c54e579694e25",
+      "outputSha256": "dd9ed64cef6e6978a7cf3c0a802bac48f36be2a17c761c7f3164f7a345acc113",
+      "providerRequested": "claude",
+      "providerResolved": "claude",
+      "modelRequested": "claude-sonnet-5",
+      "modelResolved": "claude-sonnet-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    }
+  ],
+  "fileHashes": {
+    "task.txt": "30e9cf842737ebaf8acd07414bb3a01cc9beec225d50dd54f18f5dc7eec5a512",
+    "available-roster.json": "1d02b2c50fb0156841e31c730efd44e15660cec596d5ce49fca43100fd42dfe9",
+    "planner-result.json": "96454a05bb9acce5e96bd6f941efee4b736d926ae525a87f86e2d952af7f590a",
+    "planning-adjustments.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "snapshot.json": "50ac3b80d2f634d4a587ece3f7487a429d507d8655179ad2762935c1a328f41c",
+    "report.json": "7a3d1fd43cdde3ae661187bfa1e741a548644de46ce82ef546d4454fd5e67841",
+    "mission-business_strategist.txt": "66c6d640c850c45aeb7909ddaf1c4d7dc089a927abc9a3d67f7c54e579694e25",
+    "round1-business_strategist.md": "dd9ed64cef6e6978a7cf3c0a802bac48f36be2a17c761c7f3164f7a345acc113",
+    "raw-calls.json": "77b8a273cd5c5b1a157bc73cb988e1395424c1e0ecc92a7ac2151eb8bded943b"
+  },
+  "manifestSha256": "6eee23f80ae5d6de9bf25a7b7e58771319330063fddcdd1c667076967bc89f48"
+}

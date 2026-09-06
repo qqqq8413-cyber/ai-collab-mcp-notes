@@ -1,0 +1,1 @@
+Evaluate options A/B/C using given constraints (capacity, margins, cash flow, contract terms). Choose one option and articulate: key reason, strongest counterargument, pivotal assumption that could flip the choice, and a 3-year operational plan to manage the chosen path’s biggest risk. Use only provided info; state conditionals where data is missing.

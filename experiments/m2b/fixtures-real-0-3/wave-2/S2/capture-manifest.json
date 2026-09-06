@@ -1,0 +1,128 @@
+{
+  "fixtureId": "S2",
+  "sourceCandidateId": "S2",
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-2",
+  "protocolVersion": "M2B-PROTOCOL-0.3",
+  "executionHead": "b8479a9a81bec1cbadb75e677583ff43e4af84c2",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "b8479a9a81bec1cbadb75e677583ff43e4af84c2",
+  "nodeVersion": "v24.15.0",
+  "taskSha256": "e8f211cc10431e6a051f4f141ac174d0c2149c5d7100be84f6094fbf6a3ce690",
+  "startedAt": "2026-09-06T16:43:58.852Z",
+  "completedAt": "2026-09-06T16:47:01.047Z",
+  "captureStatus": "FAILED",
+  "eligibility": {
+    "F1": false,
+    "F2": true,
+    "F3": true
+  },
+  "failureReasons": [
+    "F1: complexity is normal, not deep"
+  ],
+  "fatalError": null,
+  "chiefPin": {
+    "provider": "openai",
+    "requestedModel": "gpt-5",
+    "resolvedModel": "gpt-5",
+    "resolvedProvider": "openai"
+  },
+  "providerAllocation": {
+    "mode": "role-based-heterogeneous",
+    "byAgent": {
+      "business_strategist": {
+        "provider": "claude",
+        "model": "claude-sonnet-5"
+      },
+      "market_researcher": {
+        "provider": "gemini",
+        "model": "gemini-3.1-pro-preview"
+      },
+      "brand_creative": {
+        "provider": "openai",
+        "model": "gpt-5"
+      }
+    }
+  },
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "actualComplexity": "normal",
+  "plannerAssignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Evaluate options A/B/C using given constraints (capacity, margins, cash flow, contract terms). Choose one option and articulate: key reason, strongest counterargument, pivotal assumption that could flip the choice, and a 3-year operational plan to manage the chosen path’s biggest risk. Use only provided info; state conditionals where data is missing.",
+      "priority": "high"
+    },
+    {
+      "agentId": "brand_creative",
+      "mission": "Assess brand equity and channel-conflict risks across A/B/C. For the selected option, design a concrete 3-year plan to protect the self-owned brand (positioning, SKU/recipe differentiation, scarcity management, seasonality allocation, messaging, and founder bandwidth relief) within fixed capacity and timing limits.",
+      "priority": "medium"
+    }
+  ],
+  "planningAdjustments": [],
+  "round1Status": "SUCCESS",
+  "successfulWorkerCount": 2,
+  "failedWorkerCount": 0,
+  "liveCallCount": 3,
+  "agentOrder": [
+    "business_strategist",
+    "brand_creative"
+  ],
+  "availableRosterSha256": "1d02b2c50fb0156841e31c730efd44e15660cec596d5ce49fca43100fd42dfe9",
+  "snapshotSha256": "da31a9940203d06e869aedb90bbd446fd22370462a13aa003e672ab2b46a1163",
+  "rawCallsSha256": "fca6cf401bf2a03654ff96b3120fc34a383b86cbfc07ec732276624546f22725",
+  "runtimeFingerprintStart": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEnd": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "postRound1Execution": "NONE",
+  "gateExecution": "NONE",
+  "synthesisExecution": "NONE",
+  "workers": [
+    {
+      "agentId": "business_strategist",
+      "routingRole": "business_strategist",
+      "roleSha256": "c96ca15e20caa8b0018dcf6c88487641679d376f5a970e4a4bf8fcd28f183996",
+      "missionSha256": "0518ebc3b788d630608f22f8eb4dd7cc076fab0b7cfb32798b6b3025dda92b00",
+      "outputSha256": "0918ed376649537e5ee12ccf20072d5c966931461b6556fa15d0bef9820722c3",
+      "providerRequested": "claude",
+      "providerResolved": "claude",
+      "modelRequested": "claude-sonnet-5",
+      "modelResolved": "claude-sonnet-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    },
+    {
+      "agentId": "brand_creative",
+      "routingRole": "brand_creative",
+      "roleSha256": "758c34dbd9c86ee261a68e61c6a23608c2d1297b5985bdbac02f6bf39a89554d",
+      "missionSha256": "e59424c634bcc085bff6cb4a512a0b786084515fdaefa6c202e2ebf5dc3b60b0",
+      "outputSha256": "5d9c3850cba36e155c86fbf38f32d8bf0638945ac8dbb6d1f5560b865ece14a1",
+      "providerRequested": "openai",
+      "providerResolved": "openai",
+      "modelRequested": "gpt-5",
+      "modelResolved": "gpt-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    }
+  ],
+  "fileHashes": {
+    "task.txt": "e8f211cc10431e6a051f4f141ac174d0c2149c5d7100be84f6094fbf6a3ce690",
+    "available-roster.json": "1d02b2c50fb0156841e31c730efd44e15660cec596d5ce49fca43100fd42dfe9",
+    "planner-result.json": "bcf149a12ec78f677e09d3560ab430b515b76bced0f0ec5683fba6f7c574f61c",
+    "planning-adjustments.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "snapshot.json": "da31a9940203d06e869aedb90bbd446fd22370462a13aa003e672ab2b46a1163",
+    "report.json": "cfeb598a7fd9fa5204619965736ddbafb7416c3e2b80d90d8f8281cd93cac19b",
+    "mission-business_strategist.txt": "0518ebc3b788d630608f22f8eb4dd7cc076fab0b7cfb32798b6b3025dda92b00",
+    "round1-business_strategist.md": "0918ed376649537e5ee12ccf20072d5c966931461b6556fa15d0bef9820722c3",
+    "mission-brand_creative.txt": "e59424c634bcc085bff6cb4a512a0b786084515fdaefa6c202e2ebf5dc3b60b0",
+    "round1-brand_creative.md": "5d9c3850cba36e155c86fbf38f32d8bf0638945ac8dbb6d1f5560b865ece14a1",
+    "raw-calls.json": "fca6cf401bf2a03654ff96b3120fc34a383b86cbfc07ec732276624546f22725"
+  },
+  "manifestSha256": "5f3e10c82633305a12e754cd3a1ed82a748199ce42caef39f7c8ae4f690de5ef"
+}

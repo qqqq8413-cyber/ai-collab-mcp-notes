@@ -1,0 +1,21 @@
+{
+  "complexity": "normal",
+  "requiredCapabilities": [
+    "business strategy and financial logic",
+    "brand strategy and channel conflict mitigation"
+  ],
+  "assignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Evaluate options A/B/C using given constraints (capacity, margins, cash flow, contract terms). Choose one option and articulate: key reason, strongest counterargument, pivotal assumption that could flip the choice, and a 3-year operational plan to manage the chosen path’s biggest risk. Use only provided info; state conditionals where data is missing.",
+      "priority": "high"
+    },
+    {
+      "agentId": "brand_creative",
+      "mission": "Assess brand equity and channel-conflict risks across A/B/C. For the selected option, design a concrete 3-year plan to protect the self-owned brand (positioning, SKU/recipe differentiation, scarcity management, seasonality allocation, messaging, and founder bandwidth relief) within fixed capacity and timing limits.",
+      "priority": "medium"
+    }
+  ],
+  "requiresRedTeam": false,
+  "reason": "Decision hinges on financial/operational tradeoffs and brand/channel risk. A business strategist selects and justifies the path; a brand strategist crafts the mitigation plan. No external research is needed to decide, so two specialists are sufficient."
+}
