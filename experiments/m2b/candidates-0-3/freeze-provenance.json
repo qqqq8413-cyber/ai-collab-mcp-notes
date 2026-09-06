@@ -1,0 +1,21 @@
+{
+  "record": "M2B-PROTOCOL-0.3 preregistered candidate pool — freeze provenance",
+  "twoStepNote": "The freeze commit cannot appear inside the object it commits without a circular self-hash, so it is recorded here by the commit that immediately follows it. The task hashes in candidate-set-manifest.json are what bind the content; this file binds those hashes to a point in history.",
+  "candidateFreezeCommit": "ab893c14f19ab8d04fe44d64421a2123e7627efd",
+  "candidateSetManifestSha256": "b185978aedff511433bf5956115346f2d1132203f4e230e5d1ec38eb4628eeb2",
+  "taskSha256": {
+    "S1": "8caf1128dd7ee72d30cbe67669e92869ebc8431c1d97338a6e76314846c9faa0",
+    "S2": "e8f211cc10431e6a051f4f141ac174d0c2149c5d7100be84f6094fbf6a3ce690",
+    "S3": "3866338b7213bfbb2b76189f5fa61ff54dee5a5d1fac65f20943a8a81f55e1cb",
+    "E1": "3629abc76b453e702aa45d8c338d2a3976ed7e591a5b3c7ef1b260e84f978338",
+    "E2": "e91ff0673be8e304587b854af3d551312d960acb5d4ee20b532e4c799a8d6a51",
+    "E3": "eed2ea25f22f33a98b005ac3227fd04c847dd04888ee8fb4744cc95f9717f6e7",
+    "I1": "4cdeab7aac4536ffcbaba1cb73ff22fbbdf0c798b5df5f39cd70782c763d3e81",
+    "I2": "30e9cf842737ebaf8acd07414bb3a01cc9beec225d50dd54f18f5dc7eec5a512",
+    "I3": "0abc0a95c332a42ac8612978221cba2d056ffc63ebf0decf5d19fed5fe1a76e9"
+  },
+  "acceptedProtocolCommit": "13548639877af5bdb47055c100681b819a5c3538",
+  "protocolVersion": "M2B-PROTOCOL-0.3",
+  "liveCallsAtFreeze": 0,
+  "status": "FROZEN — no task may be edited, replaced, or added; no tenth task exists"
+}

@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-06, rev. 34)
+# ai-collab-mcp — Progress Report (2026-09-06, rev. 35)
 
 > ## 交接狀態
 >
@@ -15,7 +15,8 @@
 > | **M2-A Controlled Replay #3** | **NOT EXERCISED —— gate 首次真正執行,但認出分歧後選擇在答案內解決,未輸出區塊,詳見第二十三節** |
 > | **M2-A Controlled Replay #4** | **FULL MECHANISM RUNTIME PASS —— 一次自然 valid issue → R2 → Decision Synthesis,不代表品質或產品價值已驗證** |
 > | **rev.20 Independent Code Review** | **ACCEPT WITH DOCUMENTATION CORRECTION —— 無 runtime defect;3 項文件/命名修正 + 1 項規格 concern 待 review,詳見第二十五節** |
-> | **M2-B Protocol** | **`M2B-PROTOCOL-0.3` —— Option 3′-H(Heterogeneous Round1)amendment 已寫入,v0.2 全文保留;ARCHITECTURE ACCEPTED / HARNESS ACCEPTED / AWAITING GPT REVIEW OF 0.3 AMENDMENT / LIVE PILOT NOT AUTHORIZED,詳見第三十節** |
+> | **M2-B Protocol** | **`M2B-PROTOCOL-0.3` ACCEPTED @ `1354863` —— Option 3′-H;v0.2 全文保留,詳見第三十節** |
+> | **M2-B Preregistered Candidate Pool** | **STOPPED / CANDIDATE POOL FROZEN / AWAITING GPT PRE-LIVE REVIEW —— 九題 `S1–S3 / E1–E3 / I1–I3` 已 structural review、hash、凍結於 `ab893c1`,零 live call,詳見第三十一節** |
 > | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
 > | **M2-B Fixture Freeze(synthetic)** | **SUPERSEDED —— GPT Fixture Review 判定 FIXTURE PROVENANCE BLOCKER;`fx-01…04` 改列 PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL,檔案原封保留於 `02cbb5f`** |
 > | **M2-B Pre-Synthesis Boundary** | **ACCEPTED(GPT)—— `runRound1Stage()` 已抽出,offline parity byte-identical** |
@@ -23,7 +24,7 @@
 > | **M2-B Real Round1 Capture — Set R2** | **PARTIAL / REPLACEMENT SET R2 INCOMPLETE / CANDIDATE REPLACEMENT REQUIRES GPT / LIVE PILOT NOT AUTHORIZED —— fxr-05…08 四題 F1 全過(`deep`),但 fxr-05 / fxr-07 各只獲派一位 specialist 而 FAIL F2。10 次 live call,證據保留於 `7af382d`,詳見第二十八節** |
 > | **M2-B Real Round1 Capture — Set R3** | **PARTIAL / R3 POSITIVE SET INCOMPLETE / REQUIRES GPT ARCHITECTURE REVIEW / LIVE PILOT NOT AUTHORIZED —— fxr-09…11 的 F1/F2/F3 全過,但三題皆 FAILED_PRE_GATE_SCREEN。9 次 live call,證據保留於 `6aee7b0`,詳見第二十九節** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
-> | **目前離線測試** | **production 212 / harness 110 / synthetic fixtures 44 / round1 boundary 15 / capture 81 / protocol 0.3 amendment 29 —— 全過;R3 artifact verifier 149/149 + synthetic integrity 36/36,無 expectation 因 live 結果而放寬** |
+> | **目前離線測試** | **production 212 / harness 110 / synthetic fixtures 44 / round1 boundary 15 / capture 81 / protocol 0.3 amendment 29 / candidate pool 27 —— 全過;capture verifier R1 174/180、R2 178/180、R3 149/149 + synthetic integrity 36/36** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
 > | **Step 8 Implementation** | **DEFERRED —— Milestone 2 驗證後再回來** |
 > | 未完成的程式修改 | **無** |
@@ -31,6 +32,76 @@
 > **Experimental Milestone 2-A 已完成本輪限定工程,現在 STOPPED / AWAITING ARCHITECTURE REVIEW,default OFF。** 使用者批准 Gate eligibility 由 post-synthesis unresolved conflict 改成 pre-synthesis material disagreement;唯一一次 Replay #4 使用與 #3 byte-identical 的 fixture,自然跑通 valid issue、sourceRef、Targeted R2 與 Decision Synthesis。212 項離線測試通過,既有 assertions 未放寬,16 組修改前/後 control capture byte-identical。這是機制驗證,尚未執行品質比較或 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 35 改了什麼(Protocol 0.3 Preregistered Candidate Pool —— 設計與凍結,零 live call)
+
+**本輪未修改 production,未執行任何 provider call。** `src/`、`dist/` 零變動。
+無 planning dry-run、無 Round1 capture、無 Gemini annotation、無 Gate、無 synthesis、
+無 Round2、無 temperature probe、無 pilot。
+
+### 31. Preregistered Fixture Pool(S1–S3 / E1–E3 / I1–I3)
+
+GPT 已 ACCEPT `M2B-PROTOCOL-0.3` @ `1354863`,本輪進入 **PREREGISTERED FIXTURE POOL DESIGN + FREEZE**。
+九題在任何 provider call 之前完成 write → structural review → hash → order → commit → push。
+
+```
+candidateFreezeCommit   ab893c14f19ab8d04fe44d64421a2123e7627efd
+freeze provenance       experiments/m2b/candidates-0-3/freeze-provenance.json（兩段式，非自我雜湊）
+liveCallsAtFreeze       0
+```
+
+| id | archetype | 產業 / 領域 |
+|---|---|---|
+| S1 | Strategy | 專業影像後製軟體 / B2B 軟體 |
+| S2 | Strategy | 手工調味醬料製造 / 食品 |
+| S3 | Strategy(reserve) | 連鎖物理治療診所 / 醫療服務 |
+| E1 | Execution Constraint | 獨立遊戲工作室 / 遊戲開發 |
+| E2 | Execution Constraint | 建築師事務所 / 公共工程投標 |
+| E3 | Execution Constraint(reserve) | 生技檢測實驗室 / 檢測服務 |
+| I1 | Evidence Interpretation | 線上語言學習 / 線上教育 |
+| I2 | Evidence Interpretation | 訂閱制數位媒體 / 數位媒體 |
+| I3 | Evidence Interpretation(reserve) | 連鎖眼鏡零售 / 實體零售 |
+
+**[DESIGN] 設計依據來自 R2/R3 實際發生的事,不是猜測。**
+R2 與 R3 的每一題都提供了一個**免費的折衷選項** —— 分階段、再驗證、有限推行。
+在不確定下,保留選擇權的選項是支配解,因此五個被觀察到的案例中兩位 specialist 全部收斂到它。
+本輪每一題的選項 C 都**帶有取自該題自身事實的明確代價**:不可分割的合約量體、
+單次且不保留的檔期、無法重現的量測條件。**等待不再是免費的,不做決定不是安全答案。**
+
+**[FACT] 三題在 freeze 前依 §12 structural review 重寫,而非照初稿凍結:**
+
+- `S1` —— A 近乎支配(收入集中 + 流失威脅同向)。已補入「最大客戶去年被有自有工具團隊的集團併購」
+  與「創作者市場競爭者已宣告要往專業級發展」,使 B 同時具備進攻與防守理由。
+- `S3` —— 維持現狀原本沒有帶時限的代價。已補入「兩間低利用率據點租約一年內到期」。
+- `I3` —— 所有 confound 單向指向 B,**與 R3 `fxr-11` 崩塌的形狀相同**。
+  已補入「同波廣告涵蓋的六間未改造門市成長無明顯差異」削弱廣告解釋,
+  以及「來客數下降集中在未購買人次、完成配鏡人次持平」這項雙向事實。
+
+**[DECISION] provider coverage 完全未參與選題。**
+`market_researcher` 未被針對、未設 specialist 數量目標、九題皆不出現 role / provider / model 名稱。
+27 項 deterministic 測試逐條斷言,包含 wave order、task hashes、
+以及**九題都不與 R1/R2/R3 任一題共用 60 字元連續片段**。
+
+**[DESIGN] structural review 記錄了什麼、不記錄什麼。**
+每題記錄 domain / horizon / irreversible commitment / credible A・B・C / dominant-answer risk /
+F5 / F6 / F7。**不記錄** expected correct answer、expected disagreement、expected provider、
+expected target provider、expected Gate target —— 這些屬於 clean-room A2 的工作,
+先寫下來就等於在證據之前先寫好 gold answer。
+
+### 未來 acquisition 執行規則(本輪只記錄,不執行)
+
+```
+Wave 1  S1 E1 I1
+Wave 2  只跑仍未填滿的 archetype：S2 E2 I2
+Wave 3  只跑仍未填滿的 archetype：S3 E3 I3
+
+每題 exactly one attempt。正式 F4 由 future fresh clean-room Gemini A2 判定。
+某 archetype 一旦填滿，後續 wave 不再執行該 archetype。
+九題用盡仍不足三個 positive slot：STOP，不得有第十題，回 GPT review。
+```
+
+`fxr-08` 未修改、未重跑,維持 provisional negative-control candidate,
+未來與 positive candidates 一起交同一位 fresh A2,且 A2 不得知道哪一題是負控。
 
 ## rev. 34 改了什麼(M2B-PROTOCOL-0.3 Amendment —— 文件與測試,零 live call)
 

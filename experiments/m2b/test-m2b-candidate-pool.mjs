@@ -72,6 +72,15 @@ check('all nine task hashes are distinct', () => {
   assert.equal(new Set(hashes).size, 9, 'no duplicated task');
 });
 
+check('the freeze provenance binds the manifest and tasks to a commit, without circularity', () => {
+  const prov = JSON.parse(readFileSync(join(POOL, 'freeze-provenance.json'), 'utf8'));
+  assert.match(prov.candidateFreezeCommit, /^[0-9a-f]{40}$/, 'a real commit SHA');
+  assert.equal(prov.candidateSetManifestSha256, sha256(readFileSync(join(POOL, 'candidate-set-manifest.json'))));
+  for (const id of IDS) assert.equal(prov.taskSha256[id], manifest.taskSha256[id], id);
+  assert.equal(prov.liveCallsAtFreeze, 0);
+  assert.equal(prov.protocolVersion, 'M2B-PROTOCOL-0.3');
+});
+
 check('the manifest does not hash itself', () => {
   // A manifest containing its own hash cannot be verified without special-casing the field
   // that makes it circular. The freeze commit is recorded by a following commit instead.
