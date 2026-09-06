@@ -12,15 +12,28 @@
 
 ---
 
-## 1. Branch / HEAD
+## 1. Branch / snapshot
 
 ```
-repository   qqqq8413-cyber/ai-collab-mcp-notes
-branch       experimental/m2a-peer-challenge
-HEAD         b7b304eebe599c32e0d9255f47781c25530b12cc
-production   src/** 停在 d01043b（accepted pre-synthesis boundary）
-main         未 merge，且本階段不打算 merge
+repository            qqqq8413-cyber/ai-collab-mcp-notes
+branch                experimental/m2a-peer-challenge
+stateVerifiedThrough  b7b304eebe599c32e0d9255f47781c25530b12cc
+production            src/** 停在 d01043b（accepted pre-synthesis boundary）
+main                  未 merge，且本階段不打算 merge
 ```
+
+> ⚠️ **`stateVerifiedThrough` 是本檔內容被核對到的那個 commit,不是目前的 branch HEAD。**
+> 本檔一被 commit,任何寫死在裡面的 HEAD 就已經過期 —— 包含這一行。
+>
+> **CURRENT_STATE.md 對 live branch HEAD 不具權威性。**
+> 做任何 architecture 或 execution 決策之前,一律先從 git / GitHub 取得當前 HEAD:
+>
+> ```bash
+> git fetch origin && git rev-parse origin/experimental/m2a-peer-challenge
+> ```
+>
+> 本檔以下所有內容,是在 `stateVerifiedThrough` 那個 commit 上核對過的;
+> 若其後有新 commit,以 repo 為準。
 
 ---
 
@@ -39,8 +52,21 @@ requiresRedTeam
 ```
 
 Chief 的 brief 是 **minimum sufficient collaboration**:用最少的人達成高品質決策。
-關鍵性質(R2/R3 都撞到):**`deep` 是「至多 8 位」的上限,不是「至少 2 位」的下限。**
-Chief 的第一條 planning rule 就是先判斷這題是否真的需要超過一位。
+`SPECIALIST_CAP`(`src/agents/chief.ts`):**`simple = 1`、`normal = 3`、`deep = 4`。**
+
+關鍵性質(R2/R3 都撞到):**`deep` 的 specialist cap 是「至多 4 位」的上限,
+不是「至少 2 位」的下限。** Chief 的第一條 planning rule 就是先判斷這題是否真的需要超過一位,
+所以 `deep` 完全可能只配到一位 —— R2 的 `fxr-05` / `fxr-07` 就是這樣 FAIL F2 的。
+
+⚠️ **不要把 specialist count 和 logical call ceiling 混為一談**(這是本檔前一版的錯誤):
+
+```
+deep specialist cap           = 4          ← 人數上限
+M2-A DEEP logical-call ceiling = N + 4     ← 呼叫數上限，N = 實際 specialist 數
+                                 N ≤ 4  ⇒  最多 8 次 logical call
+```
+
+「最多 8」講的是**呼叫數**,不是人數。
 
 **Registry(`src/agents/registry.ts`)** 三位 registered specialist:
 
@@ -82,7 +108,12 @@ HANDOFF.md    historical engineering source of truth
 
 ---
 
-## 4. Evidence hierarchy
+## 4. Evidence
+
+**這一節有兩個不同的東西,不要合併:** 一個是「這句話是什麼性質的主張」,
+另一個是「這個主張的來源可信到什麼程度」。
+
+### 4.1 Evidence classification —— 標記主張的性質
 
 ```
 [FACT]      committed artifact 可重算出來的事
@@ -92,7 +123,27 @@ HANDOFF.md    historical engineering source of truth
 [OPEN]      待 GPT 裁決
 ```
 
-另外三條長期有效的判準:
+### 4.2 Evidence source hierarchy —— 來源強度，由強到弱
+
+```
+Runtime Measurement
+  >
+Repository Code / Deterministic Tests
+  >
+Reproducible Artifacts（captured prompt / hash）
+  >
+HANDOFF factual record
+  >
+Independent external evidence
+  >
+Multi-model critique
+  >
+Single-model reasoning
+```
+
+下層不得推翻上層。特別是:**多個模型都同意,排在倒數第二 —— 它不會升級成 runtime 證據。**
+
+### 4.3 另外三條長期有效的判準
 
 ```
 structural determination > prompt persuasion
@@ -220,7 +271,10 @@ provider heterogeneity caused the observed conflict
 | **R2** `fxr-05…08` | **F1 全過(`deep`)**;`fxr-05`/`fxr-07` 各只獲派一位 specialist 而 **FAIL F2**;`fxr-06`/`fxr-08` CAPTURED | `7af382d` |
 | **R3** `fxr-09…11` | **F1/F2/F3 全過,capture 3/3 成功**;但三題在 pre-Gate screen 都是 substantive agreement → **F4 未取得** | `6aee7b0` |
 
-`[FACT]` **R3 證明 F1/F2/F3 的取得已經沒有問題;卡住的是 F4 —— 實質分歧本身。**
+`[FACT]` **`fxr-09` / `fxr-10` / `fxr-11` 在 F1/F2/F3 上是 3/3 PASS。**
+
+`[INTERPRETATION]` 在**目前已觀察到的 acquisition 序列**中,active blocker 移到了 F4。
+**這不表示未來的 candidate 不會再 FAIL F1/F2/F3。** F1–F7 一律不變,F4 不放寬。
 
 `[FACT]` `market_researcher` 在 R2 四題 + R3 三題,**合計七題中被指派 0 次**。
 retrieval 釘在 all-off、task 又要求只根據題目事實判斷,消掉了該 role 的存在理由。
@@ -335,7 +389,10 @@ src/** 修改             未授權（發現需要改 → STOP，回 GPT）
 
 ## 12. Current interpretation（措辭邊界)
 
-`[FACT]` **R3 顯示 F1/F2/F3 的取得已經成功,F4 在那些被觀察到的 fixture 上失敗。**
+`[FACT]` **`fxr-09` / `fxr-10` / `fxr-11` 在 F1/F2/F3 上是 3/3 PASS,F4 在這三題上未取得。**
+
+`[INTERPRETATION]` 在目前已觀察到的序列中,active blocker 移到了 F4 —— 但這是對已觀察樣本的描述,
+**不是「F1/F2/F3 已經解決」的宣稱**,未來 candidate 仍可能 FAIL 其中任何一項。
 
 `[FACT]` **R2 與 R3 中,五個「有兩位 specialist」的案例全部收斂**
 (`fxr-06`、`fxr-08`、`fxr-09`、`fxr-10`、`fxr-11`)。
