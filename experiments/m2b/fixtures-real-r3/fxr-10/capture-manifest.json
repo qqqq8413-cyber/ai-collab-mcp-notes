@@ -1,0 +1,111 @@
+{
+  "fixtureId": "fxr-10",
+  "sourceCandidateId": "r3-02",
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-1",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "executionHead": "1fb5eb5fc4808c35a5ac0ddd30e78f031b09b59d",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "1fb5eb5fc4808c35a5ac0ddd30e78f031b09b59d",
+  "nodeVersion": "v24.15.0",
+  "taskSha256": "e1eb8ec9d5812ec93803b9c5450f3e0ace9768cb45a7480923309488007088b1",
+  "startedAt": "2026-09-06T05:46:24.788Z",
+  "completedAt": "2026-09-06T05:48:38.618Z",
+  "captureStatus": "CAPTURED",
+  "eligibility": {
+    "F1": true,
+    "F2": true,
+    "F3": true
+  },
+  "failureReasons": [],
+  "fatalError": null,
+  "chiefPin": {
+    "provider": "openai",
+    "requestedModel": "gpt-5",
+    "resolvedModel": "gpt-5",
+    "resolvedProvider": "openai"
+  },
+  "providerAllocation": {
+    "provider": "claude",
+    "model": "claude-sonnet-5"
+  },
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "actualComplexity": "deep",
+  "plannerAssignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Deliver a clear A/B/C recommendation. Weigh strategic upside vs delay/liquidated damages risk. Judge how much PMO + standard templates de-risk execution; assess residual bottleneck from 20% non-standard sites. Define non-negotiable contract terms (wave-based acceptance, penalty caps, exception thresholds, change-control, client 24h SLA). State the single condition most likely to flip the decision.",
+      "priority": "high"
+    },
+    {
+      "agentId": "brand_creative",
+      "mission": "Build an 18-week approval/capacity model using stated staffing (CD 75%, 2 SDs from wk3, production team). Estimate weekly throughput for standard sites and exception reviews; map critical path for creative approvals and QA; identify queue risks from 20% bespoke sites; recommend governance (triage, escalation, templates) and whether a week-18 full cutover is feasible or phased waves are required.",
+      "priority": "high"
+    }
+  ],
+  "planningAdjustments": [],
+  "round1Status": "SUCCESS",
+  "successfulWorkerCount": 2,
+  "failedWorkerCount": 0,
+  "liveCallCount": 3,
+  "agentOrder": [
+    "business_strategist",
+    "brand_creative"
+  ],
+  "availableRosterSha256": "fce2fab8f9a3f54be464bcc5b25284488c484ac5d215a94d913a931d9633062d",
+  "snapshotSha256": "6b0270e46bd18518987a930312794c270618083b3fef21dd9a4a538c3386f720",
+  "rawCallsSha256": "698c7bc441e61c73059d2ceb375d0fa858021f3a9d1416f0805fa8d591ae5805",
+  "runtimeFingerprintStart": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEnd": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "postRound1Execution": "NONE",
+  "gateExecution": "NONE",
+  "synthesisExecution": "NONE",
+  "workers": [
+    {
+      "agentId": "business_strategist",
+      "roleSha256": "c96ca15e20caa8b0018dcf6c88487641679d376f5a970e4a4bf8fcd28f183996",
+      "missionSha256": "2fbcd7252887706690d5d492036458c92e0230836166818a936ebe42b6760b7d",
+      "outputSha256": "cf9492355b241ce28baa1d37614fd6a1f6c1b16159fde03587a017a44dab8d22",
+      "providerRequested": "claude",
+      "providerResolved": "claude",
+      "modelRequested": "claude-sonnet-5",
+      "modelResolved": "claude-sonnet-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    },
+    {
+      "agentId": "brand_creative",
+      "roleSha256": "758c34dbd9c86ee261a68e61c6a23608c2d1297b5985bdbac02f6bf39a89554d",
+      "missionSha256": "8fa42e8336715816e03d344e9e6f2da70d1b97de7153de78d1370692a774fe82",
+      "outputSha256": "d4fe438c226d8e08ffa78d6286622fb024fb413886c73f2f233c70915af74872",
+      "providerRequested": "claude",
+      "providerResolved": "claude",
+      "modelRequested": "claude-sonnet-5",
+      "modelResolved": "claude-sonnet-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    }
+  ],
+  "fileHashes": {
+    "task.txt": "e1eb8ec9d5812ec93803b9c5450f3e0ace9768cb45a7480923309488007088b1",
+    "available-roster.json": "fce2fab8f9a3f54be464bcc5b25284488c484ac5d215a94d913a931d9633062d",
+    "planner-result.json": "3c7dd8f67ee35b466308ddc832174aed853c6aa444a8f6bf618c0bd886e8f47c",
+    "planning-adjustments.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "snapshot.json": "6b0270e46bd18518987a930312794c270618083b3fef21dd9a4a538c3386f720",
+    "report.json": "7e79f077cd3ef87fb08356cf4cc39fc1072b6b87e7e182ccf79c1a2a4cef33e3",
+    "mission-business_strategist.txt": "2fbcd7252887706690d5d492036458c92e0230836166818a936ebe42b6760b7d",
+    "round1-business_strategist.md": "cf9492355b241ce28baa1d37614fd6a1f6c1b16159fde03587a017a44dab8d22",
+    "mission-brand_creative.txt": "8fa42e8336715816e03d344e9e6f2da70d1b97de7153de78d1370692a774fe82",
+    "round1-brand_creative.md": "d4fe438c226d8e08ffa78d6286622fb024fb413886c73f2f233c70915af74872",
+    "raw-calls.json": "698c7bc441e61c73059d2ceb375d0fa858021f3a9d1416f0805fa8d591ae5805"
+  },
+  "manifestSha256": "cff459d80a88b8bf64b02b5c03bb4fcd3f2f6f7f186a51bd94eb7db92df3ed64"
+}

@@ -1,0 +1,21 @@
+{
+  "complexity": "deep",
+  "requiredCapabilities": [
+    "business strategy and financial logic",
+    "brand strategy and architecture"
+  ],
+  "assignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Interpret the 9‑month test using only provided data; assess true demand vs promo/store-selection bias; analyze new‑to‑brand flow (56%) and premium upgrade (21%), cannibalization (‑9% premium rev) and net impact; judge scalability and risk; state if evidence justifies a 3‑year nationwide bet; choose A/B/C with rationale and guardrails (if B, outline the 12‑month validation focus).",
+      "priority": "high"
+    },
+    {
+      "agentId": "brand_creative",
+      "mission": "Evaluate brand perception shifts (accessibility/price up; ‘professional high‑end’ down; loyalist view stable); assess dilution risk at scale under masterbrand; compare masterbrand vs endorsed sub‑brand trade‑offs and equity protection; determine if shifts are growth evidence, acceptable trade, or warning; advise architecture implications for the chosen A/B/C.",
+      "priority": "medium"
+    }
+  ],
+  "requiresRedTeam": false,
+  "reason": "Board‑level choice needs rigorous data/financial read and brand architecture judgment. No external research is allowed; a market researcher would add little. Two specialists can deliver a defensible recommendation with minimal overlap."
+}

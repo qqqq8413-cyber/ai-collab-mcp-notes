@@ -1,0 +1,36 @@
+{
+  "recordedAt": "2026-09-06T05:52:15Z",
+  "captureResult": "PARTIAL_R3_POSITIVE_SET_INCOMPLETE",
+  "liveCalls": {
+    "planning": 3,
+    "round1_worker": 6,
+    "totalR3": 9,
+    "authorizedMaximum": 12,
+    "cumulativeRealRound1": 29
+  },
+  "candidateEligibility": {
+    "fxr-09": { "F1": true, "F2": true, "F3": true, "preGateScreen": "FAILED_PRE_GATE_SCREEN" },
+    "fxr-10": { "F1": true, "F2": true, "F3": true, "preGateScreen": "FAILED_PRE_GATE_SCREEN" },
+    "fxr-11": { "F1": true, "F2": true, "F3": true, "preGateScreen": "FAILED_PRE_GATE_SCREEN" }
+  },
+  "offlineTests": {
+    "production": { "passed": 212, "failed": 0 },
+    "m2bHarness": { "passed": 110, "failed": 0 },
+    "syntheticFixtures": { "passed": 44, "failed": 0 },
+    "round1Boundary": { "passed": 15, "failed": 0 },
+    "captureAndR3Extension": { "passed": 81, "failed": 0 },
+    "r3CaptureVerifier": { "passed": 149, "failed": 0 },
+    "syntheticIntegrityWithinCaptureVerifier": { "passed": 36, "failed": 0 }
+  },
+  "runtimeFingerprintStartSha256": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEndSha256": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "historicalDisabledOmittedControl": {
+    "cases": 16,
+    "sha256": "f50a7b2ee2a8b7f896dc6a6b88692d612281553011a1de685b2e39c9a567c698",
+    "drifted": false
+  },
+  "replay4ArtifactSeal": "INTACT",
+  "packets": "NOT_GENERATED_R3_INCOMPLETE",
+  "provisionalFinalSet": "NOT_ASSEMBLED",
+  "nextState": "STOPPED_AWAITING_GPT_ARCHITECTURE_REVIEW"
+}

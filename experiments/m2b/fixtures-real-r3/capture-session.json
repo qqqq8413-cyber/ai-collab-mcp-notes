@@ -1,0 +1,123 @@
+{
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-1",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "candidateSet": "R3",
+  "candidateSetFixtureIds": [
+    "fxr-09",
+    "fxr-10",
+    "fxr-11"
+  ],
+  "executionHead": "1fb5eb5fc4808c35a5ac0ddd30e78f031b09b59d",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "1fb5eb5fc4808c35a5ac0ddd30e78f031b09b59d",
+  "nodeVersion": "v24.15.0",
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "globalCallBudget": 12,
+  "chiefPin": {
+    "provider": "openai",
+    "model": "gpt-5"
+  },
+  "providerAllocation": {
+    "fxr-01": {
+      "provider": "openai",
+      "model": "gpt-5"
+    },
+    "fxr-02": {
+      "provider": "claude",
+      "model": "claude-sonnet-5"
+    },
+    "fxr-03": {
+      "provider": "gemini",
+      "model": "gemini-3.1-pro-preview"
+    },
+    "fxr-04": {
+      "provider": "openai",
+      "model": "gpt-5"
+    },
+    "fxr-05": {
+      "provider": "openai",
+      "model": "gpt-5"
+    },
+    "fxr-06": {
+      "provider": "claude",
+      "model": "claude-sonnet-5"
+    },
+    "fxr-07": {
+      "provider": "gemini",
+      "model": "gemini-3.1-pro-preview"
+    },
+    "fxr-08": {
+      "provider": "openai",
+      "model": "gpt-5"
+    },
+    "fxr-09": {
+      "provider": "openai",
+      "model": "gpt-5"
+    },
+    "fxr-10": {
+      "provider": "claude",
+      "model": "claude-sonnet-5"
+    },
+    "fxr-11": {
+      "provider": "gemini",
+      "model": "gemini-3.1-pro-preview"
+    }
+  },
+  "sourceCandidate": {
+    "fxr-01": "fx-01",
+    "fxr-02": "fx-02",
+    "fxr-03": "fx-03",
+    "fxr-04": "fx-04",
+    "fxr-05": "r2-01",
+    "fxr-06": "r2-02",
+    "fxr-07": "r2-03",
+    "fxr-08": "r2-04",
+    "fxr-09": "r3-01",
+    "fxr-10": "r3-02",
+    "fxr-11": "r3-03"
+  },
+  "startedAt": "2026-09-06T05:45:04.881Z",
+  "completedAt": "2026-09-06T05:49:22.635Z",
+  "globalLiveCallCount": 9,
+  "roundEndingViolation": null,
+  "runtimeFingerprintStartSha256": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEndSha256": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintDrift": [],
+  "attempts": [
+    {
+      "fixtureId": "fxr-09",
+      "sourceCandidateId": "r3-01",
+      "captureStatus": "CAPTURED",
+      "complexity": "deep",
+      "successfulWorkerCount": 2,
+      "round1Status": "SUCCESS",
+      "liveCallCount": 3,
+      "manifestSha256": "f8aec0e54a2048f12a310a4cd648cb6ccbfc55e12ec0742b9d953c4a99205d9d"
+    },
+    {
+      "fixtureId": "fxr-10",
+      "sourceCandidateId": "r3-02",
+      "captureStatus": "CAPTURED",
+      "complexity": "deep",
+      "successfulWorkerCount": 2,
+      "round1Status": "SUCCESS",
+      "liveCallCount": 3,
+      "manifestSha256": "cff459d80a88b8bf64b02b5c03bb4fcd3f2f6f7f186a51bd94eb7db92df3ed64"
+    },
+    {
+      "fixtureId": "fxr-11",
+      "sourceCandidateId": "r3-03",
+      "captureStatus": "CAPTURED",
+      "complexity": "deep",
+      "successfulWorkerCount": 2,
+      "round1Status": "SUCCESS",
+      "liveCallCount": 3,
+      "manifestSha256": "25c8a256ef24f912a56a14a1aca9952714ba234369d87e506b599116bdaf1d15"
+    }
+  ]
+}

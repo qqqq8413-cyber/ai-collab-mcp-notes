@@ -1,0 +1,111 @@
+{
+  "fixtureId": "fxr-11",
+  "sourceCandidateId": "r3-03",
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-1",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "executionHead": "1fb5eb5fc4808c35a5ac0ddd30e78f031b09b59d",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "1fb5eb5fc4808c35a5ac0ddd30e78f031b09b59d",
+  "nodeVersion": "v24.15.0",
+  "taskSha256": "726adca19d4bee91a16896dee4f6971e204d91914f8e5eaa0eb29855dc5afecf",
+  "startedAt": "2026-09-06T05:48:38.620Z",
+  "completedAt": "2026-09-06T05:49:22.632Z",
+  "captureStatus": "CAPTURED",
+  "eligibility": {
+    "F1": true,
+    "F2": true,
+    "F3": true
+  },
+  "failureReasons": [],
+  "fatalError": null,
+  "chiefPin": {
+    "provider": "openai",
+    "requestedModel": "gpt-5",
+    "resolvedModel": "gpt-5",
+    "resolvedProvider": "openai"
+  },
+  "providerAllocation": {
+    "provider": "gemini",
+    "model": "gemini-3.1-pro-preview"
+  },
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "actualComplexity": "deep",
+  "plannerAssignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Interpret the 9‑month test using only provided data; assess true demand vs promo/store-selection bias; analyze new‑to‑brand flow (56%) and premium upgrade (21%), cannibalization (‑9% premium rev) and net impact; judge scalability and risk; state if evidence justifies a 3‑year nationwide bet; choose A/B/C with rationale and guardrails (if B, outline the 12‑month validation focus).",
+      "priority": "high"
+    },
+    {
+      "agentId": "brand_creative",
+      "mission": "Evaluate brand perception shifts (accessibility/price up; ‘professional high‑end’ down; loyalist view stable); assess dilution risk at scale under masterbrand; compare masterbrand vs endorsed sub‑brand trade‑offs and equity protection; determine if shifts are growth evidence, acceptable trade, or warning; advise architecture implications for the chosen A/B/C.",
+      "priority": "medium"
+    }
+  ],
+  "planningAdjustments": [],
+  "round1Status": "SUCCESS",
+  "successfulWorkerCount": 2,
+  "failedWorkerCount": 0,
+  "liveCallCount": 3,
+  "agentOrder": [
+    "business_strategist",
+    "brand_creative"
+  ],
+  "availableRosterSha256": "3460acbd0c0d327e4c65a00611a903142dbef55f37cff9ed8b624486804eb793",
+  "snapshotSha256": "2aae70cd436ff95cc8abd2d40a523fa657286b2374eb3a65f13e74443d418e57",
+  "rawCallsSha256": "dc5ae3256afe4962401dabcb650d32412594185995a2f7cc0c113aba5ace9300",
+  "runtimeFingerprintStart": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEnd": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "postRound1Execution": "NONE",
+  "gateExecution": "NONE",
+  "synthesisExecution": "NONE",
+  "workers": [
+    {
+      "agentId": "business_strategist",
+      "roleSha256": "c96ca15e20caa8b0018dcf6c88487641679d376f5a970e4a4bf8fcd28f183996",
+      "missionSha256": "cd024e0aecd41dba70ab632d2fdbe9417dc07cdc59f4556f8bfc2a0e256cd833",
+      "outputSha256": "9e4383691f844ac489486d5ab97e86dd4689d249b9462cfb5c30976ec485c048",
+      "providerRequested": "gemini",
+      "providerResolved": "gemini",
+      "modelRequested": "gemini-3.1-pro-preview",
+      "modelResolved": "gemini-3.1-pro-preview",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    },
+    {
+      "agentId": "brand_creative",
+      "roleSha256": "758c34dbd9c86ee261a68e61c6a23608c2d1297b5985bdbac02f6bf39a89554d",
+      "missionSha256": "24a36bdeacf81a3b8b7ca15d58a8c2298038cf51f21ddf353b04d46c0b8a2709",
+      "outputSha256": "c095de23df7af1231af1fabfe1f448c4f2900dd640d8ed111153f85dfbee0e0f",
+      "providerRequested": "gemini",
+      "providerResolved": "gemini",
+      "modelRequested": "gemini-3.1-pro-preview",
+      "modelResolved": "gemini-3.1-pro-preview",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    }
+  ],
+  "fileHashes": {
+    "task.txt": "726adca19d4bee91a16896dee4f6971e204d91914f8e5eaa0eb29855dc5afecf",
+    "available-roster.json": "3460acbd0c0d327e4c65a00611a903142dbef55f37cff9ed8b624486804eb793",
+    "planner-result.json": "e0b4ba919e467ba4d8f25c10c1156f6e3e68599b00c859266d51e200596d71e5",
+    "planning-adjustments.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "snapshot.json": "2aae70cd436ff95cc8abd2d40a523fa657286b2374eb3a65f13e74443d418e57",
+    "report.json": "7e79f077cd3ef87fb08356cf4cc39fc1072b6b87e7e182ccf79c1a2a4cef33e3",
+    "mission-business_strategist.txt": "cd024e0aecd41dba70ab632d2fdbe9417dc07cdc59f4556f8bfc2a0e256cd833",
+    "round1-business_strategist.md": "9e4383691f844ac489486d5ab97e86dd4689d249b9462cfb5c30976ec485c048",
+    "mission-brand_creative.txt": "24a36bdeacf81a3b8b7ca15d58a8c2298038cf51f21ddf353b04d46c0b8a2709",
+    "round1-brand_creative.md": "c095de23df7af1231af1fabfe1f448c4f2900dd640d8ed111153f85dfbee0e0f",
+    "raw-calls.json": "dc5ae3256afe4962401dabcb650d32412594185995a2f7cc0c113aba5ace9300"
+  },
+  "manifestSha256": "25c8a256ef24f912a56a14a1aca9952714ba234369d87e506b599116bdaf1d15"
+}

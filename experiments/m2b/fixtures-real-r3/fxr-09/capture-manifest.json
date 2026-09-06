@@ -1,0 +1,111 @@
+{
+  "fixtureId": "fxr-09",
+  "sourceCandidateId": "r3-01",
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-1",
+  "protocolVersion": "M2B-PROTOCOL-0.2",
+  "executionHead": "1fb5eb5fc4808c35a5ac0ddd30e78f031b09b59d",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "1fb5eb5fc4808c35a5ac0ddd30e78f031b09b59d",
+  "nodeVersion": "v24.15.0",
+  "taskSha256": "0aa4859ee1a6027becf4183f5d98784c1c2b908e67c30a974afcab7699bbe525",
+  "startedAt": "2026-09-06T05:45:04.882Z",
+  "completedAt": "2026-09-06T05:46:24.782Z",
+  "captureStatus": "CAPTURED",
+  "eligibility": {
+    "F1": true,
+    "F2": true,
+    "F3": true
+  },
+  "failureReasons": [],
+  "fatalError": null,
+  "chiefPin": {
+    "provider": "openai",
+    "requestedModel": "gpt-5",
+    "resolvedModel": "gpt-5",
+    "resolvedProvider": "openai"
+  },
+  "providerAllocation": {
+    "provider": "openai",
+    "model": "gpt-5"
+  },
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "actualComplexity": "deep",
+  "plannerAssignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Using only provided facts, recommend A/B/C for the next 24 months. Compare growth potential, pricing/margin impact, channel conflict, data access, capex/opex, execution risk, exclusivity constraints, and irreversibility. State the strongest counterargument to the chosen path and which reassessed assumptions could flip the decision. Provide crisp decision logic and risk mitigations.",
+      "priority": "high"
+    },
+    {
+      "agentId": "brand_creative",
+      "mission": "Assess each option’s effects on premium positioning, price integrity, customer relationship/consultative service, and control of brand experience. Identify risks from discounting and mass exposure, as well as benefits from controlled experiences. Recommend brand safeguards and CX design to mitigate downsides of the chosen path.",
+      "priority": "medium"
+    }
+  ],
+  "planningAdjustments": [],
+  "round1Status": "SUCCESS",
+  "successfulWorkerCount": 2,
+  "failedWorkerCount": 0,
+  "liveCallCount": 3,
+  "agentOrder": [
+    "business_strategist",
+    "brand_creative"
+  ],
+  "availableRosterSha256": "41a461070de65514e1a2cddf8a3ead57b48e05d1ad56efe2d28384020fe39f4b",
+  "snapshotSha256": "a0ab824d4907f410d1189c96ad9b3953caa87593d7d6089b160622c0dc61372c",
+  "rawCallsSha256": "e7af8fdc9f9acc6b71ea4dd20f74fb18d40c73acb7c48b15c03b96f73f5801e6",
+  "runtimeFingerprintStart": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEnd": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "postRound1Execution": "NONE",
+  "gateExecution": "NONE",
+  "synthesisExecution": "NONE",
+  "workers": [
+    {
+      "agentId": "business_strategist",
+      "roleSha256": "c96ca15e20caa8b0018dcf6c88487641679d376f5a970e4a4bf8fcd28f183996",
+      "missionSha256": "d6150305e6bb14ff78c35486f248f611b72ffd96b61b24bd5b6205f232f0de8a",
+      "outputSha256": "cdb0fb1df26619d7028aade40ce5542952b4431a2169c9afadcb59f34dbf3642",
+      "providerRequested": "openai",
+      "providerResolved": "openai",
+      "modelRequested": "gpt-5",
+      "modelResolved": "gpt-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    },
+    {
+      "agentId": "brand_creative",
+      "roleSha256": "758c34dbd9c86ee261a68e61c6a23608c2d1297b5985bdbac02f6bf39a89554d",
+      "missionSha256": "0f9d41d376d8ab34650fb99e8980866629488fa978f0ff50d63197bbcccc85f2",
+      "outputSha256": "787a8a67f5f07a64a0f52be147470ef3b1ef6b4870bd265521650cf138ee9ce2",
+      "providerRequested": "openai",
+      "providerResolved": "openai",
+      "modelRequested": "gpt-5",
+      "modelResolved": "gpt-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    }
+  ],
+  "fileHashes": {
+    "task.txt": "0aa4859ee1a6027becf4183f5d98784c1c2b908e67c30a974afcab7699bbe525",
+    "available-roster.json": "41a461070de65514e1a2cddf8a3ead57b48e05d1ad56efe2d28384020fe39f4b",
+    "planner-result.json": "95257c79535fc40fa7c19d8daccb43c7ea45a7dab72a2a8733ad8ca9666c6e6d",
+    "planning-adjustments.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "snapshot.json": "a0ab824d4907f410d1189c96ad9b3953caa87593d7d6089b160622c0dc61372c",
+    "report.json": "7e79f077cd3ef87fb08356cf4cc39fc1072b6b87e7e182ccf79c1a2a4cef33e3",
+    "mission-business_strategist.txt": "d6150305e6bb14ff78c35486f248f611b72ffd96b61b24bd5b6205f232f0de8a",
+    "round1-business_strategist.md": "cdb0fb1df26619d7028aade40ce5542952b4431a2169c9afadcb59f34dbf3642",
+    "mission-brand_creative.txt": "0f9d41d376d8ab34650fb99e8980866629488fa978f0ff50d63197bbcccc85f2",
+    "round1-brand_creative.md": "787a8a67f5f07a64a0f52be147470ef3b1ef6b4870bd265521650cf138ee9ce2",
+    "raw-calls.json": "e7af8fdc9f9acc6b71ea4dd20f74fb18d40c73acb7c48b15c03b96f73f5801e6"
+  },
+  "manifestSha256": "f8aec0e54a2048f12a310a4cd648cb6ccbfc55e12ec0742b9d953c4a99205d9d"
+}

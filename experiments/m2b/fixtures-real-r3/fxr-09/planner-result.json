@@ -1,0 +1,21 @@
+{
+  "complexity": "deep",
+  "requiredCapabilities": [
+    "business strategy and risk analysis",
+    "brand strategy and customer experience"
+  ],
+  "assignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Using only provided facts, recommend A/B/C for the next 24 months. Compare growth potential, pricing/margin impact, channel conflict, data access, capex/opex, execution risk, exclusivity constraints, and irreversibility. State the strongest counterargument to the chosen path and which reassessed assumptions could flip the decision. Provide crisp decision logic and risk mitigations.",
+      "priority": "high"
+    },
+    {
+      "agentId": "brand_creative",
+      "mission": "Assess each option’s effects on premium positioning, price integrity, customer relationship/consultative service, and control of brand experience. Identify risks from discounting and mass exposure, as well as benefits from controlled experiences. Recommend brand safeguards and CX design to mitigate downsides of the chosen path.",
+      "priority": "medium"
+    }
+  ],
+  "requiresRedTeam": false,
+  "reason": "This is a company-level strategy choice needing financial/tradeoff logic and brand/CX implications. External market data is disallowed, so a market researcher adds little. Two specialists can deliver a high-quality, focused recommendation with risks and flip conditions."
+}

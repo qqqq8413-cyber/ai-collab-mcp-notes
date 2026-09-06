@@ -1,0 +1,21 @@
+{
+  "complexity": "deep",
+  "requiredCapabilities": [
+    "Strategic/financial risk assessment and contracting",
+    "Creative capacity modeling and governance for brand rollout"
+  ],
+  "assignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Deliver a clear A/B/C recommendation. Weigh strategic upside vs delay/liquidated damages risk. Judge how much PMO + standard templates de-risk execution; assess residual bottleneck from 20% non-standard sites. Define non-negotiable contract terms (wave-based acceptance, penalty caps, exception thresholds, change-control, client 24h SLA). State the single condition most likely to flip the decision.",
+      "priority": "high"
+    },
+    {
+      "agentId": "brand_creative",
+      "mission": "Build an 18-week approval/capacity model using stated staffing (CD 75%, 2 SDs from wk3, production team). Estimate weekly throughput for standard sites and exception reviews; map critical path for creative approvals and QA; identify queue risks from 20% bespoke sites; recommend governance (triage, escalation, templates) and whether a week-18 full cutover is feasible or phased waves are required.",
+      "priority": "high"
+    }
+  ],
+  "requiresRedTeam": false,
+  "reason": "Decision hinges on two domains only: strategic/contract risk and creative approval capacity. No external research is allowed or needed. Business strategist integrates the final A/B/C with non-negotiables; brand/creative quantifies throughput and bottlenecks to inform feasibility. This is the minimum sufficient collaboration for a high-stakes contract decision."
+}

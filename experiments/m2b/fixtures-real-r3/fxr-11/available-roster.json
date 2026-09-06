@@ -1,0 +1,46 @@
+{
+  "refs": [
+    {
+      "id": "business_strategist",
+      "provider": "gemini",
+      "model": "gemini-3.1-pro-preview",
+      "providesEvidence": false
+    },
+    {
+      "id": "market_researcher",
+      "provider": "gemini",
+      "model": "gemini-3.1-pro-preview",
+      "providesEvidence": false
+    },
+    {
+      "id": "brand_creative",
+      "provider": "gemini",
+      "model": "gemini-3.1-pro-preview",
+      "providesEvidence": false
+    }
+  ],
+  "workers": [
+    {
+      "id": "business_strategist",
+      "provider": "gemini",
+      "model": "gemini-3.1-pro-preview",
+      "role": "Business Strategist / Critical Analyst — 商業模式、財務邏輯、商業風險、策略漏洞、可行性、反方觀點",
+      "evidenceCapable": false
+    },
+    {
+      "id": "market_researcher",
+      "provider": "gemini",
+      "model": "gemini-3.1-pro-preview",
+      "role": "Market / Research Analyst — 市場情報、競品、客群、成長機會、外部環境、證據蒐集",
+      "evidenceCapable": false
+    },
+    {
+      "id": "brand_creative",
+      "provider": "gemini",
+      "model": "gemini-3.1-pro-preview",
+      "role": "Brand / Creative Strategist — 品牌策略、Creative Direction、產品化設計、服務設計、差異化",
+      "evidenceCapable": false
+    }
+  ],
+  "warnings": []
+}
