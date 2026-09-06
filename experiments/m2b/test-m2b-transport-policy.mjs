@@ -23,7 +23,10 @@
  * each client is constructed, so no request can leave the process. Credentials are fake.
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // Fake credentials, set before dist/config.js is imported and reads the environment. A
 // real key must never be able to reach a stub whose job is to look like a provider.
@@ -52,6 +55,8 @@ const failingFetch = async (url, init) => {
 };
 
 globalThis.fetch = failingFetch;
+
+const sha256hex = (value) => createHash('sha256').update(value).digest('hex');
 
 const countAttempts = async (fn) => {
   const before = attempts.length;
@@ -171,52 +176,130 @@ await check('the capture policy constants say what the artifacts record', () => 
   assert.equal(TRANSPORT_RETRY_POLICY, 'explicit-no-retry');
 });
 
-console.log('\nI — dependency provenance is fail-closed before any call');
+console.log('\nI — dependency provenance is fail-closed against a committed baseline');
 
-await check('I: a locked/installed version mismatch is refused', async () => {
-  const record = await dependency.dependencyProvenance();
-  const tampered = {
-    ...record,
-    packages: record.packages.map((p) => (p.name === 'openai' ? { ...p, installedVersion: '9.9.9' } : p)),
-  };
+const SCRATCH = mkdtempSync(join(tmpdir(), 'm2b-dep-'));
+const baseRecord = await dependency.dependencyProvenance();
+const withPackage = (name, patch) => ({
+  ...baseRecord,
+  packages: baseRecord.packages.map((p) => (p.name === name ? { ...p, ...patch } : p)),
+});
+const rejects = async (record, pattern) => {
   await assert.rejects(
-    () => dependency.assertDependenciesMatchLock(tampered),
-    (err) => err instanceof dependency.DependencyProvenanceError && /package-lock says/.test(String(err)),
+    () => dependency.assertDependenciesMatchLock(record),
+    (err) => {
+      assert.ok(err instanceof dependency.DependencyProvenanceError, err?.name);
+      assert.match(String(err), pattern);
+      return true;
+    },
   );
-});
+};
 
-await check('I: an installed SDK that the transport proof never covered is refused', async () => {
-  const record = await dependency.dependencyProvenance();
-  const drifted = {
-    ...record,
-    packages: record.packages.map((p) => (p.name === '@google/generative-ai'
-      ? { ...p, lockedVersion: '0.24.2', installedVersion: '0.24.2' }
-      : p)),
-  };
-  await assert.rejects(
-    () => dependency.assertDependenciesMatchLock(drifted),
-    (err) => /transport no-retry test was proven against/.test(String(err)),
-  );
-});
-
-await check('I: a missing provider SDK is refused', async () => {
-  const record = await dependency.dependencyProvenance();
-  const absent = {
-    ...record,
-    packages: record.packages.map((p) => (p.name === '@anthropic-ai/sdk' ? { ...p, installedVersion: null } : p)),
-  };
-  await assert.rejects(() => dependency.assertDependenciesMatchLock(absent), /is not installed/);
-});
-
-await check('the real installed tree passes the preflight and records what ran', async () => {
+await check('the real installed tree matches the approved baseline exactly', async () => {
   const record = await dependency.assertDependenciesMatchLock();
-  assert.equal(record.packageLockSha256.length, 64);
+  assert.equal(record.approvedBaselineMatched, true);
+  assert.deepEqual(dependency.matchesApprovedBaseline(record), []);
   for (const name of dependency.PROVIDER_PACKAGES) {
     const pkg = record.packages.find((p) => p.name === name);
-    assert.equal(pkg.lockedVersion, pkg.installedVersion, name);
-    assert.equal(pkg.installedVersion, dependency.TRANSPORT_PROVEN_VERSIONS[name], name);
-    assert.equal(pkg.resolvedEntrypointSha256.length, 64, name);
+    const approved = dependency.APPROVED_DEPENDENCY_BASELINE.packages[name];
+    assert.equal(pkg.lockIntegrity, approved.lockIntegrity, name);
+    assert.equal(pkg.runtimePackageDigest, approved.runtimePackageDigest, name);
+    assert.equal(pkg.runtimePackageFileCount, approved.runtimePackageFileCount, name);
+    assert.equal(pkg.runtimeEntrypointRelative, approved.runtimeEntrypointRelative, name);
+    assert.ok(!pkg.runtimeEntrypointRelative.includes('..'), 'entrypoint must be package-relative');
   }
+});
+
+await check('1: package-lock sha drift is refused even when every version is unchanged', async () => {
+  await rejects({ ...baseRecord, packageLockSha256: sha256hex('a different lockfile') }, /package-lock\.json sha256 is/);
+});
+
+await check('2: lock integrity drift is refused', async () => {
+  await rejects(withPackage('openai', { lockIntegrity: 'sha512-tampered==' }), /openai\.lockIntegrity/);
+});
+
+await check('3: installed package.json byte drift is refused even at the same version', async () => {
+  await rejects(
+    withPackage('@anthropic-ai/sdk', { installedManifestSha256: sha256hex('{"version":"0.123.0"}') }),
+    /@anthropic-ai\/sdk\.installedManifestSha256/,
+  );
+});
+
+await check('4: a runtime file edit changes the digest and is refused at the same version', () => {
+  // Done on a real copied tree, so this tests the digest's sensitivity rather than only
+  // the comparator: the package version string is untouched throughout.
+  const root = join(SCRATCH, 'generative-ai');
+  cpSync('node_modules/@google/generative-ai', root, { recursive: true });
+  const before = dependency.packageRuntimeDigest(root);
+  assert.equal(before.digest, dependency.APPROVED_DEPENDENCY_BASELINE.packages['@google/generative-ai'].runtimePackageDigest);
+
+  const target = join(root, 'dist', 'index.mjs');
+  writeFileSync(target, readFileSync(target, 'utf8') + '\n// a single added comment\n');
+  const after = dependency.packageRuntimeDigest(root);
+  assert.notEqual(after.digest, before.digest, 'a changed runtime file must change the digest');
+  assert.equal(after.fileCount, before.fileCount, 'and it did so without adding a file');
+  assert.equal(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version, '0.24.1', 'version string unchanged');
+});
+
+await check('4b: an added runtime file changes the digest and the count', () => {
+  const root = join(SCRATCH, 'generative-ai-added');
+  cpSync('node_modules/@google/generative-ai', root, { recursive: true });
+  writeFileSync(join(root, 'dist', 'extra.mjs'), 'export const injected = true;\n');
+  const after = dependency.packageRuntimeDigest(root);
+  const approved = dependency.APPROVED_DEPENDENCY_BASELINE.packages['@google/generative-ai'];
+  assert.notEqual(after.digest, approved.runtimePackageDigest);
+  assert.equal(after.fileCount, approved.runtimePackageFileCount + 1);
+});
+
+await check('4c: the digest is stable across two reads of the same tree', () => {
+  const root = join(SCRATCH, 'generative-ai-stable');
+  cpSync('node_modules/@google/generative-ai', root, { recursive: true });
+  assert.equal(dependency.packageRuntimeDigest(root).digest, dependency.packageRuntimeDigest(root).digest);
+});
+
+await check('5: an entrypoint that resolves outside the package root is refused', async () => {
+  await rejects(
+    withPackage('openai', { runtimeEntrypointRelative: null, runtimeEntrypointEscapedTo: '/elsewhere/index.mjs' }),
+    /resolves outside the package root/,
+  );
+});
+
+await check('5b: an entrypoint path drift is refused', async () => {
+  await rejects(withPackage('openai', { runtimeEntrypointRelative: 'dist/index.mjs' }), /openai\.runtimeEntrypointRelative/);
+});
+
+await check('6: a runtimePackageDigest mismatch is refused', async () => {
+  await rejects(
+    withPackage('@google/generative-ai', { runtimePackageDigest: sha256hex('other bytes') }),
+    /@google\/generative-ai\.runtimePackageDigest/,
+  );
+  await rejects(withPackage('openai', { runtimePackageFileCount: 2952 }), /openai\.runtimePackageFileCount/);
+});
+
+await check('7: a locked/installed version mismatch is refused', async () => {
+  await rejects(withPackage('openai', { installedVersion: '7.10.1' }), /package-lock says 7\.10\.0, installed is 7\.10\.1/);
+});
+
+await check('7b: a package that is not installed is refused', async () => {
+  await rejects(withPackage('@anthropic-ai/sdk', { installedVersion: null }), /is not installed/);
+});
+
+await check('7c: an install the transport proof never covered is refused', async () => {
+  const approved = dependency.APPROVED_DEPENDENCY_BASELINE.packages['@google/generative-ai'];
+  await rejects(
+    withPackage('@google/generative-ai', { lockedVersion: '0.24.2', installedVersion: '0.24.2' }),
+    /transport no-retry test was proven against/,
+  );
+  assert.equal(approved.transportProvenVersion, '0.24.1');
+});
+
+await check('the refusal tells the operator what to do and never offers to fix it', async () => {
+  let message = '';
+  try { await dependency.assertDependenciesMatchLock(withPackage('openai', { installedVersion: '9.9.9' })); }
+  catch (err) { message = String(err); }
+  assert.match(message, /Re-run experiments\/m2b\/test-m2b-transport-policy\.mjs/);
+  assert.match(message, /do not adjust the baseline to match an unproven install/);
+  assert.ok(!/npm install/.test(message), 'a preflight must not suggest repairing the tree for the operator');
 });
 
 console.log('\nNo network');
@@ -231,6 +314,7 @@ await check('every attempted request went to the stub and none to a real endpoin
 });
 
 globalThis.fetch = realFetch;
+rmSync(SCRATCH, { recursive: true, force: true });
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

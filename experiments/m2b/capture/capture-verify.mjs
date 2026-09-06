@@ -17,7 +17,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { buildRunReport } from '../../../dist/modes/orchestrator.js';
 import { PROTOCOL_VERSION as CURRENT_PROTOCOL_VERSION, routingFor } from '../protocol/amendment-0-3.mjs';
 import { TRANSPORT_RETRY_POLICY } from './recorder.mjs';
-import { PROVIDER_PACKAGES } from './dependency-provenance.mjs';
+import { APPROVED_DEPENDENCY_BASELINE, PROVIDER_PACKAGES, matchesApprovedBaseline } from './dependency-provenance.mjs';
 
 /** The first capture schema that records transport provenance. Earlier ones cannot. */
 export const TRANSPORT_PROVENANCE_CAPTURE_VERSION = 'M2B-REAL-ROUND1-CAPTURE-3';
@@ -295,24 +295,24 @@ export function verifyCapture({ realRoot, chiefPin, providerAllocation, sourceCa
       session.transportRetryPolicy === TRANSPORT_RETRY_POLICY && session.transportMaxRetries === 0,
       `${session.transportRetryPolicy} / ${session.transportMaxRetries}`);
     const dep = session.dependencyProvenance;
-    check('35b', 'session records package-lock provenance',
-      typeof dep?.packageLockSha256 === 'string' && dep.packageLockSha256.length === 64,
-      dep?.packageLockSha256 ?? 'absent');
-    check('35c', 'session identifies every provider SDK that could have been used',
+    check('35b', 'session records provenance for every provider SDK',
       Array.isArray(dep?.packages)
-        && PROVIDER_PACKAGES.every((name) => {
-          const pkg = dep.packages.find((entry) => entry.name === name);
-          return pkg
-            && typeof pkg.lockedVersion === 'string'
-            && typeof pkg.installedVersion === 'string'
-            && pkg.lockedVersion === pkg.installedVersion
-            && typeof pkg.resolvedEntrypointSha256 === 'string';
-        }),
-      (dep?.packages ?? []).map((pkg) => `${pkg.name}@${pkg.installedVersion}`).join(', ') || 'absent');
-    check('35d', 'every recorded SDK matches the version the transport proof was run against',
-      (dep?.packages ?? []).every((pkg) => pkg.transportProvenVersion === null
-        || pkg.installedVersion === pkg.transportProvenVersion),
-      (dep?.packages ?? []).map((pkg) => `${pkg.name}: ${pkg.installedVersion} vs ${pkg.transportProvenVersion}`).join('; ') || 'absent');
+        && PROVIDER_PACKAGES.every((name) => dep.packages.some((entry) => entry.name === name)),
+      (dep?.packages ?? []).map((pkg) => pkg.name).join(', ') || 'absent');
+
+    // Equality against the committed baseline, not presence. A recorded hash only proves
+    // something was installed; the claim this capture makes is that the *proven* tree was.
+    // Reusing the preflight's own comparison keeps the two from drifting into two slightly
+    // different notions of "the same dependencies".
+    const differences = matchesApprovedBaseline(dep ?? {});
+    check('35c', 'session dependency provenance equals the approved transport baseline',
+      differences.length === 0, differences.join(' | ') || 'identical to the approved baseline');
+
+    // Called out separately so a package-lock swap is legible on its own rather than
+    // buried among per-package differences.
+    check('35d', 'session package-lock matches the approved package-lock',
+      dep?.packageLockSha256 === APPROVED_DEPENDENCY_BASELINE.packageLockSha256,
+      `${dep?.packageLockSha256 ?? 'absent'} vs ${APPROVED_DEPENDENCY_BASELINE.packageLockSha256}`);
   }
 
   // 31. runtime fingerprint unchanged across the whole capture

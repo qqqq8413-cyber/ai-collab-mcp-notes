@@ -37,6 +37,7 @@ import {
   ACQUISITION_POOL_SIZE, ARCHETYPE_SLOTS, ROLE_PROVIDER_MAP, WAVES,
   routingFor, cd1TargetInvariantHolds,
 } from './protocol/amendment-0-3.mjs';
+import { APPROVED_DEPENDENCY_BASELINE, matchesApprovedBaseline } from './capture/dependency-provenance.mjs';
 
 let passed = 0, failed = 0;
 async function check(name, fn) {
@@ -1251,6 +1252,20 @@ await check('D: NEGATIVE: a CAPTURE-3 manifest declaring a different policy is r
   assert.ok(someFailureMatches(result, '/34'), failedIds(result).join(', '));
 });
 
+await check('a legal CAPTURE-3 session records provenance equal to the approved baseline', () => {
+  const session = JSON.parse(readFileSync(join(legal.realRoot, 'capture-session.json'), 'utf8'));
+  assert.deepEqual(matchesApprovedBaseline(session.dependencyProvenance), []);
+  assert.equal(session.dependencyProvenance.packageLockSha256, APPROVED_DEPENDENCY_BASELINE.packageLockSha256);
+  for (const name of Object.keys(APPROVED_DEPENDENCY_BASELINE.packages)) {
+    const pkg = session.dependencyProvenance.packages.find((entry) => entry.name === name);
+    const approved = APPROVED_DEPENDENCY_BASELINE.packages[name];
+    assert.equal(pkg.lockIntegrity, approved.lockIntegrity, name);
+    assert.equal(pkg.installedManifestSha256, approved.installedManifestSha256, name);
+    assert.equal(pkg.runtimePackageDigest, approved.runtimePackageDigest, name);
+    assert.equal(pkg.runtimeEntrypointRelative, approved.runtimeEntrypointRelative, name);
+  }
+});
+
 await check('NEGATIVE: a CAPTURE-3 session with no dependency provenance is rejected', () => {
   const result = tamper(legal.realRoot, 'dependency-absent', (dir) => {
     const path = join(dir, 'capture-session.json');
@@ -1260,17 +1275,44 @@ await check('NEGATIVE: a CAPTURE-3 session with no dependency provenance is reje
   });
   assert.ok(someFailureMatches(result, '35b'), failedIds(result).join(', '));
   assert.ok(someFailureMatches(result, '35c'), failedIds(result).join(', '));
+  assert.ok(someFailureMatches(result, '35d'), failedIds(result).join(', '));
 });
 
-await check('NEGATIVE: a CAPTURE-3 session whose SDK drifted from the proven version is rejected', () => {
-  const result = tamper(legal.realRoot, 'dependency-drift', (dir) => {
+/** Each of these keeps every version string intact and changes one attested byte. */
+const dependencyTamper = (name, patch) => (dir) => {
+  const path = join(dir, 'capture-session.json');
+  const session = JSON.parse(readFileSync(path, 'utf8'));
+  session.dependencyProvenance.packages = session.dependencyProvenance.packages.map((pkg) =>
+    (pkg.name === name ? { ...pkg, ...patch } : pkg));
+  writeFileSync(path, canonical(session));
+};
+
+for (const [label, name, patch, expected] of [
+  ['lock integrity drift', 'openai', { lockIntegrity: 'sha512-tampered==' }, '35c'],
+  ['installed manifest byte drift', '@anthropic-ai/sdk', { installedManifestSha256: 'f'.repeat(64) }, '35c'],
+  ['runtime package digest drift', '@google/generative-ai', { runtimePackageDigest: 'e'.repeat(64) }, '35c'],
+  ['runtime file count drift', 'openai', { runtimePackageFileCount: 2952 }, '35c'],
+  ['entrypoint path drift', 'openai', { runtimeEntrypointRelative: 'dist/index.mjs' }, '35c'],
+  ['entrypoint escaping the package root', 'openai', { runtimeEntrypointEscapedTo: '/elsewhere/index.mjs' }, '35c'],
+  ['locked/installed version disagreement', 'openai', { installedVersion: '7.10.1' }, '35c'],
+  ['an SDK the transport proof never covered', '@google/generative-ai',
+    { lockedVersion: '0.24.9', installedVersion: '0.24.9' }, '35c'],
+]) {
+  await check(`NEGATIVE: CAPTURE-3 rejects ${label}`, () => {
+    const result = tamper(legal.realRoot, `dependency-${label.replace(/[^a-z]+/gi, '-')}`, dependencyTamper(name, patch));
+    assert.ok(someFailureMatches(result, expected), `${label}: ${failedIds(result).join(', ')}`);
+  });
+}
+
+await check('NEGATIVE: CAPTURE-3 rejects a package-lock swap that leaves every version alone', () => {
+  const result = tamper(legal.realRoot, 'dependency-lock-sha', (dir) => {
     const path = join(dir, 'capture-session.json');
     const session = JSON.parse(readFileSync(path, 'utf8'));
-    session.dependencyProvenance.packages = session.dependencyProvenance.packages.map((pkg) =>
-      (pkg.name === '@google/generative-ai' ? { ...pkg, lockedVersion: '0.24.9', installedVersion: '0.24.9' } : pkg));
+    session.dependencyProvenance.packageLockSha256 = 'a'.repeat(64);
     writeFileSync(path, canonical(session));
   });
   assert.ok(someFailureMatches(result, '35d'), failedIds(result).join(', '));
+  assert.ok(someFailureMatches(result, '35c'), failedIds(result).join(', '));
 });
 
 await check('E: CAPTURE-2 evidence stays verifiable and is never judged on transport provenance', () => {
