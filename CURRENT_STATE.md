@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  516d83854212091f51e35efa2ac194f95bc28437
+stateVerifiedThrough  7bf07c5e878420467febc802d9538e8c53dcc559
 production            src/** 停在 d01043b（accepted pre-synthesis boundary）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -304,7 +304,7 @@ N-01  session 的 fresh:true 會 rmSync capture root
       → live entry point 不可達：run-live.mjs 拒絕 --fresh / --overwrite / --delete-existing，
         且 realRoot 已存在就拒絕啟動。僅離線 stub session 用得到。狀態：MITIGATED，非 CLOSED
 N-02  3′-H 把唯一 providesEvidence 的 role（market_researcher）綁到 gemini，
-      而該 role 在已觀察七題中被指派 0 次 → gemini worker coverage 可能為零。
+      而該 role 在目前已觀察的十題中被指派 0 次 → gemini worker coverage 可能為零。
       這是合法的 observed result，不是缺陷。詳見第 8 節
 ```
 
@@ -396,8 +396,10 @@ Decision Synthesis / temperature probe / pilot。
 
 `[FACT]` **`fxr-09` / `fxr-10` / `fxr-11` 在 F1/F2/F3 上是 3/3 PASS。**
 
-`[INTERPRETATION]` 在**目前已觀察到的 acquisition 序列**中,active blocker 移到了 F4。
-**這不表示未來的 candidate 不會再 FAIL F1/F2/F3。** F1–F7 一律不變,F4 不放寬。
+`[INTERPRETATION]` **R3 這一輪**,F1/F2/F3 全過,該輪 observed acquisition bottleneck 是 **F4**。
+這是對 R3 樣本的描述,**不表示未來的 candidate 不會再 FAIL F1/F2/F3**。
+其後 P03 Wave 1 的 observed bottleneck 又回到 **F2** —— 見下一小節。
+F1–F7 一律不變,F4 不放寬。
 
 ### P03 Wave 1 —— EXECUTED / PRESERVED NEGATIVE ACQUISITION EVIDENCE
 
@@ -463,7 +465,11 @@ retrieval 釘在 all-off、task 又要求只根據題目事實判斷,消掉了�
 
 `[SIGNAL]` 這對 3′-H 的 observed coverage 有後果:R3 在同質配置下 gemini 確實跑過 Round 1
 (扮演 strategist / creative);改成 3′-H 後 gemini 綁 `market_researcher`,
-而該 role 在已觀察的七題中一次都沒被指派。**gemini 的 worker coverage 可能是零,而那是合法的 observed result。**
+而該 role 在目前已觀察的十題中一次都沒被指派。**gemini 的 worker coverage 可能是零,而那是合法的 observed result。**
+
+`[SIGNAL]` 這只是對已觀察樣本的描述。**不得**升級成:`market_researcher` 永遠不會被選、
+gemini 永遠拿不到 worker call、retrieval-off **必然**導致 zero `market_researcher` selection,
+或 Option 3′-H 造成了這個 planner 行為。以上皆未被證實。
 
 歷史細節見 `HANDOFF.md` 第 27–29 節,不在此重述。
 
@@ -605,8 +611,26 @@ STATUS:  NOT AUTHORIZED
 
 `[FACT]` **`fxr-09` / `fxr-10` / `fxr-11` 在 F1/F2/F3 上是 3/3 PASS,F4 在這三題上未取得。**
 
-`[INTERPRETATION]` 在目前已觀察到的序列中,active blocker 移到了 F4 —— 但這是對已觀察樣本的描述,
-**不是「F1/F2/F3 已經解決」的宣稱**,未來 candidate 仍可能 FAIL 其中任何一項。
+`[FACT]` **P03 Wave 1 的 `S1` / `E1` / `I1`,F1 與 F3 全過,F2 三題全部 FAIL(各只有一位 specialist)。**
+
+`[INTERPRETATION]` **observed bottleneck 是逐輪的,不是全域的:**
+
+```
+R3           F1/F2/F3 全過   → 該輪 observed acquisition bottleneck = F4
+P03 Wave 1   F1/F3 全過、F2 三題全 FAIL → 該輪 observed acquisition bottleneck = F2
+```
+
+以下**皆未被確立**,不得寫入任何報告:
+
+```
+F2 已永久取代 F4 成為 active blocker
+F4 已解決
+F2 是普遍性的 blocker
+Chief 無法產生 multi-specialist run
+剩下的 candidate 也會 FAIL F2
+```
+
+未來的 candidate **仍可能 FAIL F1、F2、F3 或 F4 中的任何一項**。
 
 `[FACT]` **R2 與 R3 中,五個「有兩位 specialist」的案例全部收斂**
 (`fxr-06`、`fxr-08`、`fxr-09`、`fxr-10`、`fxr-11`)。
