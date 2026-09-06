@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  3b79da52c733ef67a8012939e35e113d574f5c10
+stateVerifiedThrough  730d35037db23c49a17ccf4b98e7c79fc6a9e35b
 production            src/** 停在 d01043b（accepted pre-synthesis boundary）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -299,6 +299,7 @@ provider heterogeneity caused the observed conflict
 | **C-02** | prior A2 provenance 未經連續性驗證就被信任 | CLOSED by **CWP-3R** |
 | **P-1** | request-side provider/model 不符只在 provider call 之後才被發現 | CLOSED by **P-1** @ `a275d01` |
 | **D-01** | 本檔未記錄 harness 尚不支援 0.3 | CLOSED by `bb2214f` 的更新 |
+| **M-ACQ-01** | **NATURAL ELIGIBILITY BASE-RATE UNKNOWN** —— 不知道未修改的 production Chief 在更廣的 production-like task population 中，多常自然產生 `deep` **且** multi-specialist assignment | **OPEN** |
 | **T-RETRY-01** | SDK transport retry accounting gap —— 一次 logical dispatch 可能是多次 HTTP attempt | **CLOSED FOR FUTURE CAPTURES** by **CWP-4B ＋ CWP-4B-R** @ `3b79da5` |
 
 未關閉、但**不是** engineering blocker 的兩項,列出以免被誤讀成已消失:
@@ -308,7 +309,7 @@ N-01  session 的 fresh:true 會 rmSync capture root
       → live entry point 不可達：run-live.mjs 拒絕 --fresh / --overwrite / --delete-existing，
         且 realRoot 已存在就拒絕啟動。僅離線 stub session 用得到。狀態：MITIGATED，非 CLOSED
 N-02  3′-H 把唯一 providesEvidence 的 role（market_researcher）綁到 gemini，
-      而該 role 在目前已觀察的十三題中被指派 0 次 → gemini worker coverage 可能為零。
+      而該 role 在目前已觀察的十六題中被指派 0 次 → gemini worker coverage 仍是零。
       這是合法的 observed result，不是缺陷。詳見第 8 節
 ```
 
@@ -320,6 +321,44 @@ A2 identity scanner 的 fail-closed 行為（真實 Round1 若含 S1/E1/I1 字�
 CWP-2 wave gating 與 A2 resolveAnnotations().filledArchetypes 尚未接線          未接
 session.mjs 的 ROUND_ENDING class 清單未含 RequestPinMismatch（該路徑對它不可達)  名義不一致
 ```
+
+### M-ACQ-01 —— NATURAL ELIGIBILITY BASE-RATE UNKNOWN（OPEN)
+
+P03 假設「`deep` + multi-specialist 的案例可以被取得」,但**從未先建立這種案例的自然發生率**。
+九題之後,`deep ∧ assigned ≥ 2` 出現 **0 次**。
+
+`[FACT]` 九次觀察、零事件,對真實發生率的單尾 95% 上界只約束到 **≈ 28%** ——
+這同時相容於「其實常見但運氣不好」與「真的罕見」。P03 是關於 **P03 自己**的強證據,
+不足以估計 production-wide 的頻率。
+
+**這不是**:runtime blocker、程式缺陷、Chief 缺陷,也**不是**「F1/F2 應該被改」的證據。
+**這是** methodology knowledge gap。
+
+`[DECISION]` **在這個 base-rate 問題被 characterize 之前,不得重新設計或執行
+M2-B effectiveness experiment。**
+
+處理方向的草案(**未接受、未預先登記、未授權**):
+`experiments/m2b/census/CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md`
+
+### 目前的 M2-B 狀態（不得混淆 acquisition 與 effectiveness)
+
+```
+M2B-PROTOCOL-0.3            completed through P03 acquisition
+P03                         CLOSED
+next P03 wave               NONE
+tenth candidate             NONE
+
+A2                          NO_A2_BATCH
+A2 authorization            NOT GRANTED
+
+effectiveness experiment    NOT EXECUTED
+C vs D₁                     UNANSWERED
+peer-challenge 有效性        UNANSWERED
+M2-A mechanism evidence     unchanged（見第 5 節，未因 P03 而改變）
+```
+
+`[DECISION]` **acquisition 失敗不是 effectiveness 的證據。**
+P03 沒有回答 C > D₁,也沒有回答 peer challenge 有沒有用 —— 它從未執行到那一步。
 
 ### ⚠️ CRITICAL GOVERNANCE GATE
 
@@ -481,9 +520,14 @@ OFFLINE → LIVE 之前,必須 reconcile 完整的已知 blocker ledger,
 累計 live call:
 
 ```
-R1 = 10   R2 = 10   R3 = 9   P03 Wave 1 = 6   P03 Wave 2 = 8      TOTAL = 43
+R1 = 10   R2 = 10   R3 = 9
+P03 Wave 1 = 6   P03 Wave 2 = 8   P03 Wave 3 = 6        TOTAL = 49
 A2 acquisition live calls = 0
 ```
+
+Wave 3 是第一份 **CAPTURE-3** artifact:六次 logical call **同時就是六次 HTTP attempt**
+(每筆記錄 `explicit-no-retry` / `transportMaxRetriesRequested = 0`,依賴樹與已核准 baseline 位元組相符)。
+Wave 1 / Wave 2 為 CAPTURE-2,**transport-level attempt 次數不可觀測**。
 
 以上是 **recorded logical provider invocations**。Wave 1 / Wave 2 屬 CAPTURE-2,
 **transport-level HTTP attempt 次數在那些 artifact 中不可觀測**(見第 7 節)。
@@ -610,7 +654,13 @@ gemini 至今未執行過任何 worker call。
 
 #### 外部審查（本輪的兩份，強度不同）
 
-`[SIGNAL]` **Gemini methodology review —— lower-tier external methodology review。**
+`[SIGNAL]` **Gemini nine-candidate methodology review（P03 完成後)—— ACCEPT WITH CORRECTIONS。**
+接受的方向:在**已觀察的 P03 task population** 與 production Chief 的
+minimum-sufficient-collaboration 行為之下,`F1 = deep` 與 `F2 = ≥2 successful specialists`
+之間存在 **sample-level tension**。措辭邊界見第 8 節 P03 closure 小節的允許/禁止清單。
+model 同意不構成證據;該 session 對正式 A2 已汙染,永遠不得充當 A2。
+
+`[SIGNAL]` **Gemini methodology review（Wave 2 當時)—— lower-tier external methodology review。**
 
 ```
 結論                PASS WITH CORRECTIONS
@@ -631,12 +681,82 @@ SDK transport retry accounting gap       → CLOSED FOR FUTURE CAPTURES by CWP-4
 runtime fingerprint 依賴涵蓋範圍限制      → 以獨立的 dependency provenance 處理（見第 7 節）
 ```
 
-`[FACT]` `market_researcher` 在 R2 四題 + R3 三題 + P03 Wave 1 三題 + Wave 2 三題,**合計十三題中被指派 0 次**。
+### P03 Wave 3 —— EXECUTED / 最後一輪 / PRESERVED NEGATIVE ACQUISITION EVIDENCE
+
+evidence commit `730d35037db23c49a17ccf4b98e7c79fc6a9e35b` ｜ 授權 base `57f8586`
+｜ evidence root `experiments/m2b/fixtures-real-0-3/wave-3/`
+
+```
+S3  normal / 1 specialist / SUCCESS / F1 FAIL / F2 FAIL / F3 PASS / FAILED   live calls = 2
+E3  deep   / 1 specialist / SUCCESS / F1 PASS / F2 FAIL / F3 PASS / FAILED   live calls = 2
+I3  deep   / 1 specialist / SUCCESS / F1 PASS / F2 FAIL / F3 PASS / FAILED   live calls = 2
+
+Wave 3 = 6 logical calls = 6 HTTP attempts      ceiling = 12
+roundEndingViolation = null ｜ runtime fingerprint drift = []
+CAPTURE-3 首次 live 使用：transport（34/34b/34c）與 dependency（35/35b/35c/35d）全數 PASS
+verifier 135/139，四項失敗全部是 eligibility gate（S3/10b、S3/12b、E3/12b、I3/12b）
+```
+
+**架構裁定:ACCEPT —— VALID NEGATIVE ACQUISITION RESULT。**
+`[DECISION]` **eligibility failure 不得被重新解讀為 execution failure。**
+
+---
+
+### P03 —— COMPLETE / EXHAUSTED / CLOSED
+
+```
+attempted            9 / 9
+F1-F3 admitted       0 / 9
+A2 executions        0
+formal F4 judgments  0
+filled archetypes    0 / 3
+
+F1 failures          3 / 9      F2 failures  7 / 9      F3 failures  0 / 9
+恰好一位 specialist   7 / 9      兩位以上      2 / 9
+
+role assignments     business_strategist 9/9 ｜ brand_creative 2/9 ｜ market_researcher 0/9
+
+next P03 wave        NONE
+tenth candidate      NONE
+```
+
+| | complexity | specialists | F1 | F2 | F3 |
+|---|---|---|---|---|---|
+| S1 / E1 / I1 | deep | 1 | PASS | FAIL | PASS |
+| S2 / E2 | normal | 2 | FAIL | PASS | PASS |
+| I2 | deep | 1 | PASS | FAIL | PASS |
+| S3 | normal | 1 | FAIL | FAIL | PASS |
+| E3 / I3 | deep | 1 | PASS | FAIL | PASS |
+
+#### 允許與禁止的措辭（架構已裁定)
+
+`[FACT]` **P03 之內,全部六題 `deep` candidate 都只獲派一位 specialist。**
+`[FACT]` **兩題獲派兩位 specialist 的 candidate 都被判為 `normal`。**
+
+`[SIGNAL]` 已觀察的 P03 樣本顯示,對 production Chief 而言
+**task complexity classification 與 specialist necessity 是兩個不同的 planning 維度**。
+
+`[INFERENCE]` P03 的 task population **可能沒有取樣到**那種自然同時滿足
+`deep` + multi-specialist collaboration 的案例。
+
+以下**全部未被確立,不得寫成事實**:
+
+```
+複雜度與 specialist 數量呈反相關      複雜度與 specialist 數量不相關
+Chief 系統性地迴避 multi-specialist deep task
+Chief 有設計缺陷                      F2 有缺陷
+market_researcher 缺席是因為 retrieval 被關閉
+provider mapping 造成了 role selection
+M2-B 不可行                           peer challenge 無效
+P03 證明了 production-wide 的協作行為
+```
+
+`[FACT]` `market_researcher` 在 R2 四題 + R3 三題 + P03 九題,**合計十六題中被指派 0 次**。
 retrieval 釘在 all-off、task 又要求只根據題目事實判斷,消掉了該 role 的存在理由。
 
 `[SIGNAL]` 這對 3′-H 的 observed coverage 有後果:R3 在同質配置下 gemini 確實跑過 Round 1
 (扮演 strategist / creative);改成 3′-H 後 gemini 綁 `market_researcher`,
-而該 role 在目前已觀察的十三題中一次都沒被指派。**gemini 的 worker coverage 可能是零,而那是合法的 observed result。**
+而該 role 在目前已觀察的十六題中一次都沒被指派。**gemini 的 worker coverage 可能是零,而那是合法的 observed result。**
 
 `[SIGNAL]` 這只是對已觀察樣本的描述。**不得**升級成:`market_researcher` 永遠不會被選、
 gemini 永遠拿不到 worker call、retrieval-off **必然**導致 zero `market_researcher` selection,
@@ -655,8 +775,8 @@ experiments/m2b/fixtures/           R1 synthetic —— PRE-FLIGHT SYNTHETIC CAN
 experiments/m2b/fixtures-real/      R1 capture（四次失敗，保存為證據）
 experiments/m2b/fixtures-real-r2/   R2 capture，含 fxr-08
 experiments/m2b/fixtures-real-r3/   R3 capture
-experiments/m2b/fixtures-real-0-3/  P03 Wave 1（三題 F2 failure）＋ Wave 2（兩題 F1、一題 F2 failure）
-                                    保存為證據 —— READ-ONLY
+experiments/m2b/fixtures-real-0-3/  P03 Wave 1 / 2 / 3 全部九題，0 admitted
+                                    保存為 negative acquisition evidence —— READ-ONLY
 diagnostics/m2a-live/               Replay #3 / #4
 ```
 
@@ -704,7 +824,8 @@ EXECUTION AUTHORIZATION NOT GRANTED
 
 Wave 1                  CONSUMED / CLOSED   ← 已於 516d838 執行完畢，該授權不延續
 Wave 2                  CONSUMED / CLOSED   ← 已於 781ade9 執行完畢，該授權不延續
-Wave 3                  NOT AUTHORIZED
+Wave 3                  CONSUMED / CLOSED   ← 已於 730d350 執行完畢，P03 池已用盡
+Census（新研究）          NOT AUTHORIZED（草案，未預先登記）
 Gemini A2               NOT AUTHORIZED
 Gate                    NOT AUTHORIZED
 Synthesis               NOT AUTHORIZED
@@ -716,7 +837,7 @@ main merge              NOT AUTHORIZED
 src/** 修改             NOT AUTHORIZED（發現需要改 → STOP，回 GPT）
 ```
 
-**Wave 1 與 Wave 2 的 live authorization 都已 CONSUMED,不得解讀為對 Wave 3 仍然有效。**
+**Wave 1 / 2 / 3 的 live authorization 都已 CONSUMED。P03 已關閉,不存在可延續的授權。**
 每一個新的 live boundary 需要一份新的、明寫 base SHA 的授權。
 
 硬性 invariant,不得軟化:
@@ -735,24 +856,24 @@ READY      ≠  AUTHORIZATION
 ## 11. Next exact step
 
 ```
-NEXT PROTOCOL-DEFINED STEP
+P03 ACQUISITION           CLOSED —— 9/9 attempted, 0 admitted, 0 archetypes filled
+NEXT P03 WAVE             NONE（池已用盡；不得新增第十題）
 
-Wave 3:  S3 → E3 → I3     exactly one attempt each
-理由:    Wave 1 與 Wave 2 都沒有填滿任何 archetype
+BLOCKING QUESTION         M-ACQ-01 —— natural eligibility base rate UNKNOWN
 
-P03 attempted        6 / 9
-A2 admitted          0
-filled archetypes    0
+DRAFTED, NOT ACCEPTED     Chief Natural Collaboration Census
+                          experiments/m2b/census/CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md
+                          DRAFT ｜ NOT PREREGISTERED ｜ NOT AUTHORIZED
 
-Wave 3 methodology   READY
-Wave 3 LIVE          NOT AUTHORIZED
+STATUS                    等待 GPT architecture interpretation
 ```
 
-**這是 protocol 定義的下一步,不是授權。** 必須先做一次新的 pre-live reconciliation,
-再由 GPT 明確授權,才能執行:
+**沒有已定義的下一個 live 步驟。** P03 已用盡,而 M-ACQ-01 未解決之前
+不得重新設計或執行 effectiveness experiment。以下保留原本的 acquisition 執行規則,
+供未來任何新的 acquisition population 參考 —— **但目前沒有任何 wave 被授權**:
 
 ```
-1. Wave 3 acquisition = S3 / E3 / I3
+1. （歷史）acquisition wave = 三題一輪
    每題 exactly one attempt
    只允許 planning 與 round1_worker
    直接呼叫 runRound1Stage()，不得用 runOrchestrator()
@@ -887,11 +1008,11 @@ R1 / R2 verifier 的失敗項**全部是 F1/F2 eligibility gate 本身**,不是�
 ---
 
 ```
-STATE ALIGNED THROUGH 3b79da5 /
-P03 WAVE 1 + WAVE 2 EXECUTED — 6/9 ATTEMPTED, 0 ARCHETYPES FILLED /
-FAILURE MODES MIXED: WAVE 1 F2 ×3 ｜ WAVE 2 F1 ×2 + F2 ×1 /
-MULTI-PROVIDER ROUND1 WORKER EXECUTION NOW OBSERVED（claude + openai）/
-T-RETRY-01 CLOSED FOR FUTURE CAPTURES @ 3b79da5（PROSPECTIVE ONLY）/
-NEXT PROTOCOL STEP = WAVE 3，METHODOLOGY READY，LIVE NOT AUTHORIZED /
+STATE ALIGNED THROUGH 730d350 /
+P03 CLOSED — 9/9 ATTEMPTED, 0 ADMITTED, 0 ARCHETYPES FILLED /
+F1 FAIL 3/9 ｜ F2 FAIL 7/9 ｜ F3 FAIL 0/9 ｜ ONE SPECIALIST 7/9 /
+A2 = 0 EXECUTIONS ｜ EFFECTIVENESS EXPERIMENT NOT EXECUTED ｜ C vs D₁ UNANSWERED /
+NEW OPEN BLOCKER M-ACQ-01 — NATURAL ELIGIBILITY BASE RATE UNKNOWN /
+CENSUS DRAFTED, NOT ACCEPTED, NOT AUTHORIZED /
 LIVE = NONE / EXECUTION AUTHORIZATION: NOT GRANTED
 ```

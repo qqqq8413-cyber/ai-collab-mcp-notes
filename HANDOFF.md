@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-06, rev. 35)
+# ai-collab-mcp — Progress Report (2026-09-07, rev. 36)
 
 > **先讀 [`CURRENT_STATE.md`](CURRENT_STATE.md)。** 那是「目前仍有效狀態」的短版 materialized view。
 > 本檔保留完整歷史與 provenance,需要證據時再查對應節次;
@@ -22,6 +22,9 @@
 > | **M2-B Protocol** | **`M2B-PROTOCOL-0.3` ACCEPTED @ `1354863` —— Option 3′-H;v0.2 全文保留,詳見第三十節** |
 > | **M2-B Preregistered Candidate Pool** | **STOPPED / CANDIDATE POOL FROZEN / AWAITING GPT PRE-LIVE REVIEW —— 九題 `S1–S3 / E1–E3 / I1–I3` 已 structural review、hash、凍結於 `ab893c1`,零 live call,詳見第三十一節** |
 > | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
+> | **M2-B P03 Acquisition** | **CLOSED / EXHAUSTED —— 9/9 attempted、0 admitted、0 archetypes filled、0 A2 executions,詳見第二十六節** |
+> | **M-ACQ-01** | **OPEN —— natural eligibility base rate 未知;在此問題被 characterize 之前,不得重新設計或執行 M2-B effectiveness experiment** |
+> | **Chief Natural Collaboration Census** | **DRAFT / NOT ACCEPTED / NOT PREREGISTERED / NOT AUTHORIZED —— `experiments/m2b/census/CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md`** |
 > | **M2-B Fixture Freeze(synthetic)** | **SUPERSEDED —— GPT Fixture Review 判定 FIXTURE PROVENANCE BLOCKER;`fx-01…04` 改列 PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL,檔案原封保留於 `02cbb5f`** |
 > | **M2-B Pre-Synthesis Boundary** | **ACCEPTED(GPT)—— `runRound1Stage()` 已抽出,offline parity byte-identical** |
 > | **M2-B Real Round1 Capture — Set R1** | **FAILED(保存為失敗證據)—— fxr-01…04 四題全 FAIL F1,證據保留於 `81ac330`,詳見第二十七節** |
@@ -3525,3 +3528,92 @@ function** 從 committed source + committed response text 重推每個 downstrea
 但它應該在 M2-A 本來就在等的那次 architecture review 裡被**明知地**決定,而不是預設留著。
 
 **狀態:M2-A 仍 STOPPED / AWAITING ARCHITECTURE REVIEW。本輪未實作任何 follow-up 變更。**
+
+
+---
+
+# 二十六、M2-B P03 Acquisition —— COMPLETE / EXHAUSTED / CLOSED（rev.36)
+
+> 完整的逐輪證據在 `experiments/m2b/fixtures-real-0-3/`,短版現況見
+> [`CURRENT_STATE.md`](CURRENT_STATE.md) 第 8 節。本節只記錄收束後的最終事實與其邊界。
+
+## 26.1 九題的最終結果
+
+三個 wave、每題 exactly one attempt、無 retry、無 fallback、無改寫、無第十題。
+
+| candidate | wave | complexity | assigned specialists | F1 | F2 | F3 | captureStatus |
+|---|---|---|---|---|---|---|---|
+| S1 | 1 | deep | 1 | PASS | FAIL | PASS | FAILED |
+| E1 | 1 | deep | 1 | PASS | FAIL | PASS | FAILED |
+| I1 | 1 | deep | 1 | PASS | FAIL | PASS | FAILED |
+| S2 | 2 | normal | 2 | FAIL | PASS | PASS | FAILED |
+| E2 | 2 | normal | 2 | FAIL | PASS | PASS | FAILED |
+| I2 | 2 | deep | 1 | PASS | FAIL | PASS | FAILED |
+| S3 | 3 | normal | 1 | FAIL | FAIL | PASS | FAILED |
+| E3 | 3 | deep | 1 | PASS | FAIL | PASS | FAILED |
+| I3 | 3 | deep | 1 | PASS | FAIL | PASS | FAILED |
+
+```
+attempted 9/9 ｜ admitted 0/9 ｜ filled archetypes 0/3 ｜ A2 executions 0 ｜ formal F4 judgments 0
+
+F1 failures 3/9 ｜ F2 failures 7/9 ｜ F3 failures 0/9
+恰好一位 specialist 7/9 ｜ 兩位以上 2/9
+
+role assignments  business_strategist 9/9 ｜ brand_creative 2/9 ｜ market_researcher 0/9
+
+live calls  Wave 1 = 6 ｜ Wave 2 = 8 ｜ Wave 3 = 6 ｜ 合計 20（ceiling 每輪 12）
+evidence    Wave 1 516d838 ｜ Wave 2 781ade9 ｜ Wave 3 730d350
+```
+
+Wave 3 是第一份 **CAPTURE-3** artifact,transport（34/34b/34c）與 dependency（35/35b/35c/35d）
+檢查全數通過,因此那六次 logical call **同時就是六次 HTTP attempt**。
+Wave 1 / Wave 2 為 CAPTURE-2,transport-level attempt 次數**不可觀測**。
+
+三輪的 verifier 失敗**全部且僅有** eligibility gate:
+Wave 1 123/126、Wave 2 139/142、Wave 3 135/139,無任何 structural / provenance /
+ordering / transport / dependency 失敗。**架構裁定:ACCEPT —— VALID NEGATIVE ACQUISITION RESULT。**
+
+## 26.2 措辭邊界（架構已裁定,不得越界)
+
+`[FACT]` P03 之內,全部六題 `deep` candidate 都只獲派一位 specialist。
+`[FACT]` 兩題獲派兩位 specialist 的 candidate 都被判為 `normal`。
+
+`[SIGNAL]` 已觀察的 P03 樣本顯示,對 production Chief 而言,
+task complexity classification 與 specialist necessity 是兩個不同的 planning 維度。
+
+`[INFERENCE]` P03 的 task population 可能沒有取樣到那種自然同時滿足
+`deep` + multi-specialist collaboration 的案例。
+
+以下**全部未被確立,不得寫成事實**:複雜度與 specialist 數量反相關 / 不相關;
+Chief 系統性迴避 multi-specialist deep task;Chief 有設計缺陷;F2 有缺陷;
+`market_researcher` 缺席是因為 retrieval 被關閉;provider mapping 造成 role selection;
+M2-B 不可行;peer challenge 無效;P03 證明了 production-wide 的協作行為。
+
+## 26.3 acquisition ≠ effectiveness
+
+```
+effectiveness experiment  NOT EXECUTED
+C vs D₁                   UNANSWERED
+peer-challenge 有效性       UNANSWERED
+M2-A mechanism evidence   unchanged
+```
+
+P03 從未執行到 Gate、synthesis、Round 2 或任何 arm。**acquisition 失敗不是 effectiveness 的證據。**
+
+## 26.4 新增 architecture blocker —— M-ACQ-01（OPEN)
+
+**NATURAL ELIGIBILITY BASE-RATE UNKNOWN。** 我們不知道未修改的 production Chief
+在更廣的 production-like task population 中,多常自然產生 `deep` **且** multi-specialist assignment。
+
+九次觀察、零事件,對真實發生率的單尾 95% 上界只約束到 **≈ 28%** ——
+同時相容於「其實常見但運氣不好」與「真的罕見」。
+
+這**不是** runtime blocker、不是程式缺陷、不是 Chief 缺陷,也**不是**「F1/F2 該改」的證據;
+它是 methodology knowledge gap。**在它被 characterize 之前,不得重新設計或執行
+M2-B effectiveness experiment。**
+
+草案(未接受、未預先登記、未授權、未實作):
+`experiments/m2b/census/CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md`。
+該草案同時記錄了 feasibility 結論:**planning-only harness = PARTIAL** ——
+`buildPlanningPrompt` / `CHIEF_SYSTEM_PROMPT` 已匯出,但 `planSchema`、`extractJsonObject`、
+`enforceConstraints` 皆為 module-private,且沒有停在 planning 的 stage primitive。
