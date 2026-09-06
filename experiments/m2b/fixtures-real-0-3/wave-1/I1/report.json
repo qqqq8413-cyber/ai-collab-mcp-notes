@@ -1,0 +1,17 @@
+{
+  "status": "SUCCESS",
+  "requestedWorkers": 1,
+  "successfulWorkers": 1,
+  "failedWorkers": 0,
+  "failures": [],
+  "synthesisAllowed": true,
+  "evidenceLabel": "HYPOTHESIS",
+  "notes": [
+    "Deep task, but no evidence-gathering specialist was recruited. External facts in this answer (market size, pricing, competitor behaviour, growth rates) come from what the models already believed, not from gathered evidence."
+  ],
+  "policy": {
+    "topology": "single",
+    "synthesize": true,
+    "reason": "non_simple_execution"
+  }
+}

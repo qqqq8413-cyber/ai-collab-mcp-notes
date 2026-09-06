@@ -1,0 +1,16 @@
+{
+  "complexity": "deep",
+  "requiredCapabilities": [
+    "Business strategy and financial logic",
+    "Risk assessment and decision analysis"
+  ],
+  "assignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Using only the provided facts, choose A, B, or C and justify with the single most important reason; present the strongest counterargument; name the pivotal assumption that would flip the choice; and outline a three-year plan to reduce irreversibility (architecture, packaging/pricing, contracts, partner tactics, decision checkpoints) within the constraint of one primary direction.",
+      "priority": "high"
+    }
+  ],
+  "requiresRedTeam": false,
+  "reason": "The decision, counterargument, key assumption, and risk-mitigation plan are core business-strategy tasks based solely on given inputs; no external research or brand work is required. One strategist can deliver a high-quality answer with minimal collaboration."
+}

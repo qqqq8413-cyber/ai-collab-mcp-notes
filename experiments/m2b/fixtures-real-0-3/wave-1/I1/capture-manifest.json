@@ -1,0 +1,105 @@
+{
+  "fixtureId": "I1",
+  "sourceCandidateId": "I1",
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-2",
+  "protocolVersion": "M2B-PROTOCOL-0.3",
+  "executionHead": "bb2214fdc0fc5b54e55f7a2c806a9d3c4ca3a0fa",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "bb2214fdc0fc5b54e55f7a2c806a9d3c4ca3a0fa",
+  "nodeVersion": "v24.15.0",
+  "taskSha256": "4cdeab7aac4536ffcbaba1cb73ff22fbbdf0c798b5df5f39cd70782c763d3e81",
+  "startedAt": "2026-09-06T14:49:55.016Z",
+  "completedAt": "2026-09-06T14:51:27.737Z",
+  "captureStatus": "FAILED",
+  "eligibility": {
+    "F1": true,
+    "F2": false,
+    "F3": true
+  },
+  "failureReasons": [
+    "F2: 1 specialist(s) returned output, fewer than two"
+  ],
+  "fatalError": null,
+  "chiefPin": {
+    "provider": "openai",
+    "requestedModel": "gpt-5",
+    "resolvedModel": "gpt-5",
+    "resolvedProvider": "openai"
+  },
+  "providerAllocation": {
+    "mode": "role-based-heterogeneous",
+    "byAgent": {
+      "business_strategist": {
+        "provider": "claude",
+        "model": "claude-sonnet-5"
+      },
+      "market_researcher": {
+        "provider": "gemini",
+        "model": "gemini-3.1-pro-preview"
+      },
+      "brand_creative": {
+        "provider": "openai",
+        "model": "gpt-5"
+      }
+    }
+  },
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "actualComplexity": "deep",
+  "plannerAssignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Decide A/B/C using only the test data: parse incrementality vs cannibalization (expo overlap, social concentration), assess unit economics (free-month cost, ARPU/retention tradeoff, delayed cash), identify overinterpreted metrics, isolate reliable long-term signals, define what new results would change the call, and judge if evidence justifies a 3‑year reallocation.",
+      "priority": "high"
+    }
+  ],
+  "planningAdjustments": [],
+  "round1Status": "SUCCESS",
+  "successfulWorkerCount": 1,
+  "failedWorkerCount": 0,
+  "liveCallCount": 2,
+  "agentOrder": [
+    "business_strategist"
+  ],
+  "availableRosterSha256": "1d02b2c50fb0156841e31c730efd44e15660cec596d5ce49fca43100fd42dfe9",
+  "snapshotSha256": "4e49a1b77ac00cd0e583aab3f8828b26393a672c52b52ab081e188f651a7ec57",
+  "rawCallsSha256": "6f2c534ca2fa904a9fad74b589478b7320e74fba783a4689745e5be12618da8d",
+  "runtimeFingerprintStart": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEnd": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "postRound1Execution": "NONE",
+  "gateExecution": "NONE",
+  "synthesisExecution": "NONE",
+  "workers": [
+    {
+      "agentId": "business_strategist",
+      "routingRole": "business_strategist",
+      "roleSha256": "c96ca15e20caa8b0018dcf6c88487641679d376f5a970e4a4bf8fcd28f183996",
+      "missionSha256": "0cd0cd649b708cc50c7451f92ddf17601a8dd84b9a852b865a6b73659f882ad8",
+      "outputSha256": "bbccf70f2c417baade7a824edf47bfa4319d2698f504ceee95eaf0c74421bcc2",
+      "providerRequested": "claude",
+      "providerResolved": "claude",
+      "modelRequested": "claude-sonnet-5",
+      "modelResolved": "claude-sonnet-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    }
+  ],
+  "fileHashes": {
+    "task.txt": "4cdeab7aac4536ffcbaba1cb73ff22fbbdf0c798b5df5f39cd70782c763d3e81",
+    "available-roster.json": "1d02b2c50fb0156841e31c730efd44e15660cec596d5ce49fca43100fd42dfe9",
+    "planner-result.json": "7a4e0ba19e5dd3837a8a12632d3beb697715b01d0b801150b287a768475d6464",
+    "planning-adjustments.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "snapshot.json": "4e49a1b77ac00cd0e583aab3f8828b26393a672c52b52ab081e188f651a7ec57",
+    "report.json": "7a3d1fd43cdde3ae661187bfa1e741a548644de46ce82ef546d4454fd5e67841",
+    "mission-business_strategist.txt": "0cd0cd649b708cc50c7451f92ddf17601a8dd84b9a852b865a6b73659f882ad8",
+    "round1-business_strategist.md": "bbccf70f2c417baade7a824edf47bfa4319d2698f504ceee95eaf0c74421bcc2",
+    "raw-calls.json": "6f2c534ca2fa904a9fad74b589478b7320e74fba783a4689745e5be12618da8d"
+  },
+  "manifestSha256": "c78f208287138b0c24c36118823bb819bda87e93e3c55b79593a56a839c81c5a"
+}

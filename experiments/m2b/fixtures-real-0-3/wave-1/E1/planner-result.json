@@ -1,0 +1,17 @@
+{
+  "complexity": "deep",
+  "requiredCapabilities": [
+    "business strategy",
+    "operational feasibility and resourcing",
+    "contract risk and partner management"
+  ],
+  "assignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Evaluate options A/B/C strictly with given facts; decide path. Assess if current delivery structure can meet the platform deadline given engine lead constraints, cert timelines, and PC update impact. Identify the few conditions that would flip the decision. Draft non-negotiable pre-sign terms with the porter and platform (scope, exclusivity bounds, IP/security, milestones, acceptance, remedies, access).",
+      "priority": "high"
+    }
+  ],
+  "requiresRedTeam": false,
+  "reason": "This is a company-level, high-risk contract decision but needs only structured feasibility, risk, and contract analysis—well within a single Business Strategist’s scope. No external research or brand work is required."
+}

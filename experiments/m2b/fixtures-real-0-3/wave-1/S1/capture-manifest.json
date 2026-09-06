@@ -1,0 +1,105 @@
+{
+  "fixtureId": "S1",
+  "sourceCandidateId": "S1",
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-2",
+  "protocolVersion": "M2B-PROTOCOL-0.3",
+  "executionHead": "bb2214fdc0fc5b54e55f7a2c806a9d3c4ca3a0fa",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "bb2214fdc0fc5b54e55f7a2c806a9d3c4ca3a0fa",
+  "nodeVersion": "v24.15.0",
+  "taskSha256": "8caf1128dd7ee72d30cbe67669e92869ebc8431c1d97338a6e76314846c9faa0",
+  "startedAt": "2026-09-06T14:44:52.722Z",
+  "completedAt": "2026-09-06T14:47:00.234Z",
+  "captureStatus": "FAILED",
+  "eligibility": {
+    "F1": true,
+    "F2": false,
+    "F3": true
+  },
+  "failureReasons": [
+    "F2: 1 specialist(s) returned output, fewer than two"
+  ],
+  "fatalError": null,
+  "chiefPin": {
+    "provider": "openai",
+    "requestedModel": "gpt-5",
+    "resolvedModel": "gpt-5",
+    "resolvedProvider": "openai"
+  },
+  "providerAllocation": {
+    "mode": "role-based-heterogeneous",
+    "byAgent": {
+      "business_strategist": {
+        "provider": "claude",
+        "model": "claude-sonnet-5"
+      },
+      "market_researcher": {
+        "provider": "gemini",
+        "model": "gemini-3.1-pro-preview"
+      },
+      "brand_creative": {
+        "provider": "openai",
+        "model": "gpt-5"
+      }
+    }
+  },
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "actualComplexity": "deep",
+  "plannerAssignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Using only the provided facts, choose A, B, or C and justify with the single most important reason; present the strongest counterargument; name the pivotal assumption that would flip the choice; and outline a three-year plan to reduce irreversibility (architecture, packaging/pricing, contracts, partner tactics, decision checkpoints) within the constraint of one primary direction.",
+      "priority": "high"
+    }
+  ],
+  "planningAdjustments": [],
+  "round1Status": "SUCCESS",
+  "successfulWorkerCount": 1,
+  "failedWorkerCount": 0,
+  "liveCallCount": 2,
+  "agentOrder": [
+    "business_strategist"
+  ],
+  "availableRosterSha256": "1d02b2c50fb0156841e31c730efd44e15660cec596d5ce49fca43100fd42dfe9",
+  "snapshotSha256": "976fe0be026cf5e7d0c0dd77b088f16934157a4b369f4761301156f7043036d7",
+  "rawCallsSha256": "213208876608dcc3c4268c0239e5cae9c9266df8f1ae31953ad969b84656ac85",
+  "runtimeFingerprintStart": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEnd": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "postRound1Execution": "NONE",
+  "gateExecution": "NONE",
+  "synthesisExecution": "NONE",
+  "workers": [
+    {
+      "agentId": "business_strategist",
+      "routingRole": "business_strategist",
+      "roleSha256": "c96ca15e20caa8b0018dcf6c88487641679d376f5a970e4a4bf8fcd28f183996",
+      "missionSha256": "a69c5a9dfcb17a39b78ac5f4ddce0125520d03c550c1cebf83c7d30f2822ba97",
+      "outputSha256": "3f7c817bf664a7efc75a9487460bf19326d92884b0bd20f93a58d54e36498e51",
+      "providerRequested": "claude",
+      "providerResolved": "claude",
+      "modelRequested": "claude-sonnet-5",
+      "modelResolved": "claude-sonnet-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    }
+  ],
+  "fileHashes": {
+    "task.txt": "8caf1128dd7ee72d30cbe67669e92869ebc8431c1d97338a6e76314846c9faa0",
+    "available-roster.json": "1d02b2c50fb0156841e31c730efd44e15660cec596d5ce49fca43100fd42dfe9",
+    "planner-result.json": "dfe2500e1d82b46cd505450037f58cb7a9c66c6e6ac592040581593d5f2a2657",
+    "planning-adjustments.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "snapshot.json": "976fe0be026cf5e7d0c0dd77b088f16934157a4b369f4761301156f7043036d7",
+    "report.json": "7a3d1fd43cdde3ae661187bfa1e741a548644de46ce82ef546d4454fd5e67841",
+    "mission-business_strategist.txt": "a69c5a9dfcb17a39b78ac5f4ddce0125520d03c550c1cebf83c7d30f2822ba97",
+    "round1-business_strategist.md": "3f7c817bf664a7efc75a9487460bf19326d92884b0bd20f93a58d54e36498e51",
+    "raw-calls.json": "213208876608dcc3c4268c0239e5cae9c9266df8f1ae31953ad969b84656ac85"
+  },
+  "manifestSha256": "635084797fd3d2bd26884903f4bcf3024126f5bd577043f8f9418ced22f0ce6f"
+}

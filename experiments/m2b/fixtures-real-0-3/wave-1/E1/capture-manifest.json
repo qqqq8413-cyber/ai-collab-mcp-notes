@@ -1,0 +1,105 @@
+{
+  "fixtureId": "E1",
+  "sourceCandidateId": "E1",
+  "captureVersion": "M2B-REAL-ROUND1-CAPTURE-2",
+  "protocolVersion": "M2B-PROTOCOL-0.3",
+  "executionHead": "bb2214fdc0fc5b54e55f7a2c806a9d3c4ca3a0fa",
+  "productionBoundaryCommit": "d01043b6c520c29473e3960c60bad28aec9719ed",
+  "promptSourceCommit": {
+    "src/agents/chief.ts": "de876bea5a4a5c82c1cc38ccdb1bebe3bd0a8ed4",
+    "src/modes/orchestrator.ts": "d01043b6c520c29473e3960c60bad28aec9719ed"
+  },
+  "captureHarnessCommit": "bb2214fdc0fc5b54e55f7a2c806a9d3c4ca3a0fa",
+  "nodeVersion": "v24.15.0",
+  "taskSha256": "3629abc76b453e702aa45d8c338d2a3976ed7e591a5b3c7ef1b260e84f978338",
+  "startedAt": "2026-09-06T14:47:00.237Z",
+  "completedAt": "2026-09-06T14:49:55.013Z",
+  "captureStatus": "FAILED",
+  "eligibility": {
+    "F1": true,
+    "F2": false,
+    "F3": true
+  },
+  "failureReasons": [
+    "F2: 1 specialist(s) returned output, fewer than two"
+  ],
+  "fatalError": null,
+  "chiefPin": {
+    "provider": "openai",
+    "requestedModel": "gpt-5",
+    "resolvedModel": "gpt-5",
+    "resolvedProvider": "openai"
+  },
+  "providerAllocation": {
+    "mode": "role-based-heterogeneous",
+    "byAgent": {
+      "business_strategist": {
+        "provider": "claude",
+        "model": "claude-sonnet-5"
+      },
+      "market_researcher": {
+        "provider": "gemini",
+        "model": "gemini-3.1-pro-preview"
+      },
+      "brand_creative": {
+        "provider": "openai",
+        "model": "gpt-5"
+      }
+    }
+  },
+  "retrievalPolicy": "all-off",
+  "temperaturePolicy": "provider-default-unprobed",
+  "actualComplexity": "deep",
+  "plannerAssignments": [
+    {
+      "agentId": "business_strategist",
+      "mission": "Evaluate options A/B/C strictly with given facts; decide path. Assess if current delivery structure can meet the platform deadline given engine lead constraints, cert timelines, and PC update impact. Identify the few conditions that would flip the decision. Draft non-negotiable pre-sign terms with the porter and platform (scope, exclusivity bounds, IP/security, milestones, acceptance, remedies, access).",
+      "priority": "high"
+    }
+  ],
+  "planningAdjustments": [],
+  "round1Status": "SUCCESS",
+  "successfulWorkerCount": 1,
+  "failedWorkerCount": 0,
+  "liveCallCount": 2,
+  "agentOrder": [
+    "business_strategist"
+  ],
+  "availableRosterSha256": "1d02b2c50fb0156841e31c730efd44e15660cec596d5ce49fca43100fd42dfe9",
+  "snapshotSha256": "287d8c7d28d2a1da112c414bb7f2f8fb8e13c9551efce7223e0d742e67deb0b0",
+  "rawCallsSha256": "82aac7c44ce8be9b76614525684bf934763a093dea63e55cd3981bd8e4556ffd",
+  "runtimeFingerprintStart": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "runtimeFingerprintEnd": "54e0d5853297ac12acae46e5b7b091c00a3daa7f3bf28b3a4127c41d0953aa8f",
+  "postRound1Execution": "NONE",
+  "gateExecution": "NONE",
+  "synthesisExecution": "NONE",
+  "workers": [
+    {
+      "agentId": "business_strategist",
+      "routingRole": "business_strategist",
+      "roleSha256": "c96ca15e20caa8b0018dcf6c88487641679d376f5a970e4a4bf8fcd28f183996",
+      "missionSha256": "8b9bac82530888ac9456e1e8530f7ef9181c6e2e4d494326354077f1e3223a71",
+      "outputSha256": "5832af468aad669d0f2d948740b35c7704a83db0bd4bda6877ad4b39f70fbbaa",
+      "providerRequested": "claude",
+      "providerResolved": "claude",
+      "modelRequested": "claude-sonnet-5",
+      "modelResolved": "claude-sonnet-5",
+      "status": "SUCCESS",
+      "error": null,
+      "retrievalRequested": false,
+      "retrievalResult": null
+    }
+  ],
+  "fileHashes": {
+    "task.txt": "3629abc76b453e702aa45d8c338d2a3976ed7e591a5b3c7ef1b260e84f978338",
+    "available-roster.json": "1d02b2c50fb0156841e31c730efd44e15660cec596d5ce49fca43100fd42dfe9",
+    "planner-result.json": "905d934d1401f9429eab07385b5a317fd266b1202ca7caf9b080fa1a9cd1aac0",
+    "planning-adjustments.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "snapshot.json": "287d8c7d28d2a1da112c414bb7f2f8fb8e13c9551efce7223e0d742e67deb0b0",
+    "report.json": "7a3d1fd43cdde3ae661187bfa1e741a548644de46ce82ef546d4454fd5e67841",
+    "mission-business_strategist.txt": "8b9bac82530888ac9456e1e8530f7ef9181c6e2e4d494326354077f1e3223a71",
+    "round1-business_strategist.md": "5832af468aad669d0f2d948740b35c7704a83db0bd4bda6877ad4b39f70fbbaa",
+    "raw-calls.json": "82aac7c44ce8be9b76614525684bf934763a093dea63e55cd3981bd8e4556ffd"
+  },
+  "manifestSha256": "786c90f2226d92603052cb592b61241daceb76fc77773d42e6f6729b7fa570b2"
+}

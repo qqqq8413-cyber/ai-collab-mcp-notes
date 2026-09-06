@@ -1,0 +1,1 @@
+Decide A/B/C using only the test data: parse incrementality vs cannibalization (expo overlap, social concentration), assess unit economics (free-month cost, ARPU/retention tradeoff, delayed cash), identify overinterpreted metrics, isolate reliable long-term signals, define what new results would change the call, and judge if evidence justifies a 3‑year reallocation.
