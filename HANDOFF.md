@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-06, rev. 28)
+# ai-collab-mcp — Progress Report (2026-09-06, rev. 29)
 
 > ## 交接狀態
 >
@@ -17,7 +17,8 @@
 > | **rev.20 Independent Code Review** | **ACCEPT WITH DOCUMENTATION CORRECTION —— 無 runtime defect;3 項文件/命名修正 + 1 項規格 concern 待 review,詳見第二十五節** |
 > | **M2-B Protocol** | **ARCHITECTURE ACCEPTED / HARNESS IMPLEMENTATION NEXT / LIVE PILOT NOT AUTHORIZED —— `M2_EFFECTIVENESS_EXPERIMENT.md` v0.2 @ `a308bc8`** |
 > | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
-> | **M2-B Fixture Freeze** | **FROZEN / AWAITING GPT FIXTURE REVIEW / LIVE PILOT NOT AUTHORIZED —— 4 個 fixture + 雙 clean-room ground truth 已凍結並 hash,154 項離線測試,零 provider 呼叫** |
+> | **M2-B Fixture Freeze(synthetic)** | **SUPERSEDED —— GPT Fixture Review 判定 FIXTURE PROVENANCE BLOCKER;`fx-01…04` 改列 PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL,檔案原封保留於 `02cbb5f`** |
+> | **M2-B Real Round1 Capture** | **BLOCKED / PRE-SYNTHESIS BOUNDARY REQUIRED / NO LIVE AUTHORIZATION —— production 未提供 pre-synthesis capture boundary,本輪零 live call,詳見第二十九節** |
 > | **Claude Code handoff** | **EXECUTED —— deliverable 已產出,等 architecture review** |
 > | **目前離線測試** | **212 項全過 = rev.19 的 208 + Gate semantics 新增 4** |
 > | **Step 8 Scope Analysis** | **DONE —— runtime usage / pricing / cost / reporting 已分層,詳見第十七節** |
@@ -27,6 +28,79 @@
 > **Experimental Milestone 2-A 已完成本輪限定工程,現在 STOPPED / AWAITING ARCHITECTURE REVIEW,default OFF。** 使用者批准 Gate eligibility 由 post-synthesis unresolved conflict 改成 pre-synthesis material disagreement;唯一一次 Replay #4 使用與 #3 byte-identical 的 fixture,自然跑通 valid issue、sourceRef、Targeted R2 與 Decision Synthesis。212 項離線測試通過,既有 assertions 未放寬,16 組修改前/後 control capture byte-identical。這是機制驗證,尚未執行品質比較或 live A/B/C/D。
 >
 > **Milestone 2 scope analysis(rev.14)。** `MILESTONE2_SCOPE_ANALYSIS.md` 依實際 code 回答全部 18 題,並修正兩處 rev.13 邊界:DEEP logical call ceiling 應寫成 `N + 4`(在 `SPECIALIST_CAP.deep` 下是 8,不是約 7),且 synthesizer 目前完全收不到 retrieval metadata —— 被要求判斷 `needs_evidence` 的 gate 會是在對它看不到的證據做推論。核心設計建議是**不要把交付物押在 parse 上**:自由文字答案在前、選擇性 JSON 區塊在後、best-effort 解析,任何解析失敗都退回今日行為。7 個 `[OPEN]` 問題待 architecture review 拍板,未經批准不進入 implementation。
+
+## rev. 29 改了什麼(Real Round1 Capture 被 blocker 擋下 —— 零 live call,僅文件修正)
+
+**本輪未執行任何 live provider call。`src/` diff 為空,production 212 全過,Replay #4 VERIFIED。**
+harness 110 + fixtures 44 = 154 項離線測試,0 失敗。
+
+### 1. GPT Fixture Review 判定 FIXTURE PROVENANCE BLOCKER —— 我接受
+
+`fx-01…fx-04` 的 Round 1 是**我人工撰寫後才掛上 provider/model metadata**,
+`complexity` 也是 hard-coded `"deep"`。兩者都不是實際 provider execution 的產物,
+因此不得作為 Phase 1 的 frozen `Round1Snapshot`。這是真的問題,不是形式問題 ——
+用它跑出來的 provider/model provenance 全部是假的。
+
+處置:改列 **PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL**。
+檔案、conflict labels、gold issues、raw annotator responses、freeze manifest
+**全部原封保留於 `02cbb5f`,未修改任何一個 byte**。
+仍可用於 candidate task design / fixture infrastructure tests / clean-room pipeline tests;
+**不得用於 pilot input、Gate precision ground truth 或 `C − D₁` effectiveness data。**
+
+上一輪兩份 clean-room 標註同樣**不得沿用** —— 它們標註的是 synthetic Round 1,封存即可。
+
+### 2. ⚠️ ARCHITECTURE BLOCKER:production 未提供 pre-synthesis capture boundary
+
+依 GPT §26.1,執行 live 之前必須先檢查此邊界是否存在。**結論是不存在。**
+
+`runOrchestrator`(`src/modes/orchestrator.ts:434`)把 planning → workers → synthesis
+綁在同一函式。它只有兩個 pre-synthesis 早退出口,而兩個都正好是取消資格的情況:
+
+```
+policy.synthesize === false
+  ├─ 'no_successful_workers'                    → RunStatus FAILED   → 不合 F3
+  └─ 'simple_single_specialist_direct_delivery' → complexity SIMPLE  → 不合 F1
+```
+
+**沒有任何 DEEP / SUCCESS / N≥2 的執行會在 synthesis 之前回傳。**
+
+三條替代路徑都已評估並排除:
+
+| 路徑 | 為什麼不行 |
+|---|---|
+| 注入 `call`,在 `stage === 'synthesis'` 丟例外 | `runSynthesisStage` 外無 try/catch,例外會連同 `plan` / `workerResults` / `report` 一起丟棄;只能從自己的 call log 重組,而那不是 production 的 `Round1Snapshot`(§15 要求它就是)。且這正是 §4 禁止的「跑完整 orchestrator 再丟掉 synthesis」的變體 |
+| 在 `experiments/` 自行組裝 planner | `buildPlanningPrompt` 與 `CHIEF_SYSTEM_PROMPT` 有 export,但 `planSchema`、`extractJsonObject`、`enforceConstraints` **都沒有**。缺的正好是「把模型回應變成受約束計畫」那段,含 `SPECIALIST_CAP.deep`;重寫即 §4 禁止的 fake planner |
+| 人工 roster 取代 planner | §4 明文禁止 |
+
+依 §4 與 §26.2:**STOP,不做 live,不自行修改 `src/`。**
+
+`[OPEN]` **最小修正提案(僅提案,未實作)** —— 把 `runOrchestrator` 的 planning + workers
+抽成一個匯出的 `runRound1Stage()`,讓 `runOrchestrator` 呼叫它,零邏輯重複。
+這與既有的 `runSynthesisStage()` 完全對稱 —— 那一個正是為了讓 replay 重用 production
+而抽出來的,先例已在。**需要 GPT 明確批准 scope 才能動 `src/`。**
+
+### 3. 兩項文件修正(GPT §21、§22)
+
+- **§21** —— 原稱 per-fixture 檔案是 raw 的「byte-identical / 逐字分割」,**不精確**。
+  實作是 `JSON.parse` → `JSON.stringify(entry, null, 2)`,bytes 已重新序列化。
+  正確說法:**raw 響應逐字保存;per-fixture 是 semantic / object-preserving partition**,
+  測試以 `deepEqual` 比對**解析後的物件**。程式註解與測試名稱都已改。
+  這是 documentation correction,不是 runtime defect。
+- **§22** —— `M2_EFFECTIVENESS_EXPERIMENT.md` §13.4「重用 Replay #3/#4 作 fixture #1」
+  加上 **SUPERSEDED / DEPRECATED FOR PHASE 1** 醒目註記,**原文保留不刪**,
+  並記錄 Phase 1 現在要求真實 Round 1 provenance。
+
+### 4. Claim boundary(必須維持)
+
+```
+✅ blocker 已依規定於 live 之前檢出並回報
+✅ 舊 synthetic fixture 原封未動        ✅ 文件修正完成
+❌ 零 real Round1 capture               ❌ 零 live provider call
+❌ 未產生新的 clean-room packet          ❌ 未取得新 ground truth
+❌ 無任何 effectiveness 證據
+```
+
+---
 
 ## rev. 28 改了什麼(M2-B Fixture Freeze 完成 —— ground truth 已由 clean-room 取得並凍結)
 

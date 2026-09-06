@@ -335,9 +335,11 @@ await check('gold issues, when present, are valid, resolve, and live outside run
   }
 });
 
-await check('the per-fixture split is a faithful partition of the raw annotator output', () => {
-  // What makes "committed verbatim" checkable: rejoin the split and it must reproduce the
-  // raw objects exactly. Any normalization, correction or completion would show up here.
+await check('the per-fixture split preserves the parsed annotator objects (not bytes)', () => {
+  // deepEqual on parsed objects, which is the actual guarantee. The per-fixture files are
+  // re-serialized JSON and are deliberately NOT claimed to be byte-identical to the raw
+  // text; the raw .md files are the verbatim record. Any normalization, correction or
+  // completion of the judgement would still show up here.
   for (const [kind, name] of [['conflict-labels', 'conflict-labels'], ['gold-issues', 'gold-issues']]) {
     const raw = readRaw(kind);
     for (const entry of raw.entries) {

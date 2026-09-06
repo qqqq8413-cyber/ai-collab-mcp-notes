@@ -1,15 +1,61 @@
 # M2-B Experiment Harness
 
 ```
-Status        REVISED / AWAITING FINAL GPT HARNESS REVIEW / NO LIVE AUTHORIZATION
+Status        HARNESS ACCEPTED
+Capture       BLOCKED / PRE-SYNTHESIS BOUNDARY REQUIRED / NO LIVE AUTHORIZATION
 Protocol      M2B-PROTOCOL-0.2  (M2_EFFECTIVENESS_EXPERIMENT.md @ a308bc8)
-Offline tests 110 passed / 0 failed
+Offline tests 154 passed / 0 failed（harness 110 + fixtures 44）
 src/ diff     empty
 ```
 
 > **本目錄不呼叫任何 provider。** `experiments/m2b/` 從未 import `callProvider`,
 > 也從未讀取任何 API key —— dispatcher 由呼叫端注入。離線測試注入 deterministic stub。
 > 這不是紀律,是**結構上做不到**:harness 沒有取得 provider 的途徑。
+
+## ⚠️ `fixtures/fx-01…fx-04` 是 PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL
+
+**不是 Phase 1 experiment data。**
+
+它們的 Round 1 是人工撰寫後才掛上 provider/model metadata,`complexity` 也是 hard-coded
+`"deep"` —— 兩者都不是實際 provider execution 的產物。GPT Fixture Review 據此判定
+**FIXTURE PROVENANCE BLOCKER**。
+
+```
+可用於   candidate task design ／ fixture infrastructure tests ／ clean-room pipeline tests
+不可用於 pilot input ／ Gate precision ground truth ／ C − D₁ effectiveness data
+```
+
+檔案原封保留(commit `02cbb5f`),連同其 conflict labels、gold issues 與 raw annotator
+responses 一併封存,**不得修改**。上一輪的兩份 clean-room 標註同樣不得沿用到 real Round 1 ——
+它們標註的是 synthetic Round 1。
+
+Phase 1 的正式 fixture 需要真實 provenance:production complexity router 的實際輸出、
+production planner 的實際 assignment、實際 provider calls 產生的 Round 1 文字,
+且 snapshot 的 provider/model 必須與 raw call 的 requested/resolved 一致。
+**該 capture 目前被下方的 architecture blocker 擋住。**
+
+## ⚠️ ARCHITECTURE BLOCKER —— production 未提供 pre-synthesis capture boundary
+
+`runOrchestrator` 把 planning → workers → synthesis 綁在同一個函式裡。
+它只有兩個 pre-synthesis 的早退出口,而兩個都正好是**取消資格的情況**:
+
+```
+policy.synthesize === false
+  ├─ 'no_successful_workers'                   → RunStatus FAILED   → 不合 F3
+  └─ 'simple_single_specialist_direct_delivery' → complexity SIMPLE  → 不合 F1
+```
+
+**不存在任何 DEEP / SUCCESS / N≥2 的執行會在 synthesis 之前回傳。**
+
+已評估並排除的三條路:
+
+| 路徑 | 為什麼不行 |
+|---|---|
+| 注入 `call`,在 `stage === 'synthesis'` 丟例外 | `runSynthesisStage` 外面沒有 try/catch,例外會把 `plan` / `workerResults` / `report` 一起丟掉;要救只能從我自己的 call log 重組,而那不是 production 的 `Round1Snapshot`。且這是 GPT §4 明文禁止的「跑完整 orchestrator 再丟掉 synthesis」的變體 —— 它不是 production *提供*的邊界,是繞過邊界不存在這件事 |
+| 在 `experiments/` 自行呼叫 planner 各部件 | `buildPlanningPrompt` 與 `CHIEF_SYSTEM_PROMPT` 有 export,但 `planSchema`、`extractJsonObject`、`enforceConstraints` **都沒有**。少的正好是「把模型回應變成受約束計畫」那一段,含 `SPECIALIST_CAP.deep`。重寫它就是 GPT §4 禁止的 fake planner |
+| 用人工 roster 取代 planner | §4 明文禁止 |
+
+**因此本輪未執行任何 live call。** 依 GPT §4 與 §26.2:STOP,回報 architecture blocker,不自行改 `src/`。
 
 ## 為什麼是六次呼叫,不是八次
 

@@ -5,12 +5,22 @@
  *
  * The protocol requires the annotator output be committed verbatim and forbids Claude from
  * touching the semantic judgement. It also specifies per-fixture storage paths. Those two
- * requirements are reconciled by keeping both: the raw response as received, hashed, and a
- * split whose per-fixture objects are byte-identical elements of the raw array.
+ * requirements are reconciled by keeping both.
+ *
+ * Precisely what each half guarantees, since the two are not the same strength:
+ *
+ *   raw-*.md          the annotator response preserved VERBATIM, byte for byte, prose
+ *                     included. This is the authoritative record.
+ *   per-fixture .json a SEMANTIC, OBJECT-PRESERVING partition. It goes through
+ *                     JSON.parse then JSON.stringify(entry, null, 2), so its bytes are
+ *                     re-serialized and are NOT byte-identical to the raw text. What is
+ *                     preserved is the parsed object, asserted by deepEqual.
+ *
+ * Calling the per-fixture files a byte-identical split would overstate them (harness
+ * review). The guarantee is object equality, and the test asserts exactly that.
  *
  * So this module *partitions*. It does not normalize, reorder within an object, correct,
- * or complete anything. A test re-joins the split and asserts it reproduces the raw array,
- * which is what makes "verbatim" checkable rather than promised.
+ * or complete anything.
  *
  * Validation is structural only: schema shape, fixture ids, and whether passage references
  * resolve against the frozen Round 1. A reference that does not resolve is reported — never

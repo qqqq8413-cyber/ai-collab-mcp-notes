@@ -1198,6 +1198,36 @@ F7  核心決策不依賴大量 deterministic arithmetic（見第 17 節）
 它已被 hash 封存、已知能通過 F1–F6、且已有 #3(gate 未提報)與 #4(gate 提報)
 兩種行為的歷史紀錄 —— **這本身就是 gate 隨機性的既有證據**,對變異估計有價值。
 
+
+> ## ⚠️ SUPERSEDED / DEPRECATED FOR PHASE 1(GPT Fixture Review)
+>
+> **上面這段「重用 Replay #3/#4 的 frozen fixture」的建議已被正式撤銷,不得用於 Phase 1。**
+>
+> 理由:該 fixture 的 Gate 輸出、`selectedIssue`、challenge、R2、Decision Synthesis
+> 與歷史觸發行為都已被看過,違反其後才批准的 contamination boundary。
+> 它仍是 M2-A 的歷史證據,sealed artifacts 未刪未改 —— **但不得作為 pilot input、
+> Gate precision ground truth 或 `C − D₁` effectiveness data。**
+>
+> **原文保留於上,作為 provenance,不刪除。**
+
+> ## ⚠️ PHASE 1 現在要求真實的 Round 1 provenance(GPT Fixture Review)
+>
+> Phase 1 的 frozen `Round1Snapshot` 必須來自**實際 provider execution**:
+>
+> ```
+> production complexity router 的實際輸出（不得 hard-code "deep"）
+> production planner 的實際 specialist assignment
+> 實際 specialist provider calls 產生的 Round 1 文字
+> snapshot 的 worker provider/model 必須與 raw call 的 requested/resolved 一致
+> ```
+>
+> **人工撰寫、事後掛上 provider/model metadata 的 Round 1 只能用於 infrastructure testing,
+> 不得作為 Phase 1 experiment data。**
+>
+> `experiments/m2b/fixtures/fx-01…fx-04`(commit `02cbb5f`)因此改列為
+> **PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL**,檔案原封保留,僅供
+> candidate task design、fixture infrastructure tests 與 clean-room pipeline tests 使用。
+
 ## 13.5 Negative Controls
 
 `[DECISION]` **需要,且必須在 Phase 1 就有。**
