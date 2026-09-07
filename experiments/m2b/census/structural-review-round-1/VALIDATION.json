@@ -1,0 +1,10 @@
+{
+  "harnessVersion": "CBRP-STRUCTURAL-REVIEW-LIVE-HARNESS-1",
+  "protocolVersion": "CBRP-STRUCTURAL-REVIEW-PROTOCOL-1",
+  "status": "INITIAL_INCOMPLETE",
+  "stopCode": "STOP_SOURCE_DRIFT",
+  "stopMessage": "STOP_SOURCE_DRIFT: experiments/m2b/census/CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md hash mismatch",
+  "sessionsRecorded": 0,
+  "reviewsValidated": 0,
+  "providerDispatches": 0
+}
