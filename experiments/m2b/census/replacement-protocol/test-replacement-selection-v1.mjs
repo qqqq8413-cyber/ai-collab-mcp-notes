@@ -4,9 +4,28 @@
  * All fixtures are synthetic. None is drawn from CBRP-AUTHORING-V2P1-ROUND-0's real
  * candidates — per CWP-10F §3/§19 this amendment is content-blind, and no real CWP-10E
  * candidate text may be a test fixture for this module.
+ *
+ * Two reporting categories, kept structurally separate per CWP-10F-R §6/§7, mirroring
+ * `extractor-2.1/test-extractor.mjs`:
+ *
+ *   1. SYNTHETIC REPLACEMENT-SELECTION BEHAVIOR TESTS — every fixture is invented for
+ *      this file and exercises the frozen selection and ordinal-allocation rules.
+ *   2. HISTORICAL-EVIDENCE ANTI-CONTAMINATION PROVENANCE CHECK — one check, run
+ *      separately, asserting that this file embeds no real CWP-10E candidate text. It
+ *      says something about test hygiene, not about selection behavior. Its imports are
+ *      ordinary top-level ESM imports (no dynamic `import()` inside an unawaited
+ *      callback), so the check is fully synchronous and cannot race process exit.
+ *
+ * Category 2 and the count in category 1 are reported separately so that "N/N behavior
+ * tests passed" never silently includes the anti-contamination check.
  */
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { STRATUM_CODES, SELECTION_VERSION, selectReplacementCandidate, allocateReplacementSessionIds } from './replacement-selection-v1.mjs';
+
+const DIR = path.dirname(fileURLToPath(import.meta.url));
 
 let passed = 0, failed = 0;
 function check(name, fn) {
@@ -30,6 +49,8 @@ function makeSyntheticSession({ order = STRATUM_CODES } = {}) {
   }
   return candidates;
 }
+
+console.log('\n=== 1. SYNTHETIC REPLACEMENT-SELECTION BEHAVIOR TESTS ===');
 
 console.log('\n=== selectReplacementCandidate ===');
 
@@ -120,6 +141,66 @@ check('duplicate candidate ids within one session fail closed', () => {
   candidates[1] = { ...candidates[1], taskCandidateId: candidates[0].taskCandidateId };
   const r = selectReplacementCandidate({ vacantStratumCode: 'SC', candidates });
   assert.equal(r.ok, false);
+});
+
+console.log('\n=== indexInResponse response-order permutation invariant (CWP-10F-R) ===');
+
+check('duplicate indexInResponse (two candidates at 4, position 7 missing) fails closed', () => {
+  const candidates = makeSyntheticSession();
+  const idx7 = candidates.findIndex((c) => c.indexInResponse === 7);
+  candidates[idx7] = { ...candidates[idx7], indexInResponse: 4 };
+  const r = selectReplacementCandidate({ vacantStratumCode: 'SC', candidates });
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /duplicate value\(s\) 4/);
+});
+
+check('the two target-stratum candidates sharing the same indexInResponse fails closed', () => {
+  const candidates = makeSyntheticSession();
+  const sc = candidates.filter((c) => c.stratumCode === 'SC').sort((a, b) => a.indexInResponse - b.indexInResponse);
+  const secondIdx = candidates.findIndex((c) => c.taskCandidateId === sc[1].taskCandidateId);
+  candidates[secondIdx] = { ...candidates[secondIdx], indexInResponse: sc[0].indexInResponse };
+  const r = selectReplacementCandidate({ vacantStratumCode: 'SC', candidates });
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /duplicate value\(s\) 0/);
+});
+
+check('indexInResponse = -1 fails closed', () => {
+  const candidates = makeSyntheticSession();
+  const last = candidates.findIndex((c) => c.indexInResponse === 11);
+  candidates[last] = { ...candidates[last], indexInResponse: -1 };
+  const r = selectReplacementCandidate({ vacantStratumCode: 'SC', candidates });
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /outside the required range/);
+});
+
+check('indexInResponse = 12 fails closed', () => {
+  const candidates = makeSyntheticSession();
+  const first = candidates.findIndex((c) => c.indexInResponse === 0);
+  candidates[first] = { ...candidates[first], indexInResponse: 12 };
+  const r = selectReplacementCandidate({ vacantStratumCode: 'SC', candidates });
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /outside the required range/);
+});
+
+check('twelve unique integers that are not exactly the set {0,...,11} fails closed', () => {
+  // Shift every indexInResponse by +1: still 12 unique integers, but the set is
+  // {1,...,12} rather than {0,...,11} -- caught by the per-candidate range check.
+  const candidates = makeSyntheticSession().map((c) => ({ ...c, indexInResponse: c.indexInResponse + 1 }));
+  const r = selectReplacementCandidate({ vacantStratumCode: 'SC', candidates });
+  assert.equal(r.ok, false);
+});
+
+check('array storage order does not affect selection when the indexInResponse permutation is unchanged', () => {
+  const candidates = makeSyntheticSession();
+  const forward = selectReplacementCandidate({ vacantStratumCode: 'OP', candidates });
+  // Scramble array storage order only; every candidate keeps its own indexInResponse.
+  const scrambled = [...candidates].reverse();
+  const scrambledResult = selectReplacementCandidate({ vacantStratumCode: 'OP', candidates: scrambled });
+  assert.equal(forward.ok, true);
+  assert.equal(scrambledResult.ok, true);
+  assert.equal(scrambledResult.selectedCandidateId, forward.selectedCandidateId,
+    'selection must follow indexInResponse, not array storage order');
+  assert.deepEqual([...scrambledResult.surplusCandidateIds].sort(), [...forward.surplusCandidateIds].sort());
 });
 
 console.log('\n=== no semantic input is possible ===');
@@ -216,14 +297,20 @@ check('selected candidate failure does NOT promote the same session\'s second ta
   assert.equal(nextVacancy[0].actualAuthorSessionId, 'AUTHOR21-B01-R02');
 });
 
-console.log('\nNegative control: this suite must not embed real CWP-10E candidate text');
+const selectionBehaviorPassed = passed;
+const selectionBehaviorFailed = failed;
 
-check('no fixture in this file matches real CWP-10E raw evidence', async () => {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const { fileURLToPath } = await import('node:url');
-  const dir = path.dirname(fileURLToPath(import.meta.url));
-  const evidenceDir = path.join(dir, '..', 'authoring-v2p1-round-0', 'raw');
+console.log('\n=== 2. HISTORICAL-EVIDENCE ANTI-CONTAMINATION PROVENANCE CHECK ===');
+console.log('(not a selection-behavior fixture; asserts this file embeds no real CWP-10E candidate text)\n');
+
+let provenancePassed = 0, provenanceFailed = 0;
+function checkProvenance(name, fn) {
+  try { fn(); console.log(`  PASS ${name}`); provenancePassed++; }
+  catch (e) { console.log(`  FAIL ${name}\n      ${e.stack}`); provenanceFailed++; }
+}
+
+checkProvenance('no fixture in this file matches real CWP-10E raw evidence', () => {
+  const evidenceDir = path.join(DIR, '..', 'authoring-v2p1-round-0', 'raw');
   const thisFile = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
   for (const name of fs.readdirSync(evidenceDir)) {
     if (!name.endsWith('.txt')) continue;
@@ -232,5 +319,11 @@ check('no fixture in this file matches real CWP-10E raw evidence', async () => {
   }
 });
 
-console.log(`\n${passed} passed, ${failed} failed`);
-process.exit(failed === 0 ? 0 : 1);
+console.log('\n=== SUMMARY ===');
+console.log(`synthetic replacement-selection behavior tests: ${selectionBehaviorPassed}/${selectionBehaviorPassed + selectionBehaviorFailed} passed`);
+console.log(`anti-contamination provenance check:             ${provenancePassed}/${provenancePassed + provenanceFailed} passed`);
+
+const totalPassed = selectionBehaviorPassed + provenancePassed;
+const totalFailed = selectionBehaviorFailed + provenanceFailed;
+console.log(`\n${totalPassed} passed, ${totalFailed} failed`);
+process.exit(totalFailed === 0 ? 0 : 1);

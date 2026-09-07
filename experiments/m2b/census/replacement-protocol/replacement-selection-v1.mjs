@@ -61,10 +61,28 @@ export function selectReplacementCandidate({ vacantStratumCode, candidates }) {
     if (typeof c?.indexInResponse !== 'number' || !Number.isInteger(c.indexInResponse)) {
       return { ok: false, reason: `candidates[${i}]: indexInResponse must be an integer` };
     }
+    if (c.indexInResponse < 0 || c.indexInResponse > 11) {
+      return { ok: false, reason: `candidates[${i}]: indexInResponse ${c.indexInResponse} is outside the required range [0, 11]` };
+    }
   }
   const idSet = new Set(candidates.map((c) => c.taskCandidateId));
   if (idSet.size !== candidates.length) {
     return { ok: false, reason: 'candidate ids are not unique within this session' };
+  }
+
+  // CWP-10F-R: the selection rule (below) is a strict response-order ranking, so
+  // indexInResponse must be exactly a permutation of {0, ..., 11} -- not merely
+  // twelve integers. With the range check above and candidates.length === 12
+  // already established, uniqueness of all twelve values forces that permutation
+  // by the pigeonhole principle: there are exactly twelve integers in [0, 11].
+  // Without this check, two candidates sharing an index would have no unique
+  // "smaller index", yet Array.prototype.sort's stability would silently fall
+  // back to input-array order as an undocumented tie-break. That is forbidden.
+  const indexCounts = new Map();
+  for (const c of candidates) indexCounts.set(c.indexInResponse, (indexCounts.get(c.indexInResponse) ?? 0) + 1);
+  const duplicateIndexValues = [...indexCounts.entries()].filter(([, n]) => n > 1).map(([v]) => v).sort((a, b) => a - b);
+  if (duplicateIndexValues.length > 0) {
+    return { ok: false, reason: `indexInResponse values are not unique within this session: duplicate value(s) ${duplicateIndexValues.join(', ')}` };
   }
 
   const countsByStratum = {};

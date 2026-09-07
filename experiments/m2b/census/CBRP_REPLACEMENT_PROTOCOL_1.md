@@ -98,6 +98,39 @@ any declared stratum with a count other than 2, or fewer/more than 2 candidates 
 the vacant stratum. A malformed replacement response is a mechanical STOP for the whole
 session (§7), never a reason to loosen this check.
 
+### 3.1 Freeze index invariant (CWP-10F-R clarification)
+
+`[ARCHITECTURE-DECIDED]` §3's "smaller `indexInResponse`" rule presupposes a **strict
+total order** over the twelve candidates' response positions. For every mechanically
+valid 12-candidate replacement session, `indexInResponse` MUST be exactly a permutation
+of:
+
+```
+0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
+```
+
+therefore every value must be an integer, unique across the twelve candidates, and in
+`[0, 11]` — no missing position, no duplicate position.
+
+`[DESIGN]` This is a **clarification of already-frozen semantics, not a new rule**: §3
+never meant anything other than a strict response-order ranking, and a ranking with two
+candidates tied at the same position is not strict. Before this clarification, the
+reference implementation checked only that each `indexInResponse` was *an* integer —
+sufficient for every mechanically well-formed response, but silent on what happens if two
+candidates ever declared the same position. Left unchecked, `Array.prototype.sort`'s
+stability would have resolved that case by falling back to input-array order — an
+undocumented, content-adjacent tie-break this protocol was written to make impossible.
+
+```
+FAIL CLOSED on any violation:  duplicate indexInResponse ｜ value < 0 ｜ value > 11
+                                any 12-value set that is not exactly {0, ..., 11}
+NO tie-break ｜ NO guessing ｜ NO fallback to array storage order
+```
+
+Selection version is unchanged: **`CBRP-REPLACEMENT-SELECTION-v1`**. This is a
+conformance repair of that version's implementation against its own already-frozen
+semantics, not a new selection version.
+
 ---
 
 ## 4. Surplus disposition
@@ -273,18 +306,24 @@ Reviewer-visible inputs remain exactly the preregistered task/rubric inputs
 ```
 module   experiments/m2b/census/replacement-protocol/replacement-selection-v1.mjs
 tests    experiments/m2b/census/replacement-protocol/test-replacement-selection-v1.mjs
-         16/16 synthetic tests passing, none derived from real CWP-10E candidate text
-         (the suite asserts this of itself)
+         synthetic replacement-selection behavior tests: 21/21 passing
+         anti-contamination provenance check (reported separately): 1/1 passing
+         none of the 21 is derived from real CWP-10E candidate text (the suite
+         asserts this of itself in the separately-reported check)
 ```
 
 Covered: first-in-response selection; response order reversed selects a different
 candidate; 11 surplus outputs, including the non-selected same-stratum candidate;
 fail-closed on wrong count, wrong per-stratum count, and a missing target stratum;
-multi-vacancy and multi-block RNN allocation; continuation from existing ordinals;
-`replacementGeneration` independence from session ordinal; and that no function in this
-module can promote a same-session surplus candidate after its sibling is rejected — a
-failed selection can only be followed by a **new** vacancy going through the **same**
-allocator, which mints a new ordinal.
+the §3.1 `indexInResponse` permutation invariant — duplicate position (with a
+correspondingly missing position), the two target-stratum candidates sharing a position,
+out-of-range values (`-1`, `12`), and twelve unique integers that are not exactly
+`{0, ..., 11}` — all fail closed; array storage order does not affect selection when the
+`indexInResponse` permutation is unchanged; multi-vacancy and multi-block RNN allocation;
+continuation from existing ordinals; `replacementGeneration` independence from session
+ordinal; and that no function in this module can promote a same-session surplus candidate
+after its sibling is rejected — a failed selection can only be followed by a **new**
+vacancy going through the **same** allocator, which mints a new ordinal.
 
 ---
 
