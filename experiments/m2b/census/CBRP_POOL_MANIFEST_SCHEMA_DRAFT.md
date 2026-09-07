@@ -40,14 +40,32 @@ meaning. Execution order comes from the seeded round-robin, never from the id.
 
 A review id says which review it was, never what it concluded.
 
-### 1.3 Authoring session IDs
+### 1.3 Author blocks and authoring sessions
+
+These are two different things and were previously conflated.
 
 ```
-AUTHOR-01 … AUTHOR-05
+author block      AUTHOR-B01 … AUTHOR-B05      a quota, fixed at five
+authoring session AUTHOR-B01-S00 …             the initial fresh session for that block
+                  AUTHOR-B01-R01, -R02, …      fresh replacement sessions, if required
 ```
 
-Provenance only. The authoring provider and model may be recorded beside them; **no
-result may be read as an author-model effect**, which this study does not estimate.
+The **block** is the allocation unit: each block × each stratum = **2 final admitted
+tasks**, so 5 × 6 × 2 = 60. The **session** is where text actually came from. A block
+begins with one initial session and gains a replacement session each time an
+outcome-blind gate rejects one of its tasks.
+
+`[DECISION]` **A replacement session is never recorded as the original session.** Writing
+`AUTHOR-B01-S00` on a task that came from a later context would make the provenance say
+something untrue about how the pool was produced, and the whole point of session
+provenance is that it is checkable.
+
+`[DESIGN]` The number of *sessions* may therefore exceed five. The number of *blocks* may
+not. Any statement that "five sessions produced the sixty tasks" is wrong unless no
+replacement was needed.
+
+Provider and model are recorded per block as provenance. **No result may be read as an
+author-model effect**, which this study does not estimate.
 
 ---
 
@@ -59,27 +77,43 @@ result may be read as an author-model effect**, which this study does not estima
 studyVersion             CBRP-CENSUS-1
 poolVersion              e.g. CBRP-POOL-1 — a whole-pool version, never per-task
 frozenAt                 timestamp
-frozenCommit             the commit this manifest is committed in
 
 taskCount                60
 stratumCounts            { each of the six: 10 }
-authorSessionCounts      { AUTHOR-01..05: 12 }
-authorSessionByStratum   { stratum: { AUTHOR-01..05: 2 } }
+authorBlockCounts        { AUTHOR-B01..B05: 12 }
+authorBlockByStratum     { stratum: { AUTHOR-B01..B05: 2 } }
+authorBlockModels        { AUTHOR-B01..B05: { provider, model } }  — frozen before authoring
 
-authoringBriefSha256     the exact brief every session received
-reviewRubricSha256       the exact rubric every reviewer received
+authoringBriefSha256        the exact brief every session received
+reviewRubricSha256          the exact rubric every reviewer received
+duplicateAuditRubricSha256  the exact rubric every corpus auditor received
 
 tasks[]                  taskId
                          taskSha256
                          stratum
-                         authorSessionId
+                         authorBlockId          AUTHOR-B01 … B05
+                         authorSessionId        the session it actually came from
+                         replacementGeneration  0 for an initial task, 1.. for replacements
                          structuralReviewIds    ["…-R1", "…-R2", optionally "…-R3"]
                          structuralPass         true — a frozen pool contains only passes
-                         replacementOf          a discarded task's id, or null
+                         duplicateAuditRounds   the audit rounds it survived
+                         replacementOf          a rejected task's id, or null
 
-discarded[]              taskId ｜ stratum ｜ authorSessionId
-                         structuralReviewIds ｜ rejectedAt ｜ replacedBy
+discarded[]              taskId ｜ stratum ｜ authorBlockId ｜ authorSessionId
+                         rejectedBy             STRUCTURAL_REVIEW | CORPUS_DUPLICATE
+                         structuralReviewIds ｜ duplicateAuditEvidence
+                         rejectedAt ｜ replacedBy
 ```
+
+### 2.0 No self-referential commit
+
+`[ARCHITECTURE-DECIDED]` The manifest records **content identity only**. It carries no
+field naming the commit it is committed in — a Git commit cannot contain its own SHA, so
+such a field could only ever be wrong, blank, or filled in by a second commit that then
+disagrees with the first.
+
+The commit is identified from outside, by Git, and referred to downstream as
+`POOL_FREEZE_COMMIT`.
 
 **No ordering field appears here.** Order is materialized in a separate artifact after the
 freeze, so that the pool commit exists before the seed is derived from it — see §4.
@@ -87,13 +121,16 @@ freeze, so that the pool commit exists before the seed is derived from it — se
 ### 2.1 Invariants a freeze must satisfy
 
 ```
-exactly 60 tasks, all structurallyPass = true
+exactly 60 tasks, all structuralPass = true
 exactly 10 per stratum
-exactly 2 per stratum per authoring session, for all five sessions
+exactly 2 per stratum per author BLOCK, for all five blocks
 every taskSha256 recomputes from the frozen bytes
 every task has R1 and R2; R3 present iff R1 and R2 disagreed
+every task survived the final corpus duplicate audit round
 every discarded task names its replacement, and no discarded id appears in tasks[]
-authoringBriefSha256 and reviewRubricSha256 identical across every task
+every replacement names a session in the same author block as the task it replaced
+the three rubric hashes are identical across every task
+no confirmed-duplicate pair remains in tasks[]
 ```
 
 ---
@@ -102,6 +139,22 @@ authoringBriefSha256 and reviewRubricSha256 identical across every task
 
 **Freeze requires**, committed and pushed together: the exact task bytes, ids, hashes,
 strata, authoring session ids, review ids and results, and any replacement lineage.
+
+### 3.0 Freeze sequence
+
+```
+final pool manifest bytes
+  + the exact 60 task bytes
+  + all structural reviews
+  + all corpus duplicate-audit evidence
+  + the descriptive diversity report
+      ↓
+  commit + push
+      ↓
+  the resulting Git commit is POOL_FREEZE_COMMIT
+      ↓
+  only then may ordering be derived
+```
 
 ### 3.1 Between freeze and the first Chief call
 
@@ -136,24 +189,100 @@ governed by the census session contract: preserve, STOP, `INCOMPLETE`,
 
 ---
 
-## 4. Order manifest — a separate artifact, after the freeze
+## 4. CBRP-ORDER-v1 — frozen ordering algorithm
+
+`[ARCHITECTURE-DECIDED]` Fully deterministic, no PRNG, no discretion at any step.
+
+### 4.1 Stratum codes
 
 ```
-studyVersion ｜ poolVersion ｜ poolManifestSha256
-seedMethod ｜ seedInputs ｜ seed
-rounds[]     ten rounds, each six taskIds, one per stratum
-orderIndex   0..59, derived from rounds
-materializedAt ｜ materializedCommit
+SC   Strategy / Commitment          EI   Evidence Interpretation
+OP   Operations / Execution         PS   Product / Service Design
+BC   Brand / Creative               FR   Finance / Resource Allocation
 ```
 
-Separate on purpose: the seed is derived from the frozen pool commit, so the pool must be
-committed first. Keeping order out of the pool manifest makes that sequence structural
-rather than a matter of discipline.
+Frozen. No aliases.
+
+### 4.2 Seed
+
+```
+seed = SHA256( POOL_FREEZE_COMMIT + "\n" + "CBRP-ORDER-v1" )
+```
+
+UTF-8 bytes exactly as written. `POOL_FREEZE_COMMIT` is the **full lowercase
+40-character** Git SHA of the pool freeze commit.
+
+**No alternate seed. No retries. No seed shopping** — and not merely as a prohibition: the
+seed is a pure function of a commit that already exists, so there is exactly one value and
+nothing to try. The literal `CBRP-ORDER-v1` is preregistered so the derivation cannot be
+re-run with a different separator to obtain a different permutation.
+
+### 4.3 Task order within a stratum
+
+For each frozen task:
+
+```
+taskOrderKey = SHA256( seed + "\nTASK\n" + taskId + "\n" + taskSha256 )
+```
+
+Within each stratum, sort its ten tasks by `taskOrderKey`, **ascending lowercase
+hexadecimal lexical order**.
+
+### 4.4 Stratum order within a round
+
+For each round `r = 0 … 9` and each stratum code:
+
+```
+roundStratumKey = SHA256( seed + "\nROUND\n" + decimal(r) + "\n" + stratumCode )
+```
+
+Sort the six strata by `roundStratumKey`, ascending lowercase hexadecimal lexical order.
+
+### 4.5 Emission
+
+For round `r`, take **task index `r`** from each stratum's already-sorted list, and emit
+those six in that round's stratum order.
+
+```
+10 rounds × 6 strata = 60 tasks
+each stratum contributes exactly one task per round
+```
+
+## 5. Order manifest — a separate artifact, after the freeze
+
+`CBRP_ORDER_MANIFEST.json`:
+
+```
+orderVersion        CBRP-ORDER-v1
+poolFreezeCommit    the full lowercase 40-character SHA
+seed
+orderedTaskIds[60]
+taskOrderKeys       per task
+roundStratumKeys    per round per stratum
+createdAt
+artifact seal       as later defined
+```
+
+Separate on purpose: the seed is derived from the frozen pool commit, so that commit must
+exist first. Keeping order out of the pool manifest makes the sequence structural rather
+than a matter of discipline.
+
+### 5.1 Validation contract
+
+`[DESIGN]` A future verifier must recompute the **entire** ordering from:
+
+```
+POOL_FREEZE_COMMIT   +   the frozen pool manifest and task bytes
+```
+
+without trusting `seed`, `taskOrderKeys`, `roundStratumKeys` or `orderedTaskIds`. Those
+are summaries, and a summary that is only compared against itself proves nothing. Not
+implemented in this round; documented as the contract any implementation must meet.
 
 **Required sequence, in order:**
 
 ```
-task freeze commit
+POOL_FREEZE_COMMIT exists
   → seed derivation
   → deterministic order materialization
   → order manifest commit and push
@@ -163,10 +292,10 @@ task freeze commit
 
 ---
 
-## 5. Status
+## 6. Status
 
 ```
-tasks authored     0        pools frozen       0
-reviews run        0        seeds derived      0
-order manifests    0        provider calls     0
+tasks authored     0        pools frozen       0        duplicate audits   0
+reviews run        0        seeds derived      0        order manifests    0
+provider calls     0
 ```

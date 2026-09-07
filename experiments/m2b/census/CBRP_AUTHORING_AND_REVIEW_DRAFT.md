@@ -106,11 +106,24 @@ peer challenge ｜ experiment ｜ eligibility ｜ archetype ｜ stratum names as
 ```
 [ARCHITECTURE-DECIDED]
 
-five fresh authoring sessions   AUTHOR-01 … AUTHOR-05
-each authors 12 tasks           two per stratum, all six strata
-                                5 x 2 x 6 = 60
-every stratum therefore draws its ten tasks from all five session identities
+five authoring QUOTA BLOCKS     AUTHOR-B01 … AUTHOR-B05
+each block × each stratum       = 2 final admitted tasks
+                                  5 x 6 x 2 = 60
+every stratum therefore draws its ten tasks from all five blocks
 ```
+
+**Blocks and sessions are different things.** The block is the allocation unit and is
+fixed at five. The session is where text actually came from:
+
+```
+AUTHOR-B01-S00      the initial fresh session for block 1
+AUTHOR-B01-R01 …    fresh replacement sessions, if a gate rejects one of its tasks
+```
+
+`[DESIGN]` So the correct statement is **"five authoring blocks begin with five fresh
+sessions; additional fresh replacement sessions may exist if outcome-blind structural
+screening requires them"** — not "five sessions produce the sixty tasks", which is true
+only if nothing is ever rejected.
 
 This is the shape that keeps **author identity from being structurally confounded with
 stratum**. The estimand is a rate across a stratified frame, so if a stratum's tasks came
@@ -122,8 +135,8 @@ It also bounds the other risk. A single session authoring all sixty would infer 
 deal about what is wanted by task forty, unprompted; twelve is short enough that there is
 little arc to infer from.
 
-The cost is five sessions instead of one, and a small allocation table. That is the price
-of the confound not existing.
+The cost is five initial sessions instead of one, a small allocation table, and one extra
+fresh session per rejection. That is the price of the confound not existing.
 
 ### 3.1 Fresh authoring session — operational definition
 
@@ -157,9 +170,46 @@ All of it lives in
 hash is recorded in the pool manifest so a later reader can confirm every session got the
 same brief.
 
-`[OPEN]` Whether "fresh session" is satisfied by a fresh model context, a different model,
-or a human author. A same-model author shares priors with the Chief being measured, which
-is a real limitation of the cheapest reading and is not resolved here.
+### 3.1.1 What "fresh" means, and which model may author — DECIDED
+
+```
+[ARCHITECTURE-DECIDED]
+
+a fresh session means a FRESH MODEL CONTEXT
+it does NOT require a different model for every session
+
+the exact Chief planning model under measurement — openai / gpt-5 —
+is FORBIDDEN as an authoring model
+```
+
+The prohibition is narrow and specific: it removes **direct task-generator /
+measured-system coupling**, where the model writing the scenarios is the same model whose
+planning behaviour the scenarios are used to measure.
+
+`[DESIGN]` **It does not eliminate shared-prior bias.** Two different models trained on
+overlapping data still share a great deal about what a "realistic business decision" looks
+like, and no author-model rule available here removes that. The claim is that one
+specific and identifiable coupling has been removed, not that authorship is independent of
+the measured system.
+
+Likewise, `[DESIGN]` **fresh contexts reduce conversational contamination; they do not
+make model outputs statistically independent.** Any result must be worded accordingly.
+
+### 3.1.2 Author model families
+
+```
+[ARCHITECTURE-DECIDED]
+
+the five blocks must use at least TWO distinct non-Chief model families
+every block spans all six strata
+→ author-model family is therefore not structurally confounded with stratum
+```
+
+The exact provider/model per block is **frozen before authoring begins** and recorded in
+the pool manifest as `authorBlockModels`. It is provenance. **No author-model
+effectiveness claim may be made**, and the census does not estimate one.
+
+`[OPEN]` The actual provider/model IDs per block. Not chosen here.
 
 ### 3.2 Session identity is provenance only
 
@@ -211,16 +261,45 @@ ensure multiple specialists
 The line is that legitimate dimensions vary properties of the **situation**; forbidden
 ones vary properties of the **expected answer**.
 
-`[OPEN]` Whether diversity is enforced as hard quotas per dimension or as a review-time
-check that no dimension is degenerate. Quotas are auditable but can themselves shape the
-pool; a review check is softer but weaker. The brief currently states the dimensions and
-asks for variation without quotas.
+### 4.2 No diversity quotas — DECIDED
+
+```
+[ARCHITECTURE-DECIDED]
+
+NO hard diversity quotas
+the brief asks for variation across the nine dimensions
+before the freeze, a DESCRIPTIVE diversity report is produced
+```
+
+**Diversity is not an admission gate.** A task may not be rejected or replaced because an
+aggregate distribution looks unattractive. Only two things cause pre-freeze replacement:
+
+```
+structural review failure          or          confirmed semantic duplicate
+```
+
+`[DESIGN]` Quotas were rejected because they shape the pool toward whatever the quota
+designer imagined a diverse pool contains, and that imagining is not blind to the study.
+A descriptive report has the property that matters: it lets a reader see what the pool
+actually looks like, without giving anyone a lever to reshape it after the fact.
 
 **No actual tasks are designed here.**
 
 ---
 
-## 5. Structural review
+## 5. Structural review — the first of two pre-freeze gates
+
+```
+per-task structural review     one task, six structural checks
+corpus duplicate audit         all sixty texts at once, after all sixty pass review
+                               CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md
+```
+
+`notDuplicate` was removed from the per-task rubric in CWP-8B: a reviewer who sees one
+task cannot judge whether it duplicates one they were never shown, and the field recorded
+a guess as a check.
+
+
 
 Every task is structurally reviewed **before any Chief call**.
 
@@ -311,14 +390,30 @@ entirely a function of when the problem is found.
 
 ### 7.1 Pre-freeze — replacement permitted
 
-Before the pool is frozen and before any Chief output exists, a structurally rejected task
-is discarded and replaced. The replacement:
+Before the pool is frozen and before any Chief output exists, a task rejected by **either**
+outcome-blind gate — per-task structural review, or the corpus duplicate audit — is
+discarded and replaced. The replacement:
 
 ```
-comes from a fresh authoring session under the same frozen brief
-keeps the intended stratum and session quota
-receives two independent structural reviews, and a third on disagreement
+is generated in a NEW fresh context
+uses the same frozen authoring brief
+uses the same predeclared model family as that author BLOCK
+targets only the vacant stratum slot
+receives normal R1 / R2 structural review, and R3 if they disagree
+participates in the corpus duplicate audit
 ```
+
+Recorded provenance, truthfully:
+
+```
+authorBlockId          AUTHOR-B01 … B05
+actualAuthorSessionId  AUTHOR-B01-R01, etc. — never the original -S00
+replacementOf          the rejected task's id
+replacementGeneration  1, 2, … for successive replacements of the same slot
+```
+
+`[DECISION]` **A replacement session is never recorded as the original session.** The
+pool's provenance has to describe how the pool was actually produced, or it is decoration.
 
 A rejected task **may never re-enter the pool**, and the rejection and replacement lineage
 is preserved in the freeze manifest. Nothing here is outcome-informed: no Chief output
@@ -419,34 +514,33 @@ task freeze commit
 manifest is a separate artifact from the pool manifest precisely so the freeze commit
 exists before the seed can be computed.
 
-### 9.3 Seed method
+### 9.3 Seed and permutation — FROZEN as CBRP-ORDER-v1
 
 ```
-PROPOSAL FOR GPT REVIEW — not accepted
+[ARCHITECTURE-DECIDED]
 
-seed = SHA-256( frozenPoolCommitSha + "\n" + "CBRP-ORDER-v1" )
+seed            = SHA256( POOL_FREEZE_COMMIT + "\n" + "CBRP-ORDER-v1" )
+taskOrderKey    = SHA256( seed + "\nTASK\n"  + taskId + "\n" + taskSha256 )
+roundStratumKey = SHA256( seed + "\nROUND\n" + decimal(r) + "\n" + stratumCode )
 
-then: a deterministic permutation derived from that seed, by a stated algorithm,
-      applied within each stratum and to the six positions of each round
+sorts are ascending lowercase hexadecimal lexical order
+no PRNG anywhere
 ```
 
-Its property is the one that matters: **the seed is a function of a commit that already
-exists**, so there is exactly one seed and no discretionary choice. Seed shopping — trying
-values until an attractive ordering appears — is not merely forbidden but unavailable,
-because there is nothing to try.
+Full specification, including stratum codes and emission:
+[`CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md`](CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md) §4.
 
-The domain separator `CBRP-ORDER-v1` is preregistered so the derivation cannot be quietly
-re-run with a different literal to obtain a different permutation.
-
-`[OPEN]` The exact permutation algorithm from seed bytes to ordering is not fixed here.
-Whatever is chosen must be deterministic, stated in advance, and independently reproducible
-from the committed seed — and it must be fixed before the freeze, not after.
+`[DESIGN]` **Seed shopping is structurally impossible, not merely forbidden.** The seed is
+a pure function of a commit that already exists when it is computed, so there is exactly
+one value and nothing to try. The literal `CBRP-ORDER-v1` is preregistered so the
+derivation cannot be quietly re-run with a different separator.
 
 ## 10. What this document is not
 
 ```
-0 tasks authored          0 reviews run              0 authoring sessions run
-0 pools frozen            0 seeds derived            0 provider calls
+0 tasks authored          0 reviews run              0 duplicate audits run
+0 authoring sessions run  0 pools frozen             0 seeds derived
+0 provider calls
 ```
 
 Procedure is now decided; **content does not exist**. The study is a

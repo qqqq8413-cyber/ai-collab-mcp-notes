@@ -18,11 +18,16 @@ TASKS AUTHORED UNDER THIS BRIEF SO FAR:  0
 
 ## 1. Notes for the operator (NOT pasted into the authoring session)
 
-Five fresh sessions, `AUTHOR-01` … `AUTHOR-05`, each author **12 tasks: two per
-stratum**. Five sessions × 2 × 6 strata = 60, and every stratum receives its ten tasks
-from all five session identities. That is the point of the shape: if a stratum's tasks
-came from one author, a per-stratum difference and an author difference would be the same
-thing, and the study's estimand is a rate across a stratified frame.
+Five authoring **quota blocks**, `AUTHOR-B01` … `AUTHOR-B05`, each beginning with one
+fresh session (`AUTHOR-B01-S00` …) that authors **12 tasks: two per stratum**.
+Five blocks × 2 × 6 strata = 60, and every stratum receives its ten tasks from all five
+blocks. That is the point of the shape: if a stratum's tasks came from one author, a
+per-stratum difference and an author difference would be the same thing, and the study's
+estimand is a rate across a stratified frame.
+
+**Blocks are fixed at five; sessions are not.** Each rejection adds a fresh replacement
+session (`AUTHOR-B01-R01` …) in the same block, using this same brief and that block's
+predeclared model family. A replacement is never recorded as the original session.
 
 Each session receives **this brief verbatim and nothing else**. In particular it must not
 receive: prior CBRP conversation history, any Chief planning output, any previously
@@ -30,8 +35,18 @@ authored task text, the P03 outcome, F1/F2, the measured event, θ, a desired sp
 count, a desired complexity, the provider/model role map, or anything about peer-challenge
 arms.
 
-Session identity is provenance only. The authoring provider and model may be recorded, but
-**the census does not estimate an author-model effect** and no result may be read as one.
+Session identity is provenance only. The provider and model are frozen per block before
+authoring begins and recorded, but **the census does not estimate an author-model effect**
+and no result may be read as one.
+
+The Chief planning model under measurement — `openai / gpt-5` — is **forbidden** as an
+authoring model, to remove direct task-generator / measured-system coupling. At least two
+distinct non-Chief model families are used across the five blocks, and since every block
+spans all six strata, author-model family is not confounded with stratum.
+
+`[DESIGN]` A fresh session means a **fresh model context**, not necessarily a different
+model. Fresh contexts reduce conversational contamination; they do **not** make outputs
+statistically independent, and the model rule does not eliminate shared-prior bias.
 
 `[DESIGN]` This procedure **reduces** outcome-targeted selection bias. It does not
 eliminate it. A fluent author writing "a realistic decision" may still produce cases that
@@ -223,10 +238,21 @@ Twelve objects, two per category, `stratum` spelled exactly as the six headings 
 
 ## 3. What happens next (NOT pasted)
 
-Every scenario goes to **two independent blinded structural reviewers**, and to a third on
-disagreement. See `CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md`. A scenario that fails review
-is discarded before the freeze and replaced from a fresh authoring session under this same
-brief; a discarded scenario may never re-enter the pool.
+Two outcome-blind gates, in order:
+
+1. **Per-task structural review** — two independent blinded reviewers, a third on
+   disagreement. `CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md`.
+2. **Corpus duplicate audit** — after all sixty pass review, two blinded auditors read all
+   sixty texts at once. `CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`. Duplication is a property
+   of the corpus, so a per-task reviewer is not asked about it.
+
+A scenario rejected by either gate is discarded before the freeze and replaced from a fresh
+replacement session in the same block under this same brief. A discarded scenario may never
+re-enter the pool.
+
+The variation instruction in §2.5 and the "do not repeat yourself" instruction in §2.6 are
+**authoring guidance**. Neither is an admission gate: no task is rejected because an
+aggregate diversity distribution looks unattractive.
 
 **No scenario authored under this brief exists yet, and none may be authored until GPT
 accepts the preregistration.**

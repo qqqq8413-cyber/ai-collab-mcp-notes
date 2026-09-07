@@ -23,6 +23,12 @@ the measured event, θ, and the whole P03 history; a tie-break from that positio
 outcome-aware decision about pool membership, however carefully made. GPT audits the
 *procedure* and the aggregate afterwards. The tie-break is a third blinded reviewer.
 
+`[DESIGN]` Duplication was removed from this rubric in CWP-8B. A per-task reviewer sees
+one task, so a `notDuplicate` field asked for a judgement nobody was positioned to make
+and would have recorded a guess as a check. Corpus duplication is audited separately, over
+all sixty texts at once: see
+[`CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`](CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md).
+
 `[DESIGN]` The inter-reviewer disagreement rate should be reported as a property of the
 routing rubric. The rubric's central claim is that two readers can usually agree from the
 task text; two reviewers make that measurable instead of asserted.
@@ -95,10 +101,11 @@ labels; meta-commentary addressed to anyone but the advisor?
 produced or by whom? It fails on "specialist", "expert panel", "get several perspectives",
 any requested number of viewpoints, or any hint about what kind of help to bring.
 
-**notDuplicate** — Judged only against the other scenarios you were shown in this session,
-if any. Two scenarios differing only in industry or only in the numbers are duplicates.
-
 **overallPass** — PASS only if every judgement above passes.
+
+*(Duplication is deliberately not among these. You see one scenario; whether it duplicates
+another is a property of the whole corpus and is decided in a separate audit by auditors
+who can see all sixty. Do not speculate about it.)*
 
 ### 2.3 What you must NOT judge
 
@@ -126,7 +133,6 @@ Return exactly this, and nothing else:
   "realistic": true,
   "noExperimentLeakage": true,
   "noSpecialistSteering": true,
-  "notDuplicate": true,
   "overallPass": true,
   "reasons": "One or two sentences. On any false, say which check failed and why."
 }
@@ -163,8 +169,12 @@ R1 FAIL and R2 FAIL        → task rejected pre-freeze
 R1 and R2 disagree         → R3, fresh and blinded; majority of three is final
 ```
 
-A rejected task is discarded before the freeze and replaced from a fresh authoring session
-under the same frozen brief, keeping the stratum and session quota. **A rejected task may
-never re-enter the pool**, and its rejection lineage is preserved in the freeze manifest.
+A rejected task is discarded before the freeze and replaced from a **fresh replacement
+session in the same author block**, targeting only the vacated stratum slot and using the
+same frozen brief and the same predeclared model family. **A rejected task may never
+re-enter the pool**, and its rejection lineage is preserved in the freeze manifest.
+
+Structural review is one of **two** pre-freeze gates. The other is the corpus duplicate
+audit, which runs after all sixty have passed here.
 
 **No review has been run.** No task exists to review.

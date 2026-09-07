@@ -69,8 +69,8 @@ STATUS:  DRAFT
 | C-3 | Self-containment requirement | **ARCHITECTURE-DECIDED** | Brief §2.3, and a review check |
 | C-4 | Prohibited leakage term list | **ARCHITECTURE-DECIDED** | Brief §2.7, and a review check |
 | C-5 | Diversity dimensions | **ARCHITECTURE-DECIDED** | Nine dimensions of the situation; five forbidden instructions about the answer |
-| C-6 | Diversity enforcement — quotas vs review check | **OPEN** | Authoring §4.1 |
-| C-7 | Duplicate-avoidance rule | **ARCHITECTURE-DECIDED** | "Differing only in industry or only in the numbers" is one scenario; brief §2.6 and review check `notDuplicate` |
+| C-6 | Diversity handling | **ARCHITECTURE-DECIDED** | **No quotas.** Variation requested in the brief; a descriptive diversity report before freeze. Diversity is **not** an admission gate — only structural failure or a confirmed duplicate causes replacement |
+| C-7 | Duplicate handling | **ARCHITECTURE-DECIDED** | Removed from per-task review — one reviewer sees one task. Corpus audit over all 60 texts: 2 blinded auditors, 3rd on a disputed pair, retention by lexicographically smallest candidate ID |
 | C-8 | **The 60 tasks themselves** | **OPEN** | **0 authored.** Procedure is frozen; authoring is not authorized |
 | C-9 | Difficulty varies within every stratum | **ARCHITECTURE-DECIDED** | "Ordinary" is not a stratum |
 
@@ -81,12 +81,17 @@ STATUS:  DRAFT
 | # | Item | Status | Note |
 |---|---|---|---|
 | D-1 | Blinded authoring envelope | **ARCHITECTURE-DECIDED** | Twelve exclusions and a closed allow-list; Authoring §3.1 |
-| D-2 | Authoring session design | **ARCHITECTURE-DECIDED** | Five sessions × 12 tasks × 2 per stratum; every stratum draws from all five |
+| D-2 | Authoring block design | **ARCHITECTURE-DECIDED** | Five **quota blocks**, each × each stratum = 2 admitted tasks. Five initial sessions plus fresh replacement sessions as required; blocks are fixed at five, sessions are not |
 | D-3 | Reviewer independence design | **ARCHITECTURE-DECIDED** | Two blinded reviews, third on disagreement, majority final; GPT task-level adjudication **forbidden**. Makes A-8's claim measurable |
-| D-4 | Structural review rubric | **ARCHITECTURE-DECIDED** | Eight judgements, fixed output schema; `CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md` |
+| D-4 | Structural review rubric | **ARCHITECTURE-DECIDED** | Six per-task judgements plus `overallPass`; `notDuplicate` removed in CWP-8B |
 | D-5 | Reviewer must not score likelihood of the event | **ARCHITECTURE-DECIDED** | Authoring §5.4 |
-| D-6 | "Fresh session" — operational definition | **ARCHITECTURE-DECIDED** | Twelve conditions, Authoring §3.1. **Still `[OPEN]`:** whether fresh context, a different model, or a human satisfies it — a same-model author shares priors with the Chief being measured |
-| D-7 | Blinding described as reduction, never elimination | **ARCHITECTURE-DECIDED** | Must appear in any result |
+| D-6 | "Fresh session" and author model rule | **ARCHITECTURE-DECIDED** | Fresh = fresh model context, not necessarily a different model. `openai/gpt-5` **forbidden** as an author. ≥ 2 non-Chief model families across the five blocks. Reduces coupling; does **not** eliminate shared-prior bias |
+| D-7 | Blinding described as reduction, never elimination | **ARCHITECTURE-DECIDED** | Must appear in any result. Extends to author independence: fresh contexts reduce conversational contamination, they do **not** make outputs statistically independent |
+| D-8 | Corpus duplicate audit procedure | **ARCHITECTURE-DECIDED** | `CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`; runs after all 60 pass per-task review, before freeze; stratum labels withheld |
+| D-9 | Duplicate retention rule | **ARCHITECTURE-DECIDED** | Lexicographically smallest candidate ID in a confirmed pair or component is retained; outcome-blind and deterministic |
+| D-10 | Replacement provenance truthfulness | **ARCHITECTURE-DECIDED** | `authorBlockId` separated from `actualAuthorSessionId`; a replacement is never recorded as the original session |
+| D-11 | Author model families frozen before authoring | **OPEN** | The rule is decided; the actual provider/model IDs per block are not chosen |
+| D-12 | Corpus duplicate audit **execution** | **OPEN** | 0 audits run |
 
 ---
 
@@ -95,11 +100,11 @@ STATUS:  DRAFT
 | # | Item | Status | Note |
 |---|---|---|---|
 | E-1 | Freeze before first planning call | **ARCHITECTURE-DECIDED** | Authoring §8 |
-| E-2 | Per-task SHA-256 and a pool manifest | **OPEN** | Schema decided (`CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md`); no task exists to hash |
+| E-2 | Per-task SHA-256 and a pool manifest | **OPEN** | Schema decided; **no self-referential commit SHA** — a commit cannot contain its own. Identified from outside as `POOL_FREEZE_COMMIT`. No task exists to hash |
 | E-3 | Freeze provenance | **OPEN** | Required contents decided: bytes, ids, hashes, strata, session ids, review ids and results, replacement lineage. Not run |
 | E-4 | Invalid-task policy | **ARCHITECTURE-DECIDED** | Three moments, three rules: pre-freeze replace; post-freeze whole-pool re-freeze; post-first-call STOP. Never dropped for its result |
-| E-5 | Ordering / randomization rule | **ARCHITECTURE-DECIDED** | Seeded round-robin across six strata, ten rounds of six; not contiguous blocks |
-| E-6 | Seed governance and method | **PROPOSED** | Sequence decided: freeze → derive → materialize → commit → review. Method `SHA-256(frozenPoolCommit + "CBRP-ORDER-v1")` is **PROPOSAL FOR GPT REVIEW**; the permutation algorithm is `[OPEN]` |
+| E-5 | Ordering rule | **ARCHITECTURE-DECIDED** | `CBRP-ORDER-v1`: seeded round-robin, ten rounds of six, no PRNG. Full spec in the manifest schema §4 |
+| E-6 | Seed and permutation | **ARCHITECTURE-DECIDED** | `seed = SHA256(POOL_FREEZE_COMMIT + "\\n" + "CBRP-ORDER-v1")`, plus byte-exact task-order and round-stratum key derivations. Seed shopping is **structurally impossible** — the seed is a function of a commit that already exists |
 | E-7 | No outcome-informed replacement, ever | **ARCHITECTURE-DECIDED** | |
 
 ---
@@ -158,6 +163,7 @@ eventDeep ｜ eventAssignedGte2 ｜ eventJoint
 | G-2 | Per-task field set | **DRAFT** |
 | G-5 | Pool manifest schema and identity schemes | **DRAFT** | `CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md`; task ids encode stratum only, review ids encode order only |
 | G-6 | Order manifest, separate from the pool manifest | **DRAFT** | Separate so the freeze commit exists before the seed is derived from it |
+| G-7 | Order validation contract | **ARCHITECTURE-DECIDED** | A verifier must recompute the whole ordering from `POOL_FREEZE_COMMIT` plus the frozen pool, trusting none of `seed`, the keys, or `orderedTaskIds`. Documented; **not implemented** |
 | G-3 | Event fields recomputable from the post-enforcement plan | **VERIFIED** |
 | G-4 | Verifier for census artifacts | **IMPLEMENTED** |
 
@@ -210,11 +216,11 @@ read any of 03–06 as implemented; they are not.**
 ## J. Readiness summary
 
 ```
-83 checklist items
+89 checklist items
 
-ARCHITECTURE-DECIDED             42
-PROPOSED                          3
-OPEN                              8
+ARCHITECTURE-DECIDED             48
+PROPOSED                          2
+OPEN                              9
 DRAFT                             4
 IMPLEMENTED                      12
 IMPLEMENTED / VERIFIED OFFLINE    1
@@ -222,21 +228,26 @@ CLOSED / VERIFIED OFFLINE         4
 VERIFIED                          9
 ```
 
-**PREREGISTRATION CANDIDATE — not preregistered.** Method, estimand, decision rule,
-execution infrastructure, and now authoring, review, invalid-task and ordering procedure
-are all decided. What is missing is the study's **content and its execution record**: the
-sixty tasks are unwritten, no review has run, no pool is frozen, and no seed has been
-materialized.
+**PREREGISTRATION PROCEDURE COMPLETE — study NOT PREREGISTERED.** Method, estimand,
+decision rule, execution infrastructure, and every authoring, review, duplicate-audit,
+invalid-task and ordering procedure are decided and written to the level of pasteable
+briefs and a byte-exact ordering algorithm. What is missing is the study's **content and
+its execution record**: the sixty tasks are unwritten, no review or audit has run, no pool
+is frozen, and no seed has been materialized.
 
 **Not preregistration-ready.** The blocking clusters, in the order they gate
 each other:
 
-1. **E-6 seed method** — proposed, awaiting GPT review, and the permutation algorithm
-   from seed bytes to ordering is still `[OPEN]`. It must be fixed **before** the freeze.
-2. **D-6** — whether a "fresh session" may be the same model that is being measured.
-3. **C-8** — the 60 tasks. **0 authored**, and authoring is not authorized.
-4. **E-2, E-3** — the freeze itself, which cannot begin until the tasks exist and have
-   passed review.
+1. **D-11** — the actual provider/model per author block. The rule is decided; the
+   assignment is not, and it must be frozen before authoring begins.
+2. **C-8** — the 60 tasks. **0 authored**, and authoring is not authorized.
+3. **D-12, E-2, E-3** — review execution, duplicate-audit execution, and the freeze. None
+   can begin until the tasks exist.
+4. **A-8** — the routing rubric's operability, which only becomes measurable once reviews
+   actually run.
+
+**Everything procedural is now decided.** What remains is content, its screening, and the
+freeze — none of which this packet authorizes.
 
 **The remaining blockers are all methodology and content, not engineering.** Every
 execution-infrastructure requirement CENSUS-REQ-01 … 10 is now closed offline. What

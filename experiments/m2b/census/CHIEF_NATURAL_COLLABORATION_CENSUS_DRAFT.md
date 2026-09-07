@@ -526,20 +526,31 @@ Full envelope: [`CBRP_AUTHORING_AND_REVIEW_DRAFT.md`](CBRP_AUTHORING_AND_REVIEW_
 ### 6.1 Procedure, as decided in CWP-8A
 
 ```
-authoring     5 fresh sessions AUTHOR-01..05, each 12 tasks, 2 per stratum
-              every stratum draws from all five sessions, so author identity is
+authoring     5 quota BLOCKS AUTHOR-B01..B05, each block × each stratum = 2 admitted tasks
+              each begins with one fresh session (-S00); rejections add fresh
+              replacement sessions (-R01…) in the same block
+              every stratum draws from all five blocks, so author identity is
               never confounded with stratum
+author model  fresh session = fresh model context, not necessarily a different model
+              openai/gpt-5 — the Chief under measurement — FORBIDDEN as an author
+              ≥ 2 distinct non-Chief model families across the five blocks
 brief         one frozen brief, byte-identical to every session
               CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md
-review        2 independent blinded structural reviews per task, 3rd on disagreement,
+gate 1        per-task structural review: 2 blinded reviews, 3rd on disagreement,
               majority final; GPT does NOT adjudicate at task level
               CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md
-invalid task  pre-freeze: discard and replace from a fresh session, lineage preserved
+gate 2        corpus duplicate audit over all 60 texts at once, after gate 1 passes
+              2 blinded auditors, 3rd on a disputed pair; retention by
+              lexicographically smallest candidate ID — no discretionary choice
+              CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md
+diversity     descriptive report only; NOT an admission gate, no quotas
+invalid task  pre-freeze: discard and replace, truthful session lineage preserved
               post-freeze pre-call: whole-pool re-freeze only, never a one-task patch
               post-first-call: STOP, INCOMPLETE, return to GPT — never dropped for its result
-ordering      seeded round-robin across the six strata, ten rounds of six
-              seed derived from the frozen pool commit, after freeze, before any output
-manifest      CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md
+ordering      CBRP-ORDER-v1: seeded round-robin, ten rounds of six, no PRNG
+              seed = SHA256(POOL_FREEZE_COMMIT + "\n" + "CBRP-ORDER-v1")
+manifest      CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md — content identity only,
+              no self-referential commit SHA
 ```
 
 `[DESIGN]` **Procedure is frozen; content does not exist.** Nothing above has been run.
@@ -715,16 +726,19 @@ mechanism — the mechanism did not exist then.
 ## 11. What this draft is not
 
 ```
-PREREGISTRATION CANDIDATE — not preregistered, not authorized
+PREREGISTRATION PROCEDURE COMPLETE — study NOT PREREGISTERED, not authorized
 
 not protocol 0.4    not an effectiveness study
 does not change F1-F7 ｜ Chief ｜ P03 evidence ｜ M-ACQ-01 status
 0 tasks authored ｜ 0 reviews run ｜ 0 pools frozen ｜ 0 seeds ｜ 0 provider calls
 ```
 
-**Why candidate and not preregistered.** The method, the estimand, the decision rule, the
-execution infrastructure and now the authoring, review, invalid-task and ordering
-procedures are all decided. What does not exist is the study's content and its execution
-record: the sixty tasks have not been written, no review has run, no pool has been frozen,
-and no ordering seed has been materialized. Preregistration is the point at which all of
-that is fixed and committed, and none of it is.
+**Why the procedure is complete but the study is not preregistered.** The method, the
+estimand, the decision rule, the execution infrastructure, and the authoring, review,
+duplicate-audit, invalid-task and ordering procedures are all decided and written down to
+the level of pasteable briefs and a byte-exact ordering algorithm. What does not exist is
+the study's **content and its execution record**: the sixty tasks are unwritten, no review
+has run, no duplicate audit has run, no pool is frozen, and no ordering seed has been
+materialized. Preregistration is the point at which all of that is fixed and committed.
+
+**No real task may be authored until GPT performs the next Architecture Review.**

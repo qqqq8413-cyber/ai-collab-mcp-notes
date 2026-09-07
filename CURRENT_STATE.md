@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  cdcab3c361072f2e0469a654e60959d82fec8edf
+stateVerifiedThrough  8d8b686c3bd5ed18d904941d440124a781b6b706
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -530,37 +530,73 @@ census 已執行            NO       study 仍為 NOT PREREGISTERED / NOT AUTHOR
 `[ARCHITECTURE-DECIDED]` 剩下的方法學程序已全部裁定,文件共六份於 `experiments/m2b/census/`:
 
 ```
-authoring     5 個 fresh session（AUTHOR-01…05），每個 12 題、每 stratum 2 題
-              → 每個 stratum 的十題都來自全部五個 session
+authoring     5 個 quota BLOCK（AUTHOR-B01…B05），每 block × 每 stratum = 2 題入池
+              每個 block 以一個 fresh session（-S00）起始；被拒則在同 block 內
+              新增 fresh replacement session（-R01…）
+              → 每個 stratum 的十題都來自全部五個 block
               目的：作者身分絕不與 stratum 結構性共線 —— 否則 per-stratum 差異
               與作者差異會是同一個觀察，兩者都讀不出來
+              **block 固定五個，session 不固定** —— 不得宣稱「五個 session 產出六十題」
+author model  fresh session = fresh model context，不要求每個 session 換模型
+              被測的 Chief 模型 openai/gpt-5 **禁止**擔任出題模型（去除直接耦合）
+              五個 block 至少涵蓋兩個非 Chief 模型家族；每個 block 跨全部六層
+              → author-model family 亦不與 stratum 共線
+              **這不消除 shared-prior bias**；fresh context 只降低對話污染，
+              不使模型輸出在統計上獨立
 brief         單一凍結 brief，逐位元組相同地交給每個 session
               CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md（可直接貼入，無需補充說明）
-review        每題兩份獨立盲審，不一致時交第三位盲審，三取二定案
+gate 1        逐題結構盲審：兩份獨立、不一致交第三位、三取二定案
               CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md
-invalid task  凍結前：丟棄並由 fresh session 依同一 brief 補題，保存 lineage
+gate 2        全 corpus 重複稽核（六十題文本一次看完），在 gate 1 全過之後
+              兩位盲審稽核者，爭議配對交第三位；保留規則為
+              **confirmed pair/component 中字典序最小的 candidate ID**
+              —— 無任何裁量空間
+              CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md
+diversity     僅產出描述性報告，**不是入池關卡**、無硬性配額
+              只有結構審查失敗或確認重複才會造成凍結前替換
+invalid task  凍結前：丟棄並在同 block 內以 fresh replacement session 補題，
+              **provenance 誠實記錄**（replacement 絕不記成原始 session）
               凍結後、首次 call 前：只能整池重新凍結，不得單題修補
               首次 call 之後：STOP / INCOMPLETE / 回 GPT —— 絕不因結果把題目移出分母
-ordering      六層 seeded round-robin，十輪、每輪六題各一層（非連續分塊）
-manifest      CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md（task id 只編碼 stratum）
+ordering      CBRP-ORDER-v1（已凍結、逐位元組定義、無 PRNG）
+manifest      CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md
+              **不含自我指涉的 commit SHA** —— commit 無法包含自己的 SHA；
+              該 commit 由 Git 從外部識別，下游稱為 POOL_FREEZE_COMMIT
 ```
 
 `[DECISION]` **GPT 不擔任個別 task 的盲審仲裁。** GPT 知道被測事件、θ 與完整 P03 歷史;
 從那個位置做 tie-break,等於在一套盲化程序中唯一一次以知情狀態決定題目能否入池。
 GPT 事後稽核程序與彙總證據,**tie-break 交給第三位盲審**。
 
-`[DESIGN]` seed 必須在**凍結之後、任何 Chief 輸出之前**導出,方法提案為
-`SHA-256(frozenPoolCommit + "CBRP-ORDER-v1")` —— 其性質是**種子是一個已存在 commit 的函數**,
-因此只有一個種子,「試到好看的順序為止」不是被禁止,而是**不存在可試的東西**。
-方法標記為 `PROPOSAL FOR GPT REVIEW`,由 seed 位元組到排列的演算法仍 `[OPEN]`。
+`[ARCHITECTURE-DECIDED]` **CBRP-ORDER-v1 已完全凍結**,無 PRNG、無任何裁量:
 
 ```
-study status:  PREREGISTRATION CANDIDATE —— 尚未 PREREGISTERED
-理由：程序已定，內容不存在 —— 60 題未寫、0 份審查、0 次凍結、0 個 seed
-checklist:     83 項 —— 42 ARCHITECTURE-DECIDED / 12 IMPLEMENTED / 9 VERIFIED
-               / 4 CLOSED-VERIFIED-OFFLINE / 1 IMPLEMENTED-VERIFIED-OFFLINE
-               / 4 DRAFT / 3 PROPOSED / 8 OPEN
+seed            = SHA256( POOL_FREEZE_COMMIT + "\n" + "CBRP-ORDER-v1" )
+taskOrderKey    = SHA256( seed + "\nTASK\n"  + taskId + "\n" + taskSha256 )
+roundStratumKey = SHA256( seed + "\nROUND\n" + decimal(r) + "\n" + stratumCode )
+排序一律為小寫十六進位的字典序遞增
+stratum codes   SC / OP / BC / EI / PS / FR（無別名）
+發射            第 r 輪取每層已排序清單的第 r 題，依該輪的 stratum 順序輸出
+                10 輪 × 6 = 60
 ```
+
+`[DESIGN]` **seed shopping 不只是被禁止,而是結構上不可能** —— 種子是一個
+**在計算時已經存在的 commit** 的純函數,因此只有一個值,沒有可試的東西。
+分隔字串 `CBRP-ORDER-v1` 已預先登記,derivation 無法悄悄換一個字串重跑。
+
+凍結順序:`pool manifest ＋ 60 題 ＋ 審查 ＋ 重複稽核證據 ＋ diversity 報告 → commit/push
+→ 該 commit 即 POOL_FREEZE_COMMIT → 之後才可導出順序`。
+
+```
+study status:  PREREGISTRATION PROCEDURE COMPLETE —— 但 study 仍 NOT PREREGISTERED
+理由：程序已完備到「可貼上的 brief ＋ 逐位元組的排序演算法」，但內容不存在 ——
+      60 題未寫、0 份審查、0 次重複稽核、0 次凍結、0 個 seed
+checklist:     89 項 —— 48 ARCHITECTURE-DECIDED / 12 IMPLEMENTED / 9 VERIFIED
+               / 4 CLOSED-VERIFIED-OFFLINE / 1 IMPL-VERIFIED-OFFLINE
+               / 4 DRAFT / 2 PROPOSED / 9 OPEN
+```
+
+**在 GPT 完成下一次 Architecture Review 之前,不得撰寫任何真實 CBRP 題目。**
 
 `[DESIGN]` 出題與審查程序**降低**以結果為導向的選擇偏誤,**不消除**它。
 CBRP 仍是**平衡的合成參照框架**,不得升級為 production-wide、real-user prevalence
