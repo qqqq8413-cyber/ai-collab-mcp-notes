@@ -120,11 +120,20 @@ provider
 model
 modelFamily
 freshContextConfirmed
-authoringBriefSha256   byte-identical across every authoring session
+authoringBriefSha256   byte-identical across every authoring session — INITIAL and
+                       REPLACEMENT alike; a replacement session is exactly as blind
+                       as an initial one, see CBRP_REPLACEMENT_PROTOCOL_1.md §1
 createdAt
 
-targetStrata           INITIAL: all six ｜ REPLACEMENT: exactly the vacated one
-producedTaskIds        INITIAL: 12 ｜ REPLACEMENT: 1
+targetStrata           all six, for BOTH session types — the author is never told
+                       which stratum (if any) is vacant
+producedTaskIds        12, for BOTH session types — mechanically identical output
+selectedCandidateId    REPLACEMENT only: the one output admitted, chosen by
+                       CBRP-REPLACEMENT-SELECTION-v1; null for INITIAL
+surplusCandidateIds    REPLACEMENT only: the other 11 outputs, disposition
+                       SURPLUS_REPLACEMENT_OUTPUT / PERMANENTLY_INELIGIBLE; null
+                       for INITIAL — see CBRP_REPLACEMENT_PROTOCOL_1.md §4
+selectionVersion       REPLACEMENT only: CBRP-REPLACEMENT-SELECTION-v1
 replacementOf          the rejected task's id, or null for INITIAL
 replacementGeneration  0 for INITIAL; 1, 2, … for successive replacements of one slot
 rejectedPredecessorBy  STRUCTURAL_REVIEW | CORPUS_DUPLICATE | null
@@ -141,6 +150,13 @@ something untrue about how the pool was produced.
 gate rejected the predecessor, and `rejectedPredecessorBy` records which gate it was. A
 replacement rejected by structural review never reaches a duplicate auditor, so the two
 gates produce different downstream evidence and must stay distinguishable.
+
+`[DECISION]` **`targetStrata` and `producedTaskIds` were wrong for REPLACEMENT sessions
+in earlier drafts of this schema** — a replacement session does not target one stratum or
+produce one task; it is exactly as blind and mechanically identical as an initial session,
+and only the *operator*, deterministically and after the fact, admits one of its twelve
+outputs (`CBRP_REPLACEMENT_PROTOCOL_1.md`, frozen in CWP-10F). The four new fields above
+record that admission without pretending the session itself was ever narrowed.
 
 ### 2.2 Family allocation, frozen before authoring
 

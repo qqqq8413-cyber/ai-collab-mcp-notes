@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  942367178b54a7e16b67c114798bc8c943a5d1d6（CWP-10E execution base）
+stateVerifiedThrough  5d7d64888156bf93b3033ab72be17b87cb68a8d5（CWP-10F execution base）
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -1139,6 +1139,60 @@ status:  60 PROTOCOL-2.1 PROVISIONAL / UNREVIEWED CANDIDATES
 **CWP-10E 完成後 STOP。不得執行結構審查、重複稽核、replacement session、
 diversity admission、pool freeze、ordering、Chief planning 或 Census,
 須先回到 GPT Architecture Review。**
+
+### CWP-10F —— CBRP-REPLACEMENT-PROTOCOL-1（content-blind，方法學已凍結）
+
+`[ARCHITECTURE-DECIDED]` 補上一個真實缺口:既有方法學同時說「replacement 用同一份
+brief」與「brief 要求每個 session 交 12 題、每層 2 題」,卻從未定義那 12 題裡
+哪一題真正填補空缺、其餘 11 題怎麼處理。**本輪撰寫時完全未檢視 60 題的實際文字**,
+只使用 metadata(session id、block id、stratum code)——程序須對任何未來的審查結果
+都一視同仁地運作。
+
+```
+protocol    CBRP-REPLACEMENT-PROTOCOL-1
+selection   CBRP-REPLACEMENT-SELECTION-v1
+文件        experiments/m2b/census/CBRP_REPLACEMENT_PROTOCOL_1.md
+實作與測試  experiments/m2b/census/replacement-protocol/
+            replacement-selection-v1.mjs ｜ test-replacement-selection-v1.mjs
+            16/16 synthetic tests passed，全部合成資料，套件內自我斷言不含真實候選文字
+```
+
+`[DECISION]` **「targets only the vacant slot」不代表作者被告知空缺。** replacement
+session 與 initial session 一樣盲、一樣交 12 題、每層 2 題——**operator** 才是縮小
+範圍的一方,規則在任何人看候選文字之前就已固定:
+
+```
+selection rule   在宣告 stratum = 空缺層的兩題中,取 indexInResponse 較小者
+                （= response order 裡第一個目標層候選）
+                無語意比較、無品質判斷、無審查者選擇、無 operator 裁量
+surplus          其餘 11 題（含同層第二題）→ SURPLUS_REPLACEMENT_OUTPUT /
+                PERMANENTLY_INELIGIBLE，保留為證據，永不得審查、遞補、回收
+same-session     被選中的 replacement 若之後結構審查失敗，**不得**遞補同一 session
+fallback         剩下的候選——必須開一個全新 replacement session，走全新授權
+FORBIDDEN
+```
+
+```
+session id 分配  該批次全部空缺先確定，依 (authorBlockId, replacementOf) 字典序排序，
+                block 內依序分配下一個未用的 RNN 序號（延續該 block 歷來已用的序號）
+replacementGeneration 與 session ordinal 互相獨立：前者計「這個 slot 被補過幾次」，
+                後者計「這個 block 派過幾個 replacement session」，兩者無需相等
+```
+
+`[FACT]` **這次修訂連帶抓到既有 `CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md` §2 的一個
+既存錯誤**:該表原本寫著 replacement session 的 `targetStrata` 是「僅空缺那一層」、
+`producedTaskIds` 是「1」——兩者都與凍結中的 Protocol 2.1／CWP-10E 執行事實矛盾
+（replacement session 機械上與 initial session 完全相同,交 12 題、六層都有）。
+已一併更正,新增 `selectedCandidateId`、`surplusCandidateIds`、`selectionVersion` 三欄。
+
+```
+CBRP-REPLACEMENT-PROTOCOL-1   FROZEN / OFFLINE VERIFIED / NOT EXECUTED
+real replacement sessions     0        selected replacement candidates   0
+structural reviews            0        provider calls                    0
+```
+
+**尚無任何空缺存在——60 題 Protocol-2.1 candidate 尚未經過結構審查。
+本協定治理的是「第一次真的有空缺時該怎麼做」,不早於此。**
 
 ### 目前的 M2-B 狀態（不得混淆 acquisition 與 effectiveness)
 

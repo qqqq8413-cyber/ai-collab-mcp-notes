@@ -478,10 +478,20 @@ discarded and replaced. The replacement:
 is generated in a NEW fresh context
 uses the same frozen authoring brief
 uses the same predeclared model family as that author BLOCK
-targets only the vacant stratum slot
+mechanically produces the same 12 scenarios / 2-per-stratum output as any session
 receives normal R1 / R2 structural review, and R3 if they disagree
 enters the NEXT corpus duplicate audit round, if it passes structural review
 ```
+
+`[DECISION]` **"Targets only the vacant slot" does not mean the author is told the slot.**
+The session stays exactly as blind as an initial one — same brief, same twelve-scenario
+output, no vacancy information of any kind (frozen in
+[`CBRP_REPLACEMENT_PROTOCOL_1.md`](CBRP_REPLACEMENT_PROTOCOL_1.md) §1). It means the
+**operator** deterministically admits only the first response-order candidate whose
+declared stratum matches the vacant slot — `CBRP-REPLACEMENT-SELECTION-v1`, no semantic
+comparison, no quality judgement, no discretion — and permanently disposes of the other
+eleven outputs. Full selection rule, surplus disposition, session-id allocation and
+lineage fields: `CBRP_REPLACEMENT_PROTOCOL_1.md`.
 
 #### 7.1.1 Vacancies are filled as a batch, and the batch closes before the next audit
 

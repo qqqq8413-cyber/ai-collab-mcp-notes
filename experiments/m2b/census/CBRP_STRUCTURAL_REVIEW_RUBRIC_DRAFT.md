@@ -185,9 +185,12 @@ R1 and R2 disagree         → R3, fresh and blinded; majority of three is final
 ```
 
 A rejected task is discarded before the freeze and replaced from a **fresh replacement
-session in the same author block**, targeting only the vacated stratum slot and using the
-same frozen brief and the same predeclared model family. **A rejected task may never
-re-enter the pool**, and its rejection lineage is preserved in the freeze manifest.
+session in the same author block**, using the same frozen brief and the same predeclared
+model family — a session as blind as any initial one, producing the same 12-scenario
+output. The operator, not the author, then deterministically admits only the first
+response-order candidate declaring the vacated stratum
+(`CBRP-REPLACEMENT-SELECTION-v1`, `CBRP_REPLACEMENT_PROTOCOL_1.md`). **A rejected task may
+never re-enter the pool**, and its rejection lineage is preserved in the freeze manifest.
 
 Structural review is one of **two** pre-freeze gates. The other is the corpus duplicate
 audit, which runs after all sixty have passed here.

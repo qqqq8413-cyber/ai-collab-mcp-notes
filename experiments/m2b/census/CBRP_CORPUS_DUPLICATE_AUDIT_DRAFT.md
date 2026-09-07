@@ -123,7 +123,10 @@ defined behaviour.
 3  retention rule applied                                        → rejections
 4  ALL vacancies determined FIRST, as one batch
 5  the whole batch is authored: same author block, same predeclared model family,
-   a NEW fresh replacement session per task, targeting only the vacated stratum slot
+   a NEW fresh replacement session per task — same blind brief, same 12-scenario
+   output; the operator deterministically admits only the first response-order
+   candidate declaring the vacated stratum (`CBRP-REPLACEMENT-SELECTION-v1`,
+   `CBRP_REPLACEMENT_PROTOCOL_1.md`), never the author
 6  every replacement receives normal R1 / R2 structural review, R3 on disagreement
 7  a replacement that FAILS structural review is itself replaced and re-reviewed,
    until every vacated slot holds a structurally-passing task

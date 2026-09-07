@@ -12,7 +12,8 @@ STATUS:  DRAFT
 > [`CBRP_AUTHORING_AND_REVIEW_DRAFT.md`](CBRP_AUTHORING_AND_REVIEW_DRAFT.md),
 > [`CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`](CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md),
 > [`CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md`](CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md),
-> [`CBRP_MODEL_PINS_PREREG_DRAFT.md`](CBRP_MODEL_PINS_PREREG_DRAFT.md).
+> [`CBRP_MODEL_PINS_PREREG_DRAFT.md`](CBRP_MODEL_PINS_PREREG_DRAFT.md),
+> [`CBRP_REPLACEMENT_PROTOCOL_1.md`](CBRP_REPLACEMENT_PROTOCOL_1.md).
 >
 > Status vocabulary, strictly:
 >
@@ -99,6 +100,11 @@ STATUS:  DRAFT
 | D-8 | Corpus duplicate audit procedure | **ARCHITECTURE-DECIDED** | `CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`; runs after all 60 pass per-task review, before freeze; stratum labels withheld; two fresh blinded auditors per round, third on a disputed pair |
 | D-9 | Duplicate retention rule | **ARCHITECTURE-DECIDED** | One rule, every round: a component containing incumbents keeps all of them and rejects every replacement in it; a component of replacements only keeps the lexicographically smallest candidate ID. Round 0 has no incumbents, so it reduces to the lexicographic rule. Outcome-blind and deterministic |
 | D-10 | Replacement provenance truthfulness | **ARCHITECTURE-DECIDED** | `authorBlockId` separated from `actualAuthorSessionId`; a replacement is never recorded as the original session |
+| D-30 | Replacement slot-selection mechanism | **ARCHITECTURE-DECIDED / FROZEN** | `CBRP-REPLACEMENT-PROTOCOL-1`, `CBRP-REPLACEMENT-SELECTION-v1`. Closes a real gap: the brief demands 12 scenarios per session, never one, so "targets only the vacant slot" needed an operator-side rule. Author sees nothing about the vacancy; the operator admits only the first response-order candidate declaring the vacant stratum — no semantic comparison, fails closed on any mechanical irregularity |
+| D-31 | Surplus replacement output disposition | **ARCHITECTURE-DECIDED / FROZEN** | The other 11 outputs of a replacement session, including the second same-stratum candidate, are `SURPLUS_REPLACEMENT_OUTPUT / PERMANENTLY_INELIGIBLE` — preserved as evidence, never reviewed, reused, or recycled into a later generation |
+| D-32 | No same-session fallback on rejection | **ARCHITECTURE-DECIDED / FROZEN** | If the selected replacement later fails structural review, its session's surplus is never promoted. A fresh vacancy is authored under a new, separately authorized replacement batch — admission must not become a search through one response's outputs |
+| D-33 | Replacement session-id allocation | **ARCHITECTURE-DECIDED / FROZEN** | All vacancies in a batch known before dispatch; sorted by `(authorBlockId, replacementOf)` ascending, ordinals allocated per block continuing from that block's highest used ordinal. `replacementGeneration` (per slot) is independent of the session ordinal (per block) |
+| D-34 | Reviewer blindness to replacement status | **ARCHITECTURE-DECIDED** | A structural reviewer never receives scanner output, rejection history, surplus information, why a task is a replacement, predecessor text, prior reviewer output, or `replacementGeneration` |
 | D-11 | Author model **family** allocation | **ARCHITECTURE-DECIDED** | B01/B03/B05 → CLAUDE_FAMILY, B02/B04 → GEMINI_FAMILY. The 3:2 split is forced by five blocks and two families; every stratum still receives 6 CLAUDE and 4 GEMINI, so family stays orthogonal to stratum |
 | D-12 | Corpus duplicate audit **execution** | **OPEN** | 0 rounds run |
 | D-13 | Incremental duplicate audit rule | **ARCHITECTURE-DECIDED** | DUP-R00 full (1770 pairs); DUP-R01+ scoped to pairs touching that round's replacements. Old–old re-audit **forbidden**. Invariant: every surviving pair is screened by exactly **one** completed round. Accepted cost: a round-0 false negative is permanent |
@@ -242,10 +248,10 @@ read any of 03–06 as implemented; they are not.**
 ## J. Readiness summary
 
 ```
-108 checklist items
+113 checklist items
 
-ARCHITECTURE-DECIDED                                              63
-ARCHITECTURE-DECIDED / FROZEN                                      2
+ARCHITECTURE-DECIDED                                              64
+ARCHITECTURE-DECIDED / FROZEN                                      6
 ARCHITECTURE-DECIDED / FROZEN / ACQUISITION COMPLETE               1
 PROPOSED                                                           2
 OPEN                                                               7
