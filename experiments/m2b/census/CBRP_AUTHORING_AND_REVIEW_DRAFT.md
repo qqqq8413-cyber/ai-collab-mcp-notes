@@ -657,16 +657,21 @@ derivation cannot be quietly re-run with a different separator.
 ## 10. What this document is not
 
 ```
-12/60 v2 provisional candidates   0 reviews run       0 duplicate audits run
+12/60 Protocol-2 candidates       0 reviews run       0 duplicate audits run
+   preserved, 0 carried forward
 2 v2 authoring sessions attempted 0 pools frozen      0 seeds derived
 2 v2 provider calls               0 tasks admitted
+Protocol 2.1 extractor FROZEN     0 Protocol-2.1 provider calls
 ```
 
-Procedure is now decided. CWP-10B stopped the v2 acquisition at B02 after preserving 12
-mechanically extractable B01 candidates. This partial content is provisional, unreviewed
-and not admissible. The study is a **PREREGISTRATION CANDIDATE**, not preregistered: no
-task pool exists, no review has run, no freeze has occurred, and no ordering seed has been
-materialized.
+Procedure is now decided. CWP-10B stopped the `CBRP-AUTHORING-V2-ROUND-0` acquisition at
+B02 after preserving 12 mechanically extractable B01 candidates under Protocol 2. That
+partial content is provisional, unreviewed and not admissible. CWP-10C froze
+`CBRP-AUTHORING-PROTOCOL-2.1` (`CBRP_AUTHORING_PROTOCOL_2.md` §9), a deterministic
+wrapper-extraction amendment prompted by that exact failure; the twelve B01 records are
+**not** carried forward into any run under 2.1. The study is a **PREREGISTRATION
+CANDIDATE**, not preregistered: no task pool exists, no review has run, no freeze has
+occurred, and no ordering seed has been materialized.
 
 `[DESIGN]` The author and reviewer procedures **reduce outcome-targeted selection bias.
 They do not eliminate it.** CBRP remains a balanced synthetic reference frame, and no

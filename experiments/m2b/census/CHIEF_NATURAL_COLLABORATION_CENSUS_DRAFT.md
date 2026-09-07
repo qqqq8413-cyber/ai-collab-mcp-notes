@@ -774,7 +774,8 @@ PREREGISTRATION PROCEDURE COMPLETE — study NOT PREREGISTERED
 
 not protocol 0.4    not an effectiveness study
 does not change F1-F7 ｜ Chief ｜ P03 evidence ｜ M-ACQ-01 status
-authoring v2 INCOMPLETE at B02 ｜ 12/60 provisional candidates ｜ 0 admitted
+CBRP-AUTHORING-V2-ROUND-0 (Protocol 2) INCOMPLETE at B02 ｜ 12/60 candidates ｜ 0 admitted
+Protocol 2.1 wrapper-extraction amendment FROZEN, NOT EXECUTED ｜ 0 candidates carried forward
 0 reviews run ｜ 0 pools frozen ｜ 0 seeds ｜ 2 authoring-v2 provider calls
 ```
 
@@ -782,11 +783,15 @@ authoring v2 INCOMPLETE at B02 ｜ 12/60 provisional candidates ｜ 0 admitted
 estimand, the decision rule, the execution infrastructure, and the authoring, review,
 duplicate-audit, invalid-task and ordering procedures are all decided and written down to
 the level of pasteable briefs and a byte-exact ordering algorithm. CWP-10B attempted the
-v2 acquisition, but a malformed B02 response triggered the frozen run-level STOP after two
-calls. Twelve B01 candidates were mechanically extracted; they are partial, unreviewed and
-not admissible. The required sixty-task content, review record, duplicate audit, frozen
-pool, and ordering seed therefore do not exist. Preregistration is the point at which all
-of that is fixed and committed.
+v2 acquisition under `CBRP-AUTHORING-PROTOCOL-2`, but a response the frozen extractor
+could not recognize triggered the run-level STOP after two calls. Twelve B01 candidates
+were mechanically extracted; they are partial, unreviewed, not admissible, and — per
+CWP-10C — not carried forward into any renewed run. CWP-10C froze
+`CBRP-AUTHORING-PROTOCOL-2.1`, a deterministic wrapper-recognition amendment for exactly
+the shape that stopped B02, under a new run identity that cannot collide with the closed
+one. The required sixty-task content, review record, duplicate audit, frozen pool, and
+ordering seed therefore still do not exist. Preregistration is the point at which all of
+that is fixed and committed.
 
 **No further authoring, repair, replacement, review or audit may run until GPT performs
 the next Architecture Review.**

@@ -1,13 +1,15 @@
 # CBRP Authoring Protocol v2 — FROZEN METHODOLOGY
 
 ```
-PROTOCOL:        CBRP-AUTHORING-PROTOCOL-2
-BRIEF:           CBRP-AUTHORING-BRIEF-2
-BRIEF SHA-256:   a9da93fd5d4dd059c0faebdf3e29713abe2035191af5aac26a5b73eb17842336
-BRIEF BYTES:     8114
+PROTOCOL:          CBRP-AUTHORING-PROTOCOL-2   +  2.1 extraction amendment
+EXTRACTOR:         CBRP-AUTHOR-EXTRACTOR-2.1
+BRIEF:             CBRP-AUTHORING-BRIEF-2  (UNCHANGED by 2.1)
+BRIEF SHA-256:     a9da93fd5d4dd059c0faebdf3e29713abe2035191af5aac26a5b73eb17842336
+BRIEF BYTES:       8114
 
-STATUS:  METHODOLOGY FROZEN ｜ ACQUISITION INCOMPLETE
-RUNS 1 INCOMPLETE ｜ V2 CANDIDATES 12/60 PROVISIONAL ｜ REVIEWS 0 ｜ CHIEF CALLS 0
+STATUS:  CBRP-AUTHORING-V2-ROUND-0 (Protocol 2) INCOMPLETE / CLOSED, 2 calls, 12 candidates
+         Protocol 2.1 extractor METHODOLOGY FROZEN ｜ NOT EXECUTED ｜ NOT AUTHORIZED
+RUNS UNDER 2.1: 0 ｜ TASKS AUTHORED UNDER 2.1: 0 ｜ REVIEWS 0 ｜ CHIEF CALLS 0
 ```
 
 > Prospective amendment motivated by **M-CBRP-AUTH-01**. It does not modify, rehabilitate
@@ -249,12 +251,189 @@ M-CBRP-AUTH-01   CLOSED AT METHODOLOGY AMENDMENT LEVEL
                  v1 failure preserved ｜ v2 semantic distinction frozen
                  the v1 failure is NOT repaired, and is not describable as repaired
 
+M-CBRP-AUTH-02   CLOSED AT METHODOLOGY AMENDMENT LEVEL — see §9
+                 CBRP-AUTHORING-V2-ROUND-0 preserved exactly as it executed
+                 the Protocol-2 STOP at B02 is NOT retroactively reopened
+
 Authoring v1     FAILED-CLOSED, historical only
-Authoring v2     INCOMPLETE — stopped at B02 after 2 provider calls
+Authoring v2 (Protocol 2)     INCOMPLETE / CLOSED — stopped at B02 after 2 provider calls
+Authoring v2.1 (Protocol 2.1) METHODOLOGY FROZEN, NOT EXECUTED
 tasks admitted   0        study  NOT PREREGISTERED
 ```
 
-CWP-10B authorized `CBRP-AUTHORING-V2-ROUND-0`. B01 yielded 12 mechanically extractable
-provisional candidates; B02 malformed output triggered the frozen run-level STOP. B03-B05
-were not called. The 12 records are unreviewed and not admissible. Any continuation or
-downstream execution requires a new GPT Architecture decision and authorization.
+`CBRP-AUTHORING-V2-ROUND-0` under Protocol 2 is **closed exactly as it executed**: B01
+yielded 12 mechanically extractable provisional candidates; B02's response triggered the
+frozen run-level STOP under the extractor rule in force at the time; B03-B05 were not
+called. The 12 records remain unreviewed, not admissible, and are **not carried forward**
+into any run under 2.1 — see §9.4. A renewed acquisition requires its own GPT Architecture
+authorization under a new run identity (§9.3).
+
+---
+
+## 9. Protocol 2.1 — deterministic wrapper normalization amendment
+
+`[ARCHITECTURE-DECIDED]` This is an **extraction/representation amendment only.** It
+changes how much of an author response is recognized as markdown-fence wrapping around a
+JSON array. It changes nothing about `CBRP-AUTHORING-BRIEF-2`, nothing about model pins,
+nothing about author block design, and nothing semantic — the brief's paste-section bytes
+and hash are unchanged, still `a9da93fd…`.
+
+### 9.1 Method lesson — M-CBRP-AUTH-02
+
+```
+[FACT]      AUTHOR2-B02-S00 returned a syntactically complete JSON array followed only
+            by an isolated Markdown closing-fence line — no opening fence, no prose.
+[FACT]      Protocol 2's extractor recognized plain JSON and a COMPLETE outer fence
+            (opening fence + array + closing fence), but did not recognize a complete
+            array followed by a lone trailing fence with no matching opener.
+[DECISION]  CWP-10B remains failed/incomplete exactly as executed. No retrospective
+            extraction, no retroactive admission of B02, no reopening of that STOP.
+```
+
+`[DESIGN]` This is the same shape of error as M-CBRP-AUTH-01, one layer down: v1 conflated
+a lexical property with a semantic one and failed a scenario for a word it merely
+contained; Protocol 2's extractor conflated "not our recognized wrapper" with "malformed,"
+when the response was in fact a syntactically complete array wearing an extra, harmless
+trailing artifact. Both errors are corrected **prospectively, not retroactively** — that
+consistency is the point, not a coincidence.
+
+### 9.2 The three accepted representations
+
+```
+CASE A  PLAIN_JSON             trimmed(raw) is itself one JSON array, nothing else.
+CASE B  COMPLETE_OUTER_FENCE   one opening fence line, one JSON array, one closing
+                                fence line, and nothing else (unchanged from Protocol 2).
+CASE C  ORPHAN_TRAILING_FENCE  one complete top-level JSON array starting at the first
+                                non-whitespace byte, then nothing but optional
+                                whitespace and exactly one bare closing-fence line.
+```
+
+Case C is recognized only when **all** of the following hold; failing any one produces
+`STOP_MALFORMED_RESPONSE`, exactly as before:
+
+```
+1. the first non-whitespace character is `[`
+2. a complete top-level JSON array can be determined without editing its bytes
+3. the array itself parses successfully
+4. after the array's closing `]`, remaining content is only whitespace, one
+   Markdown closing-fence line, and more whitespace
+5. that fence line is exactly three backticks with no language tag
+6. there is no prefix prose
+7. there is no suffix prose
+8. there is no second fence
+9. there is no second JSON value
+```
+
+`[DESIGN]` Conditions 4, 5, 7, 8 and 9 reduce to one check in the reference
+implementation: take everything after the array's matching closing bracket, trim
+whitespace, and require the result to equal the three-backtick fence exactly. A second
+fence, a second JSON value, a language tag, or trailing prose would each leave extra
+non-whitespace bytes behind and fail that equality — so the single check enforces all
+five conditions at once, and cannot be satisfied by anything this amendment intends to
+forbid.
+
+**Still forbidden, in every representation** — this is a wrapper-recognition amendment,
+never a repair tool:
+
+```
+searching arbitrary prose for a JSON substring      removing explanatory text
+repairing malformed JSON                            adding or removing commas
+fixing quotes                                       closing missing brackets
+guessing truncation                                 merging multiple JSON blocks
+selecting one of several candidate arrays           removing arbitrary suffixes
+semantic rewriting
+```
+
+### 9.2.1 Reference implementation
+
+```
+extractor         CBRP-AUTHOR-EXTRACTOR-2.1
+module            experiments/m2b/census/extractor-2.1/cbrp-author-extractor.mjs
+tests             experiments/m2b/census/extractor-2.1/test-extractor.mjs  (23/23 passing)
+returns            representationDetected, normalizedJsonBytes, originalRawSha256,
+                   normalizedJsonSha256 — at minimum, per this amendment's requirement
+```
+
+`[FACT]` Every test fixture is **synthetic**. None is drawn from `AUTHOR2-B02-S00`; the
+suite asserts this of itself (`no fixture in this file matches AUTHOR2-B02-S00 raw
+bytes`). Historical B02 evidence is cited here descriptively only.
+
+`[FACT]` Run once, offline, against the preserved historical evidence as an independent
+**verification** step — not as a test fixture and not as an admission decision — the 2.1
+extractor recognizes `AUTHOR2-B02-S00`'s raw bytes (sha256 `83f6283c…`, matching
+`SESSIONS.json`'s recorded `rawResponseSha256`) as `ORPHAN_TRAILING_FENCE` and would
+normalize it to a parseable 12-element array across all six strata. This is offered as
+evidence that the amendment targets the actual defect, precisely worded as **evidence,
+not disposition**: §9.4 governs what happens to that content, and this fact does not
+change it.
+
+### 9.3 New run identity — nothing collides with Protocol 2 or v1
+
+```
+[ARCHITECTURE-DECIDED]
+
+run id            CBRP-AUTHORING-V2P1-ROUND-0
+author blocks     AUTHOR21-B01 … AUTHOR21-B05
+initial sessions  AUTHOR21-B01-S00 … AUTHOR21-B05-S00
+replacements      AUTHOR21-B01-R01 …
+candidate ids     V21-B01-S00-SC-01 …
+```
+
+`AUTHOR2-*` and `V2-*` already denote **CBRP-AUTHORING-V2-ROUND-0** under Protocol 2 and
+are never reused. All three namespaces — v1, Protocol 2, Protocol 2.1 — stay separable by
+inspection.
+
+### 9.4 CWP-10B candidates are not carried forward
+
+`[ARCHITECTURE-DECIDED]` **Zero candidates carry forward from `CBRP-AUTHORING-V2-ROUND-0`
+into any run under Protocol 2.1** — including B01's twelve, which satisfied both the old
+and the new extraction rule.
+
+```
+B01's 12 valid candidates   historical PARTIAL-ACQUISITION evidence only
+B02 raw output              historical STOP evidence only
+```
+
+Neither may be used as: a future candidate, a replacement, a few-shot example, seed
+material, a test fixture, or an authoring example.
+
+`[DESIGN]` **This is a provenance choice, not a quality judgement.** B01's content was not
+defective under either rule. But `CBRP-AUTHORING-V2-ROUND-0` was one sequential
+acquisition governed by Protocol 2 end to end, and it terminated at its run-level STOP. A
+renewed acquisition under Protocol 2.1 must be **homogeneous** — every one of its sixty
+candidates produced under the same extraction rule, in the same run — so there is no
+mixed-protocol pool whose manifest would have to explain which candidates were screened
+by which version of the wrapper grammar. That is the identical reasoning CWP-9B applied to
+v1: not carried forward because of a defect in the content, but because a clean
+provenance boundary is worth more than reusing twelve already-valid records.
+
+### 9.5 STOP conditions, unchanged except representation
+
+Every other Protocol 2 STOP condition is unchanged:
+
+```
+provider / transport failure          pin mismatch
+prompt-byte mismatch                  non-fresh context
+JSON parse failure after permitted    wrong scenario count
+    wrapper normalization
+invalid declared labels               wrong per-stratum count
+unexpected second provider attempt    evidence-preservation failure
+```
+
+`[DECISION]` **No semantic admission judgement moves into authoring.** Recognizing one
+more wrapper shape is still a mechanical question about bytes; `noSpecialistSteering`,
+realism, self-containment and stratum correctness beyond declared-label mechanics remain
+exclusively structural review's, unchanged from §3 and §4.
+
+### 9.6 Status
+
+```
+M-CBRP-AUTH-02              CLOSED AT METHODOLOGY AMENDMENT LEVEL
+CBRP-AUTHORING-V2-ROUND-0   INCOMPLETE / CLOSED, 2 calls, 12 candidates, 0 carried forward
+Protocol 2.1 extractor      FROZEN, verified against synthetic tests (23/23) and, only as
+                            a descriptive check, against historical B02 bytes
+CBRP-AUTHORING-V2P1-ROUND-0 NOT AUTHORIZED, NOT RUN
+```
+
+No provider call was made to produce this section. Execution of
+`CBRP-AUTHORING-V2P1-ROUND-0` requires a separate GPT Architecture authorization.

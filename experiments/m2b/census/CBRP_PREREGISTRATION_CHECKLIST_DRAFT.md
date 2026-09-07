@@ -80,6 +80,7 @@ STATUS:  DRAFT
 | C-7 | Duplicate handling | **ARCHITECTURE-DECIDED** | Removed from per-task review — one reviewer sees one task. Corpus audit over all 60 texts: 2 blinded auditors, 3rd on a disputed pair, retention by lexicographically smallest candidate ID |
 | C-8 | **The 60 tasks themselves** | **v1 FAILED CLOSED / v2 INCOMPLETE** | **0 admitted.** v1 produced 60 barred failed-acquisition candidates. CWP-10B attempted v2: B01 produced 12 mechanically extractable provisional candidates; B02 malformed output triggered the run-level STOP after the second call; B03-B05 were not called. The 12/60 v2 records are **unreviewed and not admissible**. No retry, repair or replacement ran |
 | C-10 | Authoring v2 methodology amendment and re-freeze | **ARCHITECTURE-DECIDED / FROZEN** | `CBRP-AUTHORING-PROTOCOL-2`; brief `CBRP-AUTHORING-BRIEF-2`, sha256 `a9da93fd…`, 8114 bytes. Exactly one rule changed (§2.7): the lexical word-ban becomes a semantic answer-production-steering rule. New run id, session and candidate namespaces; nothing from v1 carried forward. Method frozen; acquisition attempted and stopped incomplete under CWP-10B |
+| C-11 | Authoring v2.1 extraction amendment and re-run | **ARCHITECTURE-DECIDED / FROZEN** | `CBRP-AUTHORING-PROTOCOL-2.1` (D-29); a new run identity `CBRP-AUTHORING-V2P1-ROUND-0` with `AUTHOR21-*` sessions and `V21-*` candidate ids, none colliding with v1 or Protocol 2. B01's 12 valid Protocol-2 candidates are **not** carried forward — homogeneous-provenance choice, not a quality judgement. Method frozen; acquisition **not authorized** |
 | C-9 | Difficulty varies within every stratum | **ARCHITECTURE-DECIDED** | "Ordinary" is not a stratum |
 
 ---
@@ -115,6 +116,7 @@ STATUS:  DRAFT
 | D-25 | Model-pin provenance recorded per session | **DRAFT** | `modelPinVersion`, `providerRequested`, `modelRequested`, `providerResolved`, `modelResolved`, `modelFamily`; D3 sessions also store selector bytes and digest. Observable mismatch ⇒ STOP, output not admitted, no retry. **Resolved identity is often unobservable in a paste-based session** — then it is an attestation, not a verified fact |
 | D-27 | Authoring-run STOP scope | **ARCHITECTURE-DECIDED** | v2 freezes authoring-run STOPs as **mechanical and transport only**. Forbidden literal, semantic leakage, `noSpecialistSteering`, realism, self-containment and stratum correctness are explicitly **not** run-level STOPs — a run-level STOP answers a per-scenario question at the wrong granularity, which is exactly how v1 lost sixty candidates over two words |
 | D-28 | Literal scans and reviewer blindness | **ARCHITECTURE-DECIDED** | Literal/token scans are **descriptive audit evidence only**; a lexical hit alone has no protocol disposition. Scanner verdicts, flags and hit counts **never reach a structural reviewer** — a flagged reviewer answers "do you agree with the scanner?", a different and easier question than the rubric's |
+| D-29 | Deterministic wrapper extraction (Protocol 2.1) | **ARCHITECTURE-DECIDED / FROZEN** | `CBRP-AUTHOR-EXTRACTOR-2.1`. Three accepted representations — plain JSON, a complete outer fence, or one complete array followed only by an orphan trailing fence. Prompted by M-CBRP-AUTH-02: `AUTHOR2-B02-S00` was a syntactically complete array with a lone trailing fence, which Protocol 2's extractor could not recognize. Repair, prose-stripping and multi-value merging remain forbidden in every representation. Reference implementation and 23 synthetic tests: `experiments/m2b/census/extractor-2.1/` |
 | D-26 | One canonical model table | **ARCHITECTURE-DECIDED** | `CBRP_MODEL_PINS_PREREG_DRAFT.md` holds every exact model string; other documents reference it by version. A table copied into six files disagrees with itself by the third edit. Where a string is quoted for readability (D-20, D-21 above, Authoring §6.2, `CURRENT_STATE.md`), **the pin table governs on any discrepancy** |
 
 ---
@@ -240,10 +242,10 @@ read any of 03–06 as implemented; they are not.**
 ## J. Readiness summary
 
 ```
-106 checklist items
+108 checklist items
 
 ARCHITECTURE-DECIDED             63
-ARCHITECTURE-DECIDED / FROZEN     1
+ARCHITECTURE-DECIDED / FROZEN     3
 PROPOSED                          2
 OPEN                              7
 DRAFT                             6
@@ -251,7 +253,7 @@ IMPLEMENTED                      12
 IMPLEMENTED / VERIFIED OFFLINE    1
 CLOSED / VERIFIED OFFLINE         4
 VERIFIED                          9
-ATTEMPTED / INCOMPLETE            1
+v1 FAILED CLOSED / v2 INCOMPLETE  1
 ```
 
 **AUTHORING v2 METHODOLOGY FROZEN, ACQUISITION INCOMPLETE — study NOT PREREGISTERED.** Method,

@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  08cd0200ecbd4642dd394e8377362ce18a23566a（CWP-10B execution base）
+stateVerifiedThrough  09f1b4bb929dfbc063c774c022b8f4cc0ac84503（CWP-10C execution base）
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -970,7 +970,7 @@ partial evidence                  12/60 ｜ UNREVIEWED ｜ NOT ADMISSIBLE
 B02 原始輸出在有效 JSON array 後另有孤立 closing fence，不能依只允許「移除單一外層
 Markdown JSON fence」的規則確定性抽取。原始證據已保存；未 repair、未 retry、未 replacement。
 後續 structural review、duplicate audit、replacement、pool freeze、ordering、Chief 與 Census
-均未執行，須回到 GPT Architecture 決定下一步。
+均未執行，須回到 GPT Architecture 決定下一步。**該缺口已在 CWP-10C 修訂（見下節）。**
 
 `[DESIGN]` 出題與審查程序**降低**以結果為導向的選擇偏誤,**不消除**它。
 CBRP 仍是**平衡的合成參照框架**,不得升級為 production-wide、real-user prevalence
@@ -978,12 +978,99 @@ CBRP 仍是**平衡的合成參照框架**,不得升級為 production-wide、rea
 
 ```
 study status              NOT PREREGISTERED ｜ CWP-10B CONSUMED / STOPPED
+                          ｜ Protocol 2.1 extractor FROZEN via CWP-10C
 planning-only harness     PARTIAL（未實作；runPlanningStage() 抽取僅為概念，未授權）
-task pool                 不存在 —— 12/60 v2 provisional candidates，0 admitted
-provider calls            authoring v2 = 2（B01、B02；B03-B05 not called）
+task pool                 不存在 —— 12/60 v2 provisional candidates（Protocol 2，0 carried forward）
+provider calls            authoring v2 = 2（B01、B02；B03-B05 not called）；v2.1 = 0
 M-ACQ-01                  仍 OPEN —— CBRP 只刻畫 balanced-reference precursor rate，
                           不會單憑自身確立 production telemetry prevalence
 ```
+
+### CWP-10C —— CBRP-AUTHORING-PROTOCOL-2.1（deterministic wrapper normalization）
+
+`[ARCHITECTURE-DECIDED]` **純抽取／表示層修訂,brief 位元組完全未動。**
+
+```
+protocol           CBRP-AUTHORING-PROTOCOL-2  +  2.1 extraction amendment
+extractor          CBRP-AUTHOR-EXTRACTOR-2.1
+brief              CBRP-AUTHORING-BRIEF-2（未變更）
+brief sha256       a9da93fd5d4dd059c0faebdf3e29713abe2035191af5aac26a5b73eb17842336（不變）
+文件               experiments/m2b/census/CBRP_AUTHORING_PROTOCOL_2.md §9（新增）
+實作與測試         experiments/m2b/census/extractor-2.1/
+                   cbrp-author-extractor.mjs ｜ test-extractor.mjs（23/23 passed，全合成資料）
+```
+
+### M-CBRP-AUTH-02 —— deterministic wrapper normalization 太窄（METHOD LESSON）
+
+```
+[FACT]      AUTHOR2-B02-S00 回傳一個語法完整的 JSON array，後面只跟一行孤立的
+            Markdown closing fence —— 無開頭 fence、無散文
+[FACT]      Protocol 2 的抽取器只認得純 JSON 或「完整的外層 fence」（開頭 fence ＋
+            array ＋ 結尾 fence），認不出「完整 array ＋ 孤立結尾 fence、無對應開頭」
+[DECISION]  CWP-10B 依其實際執行結果維持 failed/incomplete。不追溯抽取、
+            不追溯放行 B02、不重開該次 STOP
+```
+
+`[DESIGN]` 這與 M-CBRP-AUTH-01 是**同一種缺陷,低一層**:v1 把字面性質誤當語意性質、
+因一個詞就判否一整題;Protocol 2 的抽取器把「不是我認得的包裝」誤當「malformed」,
+而該回應其實是一個語法完整的 array,只是多帶了一個無害的結尾殘留。兩者都是**前瞻性**
+更正,不回溯 —— 這是一貫做法,不是巧合。
+
+**凍結的三種可接受表示形式:**
+
+```
+CASE A  PLAIN_JSON             整段 trim 後就是一個 JSON array,別無他物
+CASE B  COMPLETE_OUTER_FENCE   一行開頭 fence ＋ array ＋ 一行結尾 fence（Protocol 2 原規則,未變）
+CASE C  ORPHAN_TRAILING_FENCE  從第一個非空白字元開始是完整的頂層 JSON array，
+                               之後只剩空白與**恰好一行**裸露的結尾 fence（新增）
+```
+
+Case C 的九個條件裡,§4/5/7/8/9 在參考實作中化約為**一個檢查**:取 array 頂層右括號之後
+的全部內容、trim 空白,要求**恰好等於三個反引號**。第二個 fence、第二個 JSON 值、
+language tag 或散文,任何一種都會留下額外的非空白位元組,讓這個等式失敗
+——一個檢查同時強制五個條件,且不可能被本次修訂意圖禁止的任何東西滿足。
+
+**仍然禁止(適用於全部三種表示形式)**:在散文中搜尋 JSON 子字串、移除說明文字、
+修復畸形 JSON、增減逗號、修正引號、補齊缺失括號、猜測截斷、合併多個 JSON 區塊、
+在多個候選 array 中選一個、移除任意後綴、任何語意改寫。
+
+`[FACT]` 測試套件全部使用**合成資料**,並在套件內自我斷言「本檔案不含 B02 原始位元組」。
+歷史 B02 證據僅在方法學文件中**描述性引用**,從未成為定義解析器的測試輸入。
+
+`[FACT]` 離線對照(僅作驗證,非測試輸入、非入池判斷):以此抽取器重跑一次已保存的
+`AUTHOR2-B02-S00` 原始位元組(sha256 `83f6283c…`,與 `SESSIONS.json` 記錄的
+`rawResponseSha256` 相符),辨識為 `ORPHAN_TRAILING_FENCE`,可正規化為 12 個元素、
+涵蓋六層的可解析 array。這證明修訂對準了實際缺陷,但**證據不等於處置** ——
+該內容是否入池由下一條不變式決定。
+
+```
+namespaces（與 v1、Protocol 2 均不衝突）
+  run id            CBRP-AUTHORING-V2P1-ROUND-0
+  blocks            AUTHOR21-B01 … AUTHOR21-B05
+  initial sessions  AUTHOR21-B01-S00 …      replacements  AUTHOR21-B01-R01 …
+  candidate ids     V21-B01-S00-SC-01 …
+model pins          未變更（CBRP-SESSION-MODEL-PINS-1）
+author block design 未變更（5 blocks × 每層 2 題 = 60）
+```
+
+`[ARCHITECTURE-DECIDED]` **`CBRP-AUTHORING-V2-ROUND-0` 的候選題,一題都不帶入 2.1** ——
+包含 B01 那 12 題同時滿足新舊兩種抽取規則的候選。`[DESIGN]` 這是**provenance 選擇,
+不是品質判斷**:B01 的內容在任一規則下都不是有缺陷的。但 `CBRP-AUTHORING-V2-ROUND-0`
+是受 Protocol 2 從頭到尾治理的單一連續 acquisition,已在其 run-level STOP 處終止。
+重啟的 acquisition 在 Protocol 2.1 下必須**同質**——六十題全部出自同一抽取規則、
+同一次 run——manifest 才不必解釋「哪些題目是被哪個版本的 wrapper 文法篩過的」。
+與 CWP-9B 對 v1 的推理完全一致:不帶入不是因為內容有缺陷,而是乾淨的 provenance
+邊界比重用十二個已經有效的紀錄更值得。
+
+```
+M-CBRP-AUTH-02:  CLOSED AT METHODOLOGY AMENDMENT LEVEL
+Authoring Protocol 2:    CWP-10B INCOMPLETE / CLOSED（2 calls ｜ 12 candidates ｜ 0 帶入 2.1）
+Authoring Protocol 2.1:  METHODOLOGY FROZEN / NOT EXECUTED
+formal admitted tasks: 0        study: NOT PREREGISTERED
+```
+
+**CWP-10C 只凍結抽取層方法學。執行 `CBRP-AUTHORING-V2P1-ROUND-0` 需要另一次明確授權;
+在此之前不得產生任何新題目、不得執行結構審查或重複稽核。**
 
 ### 目前的 M2-B 狀態（不得混淆 acquisition 與 effectiveness)
 
