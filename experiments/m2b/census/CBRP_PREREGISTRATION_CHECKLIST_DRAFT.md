@@ -13,7 +13,8 @@ STATUS:  DRAFT
 > [`CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`](CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md),
 > [`CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md`](CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md),
 > [`CBRP_MODEL_PINS_PREREG_DRAFT.md`](CBRP_MODEL_PINS_PREREG_DRAFT.md),
-> [`CBRP_REPLACEMENT_PROTOCOL_1.md`](CBRP_REPLACEMENT_PROTOCOL_1.md).
+> [`CBRP_REPLACEMENT_PROTOCOL_1.md`](CBRP_REPLACEMENT_PROTOCOL_1.md),
+> [`CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md`](CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md).
 >
 > Status vocabulary, strictly:
 >
@@ -124,6 +125,7 @@ STATUS:  DRAFT
 | D-28 | Literal scans and reviewer blindness | **ARCHITECTURE-DECIDED** | Literal/token scans are **descriptive audit evidence only**; a lexical hit alone has no protocol disposition. Scanner verdicts, flags and hit counts **never reach a structural reviewer** — a flagged reviewer answers "do you agree with the scanner?", a different and easier question than the rubric's |
 | D-29 | Deterministic wrapper extraction (Protocol 2.1) | **ARCHITECTURE-DECIDED / FROZEN** | `CBRP-AUTHOR-EXTRACTOR-2.1`. Three accepted representations — plain JSON, a complete outer fence, or one complete array followed by a genuine line boundary and exactly one line whose raw content is the bare trailing fence. Prompted by M-CBRP-AUTH-02: `AUTHOR2-B02-S00` was a syntactically complete array with a lone trailing fence, which Protocol 2's extractor could not recognize. CWP-10C-R tightened Case C from a whitespace-collapsing `trim()` comparison to an exact-line check after the first release over-accepted same-line and whitespace-padded fence lines. Repair, prose-stripping and multi-value merging remain forbidden in every representation. Reference implementation, 32 synthetic parser-behavior tests, and 1 separately-reported anti-contamination check: `experiments/m2b/census/extractor-2.1/` |
 | D-26 | One canonical model table | **ARCHITECTURE-DECIDED** | `CBRP_MODEL_PINS_PREREG_DRAFT.md` holds every exact model string; other documents reference it by version. A table copied into six files disagrees with itself by the third edit. Where a string is quoted for readability (D-20, D-21 above, Authoring §6.2, `CURRENT_STATE.md`), **the pin table governs on any discrepancy** |
+| D-35 | Structural review execution protocol | **ARCHITECTURE-DECIDED / FROZEN** | `CBRP-STRUCTURAL-REVIEW-PROTOCOL-1` (CWP-10G): the execution path R1/R2/R3 run under, closing the gap D-3/D-4 never closed — exact model-visible bytes, blind task identity, response grammar, schema, and call order. Sub-versions: `CBRP-STRUCTURAL-REVIEW-RUBRIC-1` (rubric paste-bytes, byte count 4694, sha256 `2028b998…`), `CBRP-STRUCTURAL-BLIND-ID-v1` (real candidate id never model-visible), `CBRP-STRUCTURAL-REVIEW-PROMPT-1` (byte-identical prompt for R1/R2/R3), `CBRP-STRUCTURAL-REVIEW-EXTRACTOR-1` (the JSON-object analogue of `CBRP-AUTHOR-EXTRACTOR-2.1`), `CBRP-STRUCTURAL-REVIEW-ORDER-v1` (deterministic dispatch order, no PRNG). Disagreement trigger, majority rule and `CBRP-D3-v1` reuse frozen alongside. **Methodology and its offline implementation only — 0 structural reviews run, 0 provider calls, LIVE not authorized.** See `CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md` |
 
 ---
 
@@ -248,10 +250,10 @@ read any of 03–06 as implemented; they are not.**
 ## J. Readiness summary
 
 ```
-113 checklist items
+114 checklist items
 
 ARCHITECTURE-DECIDED                                              64
-ARCHITECTURE-DECIDED / FROZEN                                      6
+ARCHITECTURE-DECIDED / FROZEN                                      7
 ARCHITECTURE-DECIDED / FROZEN / ACQUISITION COMPLETE               1
 PROPOSED                                                           2
 OPEN                                                               7
@@ -311,6 +313,14 @@ one of the 60 candidates is currently unreviewed (per-task structural review, D-
 design, has 0 executions), and D-12 (corpus duplicate audit execution) is still 0 rounds.
 Both require a separate GPT authorization that neither this checklist nor CWP-10E
 granted — CWP-10E's own boundary (§23) explicitly forbids running either next.
+
+`[FACT]` **CWP-10G froze the structural-review execution path itself** (D-35): exact
+model-visible bytes, blind task identity, response grammar, schema, and dispatch
+order are all now decided and offline-verified — closing the gap where D-3/D-4 froze
+*who* judges and *what* they judge, but not *the exact bytes they see*. This changes
+what would have to be built before a LIVE structural review; it does not change the
+review count. **Reviews are still 0**, and running any of it still requires its own
+separate GPT LIVE authorization.
 
 **A-8 is the one item that is neither decided nor merely unexecuted.** It **asserts** the
 routing rubric is operational enough for two readers to agree, and nothing has measured it.

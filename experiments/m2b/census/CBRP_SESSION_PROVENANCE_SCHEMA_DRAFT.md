@@ -2,10 +2,13 @@
 
 ```
 STATUS:  DRAFT ｜ NOT ACCEPTED ｜ NOT PREREGISTERED
-SESSIONS RECORDED:  7     AUTHORING 7 ｜ STRUCTURAL REVIEW 0 ｜ DUPLICATE AUDIT 0
+SESSIONS RECORDED:  12    AUTHORING 12 ｜ STRUCTURAL REVIEW 0 ｜ DUPLICATE AUDIT 0
                           v1: 5, adjudicated INCOMPLETE / FAILED CLOSED in CWP-9B
-                          v2: 2, stopped INCOMPLETE at B02 in CWP-10B
+                          Protocol-2: 2, stopped INCOMPLETE at B02 in CWP-10B
+                          Protocol-2.1: 5, COMPLETE in CWP-10E — 60/60 candidates acquired
 MODEL PINS:  CBRP-SESSION-MODEL-PINS-1  ｜  D3 ROUTING:  CBRP-D3-v1
+STRUCTURAL REVIEW EXECUTION PATH:  CBRP-STRUCTURAL-REVIEW-PROTOCOL-1, FROZEN in CWP-10G
+                          (see §3.1) — 0 sessions have run under it
 ```
 
 > **Exact provider/model strings live in one place only:**
@@ -13,9 +16,10 @@ MODEL PINS:  CBRP-SESSION-MODEL-PINS-1  ｜  D3 ROUTING:  CBRP-D3-v1
 > records *what each session must write down*; that one records *which model each role
 > gets*. Nothing here restates a model string.
 
-> The shape of the record every CBRP model session leaves behind. Seven authoring sessions
-> have run across v1 and v2; no structural-review or duplicate-audit session has run.
-> Field names are illustrative; the invariants and the exclusions are not.
+> The shape of the record every CBRP model session leaves behind. Twelve authoring
+> sessions have run across v1, Protocol-2 and Protocol-2.1; no structural-review or
+> duplicate-audit session has run. Field names are illustrative; the invariants and the
+> exclusions are not.
 
 Companion to [`CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md`](CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md),
 which describes the frozen pool. This document describes **how the pool was produced** —
@@ -215,6 +219,28 @@ place so it cannot drift between two copies.
 `R3` exists **iff** R1 and R2 disagreed, and receives neither of their answers nor the
 fact that they disagreed.
 
+### 3.1 Where the exact session bytes are frozen
+
+`[ARCHITECTURE-DECIDED]` This section records *what a structural-review session must
+write down*. The exact **model-visible bytes** each session sends and receives — the
+frozen rubric paste-bytes (`CBRP-STRUCTURAL-REVIEW-RUBRIC-1`), the blind task
+identity scheme that keeps `taskCandidateId` out of `reviewId`/`taskId` fields'
+model-visible counterpart (`CBRP-STRUCTURAL-BLIND-ID-v1`), the prompt construction
+(`CBRP-STRUCTURAL-REVIEW-PROMPT-1`), the response grammar
+(`CBRP-STRUCTURAL-REVIEW-EXTRACTOR-1`), and the dispatch order
+(`CBRP-STRUCTURAL-REVIEW-ORDER-v1`) — are frozen in
+[`CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md`](CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md) (CWP-10G),
+with an offline-verified reference implementation under `structural-review-protocol/`.
+`taskCandidateId` above (§3's field list) is the **true**, operator-side id; the
+`taskId` a reviewer actually sees in its prompt is the derived `blindTaskId`, never
+the true id — this schema's `taskCandidateId` field and the model-visible `taskId`
+are deliberately different values, and the mapping between them lives only in
+operator-side evidence.
+
+`[FACT]` **Methodology and implementation only — 0 sessions have run under this
+protocol.** Reviews recorded in this schema remain 0 until a future GPT packet grants
+explicit LIVE authorization for structural review.
+
 ---
 
 ## 4. Duplicate audit sessions
@@ -294,22 +320,29 @@ this schema exists to make unnecessary.
 ## 6. Status
 
 ```
-authoring sessions 7 ｜ review sessions 0 ｜ audit sessions 0
-v1 candidates 60 barred ｜ v2 candidates 12/60 provisional ｜ tasks ADMITTED 0 ｜ pools frozen 0
+authoring sessions 12 ｜ review sessions 0 ｜ audit sessions 0
+v1 candidates 60 barred ｜ Protocol-2 candidates 12/60 provisional, not carried forward
+Protocol-2.1 candidates 60/60 acquired, UNREVIEWED ｜ tasks ADMITTED 0 ｜ pools frozen 0
 ```
 
 Five authoring sessions belong to `CBRP-AUTHORING-ROUND-0`; they describe a run whose
 **acquisition was adjudicated INCOMPLETE** in CWP-9B: see
 [`authoring-round-0/AUTHORING_V1_ARCHITECTURE_VERDICT.json`](authoring-round-0/AUTHORING_V1_ARCHITECTURE_VERDICT.json).
 
-Two additional records belong to `CBRP-AUTHORING-V2-ROUND-0`. B01 preserved a mechanically
-valid 12-candidate response. B02 preserved a malformed response and triggered the frozen
-run-level STOP; B03-B05 were not called. See
+Two additional records belong to `CBRP-AUTHORING-V2-ROUND-0` (Protocol-2). B01 preserved a
+mechanically valid 12-candidate response. B02 preserved a malformed response and triggered
+the frozen run-level STOP; B03-B05 were not called. See
 [`authoring-v2-round-0/SESSIONS.json`](authoring-v2-round-0/SESSIONS.json).
 
-`[FACT]` In those five records `providerResolved` and `modelResolved` were **observable and
-matching**, so `pinStatus` reads `OBSERVED` rather than the `OPERATOR ATTESTATION` fallback
-§1.0 allows for. `freshContextConfirmed` remains an attestation.
+Five further records belong to `CBRP-AUTHORING-V2P1-ROUND-0` (Protocol-2.1, CWP-10E): all
+five sessions completed with no STOP, acquiring 60/60 candidates. See
+[`authoring-v2p1-round-0/SESSIONS.json`](authoring-v2p1-round-0/SESSIONS.json).
 
-No structural-review or duplicate-audit session has been run. The incomplete v2
-acquisition awaits GPT Architecture review before any further session.
+`[FACT]` Across all twelve records `providerResolved` and `modelResolved` were **observable
+and matching**, so `pinStatus` reads `OBSERVED` rather than the `OPERATOR ATTESTATION`
+fallback §1.0 allows for. `freshContextConfirmed` remains an attestation.
+
+No structural-review or duplicate-audit session has been run. `CBRP-STRUCTURAL-REVIEW-
+PROTOCOL-1` (CWP-10G, §3.1 above) has frozen the execution path a structural-review
+session will run under, but running one still requires a separate future GPT LIVE
+authorization.

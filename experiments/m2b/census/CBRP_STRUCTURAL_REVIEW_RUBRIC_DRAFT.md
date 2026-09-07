@@ -1,12 +1,21 @@
-# CBRP Structural Review Rubric — DRAFT
+# CBRP Structural Review Rubric — FROZEN CONTENT / EXECUTION NOT RUN
 
 ```
-STATUS:  DRAFT ｜ NOT ACCEPTED ｜ NOT PREREGISTERED ｜ NOT AUTHORIZED
+METHODOLOGY:   FROZEN / ACCEPTED FOR STRUCTURAL REVIEW PROTOCOL 1  (CWP-10G)
+EXECUTION:     NOT RUN
+LIVE:          NOT AUTHORIZED
 REVIEWS RUN SO FAR:  0
+RUBRIC VERSION:  CBRP-STRUCTURAL-REVIEW-RUBRIC-1  (byte count 4694, sha256 2028b998…)
+                 — see CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md §3
 ```
 
 > The frozen rubric every structural reviewer uses. Like the authoring brief, everything
-> below §2 is written to be pasted into a fresh blinded session with no supplement.
+> below §2 is written to be pasted into a fresh blinded session with no supplement. Its
+> exact paste-bytes, the model-visible bytes built around it, blind task identity,
+> response grammar, schema, and the R1/R2/R3 admission procedure are frozen in
+> [`CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md`](CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md) — this
+> document freezes the rubric's own content and judgement criteria; that one freezes the
+> execution path around it.
 
 ---
 
@@ -195,4 +204,7 @@ never re-enter the pool**, and its rejection lineage is preserved in the freeze 
 Structural review is one of **two** pre-freeze gates. The other is the corpus duplicate
 audit, which runs after all sixty have passed here.
 
-**No review has been run.** No task exists to review.
+**No review has been run.** 60 `CBRP-AUTHORING-V2P1-ROUND-0` (Protocol-2.1) provisional
+candidates exist (CWP-10E), but none has been structurally reviewed — the execution path
+that would review them is frozen (`CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md`, CWP-10G) but not
+yet LIVE-authorized.

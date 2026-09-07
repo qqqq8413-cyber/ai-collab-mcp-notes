@@ -4,7 +4,8 @@
 PIN VERSION:  CBRP-SESSION-MODEL-PINS-1
 D3 ROUTING:   CBRP-D3-v1
 STATUS:       FROZEN as a decision ｜ study NOT PREREGISTERED
-SESSIONS RUN: authoring 7 total（v1 5 + v2 2）｜ structural review 0 ｜ duplicate audit 0
+SESSIONS RUN: authoring 12 total（v1 5 + Protocol-2 2 + Protocol-2.1 5）
+              ｜ structural review 0 ｜ duplicate audit 0
 ```
 
 > **The canonical table.** Every exact provider/model string used to decide CBRP pool
@@ -295,17 +296,30 @@ described these pins as *verified* would be overclaiming.
 
 ```
 pins frozen as a decision
-authoring sessions run   7   v1 5 FAILED CLOSED ｜ v2 2 INCOMPLETE at B02
+authoring sessions run   12   v1 5 FAILED CLOSED ｜ Protocol-2 2 INCOMPLETE at B02
+                              ｜ Protocol-2.1 5 COMPLETE (CWP-10E, 60/60 acquired)
 tasks admitted           0
 reviews 0 ｜ duplicate audit rounds 0 ｜ pools frozen 0 ｜ D3 adjudications 0
 ```
 
-`[FACT]` The five v1 authoring sessions and the two attempted v2 authoring sessions ran
-under these pins and **every one resolved to the model it requested** — Anthropic returned
-`model`, Gemini returned `modelVersion`, and all seven matched exactly.
-`claude-sonnet-5` and `gemini-3.7-flash` are therefore observed to exist and resolve;
-`claude-opus-5` and `gemini-3.8-flash` have still never been called.
+`[FACT]` **CWP-10G-R update:** this section's counters were last reconciled after
+Protocol-2's B02 stop (7 authoring sessions). `CBRP-AUTHORING-V2P1-ROUND-0` (CWP-10E)
+subsequently ran all five Protocol-2.1 sessions to completion, bringing the authoring
+total to 12. This is a factual counter correction only — no pin, routing rule, or
+canonical model string on this page changed.
 
-The v1 run failed for an unrelated prohibited-literal reason. The v2 run stopped for an
-unrelated malformed B02 response after B01 and B02; B03-B05 were not called. Neither stop
-was a pin mismatch. No structural reviewer or duplicate auditor has been called.
+`[FACT]` The five v1 authoring sessions, the two attempted Protocol-2 authoring
+sessions, and the five Protocol-2.1 authoring sessions all ran under these pins and
+**every one resolved to the model it requested** — Anthropic returned `model`, Gemini
+returned `modelVersion`, and all twelve matched exactly (`pinStatus: OBSERVED`).
+`claude-sonnet-5` and `gemini-3.7-flash` are therefore observed to exist and resolve
+across all three authoring runs; `claude-opus-5` and `gemini-3.8-flash` — the
+structural-review and duplicate-audit pins — have still never been called.
+
+The v1 run failed for an unrelated prohibited-literal reason. The Protocol-2 run
+stopped for an unrelated malformed B02 response after B01 and B02; B03-B05 were not
+called, and none of B01's candidates carried forward. Protocol-2.1 (CWP-10E) completed
+all five sessions with no STOP. None of the three stops/completions was a pin
+mismatch. `CBRP-STRUCTURAL-REVIEW-PROTOCOL-1` (CWP-10G) has frozen the execution path
+a structural reviewer will run under, but no structural reviewer or duplicate auditor
+has been called — reviews and audit rounds both remain 0.

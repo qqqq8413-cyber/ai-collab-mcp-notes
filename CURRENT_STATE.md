@@ -17,10 +17,16 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  5d7d64888156bf93b3033ab72be17b87cb68a8d5（CWP-10F execution base）
+stateVerifiedThrough  cd7558e7b18a7de7f6f879a4fc0e6ff0c2895e4b（CWP-10G execution base）
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
+
+`[FACT]` **CWP-10G-R 更正:** 本檔前一版把 `5d7d648`（CWP-10E「Materialize CBRP
+Protocol-2.1 authoring candidates」執行後的 commit）誤標為「CWP-10F execution
+base」。`5d7d648` 從未是 CWP-10F 的執行基礎 —— CWP-10F（Replacement Protocol
+凍結）與 CWP-10F-R（index 不變式修補）的執行基礎其實分別是 `e0bc9ce` 與
+`cd7558e`。此處不回溯改寫歷史 commit,只更正本檔自身曾經寫錯的標籤。
 
 **production source 的歷史,精確版:**
 
@@ -1875,14 +1881,27 @@ R1 / R2 verifier 的失敗項**全部是 F1/F2 eligibility gate 本身**,不是�
 
 ---
 
+`[FACT]` **CWP-10G-R 更正:** 本檔前一版此處的收尾區塊停在 P03 closure 當時
+（`730d350`），且誤稱「AUTHORING v2 INCOMPLETE AT B02 / 2 PROVIDER CALLS /
+12 OF 60 PROVISIONAL」—— 這與本檔正文第 7 節 CWP-10E／CWP-10F／CWP-10F-R／
+CWP-10G 各小節記載的事實矛盾（Protocol-2.1 已 60/60 acquired，Replacement
+Protocol 與 Structural Review Protocol 均已凍結）。以下為更正後、與正文一致
+的收尾狀態：
+
 ```
-STATE ALIGNED THROUGH 730d350 /
+STATE ALIGNED THROUGH cd7558e7b18a7de7f6f879a4fc0e6ff0c2895e4b (CWP-10G execution base) /
 P03 CLOSED — 9/9 ATTEMPTED, 0 ADMITTED, 0 ARCHETYPES FILLED /
 F1 FAIL 3/9 ｜ F2 FAIL 7/9 ｜ F3 FAIL 0/9 ｜ ONE SPECIALIST 7/9 /
 A2 = 0 EXECUTIONS ｜ EFFECTIVENESS EXPERIMENT NOT EXECUTED ｜ C vs D₁ UNANSWERED /
-NEW OPEN BLOCKER M-ACQ-01 — NATURAL ELIGIBILITY BASE RATE UNKNOWN /
-CBRP CENSUS METHODOLOGY REVISED — N=60 / 6 STRATA / theta=5% —
-DRAFT, NOT PREREGISTERED / AUTHORING v2 INCOMPLETE AT B02 /
-2 PROVIDER CALLS / 12 OF 60 PROVISIONAL CANDIDATES / 0 ADMITTED /
+NEW OPEN BLOCKER M-ACQ-01 — NATURAL ELIGIBILITY BASE RATE UNKNOWN, STILL OPEN /
+CBRP CENSUS METHODOLOGY FROZEN — N=60 / 6 STRATA / theta=5% — study NOT PREREGISTERED /
+AUTHORING v1 FAILED CLOSED (60 barred, permanently ineligible) /
+AUTHORING Protocol-2 INCOMPLETE AT B02 (12/60, not carried forward) /
+AUTHORING Protocol-2.1 ACQUISITION COMPLETE (CWP-10E) — 60/60 ACQUIRED, UNREVIEWED /
+authoring provider calls total = 12 (v1 5 + Protocol-2 2 + Protocol-2.1 5) /
+CBRP-REPLACEMENT-PROTOCOL-1 FROZEN (CWP-10F) ｜ index invariant conformance-repaired (CWP-10F-R) /
+CBRP-STRUCTURAL-REVIEW-PROTOCOL-1 FROZEN / OFFLINE VERIFIED / NOT EXECUTED (CWP-10G) /
+0 structural reviews ｜ 0 duplicate audit rounds ｜ 0 replacement sessions ｜
+0 pools frozen ｜ 0 Chief Census calls ｜ 0 formal admitted tasks /
 LIVE = STOPPED / RETURN TO GPT ARCHITECTURE
 ```
