@@ -550,7 +550,12 @@ author model  fresh session = fresh model context, not necessarily a different m
               pinned model is a STOP and a return to GPT
               CBRP_MODEL_PINS_PREREG_DRAFT.md — the one canonical table
 brief         one frozen brief, byte-identical to every session
-              CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md
+              CBRP_AUTHORING_BRIEF_V2_PREREG_DRAFT.md  (CBRP-AUTHORING-BRIEF-2)
+              v1 ran once and FAILED CLOSED (FORBIDDEN_LITERAL_STOP); v2 replaces the
+              lexical word-ban with a semantic answer-production-steering rule, and
+              moves that judgement to structural review where it belongs
+              authoring-run STOPs are now MECHANICAL / TRANSPORT ONLY
+              CBRP_AUTHORING_PROTOCOL_2.md
 gate 1        per-task structural review: 2 blinded reviews, 3rd on disagreement,
               majority final; GPT does NOT adjudicate at task level
               CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md

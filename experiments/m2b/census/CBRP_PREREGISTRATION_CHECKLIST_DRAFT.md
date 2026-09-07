@@ -79,7 +79,7 @@ STATUS:  DRAFT
 | C-6 | Diversity handling | **ARCHITECTURE-DECIDED** | **No quotas.** Variation requested in the brief; a descriptive diversity report before freeze. Diversity is **not** an admission gate — only structural failure or a confirmed duplicate causes replacement |
 | C-7 | Duplicate handling | **ARCHITECTURE-DECIDED** | Removed from per-task review — one reviewer sees one task. Corpus audit over all 60 texts: 2 blinded auditors, 3rd on a disputed pair, retention by lexicographically smallest candidate ID |
 | C-8 | **The 60 tasks themselves** | **ATTEMPTED UNDER AUTHORING v1 / FAILED CLOSED** | **0 admitted.** One acquisition ran (`CBRP-AUTHORING-ROUND-0`, 5 sessions, 5 provider calls) and produced 60 candidates; GPT Architecture ruled it an INCOMPLETE acquisition — `FORBIDDEN_LITERAL_STOP`, two candidates carrying §2.7's prohibited literal. The 60 are preserved as failed-acquisition evidence and are **barred from any future pool**. No retry, no repair, no replacement under v1 |
-| C-10 | Authoring v2 methodology amendment and re-freeze | **OPEN** | A renewed acquisition needs `CBRP-AUTHORING-PROTOCOL-2`: a new brief version and hash, a new run ID, a new candidate namespace. M-CBRP-AUTH-01 is the input; the amendment is **prospective only** and nothing from round 0 carries forward |
+| C-10 | Authoring v2 methodology amendment and re-freeze | **ARCHITECTURE-DECIDED / FROZEN** | `CBRP-AUTHORING-PROTOCOL-2`; brief `CBRP-AUTHORING-BRIEF-2`, sha256 `a9da93fd…`, 8114 bytes. Exactly one rule changed (§2.7): the lexical word-ban becomes a semantic answer-production-steering rule. New run id, session and candidate namespaces; nothing from v1 carries forward. **Frozen, not executed** |
 | C-9 | Difficulty varies within every stratum | **ARCHITECTURE-DECIDED** | "Ordinary" is not a stratum |
 
 ---
@@ -91,7 +91,7 @@ STATUS:  DRAFT
 | D-1 | Blinded authoring envelope | **ARCHITECTURE-DECIDED** | Twelve exclusions and a closed allow-list; Authoring §3.1 |
 | D-2 | Authoring block design | **ARCHITECTURE-DECIDED** | Five **quota blocks**, each × each stratum = 2 admitted tasks. Five initial sessions plus fresh replacement sessions as required; blocks are fixed at five, sessions are not |
 | D-3 | Reviewer independence design | **ARCHITECTURE-DECIDED** | Two blinded reviews, third on disagreement, majority final; GPT task-level adjudication **forbidden**. Makes A-8's claim measurable |
-| D-4 | Structural review rubric | **ARCHITECTURE-DECIDED** | Six per-task judgements plus `overallPass`; `notDuplicate` removed in CWP-8B |
+| D-4 | Structural review rubric | **ARCHITECTURE-DECIDED** | Six per-task judgements plus `overallPass`; `notDuplicate` removed in CWP-8B. `noSpecialistSteering` rewritten in CWP-10A: it had carried the same lexical error as the v1 brief ("it fails on 'specialist'"), which would have moved the v1 failure to the review gate unchanged |
 | D-5 | Reviewer must not score likelihood of the event | **ARCHITECTURE-DECIDED** | Authoring §5.4 |
 | D-6 | "Fresh session" and author model rule | **ARCHITECTURE-DECIDED** | Fresh = fresh model context, not necessarily a different model. `openai/gpt-5` **forbidden** as an author. ≥ 2 non-Chief model families across the five blocks. Reduces coupling; does **not** eliminate shared-prior bias |
 | D-7 | Blinding described as reduction, never elimination | **ARCHITECTURE-DECIDED** | Must appear in any result. Extends to author independence: fresh contexts reduce conversational contamination, they do **not** make outputs statistically independent |
@@ -113,6 +113,8 @@ STATUS:  DRAFT
 | D-23 | Third-adjudicator routing | **ARCHITECTURE-DECIDED** | `CBRP-D3-v1`: SHA-256 over byte-exact selector input, first hex char `0-7` → Claude, `8-f` → Gemini. Structural key = taskCandidateId; duplicate key = the pair sorted ascending, so the route belongs to the pair, not the flagger. **No 50/50 guarantee** — over the 60 canonical ids the structural split is 27/33 |
 | D-24 | Model availability policy | **ARCHITECTURE-DECIDED** | Aliases, upgrades, fallback, provider substitution, same-family swap and model-retry all **forbidden**. An unavailable pinned model is **STOP → preserve → return to GPT**, never a substitution: a pool screened half by one model and half by its stand-in has two standards in it |
 | D-25 | Model-pin provenance recorded per session | **DRAFT** | `modelPinVersion`, `providerRequested`, `modelRequested`, `providerResolved`, `modelResolved`, `modelFamily`; D3 sessions also store selector bytes and digest. Observable mismatch ⇒ STOP, output not admitted, no retry. **Resolved identity is often unobservable in a paste-based session** — then it is an attestation, not a verified fact |
+| D-27 | Authoring-run STOP scope | **ARCHITECTURE-DECIDED** | v2 freezes authoring-run STOPs as **mechanical and transport only**. Forbidden literal, semantic leakage, `noSpecialistSteering`, realism, self-containment and stratum correctness are explicitly **not** run-level STOPs — a run-level STOP answers a per-scenario question at the wrong granularity, which is exactly how v1 lost sixty candidates over two words |
+| D-28 | Literal scans and reviewer blindness | **ARCHITECTURE-DECIDED** | Literal/token scans are **descriptive audit evidence only**; a lexical hit alone has no protocol disposition. Scanner verdicts, flags and hit counts **never reach a structural reviewer** — a flagged reviewer answers "do you agree with the scanner?", a different and easier question than the rubric's |
 | D-26 | One canonical model table | **ARCHITECTURE-DECIDED** | `CBRP_MODEL_PINS_PREREG_DRAFT.md` holds every exact model string; other documents reference it by version. A table copied into six files disagrees with itself by the third edit. Where a string is quoted for readability (D-20, D-21 above, Authoring §6.2, `CURRENT_STATE.md`), **the pin table governs on any discrepancy** |
 
 ---
@@ -238,11 +240,12 @@ read any of 03–06 as implemented; they are not.**
 ## J. Readiness summary
 
 ```
-104 checklist items
+106 checklist items
 
-ARCHITECTURE-DECIDED             61
+ARCHITECTURE-DECIDED             63
+ARCHITECTURE-DECIDED / FROZEN     1
 PROPOSED                          2
-OPEN                              8
+OPEN                              7
 DRAFT                             6
 IMPLEMENTED                      12
 IMPLEMENTED / VERIFIED OFFLINE    1
@@ -251,23 +254,24 @@ VERIFIED                          9
 ATTEMPTED v1 / FAILED CLOSED      1
 ```
 
-**AUTHORING v1 FAILED CLOSED — study NOT PREREGISTERED.** Method, estimand, decision rule,
-execution infrastructure, and every review, duplicate-audit, invalid-task, ordering and
-model-pin procedure remain decided and written to the level of pasteable briefs and a
-byte-exact ordering algorithm. **The authoring procedure no longer does.**
+**AUTHORING v2 METHODOLOGY FROZEN, NOT EXECUTED — study NOT PREREGISTERED.** Method,
+estimand, decision rule, execution infrastructure, and every authoring, review,
+duplicate-audit, invalid-task, ordering and model-pin procedure are decided and written to
+the level of pasteable briefs and a byte-exact ordering algorithm.
 
-One acquisition ran under `CBRP-AUTHORING-PROTOCOL-1` and was adjudicated an INCOMPLETE
-acquisition: 60 candidates produced, 0 admissible, the brief superseded. What is missing is
-therefore both a **methodology amendment** (C-10, Authoring v2) and, after it, the study's
-content and its execution record — no review or audit has run, no pool is frozen, no seed
-has been materialized, and no Chief call has ever been made.
+One acquisition ran under `CBRP-AUTHORING-PROTOCOL-1` and was adjudicated INCOMPLETE: 60
+candidates produced, 0 admissible, the brief superseded, and all sixty permanently barred.
+`CBRP-AUTHORING-PROTOCOL-2` corrects the single rule responsible — prospectively, and
+without rehabilitating anything. What is missing is the study's **content and its execution
+record**: no scenario exists under the v2 brief, no review or audit has run, no pool is
+frozen, no seed has been materialized, and no Chief call has ever been made.
 
 **No methodology decision known to this checklist is open.** Every remaining item is a
 record that an unauthorized run would have to produce:
 
 ```
 C-8            the 60 task texts                      0 admitted; v1 acquisition FAILED CLOSED
-C-10           Authoring v2 amendment and re-freeze   prospective; not drafted
+               v2 methodology frozen, NOT EXECUTED — 0 authored under CBRP-AUTHORING-BRIEF-2
 D-12           duplicate audit rounds                 0 run
 E-2, E-3       pool manifest and freeze provenance    0 pools frozen
 F-1            the census harness around runPlanningStage()
@@ -278,11 +282,11 @@ H-3            independent bound reproduction by a reviewer
 `[DESIGN]` Most of these are **naturally unexecuted, not undecided** — a record that a run
 has to produce, and no run is authorized.
 
-**C-8 and C-10 are the exception, and they changed character in CWP-9B.** Authoring was
-attempted under v1 and **failed closed**: 60 candidates exist, none is admissible, and the
-brief that produced them is superseded. So what stands between here and a task pool is no
-longer only execution — it is a **methodology amendment (C-10) that has not been written**,
-and then a fresh acquisition under it. That is a genuine open decision, not a pending run.
+**C-8 changed character in CWP-9B and C-10 closed in CWP-10A.** Authoring was attempted
+under v1 and **failed closed**: 60 candidates exist, none is admissible, and the brief that
+produced them is superseded. The amendment that failure required is now written and frozen —
+`CBRP-AUTHORING-PROTOCOL-2`, one rule changed — so what stands between here and a task pool
+is once again **only execution**, beginning with an authorized `CBRP-AUTHORING-V2-ROUND-0`.
 
 **A-8 is the one item that is neither decided nor merely unexecuted.** It **asserts** the
 routing rubric is operational enough for two readers to agree, and nothing has measured it.

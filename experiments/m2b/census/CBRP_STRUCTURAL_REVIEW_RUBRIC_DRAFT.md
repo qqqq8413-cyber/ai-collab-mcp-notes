@@ -97,9 +97,24 @@ it is a puzzle, a riddle, a test case, or a situation no one would be in.
 agent names; research, experiments, evaluation or eligibility; category names used as
 labels; meta-commentary addressed to anyone but the advisor?
 
-**noSpecialistSteering** — Does the text avoid instructing how the answer should be
-produced or by whom? It fails on "specialist", "expert panel", "get several perspectives",
-any requested number of viewpoints, or any hint about what kind of help to bring.
+**noSpecialistSteering** — Does the text avoid instructing **how the answer should be
+produced, or by whom**?
+
+It **fails** when the text tells the advisor to answer using several experts, perspectives,
+roles, agents or kinds of expertise — *"consult several specialists first"*, *"give me
+finance, operations and brand perspectives"*, *"have a panel debate this"*, *"this needs
+multiple kinds of expertise"*.
+
+It **passes** when words like *specialist*, *expert*, *consultant*, *panel* or *committee*
+merely describe the situation — a hospital's rotas, a role being hired, a witness who filed
+a report, a committee that meets fortnightly. Real organisations contain these people, and
+saying so is describing the world.
+
+`[DECISION]` **A word is not a violation.** Judge what the text asks the advisor to *do*,
+never which nouns it contains. Delete the sentence and ask what was lost: if the situation
+lost a fact, it belongs; if only the instructions to the advisor changed, it is steering.
+An earlier version of this rubric failed a scenario for the word alone, and that is the
+defect this wording exists to remove.
 
 **overallPass** — PASS only if every judgement above passes.
 

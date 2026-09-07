@@ -165,10 +165,16 @@ six-stratum routing rubric ｜ two-per-stratum requirement ｜ realism rules
 self-containment rules ｜ diversity rules ｜ output schema ｜ forbidden leakage list
 ```
 
-All of it lives in
-[`CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md`](CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md), whose
-hash is recorded in the pool manifest so a later reader can confirm every session got the
-same brief.
+All of it lives in the **current** brief,
+[`CBRP_AUTHORING_BRIEF_V2_PREREG_DRAFT.md`](CBRP_AUTHORING_BRIEF_V2_PREREG_DRAFT.md)
+(`CBRP-AUTHORING-BRIEF-2`, sha256 `a9da93fd…`), whose hash is recorded in the pool manifest
+so a later reader can confirm every session got the same brief.
+
+`[FACT]` The v1 brief `CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md` (sha256 `7f1f9ebe…`) is
+**closed and failed**, retained only as historical evidence. Its one acquisition run was
+adjudicated `FORBIDDEN_LITERAL_STOP`, and the correction is frozen prospectively in
+[`CBRP_AUTHORING_PROTOCOL_2.md`](CBRP_AUTHORING_PROTOCOL_2.md). Nothing from v1 carries
+forward.
 
 ### 3.1.1 What "fresh" means, and which model may author — DECIDED
 

@@ -349,13 +349,15 @@ P03 假設「`deep` + multi-specialist 的案例可以被取得」,但**從未�
 `[DECISION]` **在這個 base-rate 問題被 characterize 之前,不得重新設計或執行
 M2-B effectiveness experiment。**
 
-處理方向的草案(**未接受、未預先登記、未授權**),共九份,經 Gemini census 方法學審查
+處理方向的草案(**未接受、未預先登記、未授權**),共十一份,經 Gemini census 方法學審查
 (NEEDS REVISION)與 GPT 裁定(ACCEPT WITH CORRECTIONS)後修訂:
 
 ```
 experiments/m2b/census/CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md   方法學本體
 experiments/m2b/census/CBRP_AUTHORING_AND_REVIEW_DRAFT.md            出題與結構審查控制
-experiments/m2b/census/CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md          凍結出題 brief（可直接貼入）
+experiments/m2b/census/CBRP_AUTHORING_BRIEF_V2_PREREG_DRAFT.md       **現行**出題 brief v2（可直接貼入）
+experiments/m2b/census/CBRP_AUTHORING_PROTOCOL_2.md                  Authoring v2 協定（STOP 範圍、gate 歸屬）
+experiments/m2b/census/CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md          出題 brief v1 —— CLOSED / FAILED，僅歷史
 experiments/m2b/census/CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md        逐題結構審查 rubric
 experiments/m2b/census/CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md          全 corpus 重複稽核（分輪）
 experiments/m2b/census/CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md       出題／審查／稽核 session provenance
@@ -540,7 +542,7 @@ study                              NOT PREREGISTERED
 
 ### CWP-8A / 8B / 8C / 8D —— preregistration 程序凍結（內容未凍結)
 
-`[ARCHITECTURE-DECIDED]` 剩下的方法學程序已全部裁定,文件共九份於 `experiments/m2b/census/`:
+`[ARCHITECTURE-DECIDED]` 剩下的方法學程序已全部裁定,文件共十一份於 `experiments/m2b/census/`:
 
 ```
 authoring     5 個 quota BLOCK（AUTHOR-B01…B05），每 block × 每 stratum = 2 題入池
@@ -616,13 +618,13 @@ stratum codes   SC / OP / BC / EI / PS / FR（無別名）
 → 該 commit 即 POOL_FREEZE_COMMIT → 之後才可導出順序`。
 
 ```
-study status:  AUTHORING v1 FAILED CLOSED —— study 仍 NOT PREREGISTERED
-理由：review / duplicate-audit / invalid-task / ordering / model-pin 程序仍然完備，
-      但 **authoring 程序已不再完備** —— v1 跑過一次、被裁定 INCOMPLETE、brief 已 superseded。
-      因此缺的不只是內容，還多了一項「尚未撰寫的方法學修訂」（C-10 Authoring v2）。
-checklist:     104 項 —— 61 ARCHITECTURE-DECIDED / 12 IMPLEMENTED / 9 VERIFIED
-               / 4 CLOSED-VERIFIED-OFFLINE / 1 IMPL-VERIFIED-OFFLINE
-               / 6 DRAFT / 2 PROPOSED / 8 OPEN
+study status:  AUTHORING v2 METHODOLOGY FROZEN / NOT EXECUTED —— study 仍 NOT PREREGISTERED
+理由：v1 失敗所需的修訂（C-10）已於 CWP-10A 寫成並凍結，
+      authoring 程序重新完備。缺的回到「內容與執行紀錄」——
+      v2 brief 下 0 題、0 審查、0 稽核、0 凍結、0 seed、0 Chief call。
+checklist:     106 項 —— 63 ARCHITECTURE-DECIDED / 1 A-D-FROZEN（C-10）
+               / 12 IMPLEMENTED / 9 VERIFIED / 4 CLOSED-VERIFIED-OFFLINE
+               / 1 IMPL-VERIFIED-OFFLINE / 6 DRAFT / 2 PROPOSED / 7 OPEN
                / 1 ATTEMPTED-v1-FAILED-CLOSED（C-8）
 **C-8 與 C-10 之外，已知的方法學決策全部關閉。** 其餘 OPEN 全是「必須由一次未授權的執行
 才會產生的紀錄」—— C-8 六十題、D-12 稽核輪次、E-2/E-3 manifest 與凍結、
@@ -878,8 +880,84 @@ protocol version   CBRP-AUTHORING-PROTOCOL-2
 其 paste section 的位元組未被更動,hash 仍為
 `7f1f9ebe4dfde9402d838137a549859a630b60a93dce93a119b70bf9642d665f`。
 
-**在 GPT 完成下一次 Architecture Review 之前,不得撰寫 Authoring v2 brief、
-不得產生任何新題目、不得執行結構審查或重複稽核。**
+### CWP-10A —— CBRP-AUTHORING-PROTOCOL-2（方法學已凍結 / 未執行）
+
+`[ARCHITECTURE-DECIDED]` v1 失敗所需的修訂已寫成並凍結,**前瞻性、不修復 v1**。
+
+```
+protocol       CBRP-AUTHORING-PROTOCOL-2
+brief          CBRP-AUTHORING-BRIEF-2
+brief sha256   a9da93fd5d4dd059c0faebdf3e29713abe2035191af5aac26a5b73eb17842336
+brief bytes    8114
+文件           CBRP_AUTHORING_BRIEF_V2_PREREG_DRAFT.md ｜ CBRP_AUTHORING_PROTOCOL_2.md
+```
+
+`[DECISION]` **paste section 內只改了一節:§2.7。** 六個 category、realism、
+self-containment、length、variation、non-repetition、output format、六個 worked example
+全部與 v1 逐位元組相同 —— 修訂是**單一更正,不是改寫**,其餘一律不與此更正混淆。
+我用 `SequenceMatcher` 逐行比對兩份 paste section 驗證過:唯一差異區塊是 `### 2.7`。
+
+**凍結的區分:**
+
+```
+ALLOWED    描述情境世界裡的人、角色、事實或限制
+           specialist / expert / 專科醫師 / technical specialist / expert witness
+           都是普通英文，作為描述可自由出現
+FORBIDDEN  ANSWER-PRODUCTION STEERING —— 指示、要求、鼓勵或實質暗示顧問應該用
+           多位專家、專家小組、多種觀點、多個 agent、不同專業角色、專家辯論
+           或多種專業知識來產生答案
+操作測試   刪掉那句話：若「情境」少了一個事實 → 該留；若只有「對顧問的指示」變了 → 刪
+```
+
+作者只被告知一句話:**不要告訴顧問應該由多少人／專家／觀點／角色參與作答。**
+不揭露 Chief、指派數、Census event、F1/F2、θ、P03,也不揭露本研究在測協作。
+
+`[ARCHITECTURE-DECIDED]` **authoring-run STOP 已凍結為「僅機械／傳輸」:**
+
+```
+STOP     模型不可用 ｜ 可觀察的 pin mismatch ｜ provider/transport 失敗 ｜ prompt 位元組不符
+         非 fresh context ｜ malformed response ｜ 確定性抽取失敗 ｜ 題數錯 ｜ stratum 標籤無效
+         每層題數錯 ｜ 非預期的第二次 provider 嘗試 ｜ 證據保存失敗
+不是 STOP  含被禁字面詞 ｜ semantic leakage ｜ noSpecialistSteering ｜ realism
+         ｜ selfContained ｜ 宣告標籤以外的 stratum 正確性
+```
+
+理由:run-level STOP 是用錯的粒度回答「單題問題」—— 它會因為一題的性質丟掉整個
+session、在 one-shot 規則下丟掉整輪。v1 正是如此:六十題裡兩個普通詞,整輪報廢,
+而本來就該攔下它的逐題 gate 從未被走到。
+
+`[ARCHITECTURE-DECIDED]` **語意准入歸結構審查所有。** steering 由
+`noSpecialistSteering` 判否、丟棄、由同 block 的 fresh replacement session 補位。
+literal scan 僅為 **descriptive audit evidence**;**單純的字面命中沒有任何協定效力**,
+且**掃描結果永不進入審查者的 prompt** —— 拿到 flag 的審查者回答的是
+「你同不同意掃描器」,那是比 rubric 更容易的另一個問題。
+
+`[FACT]` **同一個字面／語意混淆原本也存在於結構審查 rubric 裡**
+（`noSpecialistSteering` 原文寫著 It fails on "specialist"…）。
+若只改 brief,v2 會在**審查 gate**以完全相同的理由再失敗一次。兩處都已更正。
+
+```
+namespaces（與 v1 永不衝突）
+  run id            CBRP-AUTHORING-V2-ROUND-0
+  blocks            AUTHOR2-B01 … AUTHOR2-B05
+  initial sessions  AUTHOR2-B01-S00 …      replacements  AUTHOR2-B01-R01 …
+  candidate ids     V2-B01-S00-SC-01 …
+model pins          未變更（CBRP-SESSION-MODEL-PINS-1）
+author block design 未變更（5 blocks × 每層 2 題 = 60）
+carry-forward       無 —— v1 的 60 題連片段都不得進入 v2 session
+```
+
+```
+M-CBRP-AUTH-01:  CLOSED AT METHODOLOGY AMENDMENT LEVEL
+                 v1 failure 保存 ｜ v2 語意區分凍結
+                 **不得稱 v1 的失敗已被修復**
+Authoring v1:    FAILED-CLOSED，僅為歷史證據
+Authoring v2:    METHODOLOGY FROZEN / NOT EXECUTED
+formal admitted tasks: 0        study: NOT PREREGISTERED
+```
+
+**CWP-10A 只凍結方法學。執行 `CBRP-AUTHORING-V2-ROUND-0` 需要另一次明確授權;
+在此之前不得產生任何 v2 題目、不得執行結構審查或重複稽核。**
 
 `[DESIGN]` 出題與審查程序**降低**以結果為導向的選擇偏誤,**不消除**它。
 CBRP 仍是**平衡的合成參照框架**,不得升級為 production-wide、real-user prevalence
@@ -1415,10 +1493,11 @@ NEXT P03 WAVE             NONE（池已用盡；不得新增第十題）
 
 BLOCKING QUESTION         M-ACQ-01 —— natural eligibility base rate UNKNOWN
 
-DRAFTED, NOT ACCEPTED     CBRP Natural Collaboration Census（九份文件）
+DRAFTED, NOT ACCEPTED     CBRP Natural Collaboration Census（十一份文件）
                           experiments/m2b/census/
                           CBRP ｜ N=60 ｜ 6 strata x 10 ｜ theta_feas=5%
                           AUTHORING v1 FAILED CLOSED（FORBIDDEN_LITERAL_STOP）
+                          AUTHORING v2 METHODOLOGY FROZEN / NOT EXECUTED
                           study 仍 NOT PREREGISTERED ｜ NOT AUTHORIZED
                           **這不是 task-content freeze —— 內容不存在**
                           0 admitted tasks ｜ 60 failed-acquisition candidates 保存
@@ -1426,7 +1505,8 @@ DRAFTED, NOT ACCEPTED     CBRP Natural Collaboration Census（九份文件）
                           0 reviews ｜ 0 duplicate audit rounds
                           0 pools frozen ｜ 0 seeds materialized ｜ 0 Chief calls
                           census harness NOT implemented
-                          下一個方法學缺口：C-10 Authoring v2 amendment（未撰寫）
+                          C-10 Authoring v2 amendment 已凍結（CBRP-AUTHORING-BRIEF-2）
+                          下一步需要：CBRP-AUTHORING-V2-ROUND-0 的執行授權
 
 STATUS                    等待 GPT architecture interpretation
 ```
