@@ -209,21 +209,17 @@ The exact provider/model per block is **frozen before authoring begins** and rec
 the pool manifest as `authorBlockModels`. It is provenance. **No author-model
 effectiveness claim may be made**, and the census does not estimate one.
 
-#### Family allocation — DECIDED
+#### Family allocation — FROZEN
 
-```
-[ARCHITECTURE-DECIDED]
+Per-block provider, exact model and family:
+[`CBRP_MODEL_PINS_PREREG_DRAFT.md`](CBRP_MODEL_PINS_PREREG_DRAFT.md) §2, pin version
+`CBRP-SESSION-MODEL-PINS-1`. Three CLAUDE blocks, two GEMINI — the strings live there and
+nowhere else, so that six documents cannot drift into six different tables.
 
-AUTHOR-B01 → CLAUDE_FAMILY
-AUTHOR-B02 → GEMINI_FAMILY
-AUTHOR-B03 → CLAUDE_FAMILY
-AUTHOR-B04 → GEMINI_FAMILY
-AUTHOR-B05 → CLAUDE_FAMILY
-```
-
-Two distinct non-Chief families, as required above. A block's **replacement** sessions use
-that block's family too — a block does not change family because one of its tasks was
-rejected.
+A block's **replacement** sessions use that block's pinned provider and exact model too. A
+block does not change model because one of its tasks was rejected, and **no replacement may
+switch model to improve its chance of acceptance** — model identity belongs to the block,
+not to whether a predecessor passed.
 
 `[DESIGN]` The 3 : 2 split is forced; five blocks do not divide evenly into two families.
 It confounds nothing, because each block × each stratum = 2 admitted tasks, so **every
@@ -231,8 +227,7 @@ stratum receives 6 CLAUDE_FAMILY and 4 GEMINI_FAMILY tasks — the same split in
 Family is unbalanced overall and exactly orthogonal to stratum, which is the property a
 stratified estimand needs.
 
-`[OPEN]` The actual provider/model IDs per block. GPT freezes them immediately before
-authoring. Not chosen here.
+`[CLOSED]` The actual provider/model IDs per block were frozen in CWP-8D.
 
 ### 3.2 Session identity is provenance only
 
@@ -410,17 +405,21 @@ The tie-break is a third blinded reviewer.
 Full rubric and visibility rules:
 [`CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md`](CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md).
 
-### 6.2 Which models may review or audit — DECIDED
+### 6.2 Which models may review or audit — FROZEN
 
 ```
 [ARCHITECTURE-DECIDED]
 
 openai / gpt-5 — the Chief planning model under measurement — is FORBIDDEN as
-    a structural reviewer
-    a corpus duplicate auditor
+    a structural reviewer          a structural tie-break
+    a corpus duplicate auditor     a duplicate tie-break
 
 exactly as it is forbidden as an author (§3.1.1)
 ```
+
+Exact reviewer and auditor pins, and the deterministic `CBRP-D3-v1` tie-break routing:
+[`CBRP_MODEL_PINS_PREREG_DRAFT.md`](CBRP_MODEL_PINS_PREREG_DRAFT.md) §3, §4, §7. Every task
+gets one CLAUDE_FAMILY and one GEMINI_FAMILY review; every round gets one of each.
 
 One rule, three applications. **A model under measurement must not control membership in
 the pool it will later be measured on** — and admitting tasks one at a time, or ruling on
@@ -434,10 +433,29 @@ identifiable coupling and nothing wider. Two non-Chief models still share a grea
 about what a realistic business decision looks like, and no model-assignment rule available
 here changes that. Any result must be worded accordingly.
 
-`[OPEN]` The exact reviewer and auditor provider/model IDs, frozen by GPT before the first
-review runs. That freeze also settles whether a reviewer or auditor may share a model
-family with the author of the task it judges — nothing above forbids it, and the decision
-belongs with the ID assignment.
+#### May a reviewer share the author's model family? — YES
+
+`[DECISION]` **Allowed.** Every task receives one CLAUDE_FAMILY judgement and one
+GEMINI_FAMILY judgement, and within a family the reviewing model is a **different exact
+model** from the authoring one — `claude-opus-5` reviews what `claude-sonnet-5` wrote,
+`gemini-3.8-flash` reviews what `gemini-3.7-flash` wrote. **No task is ever admitted by the
+exact model that wrote it**, which is the coupling that mattered. (Those four strings are
+quoted from `CBRP-SESSION-MODEL-PINS-1` to make the argument readable; on any discrepancy
+[`CBRP_MODEL_PINS_PREREG_DRAFT.md`](CBRP_MODEL_PINS_PREREG_DRAFT.md) governs.)
+
+`[DESIGN]` This is emphatically **not reviewer independence**. A same-family reviewer shares
+vendor and training priors with the author and the design does not touch them. **No result
+may describe the reviewers as independent of shared family priors** — the available claim is
+that exact-model self-screening does not occur.
+
+#### R3's model is derived, not chosen
+
+`[ARCHITECTURE-DECIDED]` The third reviewer's model comes from `CBRP-D3-v1`: a SHA-256 over
+`"CBRP-D3-v1\nSTRUCTURAL\n" + taskCandidateId`, first hex character `0-7` → the Claude
+reviewer, `8-f` → the Gemini reviewer. A fixed third reviewer would hand one family a
+systematic extra vote on every disagreement; hashing removes the discretion without reading
+the task, the author family, or either earlier answer. It does **not** guarantee a 50/50
+realized split, and no result may claim one.
 
 ## 7. Invalid task handling — DECIDED
 

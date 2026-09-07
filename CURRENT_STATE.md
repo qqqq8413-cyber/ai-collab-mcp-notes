@@ -349,7 +349,7 @@ P03 假設「`deep` + multi-specialist 的案例可以被取得」,但**從未�
 `[DECISION]` **在這個 base-rate 問題被 characterize 之前,不得重新設計或執行
 M2-B effectiveness experiment。**
 
-處理方向的草案(**未接受、未預先登記、未授權**),共八份,經 Gemini census 方法學審查
+處理方向的草案(**未接受、未預先登記、未授權**),共九份,經 Gemini census 方法學審查
 (NEEDS REVISION)與 GPT 裁定(ACCEPT WITH CORRECTIONS)後修訂:
 
 ```
@@ -359,6 +359,7 @@ experiments/m2b/census/CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md          凍結出�
 experiments/m2b/census/CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md        逐題結構審查 rubric
 experiments/m2b/census/CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md          全 corpus 重複稽核（分輪）
 experiments/m2b/census/CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md       出題／審查／稽核 session provenance
+experiments/m2b/census/CBRP_MODEL_PINS_PREREG_DRAFT.md               **唯一** exact model pin 表 ＋ CBRP-D3-v1
 experiments/m2b/census/CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md            pool manifest 與 CBRP-ORDER-v1
 experiments/m2b/census/CBRP_PREREGISTRATION_CHECKLIST_DRAFT.md       preregistration 就緒清單
 ```
@@ -530,9 +531,9 @@ budget 第 61 次、worker-stage 拒絕、重複 attempt、未 settle 的復原�
 census 已執行            NO       study 仍為 NOT PREREGISTERED / NOT AUTHORIZED
 ```
 
-### CWP-8A / 8B / 8C —— preregistration 程序凍結（內容未凍結)
+### CWP-8A / 8B / 8C / 8D —— preregistration 程序凍結（內容未凍結)
 
-`[ARCHITECTURE-DECIDED]` 剩下的方法學程序已全部裁定,文件共八份於 `experiments/m2b/census/`:
+`[ARCHITECTURE-DECIDED]` 剩下的方法學程序已全部裁定,文件共九份於 `experiments/m2b/census/`:
 
 ```
 authoring     5 個 quota BLOCK（AUTHOR-B01…B05），每 block × 每 stratum = 2 題入池
@@ -546,19 +547,20 @@ author model  fresh session = fresh model context，不要求每個 session 換�
               被測的 Chief 模型 openai/gpt-5 **禁止**擔任出題模型（去除直接耦合）
               五個 block 至少涵蓋兩個非 Chief 模型家族；每個 block 跨全部六層
               → author-model family 亦不與 stratum 共線
-              family 配置（CWP-8C 裁定）：
-                  AUTHOR-B01 / B03 / B05 → CLAUDE_FAMILY
-                  AUTHOR-B02 / B04       → GEMINI_FAMILY
+              model pin（CWP-8D 凍結，CBRP-SESSION-MODEL-PINS-1）：
+                  AUTHOR-B01 / B03 / B05 → claude / claude-sonnet-5   CLAUDE_FAMILY
+                  AUTHOR-B02 / B04       → gemini / gemini-3.7-flash  GEMINI_FAMILY
               3:2 的不平均是「五個 block、兩個 family」所必然；但因每 block × 每 stratum
               = 2 題，**每一層都恰好是 6 CLAUDE ＋ 4 GEMINI**，六層完全相同
               → family 與 stratum 嚴格正交（這才是分層估計量在意的性質）
-              block 的 replacement session 沿用該 block 的 family，不因被拒而換家族
-              **實際 provider/model ID 仍 OPEN**，由 GPT 在出題前凍結
-reviewer      被測 Chief 模型 openai/gpt-5 **同樣禁止**擔任結構審查者與重複稽核者
-              理由：被測模型不得決定「它稍後將被測量的那個池」的成員資格 ——
-              逐題放行與裁定重複，與親自出題是同樣直接的槓桿
-              一條規則、三種 session 一致適用；**這同樣不消除 shared priors**
-              實際 reviewer/auditor ID 仍 OPEN，由 GPT 在首次審查前凍結
+              block 的 replacement session 沿用該 block 的 exact model，不因被拒而換模型
+              —— model identity 屬於 block，不屬於「前一題有沒有過」
+reviewer      R1 = D1 = claude / claude-opus-5     CLAUDE_FAMILY
+              R2 = D2 = gemini / gemini-3.8-flash  GEMINI_FAMILY
+              每題各得一份 CLAUDE 與一份 GEMINI 判斷；每輪稽核亦然
+              被測 Chief 模型 openai/gpt-5 **禁止**出現在全部五個成員資格角色：
+              出題、結構審查、結構 tie-break、重複稽核、重複 tie-break
+              理由：被測模型不得決定「它稍後將被測量的那個池」的成員資格
               **這不消除 shared-prior bias**；fresh context 只降低對話污染，
               不使模型輸出在統計上獨立
 brief         單一凍結 brief，逐位元組相同地交給每個 session
@@ -607,17 +609,19 @@ stratum codes   SC / OP / BC / EI / PS / FR（無別名）
 → 該 commit 即 POOL_FREEZE_COMMIT → 之後才可導出順序`。
 
 ```
-study status:  PREREGISTRATION PROCEDURE COMPLETE —— 但 study 仍 NOT PREREGISTERED
+study status:  PRE-AUTHORING METHODOLOGY FREEZE COMPLETE —— 但 study 仍 NOT PREREGISTERED
 理由：程序已完備到「可貼上的 brief ＋ 逐位元組的排序演算法」，但內容不存在 ——
       60 題未寫、0 份審查、0 次重複稽核、0 次凍結、0 個 seed
-checklist:     98 項 —— 55 ARCHITECTURE-DECIDED / 12 IMPLEMENTED / 9 VERIFIED
+checklist:     103 項 —— 61 ARCHITECTURE-DECIDED / 12 IMPLEMENTED / 9 VERIFIED
                / 4 CLOSED-VERIFIED-OFFLINE / 1 IMPL-VERIFIED-OFFLINE
-               / 5 DRAFT / 2 PROPOSED / 10 OPEN
-剩餘 pre-authoring OPEN 主要只剩兩項「模型 ID 凍結」：
-               D-20 出題 provider/model ID   D-21 審查／稽核 provider/model ID
-其餘 OPEN（C-8 六十題、D-12 稽核執行、E-2/E-3 凍結、F-1 census harness、
-A-9/B-7 artifact 版本字串、H-3 外部重現）皆為 **naturally unexecuted** ——
-不是未裁定，而是「必須由一次未被授權的執行才會產生的紀錄」
+               / 6 DRAFT / 2 PROPOSED / 8 OPEN
+**已知的方法學決策全部關閉。** 剩下的 8 個 OPEN 全是「必須由一次未授權的執行
+才會產生的紀錄」—— C-8 六十題、D-12 稽核輪次、E-2/E-3 manifest 與凍結、
+F-1 census harness、A-9/B-7 artifact 版本字串、H-3 外部重現：
+**naturally unexecuted，不是 undecided。**
+唯一例外是 A-8（PROPOSED）：routing rubric 的可操作性目前只是「主張」，
+要等真實審查跑出 inter-reviewer disagreement rate 才會變成數字 ——
+缺的是證據，不是決策。
 ```
 
 ### CWP-8C —— incremental duplicate audit 與 session provenance
@@ -689,6 +693,75 @@ round 0 沒有 incumbent,`I` 恆為空,即化約成原本的「字典序最小�
 `[DESIGN]` **`freshContextConfirmed` 是 operator attestation,不是可驗證事實** ——
 沒有任何 artifact 能證明一段對話開始時是空的。schema 讓這個宣稱變成明確、可歸屬、
 可被反駁的紀錄;它不會讓宣稱自我證明,**任何結果都不得把它寫成 verified**。
+
+### CWP-8D —— exact model pin 凍結（CBRP-SESSION-MODEL-PINS-1）
+
+`[ARCHITECTURE-DECIDED]` **唯一一份 exact model 表在
+`CBRP_MODEL_PINS_PREREG_DRAFT.md`,其餘方法學文件一律以版本號引用。**
+一張表被抄進六份文件,到第三次編輯就會自相矛盾。
+本檔(以及 checklist 的 D-20/D-21)為了讓 paste-based 審查可獨立閱讀而引述字串;
+**任何不一致以 pin 表為準。**
+
+```
+出題    B01 / B03 / B05   claude / claude-sonnet-5      CLAUDE_FAMILY
+        B02 / B04         gemini / gemini-3.7-flash     GEMINI_FAMILY
+審查    R1                claude / claude-opus-5        CLAUDE_FAMILY
+        R2                gemini / gemini-3.8-flash     GEMINI_FAMILY
+稽核    D1                claude / claude-opus-5        CLAUDE_FAMILY
+        D2                gemini / gemini-3.8-flash     GEMINI_FAMILY
+```
+
+`[DESIGN]` **作者與審查者在同一 family 內永不共用 exact model**
+(`claude-sonnet-5` 出題 / `claude-opus-5` 審查;`gemini-3.7-flash` 出題 /
+`gemini-3.8-flash` 審查)。因此**沒有任何一題是被「寫它的那個 exact model」放行的**。
+
+`[DECISION]` **審查者可以與作者同 family —— 這是允許的,但它不是 independence。**
+每題都拿到一份 CLAUDE 判斷與一份 GEMINI 判斷,而同 family 內模型不同;
+被關掉的是 exact-model self-screening 這一個迴路。
+**shared family priors、vendor priors、correlated training data、model dependence
+一項都沒有被消除,任何結果都不得寫成「審查者獨立」。**
+
+`[ARCHITECTURE-DECIDED]` **CBRP-D3-v1 —— tie-break 由雜湊決定,不由人選:**
+
+```
+structural  selectorInput = "CBRP-D3-v1\nSTRUCTURAL\n" + taskCandidateId
+duplicate   selectorInput = "CBRP-D3-v1\nDUPLICATE\n" + a + "\n" + b
+            a / b = 該配對兩個 immutable candidate ID，依字典序升冪
+            → 路由屬於「配對」，不屬於「誰先回報」
+selector    = SHA256(selectorInput)，小寫十六進位，只看第一個字元
+            0-7 → claude / claude-opus-5      8-f → gemini / gemini-3.8-flash
+\n 為單一 LF (0x0A)；無結尾換行；除所示外無任何分隔符
+```
+
+固定用 Claude 當 D3,等於在每次不一致時給 Claude family 一張系統性的第三票;固定 Gemini
+則對稱地相同。雜湊移除裁量,且**不讀題目內容、不讀作者 family、不讀前兩份審查結果**。
+
+`[DESIGN]` **但它不保證實際 50/50,任何結果都不得如此宣稱。** 它只保證每個
+immutable adjudication key 有唯一一條確定性路由。實測:六十個 canonical task ID 的
+structural selector 是 **27 Claude / 33 Gemini**;1770 個 canonical pair 的
+duplicate selector 是 **911 / 859** —— 而且那是「全部都進 D3」才會出現的分佈,實際不會。
+
+`[ARCHITECTURE-DECIDED]` **不得替代:** alias、自動升版、fallback、provider substitution、
+同 family 換模型、換模型重試 —— 全部禁止。
+**pinned model 在該 session 到期時不可用 → STOP、保存證據、回 GPT Architecture Review。**
+不得繞過該模型繼續研究:一半由 A 審、一半由 A 的替身審的池,裡面有兩套標準,
+而 artifact 不會記錄哪一半是哪一套。
+
+`[FACT]` 本次凍結的六個字串中,**只有 `claude-sonnet-5` 曾出現在本 repository**
+(`src/config.ts`、`src/models/capabilities.ts`)。
+`claude-opus-5`、`gemini-3.7-flash`、`gemini-3.8-flash` 從未被本專案引用,
+**也從未被本專案對任何 live provider 解析過**。這不是對 pin 的異議 —— 選擇權在 GPT
+Architecture,而上述 STOP 正是為此而設;記下來是為了讓第一次不可用被讀成
+**預先登記的 STOP 正常觸發**,而不是意外。
+
+`[DRAFT]` **每個 session 記錄** `modelPinVersion` / `providerRequested` /
+`modelRequested` / `providerResolved` / `modelResolved` / `modelFamily`;
+D3 另記 selector 的輸入位元組與 digest,使其模型**可重算而非可信任**。
+可觀察到的 requested ≠ resolved → **STOP,該產出不入池,不得換模型重試**。
+`[DESIGN]` **但 resolved 身分在 paste-based session 中通常不可觀察** ——
+聊天介面一般不會回報是哪一個 build 回答的。不可觀察時該欄位為 `null`,
+pin 就退化為**帶 attestation 的 operator instruction**,與 `freshContextConfirmed`
+同一種認識論地位。**任何結果都不得把 model pin 寫成 verified。**
 
 **在 GPT 完成下一次 Architecture Review 之前,不得撰寫任何真實 CBRP 題目。**
 
@@ -1229,8 +1302,9 @@ BLOCKING QUESTION         M-ACQ-01 —— natural eligibility base rate UNKNOWN
 DRAFTED, NOT ACCEPTED     CBRP Natural Collaboration Census（七份文件）
                           experiments/m2b/census/
                           CBRP ｜ N=60 ｜ 6 strata x 10 ｜ theta_feas=5%
-                          PREREGISTRATION PROCEDURE COMPLETE
+                          PRE-AUTHORING METHODOLOGY FREEZE COMPLETE
                           study 仍 NOT PREREGISTERED ｜ NOT AUTHORIZED
+                          **這不是 task-content freeze —— 內容不存在**
                           0 tasks authored ｜ 0 reviews ｜ 0 duplicate audit rounds
                           0 pools frozen ｜ 0 seeds materialized
                           census harness NOT implemented

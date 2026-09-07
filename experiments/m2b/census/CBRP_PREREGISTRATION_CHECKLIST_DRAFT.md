@@ -11,7 +11,8 @@ STATUS:  DRAFT
 > [`CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md`](CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md),
 > [`CBRP_AUTHORING_AND_REVIEW_DRAFT.md`](CBRP_AUTHORING_AND_REVIEW_DRAFT.md),
 > [`CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`](CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md),
-> [`CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md`](CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md).
+> [`CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md`](CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md),
+> [`CBRP_MODEL_PINS_PREREG_DRAFT.md`](CBRP_MODEL_PINS_PREREG_DRAFT.md).
 >
 > Status vocabulary, strictly:
 >
@@ -101,8 +102,13 @@ STATUS:  DRAFT
 | D-17 | Round sequencing preconditions | **ARCHITECTURE-DECIDED** | A round may not begin until the previous one is complete and every vacancy is filled by a structurally-passing task. Vacancies are batched; a replacement failing structural review is replaced before the next audit round, and never reaches an auditor |
 | D-18 | Session provenance schema | **DRAFT** | `CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md`: authoring, review and audit sessions. `freshContextConfirmed` is an operator **attestation**, not a verified fact, and no result may present it as verified |
 | D-19 | Chief model as reviewer or auditor | **ARCHITECTURE-DECIDED** | `openai/gpt-5` **forbidden** in all three session kinds. A model under measurement must not control membership in the pool it is later measured on — gatekeeping is as direct a lever as authoring. Does **not** eliminate shared priors |
-| D-20 | Exact author provider/model IDs | **OPEN** | Family allocation decided; the IDs are not. Frozen by GPT immediately before authoring |
-| D-21 | Exact reviewer / auditor provider/model IDs | **OPEN** | Policy decided; the IDs are not. That freeze also settles whether a judge may share a model family with the author of the task it judges |
+| D-20 | Exact author provider/model IDs | **ARCHITECTURE-DECIDED** | **FROZEN**, `CBRP-SESSION-MODEL-PINS-1`. B01/B03/B05 → `claude/claude-sonnet-5`; B02/B04 → `gemini/gemini-3.7-flash`. Replacements inherit the block's model; none may switch model to improve acceptance |
+| D-21 | Exact reviewer / auditor provider/model IDs | **ARCHITECTURE-DECIDED** | **FROZEN**. R1 = D1 = `claude/claude-opus-5`; R2 = D2 = `gemini/gemini-3.8-flash`. Every task and every round gets one judgement per family |
+| D-22 | Reviewer may share the author's model family | **ARCHITECTURE-DECIDED** | **YES.** Both families judge every task, and within a family the reviewing model differs from the authoring one, so no task is admitted by the exact model that wrote it. **Not independence** — shared family priors remain and may not be claimed away |
+| D-23 | Third-adjudicator routing | **ARCHITECTURE-DECIDED** | `CBRP-D3-v1`: SHA-256 over byte-exact selector input, first hex char `0-7` → Claude, `8-f` → Gemini. Structural key = taskCandidateId; duplicate key = the pair sorted ascending, so the route belongs to the pair, not the flagger. **No 50/50 guarantee** — over the 60 canonical ids the structural split is 27/33 |
+| D-24 | Model availability policy | **ARCHITECTURE-DECIDED** | Aliases, upgrades, fallback, provider substitution, same-family swap and model-retry all **forbidden**. An unavailable pinned model is **STOP → preserve → return to GPT**, never a substitution: a pool screened half by one model and half by its stand-in has two standards in it |
+| D-25 | Model-pin provenance recorded per session | **DRAFT** | `modelPinVersion`, `providerRequested`, `modelRequested`, `providerResolved`, `modelResolved`, `modelFamily`; D3 sessions also store selector bytes and digest. Observable mismatch ⇒ STOP, output not admitted, no retry. **Resolved identity is often unobservable in a paste-based session** — then it is an attestation, not a verified fact |
+| D-26 | One canonical model table | **ARCHITECTURE-DECIDED** | `CBRP_MODEL_PINS_PREREG_DRAFT.md` holds every exact model string; other documents reference it by version. A table copied into six files disagrees with itself by the third edit. Where a string is quoted for readability (D-20, D-21 above, Authoring §6.2, `CURRENT_STATE.md`), **the pin table governs on any discrepancy** |
 
 ---
 
@@ -227,57 +233,56 @@ read any of 03–06 as implemented; they are not.**
 ## J. Readiness summary
 
 ```
-98 checklist items
+103 checklist items
 
-ARCHITECTURE-DECIDED             55
+ARCHITECTURE-DECIDED             61
 PROPOSED                          2
-OPEN                             10
-DRAFT                             5
+OPEN                              8
+DRAFT                             6
 IMPLEMENTED                      12
 IMPLEMENTED / VERIFIED OFFLINE    1
 CLOSED / VERIFIED OFFLINE         4
 VERIFIED                          9
 ```
 
-**PREREGISTRATION PROCEDURE COMPLETE — study NOT PREREGISTERED.** Method, estimand,
+**PRE-AUTHORING METHODOLOGY FREEZE COMPLETE — study NOT PREREGISTERED.** Method, estimand,
 decision rule, execution infrastructure, and every authoring, review, duplicate-audit,
 invalid-task and ordering procedure are decided and written to the level of pasteable
 briefs and a byte-exact ordering algorithm. What is missing is the study's **content and
 its execution record**: the sixty tasks are unwritten, no review or audit has run, no pool
 is frozen, and no seed has been materialized.
 
-**Not preregistration-ready.** The blocking clusters, in the order they gate
-each other:
+**No methodology decision known to this checklist is open.** Every remaining item is a
+record that an unauthorized run would have to produce:
 
-1. **D-20, D-21** — the exact provider/model IDs for authors, reviewers and duplicate
-   auditors. The *families* are allocated and the Chief model is excluded from all three
-   roles; the specific IDs are not chosen, and they must be frozen before the work they
-   govern begins — D-20 before authoring, D-21 before the first review.
-2. **C-8** — the 60 tasks. **0 authored**, and authoring is not authorized.
-3. **D-12, E-2, E-3** — duplicate-audit execution, the pool manifest, and the freeze. None
-   can begin until the tasks exist.
-4. **A-8** — the routing rubric's operability, which only becomes measurable once reviews
-   actually run.
+```
+C-8            the 60 task texts                      0 authored
+D-12           duplicate audit rounds                 0 run
+E-2, E-3       pool manifest and freeze provenance    0 pools frozen
+F-1            the census harness around runPlanningStage()
+A-9, B-7       study-id and decision-rule version strings, fixed at first execution
+H-3            independent bound reproduction by a reviewer
+```
 
-**Everything procedural is now decided.** What remains, apart from two model-ID freezes, is
-content, its screening, and the freeze — none of which this packet authorizes.
+`[DESIGN]` These are **naturally unexecuted, not undecided.** The distinction is the whole
+status: a study can be fully preregistered and still have produced nothing, and that is
+exactly where this one stands. Describing C-8 or E-2 as an open methodology question would
+misstate what is missing.
 
-`[DESIGN]` The four remaining execution OPENs (C-8, D-12, E-2, E-3) plus F-1's census
-harness and the two artifact-string OPENs (A-9, B-7) are **naturally unexecuted**, not
-undecided: each is a record that a run has to produce, and no run is authorized.
+**A-8 is the one item that is neither decided nor merely unexecuted.** It **asserts** the
+routing rubric is operational enough for two readers to agree, and nothing has measured it.
+D-3's two-reviewer design is what turns the assertion into a number — the realized
+inter-reviewer disagreement rate — and that number cannot exist before reviews run. It stays
+`PROPOSED`, not because a decision is missing but because the evidence is.
 
-**The remaining blockers are all methodology and content, not engineering.** Every
-execution-infrastructure requirement CENSUS-REQ-01 … 10 is now closed offline. What
-stands between here and a preregisterable study is: who writes the sixty tasks and
-how, who reviews them, what happens to an invalid one, what order they run in, and
-then the tasks themselves and their freeze.
+**Do not read any of this as a task-content freeze.** The procedure is frozen. The content
+does not exist.
 
-`[OPEN]` One structural gap worth naming: **A-8 asserts the routing rubric is
-operational, and nothing currently measures it.** D-3's two-reviewer design is
-the only proposal that would turn that assertion into a number. If a single
-reviewer is chosen instead, the rubric's central claim stays untested.
+Every execution-infrastructure requirement CENSUS-REQ-01 … 10 is closed offline. What stands
+between here and a preregisterable study is the sixty tasks, their screening, and the
+freeze — none of which this packet authorizes.
 
-`[OPEN]` A second: **the census harness has been rehearsed, never run.** Every
-path is exercised against a stub, which proves the refusals fire and the artifact
-is verifiable. It does not prove the production Chief behaves as the stub did, and
+`[OPEN]` One more limit worth restating: **the census harness has been rehearsed, never
+run.** Every path is exercised against a stub, which proves the refusals fire and the
+artifact is verifiable. It does not prove the production Chief behaves as the stub did, and
 nothing offline can.

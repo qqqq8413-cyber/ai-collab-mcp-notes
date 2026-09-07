@@ -523,7 +523,7 @@ identifiable channel — writing toward a known target — has been removed.
 
 Full envelope: [`CBRP_AUTHORING_AND_REVIEW_DRAFT.md`](CBRP_AUTHORING_AND_REVIEW_DRAFT.md).
 
-### 6.1 Procedure, as decided in CWP-8A / 8B / 8C
+### 6.1 Procedure, as decided in CWP-8A / 8B / 8C / 8D
 
 ```
 authoring     5 quota BLOCKS AUTHOR-B01..B05, each block × each stratum = 2 admitted tasks
@@ -532,13 +532,23 @@ authoring     5 quota BLOCKS AUTHOR-B01..B05, each block × each stratum = 2 adm
               every stratum draws from all five blocks, so author identity is
               never confounded with stratum
 author model  fresh session = fresh model context, not necessarily a different model
-              openai/gpt-5 — the Chief under measurement — FORBIDDEN as an author,
-              as a structural reviewer, and as a duplicate auditor: a model under
-              measurement does not control membership in the pool it is measured on
+              openai/gpt-5 — the Chief under measurement — FORBIDDEN in all five
+              membership roles: author, structural reviewer, structural tie-break,
+              duplicate auditor, duplicate tie-break. A model under measurement does
+              not control membership in the pool it is measured on
               B01/B03/B05 → CLAUDE_FAMILY, B02/B04 → GEMINI_FAMILY
               → every stratum gets 6 CLAUDE and 4 GEMINI, the same split in all six,
                 so family is orthogonal to stratum
-              exact provider/model IDs: OPEN, frozen by GPT before authoring
+              exact model pins FROZEN as CBRP-SESSION-MODEL-PINS-1
+              authors and reviewers never share an exact model within a family, so
+              no task is admitted by the exact model that wrote it
+              a same-family reviewer IS allowed — that is not independence, and no
+              result may call the reviewers independent of shared family priors
+              tie-breaks routed by CBRP-D3-v1, a hash of the immutable adjudication
+              key — deterministic, no discretion, and NOT a guaranteed 50/50 split
+              no alias, no upgrade, no fallback, no substitution: an unavailable
+              pinned model is a STOP and a return to GPT
+              CBRP_MODEL_PINS_PREREG_DRAFT.md — the one canonical table
 brief         one frozen brief, byte-identical to every session
               CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md
 gate 1        per-task structural review: 2 blinded reviews, 3rd on disagreement,
@@ -565,8 +575,11 @@ manifest      CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md — content identity only,
               no self-referential commit SHA; every audit round referenced, not
               only the last
 provenance    CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md — every authoring, review and
-              audit session records provider/model/family and its rubric hash;
-              freshContextConfirmed is an ATTESTATION, never a verified fact
+              audit session records requested/resolved provider+model, family, pin
+              version and its rubric hash; a D3 record stores the selector bytes so
+              its model is recomputable rather than trusted
+              freshContextConfirmed AND the model pins are ATTESTATIONS wherever
+              resolved identity is unobservable — never verified facts
 ```
 
 `[DESIGN]` **Procedure is frozen; content does not exist.** Nothing above has been run.

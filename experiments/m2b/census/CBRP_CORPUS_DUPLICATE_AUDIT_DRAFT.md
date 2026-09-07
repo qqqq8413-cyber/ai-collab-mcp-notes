@@ -269,6 +269,12 @@ flagged by anyone, nor which auditor flagged it. Told there was a split, an adju
 answers a much easier and quite different question. Majority of the three decides that
 pair.
 
+`[ARCHITECTURE-DECIDED]` **D3's model is derived, never chosen** — `CBRP-D3-v1`, a SHA-256
+over `"CBRP-D3-v1\nDUPLICATE\n" + a + "\n" + b` with the pair sorted ascending, first hex
+character `0-7` → the Claude auditor, `8-f` → the Gemini auditor. Sorting the pair is what
+makes the route a property of the pair rather than of who reported it first. Spec and test
+vectors: [`CBRP_MODEL_PINS_PREREG_DRAFT.md`](CBRP_MODEL_PINS_PREREG_DRAFT.md) §7.2.
+
 `[DECISION]` **GPT does not adjudicate task-level duplicate disputes**, for the same
 reason it does not adjudicate structural ones: it knows the measured event, θ and the P03
 history, and a tie-break from that position is an outcome-aware decision about pool
@@ -434,8 +440,8 @@ different procedure from the one that produced it.
 audit rounds run 0 ｜ auditors assigned 0 ｜ pairs confirmed 0 ｜ tasks replaced 0
 ```
 
-No task exists to audit. Auditor provider/model IDs are `[OPEN]` — see
-[`CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md`](CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md) §4
-for the policy that constrains them and
-[`CBRP_AUTHORING_AND_REVIEW_DRAFT.md`](CBRP_AUTHORING_AND_REVIEW_DRAFT.md) §6.2 for why
-the Chief model is excluded.
+No task exists to audit. Auditor provider/model IDs are **frozen** —
+[`CBRP_MODEL_PINS_PREREG_DRAFT.md`](CBRP_MODEL_PINS_PREREG_DRAFT.md) §4 for D1 and D2, §7.2
+for the derived D3 route, and
+[`CBRP_AUTHORING_AND_REVIEW_DRAFT.md`](CBRP_AUTHORING_AND_REVIEW_DRAFT.md) §6.2 for why the
+Chief model is excluded from all of them.

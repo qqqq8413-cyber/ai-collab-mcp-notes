@@ -102,9 +102,11 @@ taskCount                60
 stratumCounts            { each of the six: 10 }
 authorBlockCounts        { AUTHOR-B01..B05: 12 }
 authorBlockByStratum     { stratum: { AUTHOR-B01..B05: 2 } }
+modelPinVersion          CBRP-SESSION-MODEL-PINS-1
+d3RoutingVersion         CBRP-D3-v1
 authorBlockModels        { AUTHOR-B01..B05: { provider, model, modelFamily } }
-                         frozen before authoring; families are B01/B03/B05 CLAUDE,
-                         B02/B04 GEMINI — so every stratum gets 6 CLAUDE and 4 GEMINI
+                         copied from the canonical pin table at freeze time, never
+                         authored here — CBRP_MODEL_PINS_PREREG_DRAFT.md is the source
 
 authoringBriefSha256        the exact brief every session received
 reviewRubricSha256          the exact rubric every reviewer received
@@ -134,6 +136,8 @@ duplicateAuditRounds[]   roundId                DUP-R00, DUP-R01, …
                          corpusTaskIds          the corpus as it stood for that round
                          corpusTaskSha256       matching hashes at that moment
                          auditorSessionIds      D1, D2, and each D3
+                         d3Routes               per adjudicated pair: selector input
+                                                bytes, hex digest, resulting model
                          returnedPairs          verbatim per auditor, empty lists included
                          confirmedPairs         after majority
                          components             with the incumbent / replacement split shown
@@ -171,6 +175,9 @@ duplicateAuditRounds[] begins with DUP-R00, roundType FULL, auditScopeIds = all 
 every later round has roundType INCREMENTAL and auditScopeIds = that round's replacements
 no auditor session id appears under two roundIds
 one duplicateAuditRubricSha256 across every round
+one modelPinVersion and one d3RoutingVersion across the whole manifest
+every recorded D3 model recomputes from its stored selector input alone
+no session in any role used the measured Chief model
 the last round produced no vacancy, and the corpus at that round is tasks[]
 EVERY UNORDERED PAIR IN tasks[] IS IN THE SCOPE OF EXACTLY ONE ROUND — recomputable
     from the rounds' auditScopeIds and corpusTaskIds alone
