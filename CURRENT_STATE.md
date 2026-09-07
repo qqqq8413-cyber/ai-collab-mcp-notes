@@ -997,7 +997,9 @@ brief              CBRP-AUTHORING-BRIEF-2（未變更）
 brief sha256       a9da93fd5d4dd059c0faebdf3e29713abe2035191af5aac26a5b73eb17842336（不變）
 文件               experiments/m2b/census/CBRP_AUTHORING_PROTOCOL_2.md §9（新增）
 實作與測試         experiments/m2b/census/extractor-2.1/
-                   cbrp-author-extractor.mjs ｜ test-extractor.mjs（23/23 passed，全合成資料）
+                   cbrp-author-extractor.mjs ｜ test-extractor.mjs
+                   32/32 synthetic parser-behavior tests ＋ 1/1 anti-contamination check
+                   （兩者分開回報，anti-contamination 不計入 parser-behavior 計數）
 ```
 
 ### M-CBRP-AUTH-02 —— deterministic wrapper normalization 太窄（METHOD LESSON）
@@ -1022,19 +1024,34 @@ brief sha256       a9da93fd5d4dd059c0faebdf3e29713abe2035191af5aac26a5b73eb17842
 CASE A  PLAIN_JSON             整段 trim 後就是一個 JSON array,別無他物
 CASE B  COMPLETE_OUTER_FENCE   一行開頭 fence ＋ array ＋ 一行結尾 fence（Protocol 2 原規則,未變）
 CASE C  ORPHAN_TRAILING_FENCE  從第一個非空白字元開始是完整的頂層 JSON array，
-                               之後只剩空白與**恰好一行**裸露的結尾 fence（新增）
+                               之後有一個真正的換行邊界，再之後恰好一行
+                               **原始內容**就是裸露結尾 fence、別無他物（新增）
 ```
 
-Case C 的九個條件裡,§4/5/7/8/9 在參考實作中化約為**一個檢查**:取 array 頂層右括號之後
-的全部內容、trim 空白,要求**恰好等於三個反引號**。第二個 fence、第二個 JSON 值、
-language tag 或散文,任何一種都會留下額外的非空白位元組,讓這個等式失敗
-——一個檢查同時強制五個條件,且不可能被本次修訂意圖禁止的任何東西滿足。
+`[DECISION]` **CWP-10C-R 更正:** CWP-10C 釋出的版本用 `remainder.trim() === "```"`
+判斷,這會抹掉行結構、判定太寬鬆 —— 它會誤放行「fence 與 array 右括號同一行」
+（`` [...]``` ``,完全沒有換行邊界）與「fence 那一行帶有前導或尾隨空白／tab」,
+兩者都不是規格所寫的「恰好一行 Markdown closing-fence LINE」。
+
+參考實作現改為檢查**行結構本身**,而非壓平空白後的字串:取右括號之後的全部內容,
+依真正的換行(LF,或 CRLF 視為一個邊界)切分。條件 4 要求該邊界必須存在——沒有邊界
+就代表任何疑似 fence 都與 array 同一行,屬 same-line,不算 orphan。條件 5 要求
+array 剩下的那一行只能是水平空白。之後每一行,不是空白行(同一機制同時滿足條件 6
+「中間可有空白行」與條件 12「fence 之後只能是空白」),就必須是**那唯一的** fence 行,
+其**原始、未經 trim 的內容**須逐字元等於三個反引號 —— 前導／尾隨空白或 tab、
+language tag,或任何雜散字元都會讓這個逐字元比對失敗。第二個非空白行
+(第二個 fence、殘留散文,或第二個 JSON 值)一出現就被拒絕,因為此時 fence 行已被認領。
+
+Protocol 2.1 本身的規格 —— 三種表示形式、九條 Case C 條件、每一項禁止修復 ——
+**沒有改變**;改變的只是實作對它的符合程度。
 
 **仍然禁止(適用於全部三種表示形式)**:在散文中搜尋 JSON 子字串、移除說明文字、
 修復畸形 JSON、增減逗號、修正引號、補齊缺失括號、猜測截斷、合併多個 JSON 區塊、
 在多個候選 array 中選一個、移除任意後綴、任何語意改寫。
 
-`[FACT]` 測試套件全部使用**合成資料**,並在套件內自我斷言「本檔案不含 B02 原始位元組」。
+`[FACT]` **32 個定義解析器行為的測試全部使用合成資料**;第 33 個是獨立回報的
+anti-contamination check,只斷言「本檔案不含 B02 原始位元組」,**不計入** parser-behavior
+的合成計數,避免「全部測試皆合成」這句話悄悄把讀取 B02 位元組的那一項也含混進去。
 歷史 B02 證據僅在方法學文件中**描述性引用**,從未成為定義解析器的測試輸入。
 
 `[FACT]` 離線對照(僅作驗證,非測試輸入、非入池判斷):以此抽取器重跑一次已保存的

@@ -304,8 +304,9 @@ CASE A  PLAIN_JSON             trimmed(raw) is itself one JSON array, nothing el
 CASE B  COMPLETE_OUTER_FENCE   one opening fence line, one JSON array, one closing
                                 fence line, and nothing else (unchanged from Protocol 2).
 CASE C  ORPHAN_TRAILING_FENCE  one complete top-level JSON array starting at the first
-                                non-whitespace byte, then nothing but optional
-                                whitespace and exactly one bare closing-fence line.
+                                non-whitespace byte, then a genuine line boundary,
+                                then exactly one line whose RAW content is the bare
+                                closing fence and nothing else.
 ```
 
 Case C is recognized only when **all** of the following hold; failing any one produces
@@ -324,13 +325,28 @@ Case C is recognized only when **all** of the following hold; failing any one pr
 9. there is no second JSON value
 ```
 
-`[DESIGN]` Conditions 4, 5, 7, 8 and 9 reduce to one check in the reference
-implementation: take everything after the array's matching closing bracket, trim
-whitespace, and require the result to equal the three-backtick fence exactly. A second
-fence, a second JSON value, a language tag, or trailing prose would each leave extra
-non-whitespace bytes behind and fail that equality — so the single check enforces all
-five conditions at once, and cannot be satisfied by anything this amendment intends to
-forbid.
+`[DESIGN]` The reference implementation checks line **structure**, not a
+whitespace-collapsed string. Everything after the array's matching closing bracket is
+split on a real line boundary (LF, or CRLF as one boundary). Condition 4 requires that
+boundary to exist at all — no boundary means any would-be fence sits on the array's own
+line, which is same-line, not orphan. Condition 5 requires the array's own remaining
+line to contain only horizontal whitespace. Every line after that must be either
+whitespace-only — one mechanism serving both condition 6 (intervening blank lines) and
+condition 12 (only whitespace after the fence) — or be **the** fence line, whose raw,
+untrimmed content must equal the three-backtick string exactly; a leading or trailing
+space or tab, a language tag (condition 5/11), or any other stray character fails that
+equality outright. A second non-blank line — a second fence (condition 8/13), leftover
+prose (condition 7/9/15), or a second JSON value (condition 14) — is rejected the
+moment it is seen, because by then a fence line has already been claimed.
+
+`[DECISION]` **CWP-10C-R correction.** The version of this check released with CWP-10C
+compared `remainder.trim()` to the bare fence, which erases line structure and is too
+permissive: it wrongly accepted a fence sharing the array's own line
+(`` [...]``` ``, no line boundary at all) and a fence line carrying leading or trailing
+horizontal whitespace, neither of which is "exactly one Markdown closing-fence LINE."
+The per-line mechanism above replaces it. Protocol 2.1's specification — the three
+representations, the nine-numbered Case C requirement, and every forbidden repair —
+did not change; only the implementation's conformance to it did.
 
 **Still forbidden, in every representation** — this is a wrapper-recognition amendment,
 never a repair tool:
@@ -349,14 +365,20 @@ semantic rewriting
 ```
 extractor         CBRP-AUTHOR-EXTRACTOR-2.1
 module            experiments/m2b/census/extractor-2.1/cbrp-author-extractor.mjs
-tests             experiments/m2b/census/extractor-2.1/test-extractor.mjs  (23/23 passing)
+tests             experiments/m2b/census/extractor-2.1/test-extractor.mjs
+                   32/32 synthetic parser-behavior tests passing
+                   1/1 historical-evidence anti-contamination check passing, reported
+                   separately — never counted among the parser-behavior fixtures
 returns            representationDetected, normalizedJsonBytes, originalRawSha256,
                    normalizedJsonSha256 — at minimum, per this amendment's requirement
 ```
 
-`[FACT]` Every test fixture is **synthetic**. None is drawn from `AUTHOR2-B02-S00`; the
-suite asserts this of itself (`no fixture in this file matches AUTHOR2-B02-S00 raw
-bytes`). Historical B02 evidence is cited here descriptively only.
+`[FACT]` Every **parser-behavior** fixture is synthetic; none is drawn from
+`AUTHOR2-B02-S00`. The suite reports parser-behavior tests and the B02
+anti-contamination check as two separate counts, precisely so that "all fixtures
+synthetic" is a claim about the 32 tests that define parser behavior, and never a claim
+that quietly folds in the one check that reads B02's bytes for a different purpose —
+asserting this file does not embed them.
 
 `[FACT]` Run once, offline, against the preserved historical evidence as an independent
 **verification** step — not as a test fixture and not as an admission decision — the 2.1
@@ -430,8 +452,10 @@ exclusively structural review's, unchanged from §3 and §4.
 ```
 M-CBRP-AUTH-02              CLOSED AT METHODOLOGY AMENDMENT LEVEL
 CBRP-AUTHORING-V2-ROUND-0   INCOMPLETE / CLOSED, 2 calls, 12 candidates, 0 carried forward
-Protocol 2.1 extractor      FROZEN, verified against synthetic tests (23/23) and, only as
-                            a descriptive check, against historical B02 bytes
+Protocol 2.1 extractor      FROZEN, IMPLEMENTATION VERIFIED AGAINST FROZEN GRAMMAR
+                            32/32 synthetic parser-behavior tests, 1/1 anti-contamination
+                            check, and — only as a descriptive check, never a fixture —
+                            against historical B02 bytes
 CBRP-AUTHORING-V2P1-ROUND-0 NOT AUTHORIZED, NOT RUN
 ```
 

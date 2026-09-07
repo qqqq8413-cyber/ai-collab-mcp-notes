@@ -1,6 +1,12 @@
 /**
  * CBRP-AUTHOR-EXTRACTOR-2.1
  *
+ * Implementation conformance repaired by CWP-10C-R: Case C now enforces the frozen
+ * grammar's exact-line requirement for the trailing fence (see tryOrphanTrailingFence
+ * below) rather than a whitespace-collapsing `trim()` comparison. The protocol itself —
+ * CBRP-AUTHORING-PROTOCOL-2.1, its three representations, and every forbidden repair —
+ * is unchanged; this is a source-conformance fix, not a new protocol version.
+ *
  * Deterministic wrapper normalization for CBRP author-session responses. This is an
  * extraction/representation amendment only — it decides how much of the response is
  * markdown-fence wrapping around a JSON array, never whether the JSON or the scenario
@@ -23,8 +29,10 @@
  *   COMPLETE_OUTER_FENCE  one opening fence line, one JSON array, one closing fence
  *                         line, and nothing else (optional surrounding whitespace).
  *   ORPHAN_TRAILING_FENCE one complete top-level JSON array starting at the first
- *                         non-whitespace byte, then nothing but optional whitespace
- *                         and exactly one bare closing-fence line.
+ *                         non-whitespace byte, then a genuine line boundary, then
+ *                         exactly one line whose raw content is the bare closing
+ *                         fence and nothing else (no same-line fence, no leading or
+ *                         trailing whitespace on that line, no language tag).
  *
  * Still forbidden, in every representation: searching prose for a JSON substring,
  * removing explanatory text, repairing malformed JSON, adding or removing commas,
@@ -127,16 +135,39 @@ function tryCompleteOuterFence(raw) {
  * CASE C. New in 2.1. A complete top-level JSON array starting at the first
  * non-whitespace byte (conditions 1 and 6: no prefix prose is possible, because any
  * non-whitespace prefix would make that first byte something other than `[`), followed
- * by nothing but optional whitespace and exactly one bare closing-fence line
- * (conditions 4, 5, 7, 8, 9 all reduce to one check: the remainder, once trimmed of
- * whitespace, equals the three-backtick fence and nothing else — a second fence, a
- * second JSON value, or trailing prose would each leave extra non-whitespace bytes
- * behind and fail that equality).
+ * by a genuine line boundary and then exactly one line whose RAW, unmodified content is
+ * the three-backtick fence and nothing else.
+ *
+ * Tightened by CWP-10C-R. The original implementation checked
+ * `remainder.trim() === "```"`, which is too permissive: `trim()` erases the line
+ * structure the frozen grammar depends on, so it wrongly accepted a fence on the same
+ * line as the array's closing bracket (`[...]```` with no line break at all) and a
+ * fence line carrying leading or trailing horizontal whitespace (`` 
+ ``` `` or
+ * `` 
+``` `` with a trailing space) — none of which is "exactly one Markdown
+ * closing-fence LINE" as specified. The fix below tests line structure directly rather
+ * than a whitespace-collapsed string, per line:
+ *
+ *   1. split the remainder on a real line boundary (LF, or CRLF as one boundary)
+ *   2. condition 4: at least one line boundary must exist at all — no boundary means
+ *      the "fence" (if any) is on the array's own line, which is same-line, not orphan
+ *   3. condition 5: everything on the array's own line, after `]`, must be pure
+ *      horizontal whitespace — nothing else may share that line with the array
+ *   4. conditions 6/7/8/9/10/11/12/13/14: walk every remaining line; each must be
+ *      either whitespace-only (a blank line, before or after the fence — this is one
+ *      mechanism for both "intervening blank lines" and "only whitespace after the
+ *      fence") or be the single fence line, whose raw content must equal the
+ *      three-backtick string exactly — no trim, so a leading/trailing space or tab,
+ *      a language tag, or any other stray character fails the equality outright. A
+ *      second non-blank line — a second fence, leftover prose, or a second JSON
+ *      value — is rejected the moment it is seen, because at that point a fence line
+ *      has already been claimed.
  */
 function tryOrphanTrailingFence(raw) {
   const firstNonWs = raw.search(/\S/);
   if (firstNonWs === -1) return null;
-  if (raw[firstNonWs] !== '[') return null; // condition 1 / 6: no prefix prose
+  if (raw[firstNonWs] !== '[') return null; // condition 1 / 15: no prefix prose
   const fromArray = raw.slice(firstNonWs);
   const endIndex = findTopLevelArrayEnd(fromArray); // condition 2: complete array, no editing
   if (endIndex === -1) return null;
@@ -148,8 +179,22 @@ function tryOrphanTrailingFence(raw) {
     return null;
   }
   if (!Array.isArray(parsed)) return null;
+
   const remainder = fromArray.slice(endIndex + 1);
-  if (remainder.trim() !== BARE_FENCE) return null; // conditions 4,5,7,8,9 in one check
+  const lines = remainder.split(/\r\n|\n/);
+  if (lines.length < 2) return null; // condition 4: no line boundary at all — same-line fence
+  if (!/^[ \t]*$/.test(lines[0])) return null; // condition 5: only horizontal ws before the boundary
+
+  let fenceLineFound = false;
+  for (let i = 1; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (/^[ \t]*$/.test(line)) continue; // condition 6 / 12: blank lines, before or after the fence
+    if (fenceLineFound) return null; // condition 13 / 14 / 15: a second non-blank line
+    if (line !== BARE_FENCE) return null; // condition 8,9,10,11: exact raw content, no trim
+    fenceLineFound = true;
+  }
+  if (!fenceLineFound) return null; // condition 7: exactly one non-whitespace line must remain
+
   return { representationDetected: REPRESENTATIONS.ORPHAN_TRAILING_FENCE, normalizedJsonBytes: arrayText, parsed };
 }
 
