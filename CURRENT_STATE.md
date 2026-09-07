@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  fe8b4a79bddbee0765e4b439e704157bc9378b0d（CWP-10H execution base）
+stateVerifiedThrough  a1f5765024c0b646b887d1ade7dc0b997a542d79（CWP-11B execution base）
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -1228,6 +1228,76 @@ real artifact namespace         NOT CREATED
 
 60 題 Protocol-2.1 candidates 仍為 **PROVISIONAL / UNREVIEWED**；正式 admitted tasks 仍為 0。
 
+### Structural Review ROUND_0 —— EXECUTED / FAILED_CLOSED / IMMUTABLE
+
+`[FACT]` 在 CWP-10H 之後,`CBRP-STRUCTURAL-REVIEW-LIVE-HARNESS-1` 被授權執行了一次
+真實 LIVE ROUND_0(evidence commit `a1f5765024c0b646b887d1ade7dc0b997a542d79`)。
+該輪 **STOPPED INCOMPLETE**,不是成功完成:
+
+```
+status                  INITIAL_INCOMPLETE
+stopCode                STOP_MALFORMED_RESPONSE
+sessions dispatched     80          reviews validated   79
+failed session          V21-B01-S00-EI-02-R2（gemini / gemini-3.8-flash）
+provider termination    finishReason = MAX_TOKENS（隱藏 thinking tokens 佔滿輸出，可見 JSON 被截斷）
+salvage                 NO_SALVAGE —— 該次截斷回應不得修復、不得重新解析、不得單題重跑
+evidence root           experiments/m2b/census/structural-review-round-0/（IMMUTABLE，只讀）
+```
+
+`[DECISION]` **ROUND_0 的證據永久保留、不修改、不刪除、不覆寫。** 該輪本身
+**不構成任何 structural review 的正式判定** —— 79 筆已驗證的 review 不得被當作
+admission 依據使用;整個 INITIAL 階段因 1 筆截斷失敗而 INCOMPLETE,60 題仍是
+UNREVIEWED。
+
+### CWP-11B —— CBRP-STRUCTURAL-REVIEW-EXECUTION-AMENDMENT-1（ROUND_1 世代 envelope 修訂,僅離線）
+
+`[ARCHITECTURE-DECIDED]` 針對 ROUND_0 的 MAX_TOKENS 失敗,凍結一個**只動生成參數、
+不重新設計方法學**的前瞻性修訂,供未來 ROUND_1 使用:
+
+```
+                ROUND_0（歷史，不可變）        ROUND_1（已修訂，尚未執行）
+R1 / claude     maxOutputTokens 4096          maxOutputTokens 4096（不變）
+R2 / gemini     maxOutputTokens 4096          maxOutputTokens 32768，thinkingLevel "medium"
+```
+
+`[FACT]` **Claude ceiling 機械稽核(離線,僅描述性,未讀取任何 reviewer 判斷內容)：**
+掃描全部 40 份保存的 ROUND_0 Claude R1 raw response:
+
+```
+Claude R1 回應數                 40
+stop_reason 分布                 { "end_turn": 40 }
+觀察到最大 output_tokens         752
+觀察到最大 thinking_tokens       483
+stop_reason == max_tokens 筆數   0
+```
+
+`[DECISION]` 0 筆命中 max_tokens → **Claude ceiling 維持 4096,不因對稱性而調高**。
+
+`[FACT]` **Gemini SDK 能力檢查(離線,無 provider call)：** 已安裝的
+`@google/generative-ai@0.24.1` 對 `generationConfig` 不做欄位白名單過濾,
+整包物件原樣 `JSON.stringify` 送出,因此新增 `thinkingConfig.thinkingLevel` 欄位
+不需要升級或替換依賴即可忠實傳遞。**無需 STOP。**
+
+`[ARCHITECTURE-DECIDED]` **MAX_TOKENS fail-closed 規則(適用所有輪次,非僅
+ROUND_1)：** raw evidence 落盤後、萃取之前,只要 provider 回報的終止原因顯示
+MAX_TOKENS(Gemini `finishReason`、Claude `stop_reason`,大小寫不敏感),
+一律 STOP(`STOP_MAX_TOKENS_TRUNCATED`),**即使截斷後的可見文字恰好仍是合法
+JSON 也一樣** —— 不得因為文法上看起來完整就當作完整回應處理。
+
+```
+實作                  structural-review-runner.mjs（GENERATION_ENVELOPES / generationEnvelopeFor）
+                      structural-review-live-harness-v1.mjs（round-aware artifactDir/
+                      revalidation namespace、MAX_TOKENS 檢查、Gemini thinkingConfig 傳遞）
+新增/更新測試          test-structural-review-live-harness.mjs 39/39（含 10 項 CWP-11B 新測試）
+                      test-structural-review-protocol.mjs 76/76
+ROUND_1 real 命名空間  NOT CREATED（experiments/m2b/census/structural-review-round-1/ 未建立）
+provider calls        0
+```
+
+`[DECISION]` **ROUND_1 LIVE 未授權。** 本次僅離線凍結生成 envelope 修訂與
+fail-closed 規則;實際執行 ROUND_1(或 ROUND_0 任何形式的重跑)都需要另一份
+明寫 `EXECUTION AUTHORIZATION: GRANTED` 的 GPT packet。
+
 ### 目前的 M2-B 狀態（不得混淆 acquisition 與 effectiveness)
 
 ```
@@ -1715,6 +1785,10 @@ Wave 2                  CONSUMED / CLOSED   ← 已於 781ade9 執行完畢，�
 Wave 3                  CONSUMED / CLOSED   ← 已於 730d350 執行完畢，P03 池已用盡
 Census（新研究）          CWP-10B（Protocol 2）CONSUMED/STOPPED；CWP-10E（Protocol 2.1）
                           CONSUMED / COMPLETE（60/60 acquired）；後續 NOT AUTHORIZED
+Structural Review ROUND_0  CONSUMED / CLOSED ← 已於 a1f5765 執行並 FAILED_CLOSED
+                          （80 dispatched / 79 validated），該授權不延續、不得重跑
+Structural Review ROUND_1  NOT AUTHORIZED ← envelope 修訂已離線凍結（CWP-11B），
+                          LIVE 執行需另一份明寫 base SHA 的授權
 Gemini A2               NOT AUTHORIZED
 Gate                    NOT AUTHORIZED
 Synthesis               NOT AUTHORIZED
@@ -1917,7 +1991,7 @@ Protocol 與 Structural Review Protocol 均已凍結）。以下為更正後、�
 的收尾狀態：
 
 ```
-STATE ALIGNED THROUGH fe8b4a79bddbee0765e4b439e704157bc9378b0d (CWP-10H execution base) /
+STATE ALIGNED THROUGH a1f5765024c0b646b887d1ade7dc0b997a542d79 (CWP-11B execution base) /
 P03 CLOSED — 9/9 ATTEMPTED, 0 ADMITTED, 0 ARCHETYPES FILLED /
 F1 FAIL 3/9 ｜ F2 FAIL 7/9 ｜ F3 FAIL 0/9 ｜ ONE SPECIALIST 7/9 /
 A2 = 0 EXECUTIONS ｜ EFFECTIVENESS EXPERIMENT NOT EXECUTED ｜ C vs D₁ UNANSWERED /
@@ -1930,7 +2004,12 @@ authoring provider calls total = 12 (v1 5 + Protocol-2 2 + Protocol-2.1 5) /
 CBRP-REPLACEMENT-PROTOCOL-1 FROZEN (CWP-10F) ｜ index invariant conformance-repaired (CWP-10F-R) /
 CBRP-STRUCTURAL-REVIEW-PROTOCOL-1 FROZEN / CWP-10G-R VERIFIED /
 CBRP-STRUCTURAL-REVIEW-LIVE-HARNESS-1 IMPLEMENTED / OFFLINE VERIFIED (CWP-10H) /
-0 structural reviews ｜ 0 duplicate audit rounds ｜ 0 replacement sessions ｜
+STRUCTURAL REVIEW ROUND_0 EXECUTED / FAILED_CLOSED / INITIAL_INCOMPLETE / IMMUTABLE
+  (80 dispatched, 79 validated, V21-B01-S00-EI-02-R2 MAX_TOKENS, NO_SALVAGE) /
+CBRP-STRUCTURAL-REVIEW-EXECUTION-AMENDMENT-1 (CWP-11B) OFFLINE VERIFIED / NOT EXECUTED —
+  ROUND_1: Claude 4096 unchanged, Gemini 32768 + thinkingLevel medium /
+MAX_TOKENS FAIL-CLOSED RULE FROZEN (applies to every round) /
+0 structural reviews VALIDATED-AND-ADMITTED ｜ 0 duplicate audit rounds ｜ 0 replacement sessions ｜
 0 pools frozen ｜ 0 Chief Census calls ｜ 0 formal admitted tasks /
 LIVE = STOPPED / RETURN TO GPT ARCHITECTURE
 ```

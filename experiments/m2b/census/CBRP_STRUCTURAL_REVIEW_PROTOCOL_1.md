@@ -10,9 +10,12 @@ ORDER:         CBRP-STRUCTURAL-REVIEW-ORDER-v1
 D3 ROUTING:    CBRP-D3-v1        (unchanged — CBRP_MODEL_PINS_PREREG_DRAFT.md §7.1)
 REVIEWER PINS: R1 claude/claude-opus-5, R2 gemini/gemini-3.8-flash
                (unchanged — CBRP_MODEL_PINS_PREREG_DRAFT.md §3)
+AMENDMENT:     CBRP-STRUCTURAL-REVIEW-EXECUTION-AMENDMENT-1 (§18, CWP-11B)
+               ROUND_1 generation envelope — offline prepared, not executed
 
-STATUS:  METHODOLOGY FROZEN ｜ OFFLINE VERIFIED ｜ NOT EXECUTED ｜ LIVE NOT AUTHORIZED
-REVIEWS RUN SO FAR: 0     STRUCTURAL REVIEW CALLS: 0     PROVIDER CALLS: 0
+STATUS:  METHODOLOGY FROZEN ｜ OFFLINE VERIFIED
+ROUND_0: LIVE / FAILED_CLOSED / INITIAL_INCOMPLETE / IMMUTABLE (80 dispatched, 79 validated)
+ROUND_1: LIVE NOT AUTHORIZED
 ```
 
 > **Content-blind by construction, like `CBRP_REPLACEMENT_PROTOCOL_1.md`.** This
@@ -417,9 +420,16 @@ modules   experiments/m2b/census/structural-review-protocol/
             structural-review-order-v1.mjs
             structural-review-runner.mjs
 tests     experiments/m2b/census/structural-review-protocol/test-structural-review-protocol.mjs
-            synthetic behavior tests:              67/67 passing
+            synthetic behavior tests:              76/76 passing (grew from 67 as CWP-10G-R
+                                                    tightened the extractor's fence-line grammar)
             anti-contamination provenance check:    1/1 passing (separately reported)
             frozen rubric provenance check:          3/3 passing (separately reported)
+          experiments/m2b/census/structural-review-protocol/test-structural-review-live-harness.mjs
+            39/39 passing (CWP-10H's 29 offline harness tests + CWP-11B's 10:
+            ROUND_0/ROUND_1 envelope values, Claude/Gemini per-call token and
+            thinkingLevel routing, ROUND_1 cardinality, an unrecognized roundId
+            refused pre-dispatch, three MAX_TOKENS fail-closed cases, and the
+            ROUND_0/ROUND_1 namespace-reality guards)
 ```
 
 Covered: blind-id determinism and one-wayness; R1/R2/R3 prompt-byte identity for one
@@ -448,9 +458,10 @@ bytes were frozen against it.
 ## 17. Status
 
 ```
-CBRP-STRUCTURAL-REVIEW-PROTOCOL-1     FROZEN, OFFLINE VERIFIED, NOT EXECUTED
-structural reviews                     0
-provider calls                         0
+CBRP-STRUCTURAL-REVIEW-PROTOCOL-1     FROZEN, OFFLINE VERIFIED
+ROUND_0 (LIVE, CWP-10E-era envelope)   EXECUTED / FAILED_CLOSED / INITIAL_INCOMPLETE / IMMUTABLE
+ROUND_1 (amended envelope, CWP-11B)    OFFLINE PREPARED / NOT EXECUTED / LIVE NOT AUTHORIZED
+sessions dispatched (ROUND_0)          80          reviews validated (ROUND_0)   79
 formal admitted tasks                  0
 duplicate audit rounds                 0
 pool frozen                            NO
@@ -458,7 +469,136 @@ Chief Census calls                     0
 study                                  NOT PREREGISTERED
 ```
 
-No structural review has run on any of the 60 `CBRP-AUTHORING-V2P1-ROUND-0`
-candidates. This protocol governs what happens the first time one does, and not
-before — LIVE execution requires a separate future GPT packet carrying explicit
-`EXECUTION AUTHORIZATION: GRANTED` for structural review.
+`[FACT]` ROUND_0 actually ran LIVE and stopped incomplete: `V21-B01-S00-EI-02-R2`
+(Gemini) terminated on `finishReason: MAX_TOKENS`, its visibly truncated text
+failed `CBRP-STRUCTURAL-REVIEW-EXTRACTOR-1`, and the run STOPPED at
+`STOP_MALFORMED_RESPONSE` with 80 sessions dispatched and 79 reviews validated —
+preserved immutably under `structural-review-round-0/`. See §18 for the
+generation-envelope amendment (`CBRP-STRUCTURAL-REVIEW-EXECUTION-AMENDMENT-1`,
+CWP-11B) this outcome produced.
+
+No structural review has completed on any of the 60 `CBRP-AUTHORING-V2P1-ROUND-0`
+candidates, and none may run again under ROUND_0's exact envelope or namespace —
+that attempt is closed. A ROUND_1 attempt requires a separate future GPT packet
+carrying explicit `EXECUTION AUTHORIZATION: GRANTED` for structural review LIVE
+execution.
+
+---
+
+## 18. CBRP-STRUCTURAL-REVIEW-EXECUTION-AMENDMENT-1 — ROUND_1 generation envelope (CWP-11B)
+
+`[ARCHITECTURE-DECIDED]` A **prospective, envelope-only** amendment, frozen after
+ROUND_0's real LIVE failure and before any ROUND_1 call. Nothing in §1–§9 changes:
+same 60 candidates, same rubric, same prompt bytes, same blind ids, same review
+order, same R1/R2 exact model pins, same R1-then-R2 ordering, same one-attempt/
+no-retry/no-fallback/no-substitution rule, same extractor/schema/admission
+semantics. Only the per-provider generation ceiling changes, and only for a
+**new** round:
+
+```
+                ROUND_0 (historical, immutable)   ROUND_1 (amended, not yet run)
+R1 / claude     maxOutputTokens 4096              maxOutputTokens 4096  (UNCHANGED)
+R2 / gemini     maxOutputTokens 4096              maxOutputTokens 32768, thinkingLevel "medium"
+```
+
+Frozen as `GENERATION_ENVELOPES` in
+[`structural-review-protocol/structural-review-runner.mjs`](structural-review-protocol/structural-review-runner.mjs),
+looked up by **provider**, not by R1/R2/R3 role label — R3's role is always
+`R3`, but its provider is whichever `CBRP-D3-v1` selected, so it receives
+whichever envelope that provider's role would have gotten.
+
+### 18.1 Why: the mechanical Claude-ceiling audit and the observed Gemini failure
+
+`[FACT]` **ROUND_0's actual stop was a Gemini R2 truncation, not a Claude one.**
+`V21-B01-S00-EI-02-R2`'s raw response shows `finishReason: "MAX_TOKENS"` with
+`thoughtsTokenCount: 3934` against a total `candidatesTokenCount: 158` — nearly
+the entire token budget was consumed by hidden reasoning before any visible
+output, truncating the JSON mid-string.
+
+`[FACT]` **Mechanical, descriptive-only audit of all 40 preserved ROUND_0 Claude
+R1 raw responses** (`structural-review-round-0/raw/*-R1.response.json`) — no
+reviewer judgement inspected, only provider-reported termination and token
+counts:
+
+```
+Claude R1 responses found         40
+stop_reason distribution          { "end_turn": 40 }
+max observed output_tokens        752
+max observed thinking_tokens      483
+count with stop_reason=max_tokens 0
+```
+
+`[DECISION]` Per the frozen rule this audit exists to enforce: **zero** Claude R1
+responses hit `max_tokens`, so Claude's ceiling is **preserved at 4096, not
+raised for symmetry** with Gemini's change. Raising it anyway would have been an
+unforced, unevidenced change to a value nothing observed requires — exactly the
+kind of amendment this protocol's own discipline (§0, §15) exists to refuse.
+
+### 18.2 SDK capability check — no dependency change required
+
+`[FACT]` The installed `@google/generative-ai@0.24.1` performs no client-side
+allow-listing of `generationConfig`: `GenerativeModel` stores whatever object it
+is given (`this.generationConfig = modelParams.generationConfig || {}`) and the
+request builder serializes the whole params object verbatim
+(`JSON.stringify(params)`) with no field-by-field validation. An extra
+`thinkingConfig` key therefore reaches the transport layer unmodified — the SDK
+does not need to know the field exists to carry it. This closes the packet's
+required check without a live provider call or availability probe: **no SDK
+upgrade or replacement was needed.**
+
+`[DESIGN]` This confirms the SDK will **transmit** the field faithfully; it
+does not confirm the live API's exact accepted shape for `thinkingLevel` (a
+qualitative level, distinct from a numeric thinking-budget parameter) since
+confirming that would itself require a live call, which this packet's mode
+(OFFLINE ENGINEERING) forbids. `createRealProviderTransport` sends it as
+`generationConfig.thinkingConfig.thinkingLevel` — the naming convention already
+established for Gemini's other structured generation-config fields — and omits
+the key entirely (not merely `null`) whenever a round's envelope has no
+`thinkingLevel`, so ROUND_0's historical request shape is exactly reproduced,
+never approximated.
+
+### 18.3 MAX_TOKENS fail-closed rule (applies to every round, not just ROUND_1)
+
+`[ARCHITECTURE-DECIDED]` Immediately after raw provider evidence is durably
+persisted, and before the provider/model pin check or any extraction:
+
+```
+if the provider's reported termination indicates MAX_TOKENS (Gemini finishReason
+   "MAX_TOKENS", or Claude stop_reason "max_tokens", case-insensitive):
+       STOP  (outcome STOP_MAX_TOKENS_TRUNCATED)
+       do NOT extract, do NOT schema-admit, do NOT retry, do NOT continue later sessions
+```
+
+`[DECISION]` **This fires regardless of whether the truncated visible text
+happens to parse as syntactically valid JSON.** ROUND_0's actual failure was
+lucky in one narrow sense — the truncation broke mid-string and so also broke
+JSON syntax, which is what let the pre-existing extractor's ordinary MALFORMED
+path catch it. A truncation that happened to land exactly on a JSON boundary
+would have produced a schema-valid-looking review built from an incomplete
+reasoning process, and admitted it as if it were a complete judgement. This rule
+removes that coincidence from the safety property: termination-signal fail-
+closed, not JSON-validity fail-closed.
+
+### 18.4 Round-scoped artifact namespace
+
+`[ARCHITECTURE-DECIDED]` `ROUND_ARTIFACT_DIR_NAMES` maps `ROUND_0 →
+structural-review-round-0/` (real, immutable) and `ROUND_1 →
+structural-review-round-1/` (reserved, per §14 — **not created by this
+amendment**). `dispatchStructuralReviewLive` requires an explicit `roundId` with
+no default; a live entrypoint silently assuming a round is exactly the implicit
+behavior this amendment exists to eliminate. `runInitialStructuralReviewStage`
+and `runR3StructuralReviewStage` default `roundId` to `'ROUND_0'` only for
+backward compatibility with call sites (all pre-existing tests) that predate
+round-awareness and never intended to select anything else.
+
+### 18.5 Status
+
+```
+CBRP-STRUCTURAL-REVIEW-EXECUTION-AMENDMENT-1   OFFLINE VERIFIED, NOT EXECUTED
+ROUND_1 real sessions                           0
+ROUND_1 real artifact namespace                 NOT CREATED
+provider calls (this amendment)                 0
+```
+
+`EXECUTION AUTHORIZATION: GRANTED` for CWP-11B covers offline engineering only.
+Starting ROUND_1 LIVE requires a separate future GPT packet.

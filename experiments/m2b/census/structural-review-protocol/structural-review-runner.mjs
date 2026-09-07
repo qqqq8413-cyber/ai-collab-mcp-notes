@@ -39,6 +39,58 @@ export const CALL_BUDGET = Object.freeze({
 });
 
 /**
+ * Per-round generation envelopes -- CWP-11B / CBRP-STRUCTURAL-REVIEW-EXECUTION-
+ * AMENDMENT-1. Everything else about a review call (rubric, prompt bytes, blind
+ * id, review order, exact provider/model pin, R1-then-R2 ordering, one attempt,
+ * no retry/fallback/substitution) is unchanged and unchangeable per round -- only
+ * `maxOutputTokens` and (for Gemini) `thinkingLevel` vary, and only because
+ * ROUND_0's real execution recorded a Gemini R2 session terminating on
+ * MAX_TOKENS (`V21-B01-S00-EI-02-R2`, see structural-review-round-0/raw/) before
+ * it could emit a complete response.
+ *
+ * ROUND_0 is historical and immutable: its envelope is recorded here exactly as
+ * it was actually run (uniform 4096, no explicit thinkingLevel -- i.e. whatever
+ * the SDK's implicit default was), so a round id is never ambiguous about what
+ * request shape produced its evidence. ROUND_1 has not run; its envelope is
+ * offline-prepared and LIVE-unauthorized until a separate GPT packet grants it.
+ *
+ * Keyed by provider, not by R1/R2/R3 role label, because R3's role is always
+ * "R3" but its provider is whichever CBRP-D3-v1 selected -- the same provider
+ * that would have filled R1 or R2, and so the same envelope that role gets.
+ */
+export const GENERATION_ENVELOPES = Object.freeze({
+  ROUND_0: Object.freeze({
+    roundId: 'ROUND_0',
+    claude: Object.freeze({ maxOutputTokens: 4096 }),
+    gemini: Object.freeze({ maxOutputTokens: 4096 }),
+  }),
+  ROUND_1: Object.freeze({
+    roundId: 'ROUND_1',
+    amendmentVersion: 'CBRP-STRUCTURAL-REVIEW-EXECUTION-AMENDMENT-1',
+    claude: Object.freeze({ maxOutputTokens: 4096 }),
+    gemini: Object.freeze({ maxOutputTokens: 32768, thinkingLevel: 'medium' }),
+  }),
+});
+
+/**
+ * Looks up the generation envelope for one provider under one round. Fails
+ * closed (throws) on an unknown round id or an unknown provider rather than
+ * silently falling back to some default -- a round or a provider this function
+ * has not been told about is a configuration gap, never a reason to guess.
+ */
+export function generationEnvelopeFor(roundId, provider) {
+  const round = GENERATION_ENVELOPES[roundId];
+  if (!round) {
+    throw new TypeError(`generationEnvelopeFor: unknown roundId ${JSON.stringify(roundId)}`);
+  }
+  const envelope = round[provider];
+  if (!envelope) {
+    throw new TypeError(`generationEnvelopeFor: unknown provider ${JSON.stringify(provider)} for round ${roundId}`);
+  }
+  return envelope;
+}
+
+/**
  * Computes the deterministic R1/R2 dispatch plan for a frozen 60-task pool.
  * Pure -- `rubricPasteBytes` must be supplied by the caller (e.g. from
  * `loadFrozenRubricPasteBytes()`) so this function never has a hidden

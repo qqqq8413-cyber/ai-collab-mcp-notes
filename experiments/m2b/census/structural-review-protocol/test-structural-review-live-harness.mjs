@@ -22,6 +22,7 @@ import {
 } from './structural-review-live-harness-v1.mjs';
 import {
   REVIEWER_PINS,
+  GENERATION_ENVELOPES,
   computeInitialReviewPlan,
   dispatchLiveStructuralReview,
 } from './structural-review-runner.mjs';
@@ -467,6 +468,143 @@ await check('R3 requires a completed initial-stage artifact set', async () => {
   }), /INITIAL_COMPLETE|ENOENT/);
 });
 
+console.log('\n--- CWP-11B: ROUND_1 generation envelope amendment ---');
+
+await check('GENERATION_ENVELOPES.ROUND_0 matches the historical MAX_OUTPUT_TOKENS constant exactly', () => {
+  assert.equal(GENERATION_ENVELOPES.ROUND_0.claude.maxOutputTokens, MAX_OUTPUT_TOKENS);
+  assert.equal(GENERATION_ENVELOPES.ROUND_0.gemini.maxOutputTokens, MAX_OUTPUT_TOKENS);
+  assert.equal(GENERATION_ENVELOPES.ROUND_0.claude.thinkingLevel, undefined);
+  assert.equal(GENERATION_ENVELOPES.ROUND_0.gemini.thinkingLevel, undefined);
+});
+
+await check('ROUND_1 envelope: Claude stays at 4096, Gemini raised to 32768 with explicit thinkingLevel medium', () => {
+  assert.equal(GENERATION_ENVELOPES.ROUND_1.claude.maxOutputTokens, 4096);
+  assert.equal(GENERATION_ENVELOPES.ROUND_1.gemini.maxOutputTokens, 32768);
+  assert.equal(GENERATION_ENVELOPES.ROUND_1.gemini.thinkingLevel, 'medium');
+});
+
+await check('ROUND_1 dispatch: Claude (R1) call receives maxOutputTokens 4096, no thinkingLevel', async () => {
+  const dir = artifactDir('round1-claude-envelope');
+  const { calls, transport } = makeTransport();
+  await runInitialStructuralReviewStage({
+    authorizedBaseSha: AUTHORIZED_BASE,
+    pool: makePool(),
+    rubricPasteBytes: RUBRIC,
+    artifactDir: dir,
+    transport,
+    credentials: { claude: 'x', gemini: 'y' },
+    revalidate: async () => makeSnapshot(),
+    roundId: 'ROUND_1',
+  });
+  const r1Calls = calls.filter((call) => call.reviewRole === 'R1');
+  assert.equal(r1Calls.length, 60);
+  for (const call of r1Calls) {
+    assert.equal(call.maxOutputTokens, 4096);
+    assert.equal(call.thinkingLevel, null);
+  }
+});
+
+await check('ROUND_1 dispatch: Gemini (R2) call receives maxOutputTokens 32768 and thinkingLevel medium', async () => {
+  const dir = artifactDir('round1-gemini-envelope');
+  const { calls, transport } = makeTransport();
+  await runInitialStructuralReviewStage({
+    authorizedBaseSha: AUTHORIZED_BASE,
+    pool: makePool(),
+    rubricPasteBytes: RUBRIC,
+    artifactDir: dir,
+    transport,
+    credentials: { claude: 'x', gemini: 'y' },
+    revalidate: async () => makeSnapshot(),
+    roundId: 'ROUND_1',
+  });
+  const r2Calls = calls.filter((call) => call.reviewRole === 'R2');
+  assert.equal(r2Calls.length, 60);
+  for (const call of r2Calls) {
+    assert.equal(call.maxOutputTokens, 32768);
+    assert.equal(call.thinkingLevel, 'medium');
+  }
+});
+
+await check('ROUND_1 initial plan contains exactly 120 sessions (60 R1 + 60 R2), same as ROUND_0', async () => {
+  const dir = artifactDir('round1-cardinality');
+  const { calls, transport } = makeTransport();
+  const result = await runInitialStructuralReviewStage({
+    authorizedBaseSha: AUTHORIZED_BASE,
+    pool: makePool(),
+    rubricPasteBytes: RUBRIC,
+    artifactDir: dir,
+    transport,
+    credentials: { claude: 'x', gemini: 'y' },
+    revalidate: async () => makeSnapshot(),
+    roundId: 'ROUND_1',
+  });
+  assert.equal(calls.length, 120);
+  assert.equal(result.calls, 120);
+  assert.equal(readJson(dir, 'VALIDATION.json').roundId, 'ROUND_1');
+});
+
+await check('an unrecognized roundId is refused before any transport dispatch', async () => {
+  const { calls, transport } = makeTransport();
+  await assert.rejects(() => runInitialStructuralReviewStage({
+    authorizedBaseSha: AUTHORIZED_BASE,
+    pool: makePool(),
+    rubricPasteBytes: RUBRIC,
+    artifactDir: artifactDir('round-invalid'),
+    transport,
+    credentials: { claude: 'x', gemini: 'y' },
+    revalidate: async () => makeSnapshot(),
+    roundId: 'ROUND_2',
+  }), (error) => error.code === 'STOP_ROUND_INVALID');
+  assert.equal(calls.length, 0);
+});
+
+console.log('\n--- CWP-11B: MAX_TOKENS fail-closed rule ---');
+
+await check('a MAX_TOKENS-signaled response stops the session even though its truncated text is valid JSON', async () => {
+  const dir = artifactDir('max-tokens-valid-json');
+  const { calls, transport } = makeTransport((call) =>
+    fakeResponse(call, undefined, {
+      // Deliberately valid, complete JSON -- the packet is explicit that this
+      // must still stop: apparent syntactic validity is not evidence of
+      // completeness once the provider itself reports truncation.
+      text: JSON.stringify(validReview(call.blindTaskId, true)),
+      stopReason: 'MAX_TOKENS',
+    })
+  );
+  await expectInitialStop('max-tokens-valid-json', { transport, calls }, 'STOP_MAX_TOKENS_TRUNCATED');
+  assert.equal(calls.length, 1, 'no later session may be dispatched after a MAX_TOKENS stop');
+  assert.equal(rawExists(dir, calls[0].reviewSessionId), true, 'raw evidence must be preserved before the STOP fires');
+});
+
+await check('Claude\'s lowercase stop_reason "max_tokens" is recognized identically to Gemini\'s uppercase form', async () => {
+  const { calls, transport } = makeTransport((call) =>
+    fakeResponse(call, undefined, { stopReason: 'max_tokens' })
+  );
+  await expectInitialStop('max-tokens-claude-case', { transport, calls }, 'STOP_MAX_TOKENS_TRUNCATED');
+  assert.equal(calls.length, 1);
+});
+
+await check('a MAX_TOKENS stop records no extractorVersion/mechanicalValidation -- extraction never runs', async () => {
+  const dir = artifactDir('max-tokens-no-extraction');
+  const { transport } = makeTransport((call) =>
+    fakeResponse(call, undefined, { text: JSON.stringify(validReview(call.blindTaskId, true)), stopReason: 'MAX_TOKENS' })
+  );
+  await assert.rejects(() => runInitialStructuralReviewStage({
+    authorizedBaseSha: AUTHORIZED_BASE,
+    pool: makePool(),
+    rubricPasteBytes: RUBRIC,
+    artifactDir: dir,
+    transport,
+    credentials: { claude: 'x', gemini: 'y' },
+    revalidate: async () => makeSnapshot(),
+  }), (error) => error.code === 'STOP_MAX_TOKENS_TRUNCATED');
+  const sessions = readJson(dir, 'SESSIONS.json').sessions;
+  assert.equal(sessions.length, 1);
+  assert.equal(sessions[0].extractorVersion, undefined);
+  assert.equal(sessions[0].mechanicalValidation, undefined);
+  assert.equal(readJson(dir, 'REVIEWS.json').reviews.length, 0, 'no review may be admitted from a MAX_TOKENS-truncated response');
+});
+
 console.log('\n--- Real-data blindness and real namespace guard ---');
 
 await check('test source embeds no real CWP-10E candidate text', () => {
@@ -477,8 +615,20 @@ await check('test source embeds no real CWP-10E candidate text', () => {
   }
 });
 
-await check('no real structural-review-round-0 namespace was created', () => {
-  assert.equal(fs.existsSync(new URL('../structural-review-round-0/', import.meta.url)), false);
+await check('structural-review-round-0 namespace is real, immutable ROUND_0 evidence, not something this test suite created', () => {
+  // CWP-11B: ROUND_0 actually ran LIVE and FAILED_CLOSED (STOP_MALFORMED_RESPONSE
+  // on a Gemini R2 MAX_TOKENS truncation, V21-B01-S00-EI-02-R2) -- so this
+  // namespace legitimately exists now. This suite must never write into it; it
+  // only reads VALIDATION.json to confirm the immutable outcome this amendment
+  // is responding to, never as a fixture whose content this file defines.
+  const validation = JSON.parse(fs.readFileSync(new URL('../structural-review-round-0/VALIDATION.json', import.meta.url), 'utf8'));
+  assert.equal(validation.status, 'INITIAL_INCOMPLETE');
+  assert.equal(validation.sessionsRecorded, 80);
+  assert.equal(validation.reviewsValidated, 79);
+});
+
+await check('no real structural-review-round-1 namespace was created', () => {
+  assert.equal(fs.existsSync(new URL('../structural-review-round-1/', import.meta.url)), false);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

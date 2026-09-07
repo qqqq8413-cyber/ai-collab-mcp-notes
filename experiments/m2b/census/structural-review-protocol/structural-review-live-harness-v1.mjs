@@ -20,6 +20,8 @@ import {
   PROTOCOL_VERSION,
   REVIEWER_PINS,
   CALL_BUDGET,
+  GENERATION_ENVELOPES,
+  generationEnvelopeFor,
   computeInitialReviewPlan,
   computeR3Plan,
 } from './structural-review-runner.mjs';
@@ -52,9 +54,38 @@ export const R3_STAGE = 'R3';
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(DIR, '../../../..');
 const CENSUS_DIR = path.resolve(DIR, '..');
-const LIVE_ARTIFACT_DIR = path.join(CENSUS_DIR, 'structural-review-round-0');
-const LIVE_ARTIFACT_RELATIVE = 'experiments/m2b/census/structural-review-round-0/';
 const CANDIDATE_PATH = path.join(CENSUS_DIR, 'authoring-v2p1-round-0', 'CANDIDATES.json');
+
+/**
+ * CWP-11B: the artifact namespace is a function of the round, not a single
+ * hardcoded constant -- ROUND_0's is real, immutable, FAILED_CLOSED evidence;
+ * ROUND_1's is reserved (CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md §14) and MUST NOT
+ * be created by anything except a future authorized LIVE dispatch.
+ */
+const ROUND_ARTIFACT_DIR_NAMES = Object.freeze({
+  ROUND_0: 'structural-review-round-0',
+  ROUND_1: 'structural-review-round-1',
+});
+
+function liveArtifactPaths(roundId) {
+  const dirName = ROUND_ARTIFACT_DIR_NAMES[roundId];
+  if (!dirName) {
+    throw stop('STOP_ROUND_INVALID', `unknown roundId ${JSON.stringify(roundId)}`);
+  }
+  return {
+    absolute: path.join(CENSUS_DIR, dirName),
+    relative: `experiments/m2b/census/${dirName}/`,
+  };
+}
+
+/**
+ * Gemini's `finishReason` and Claude's `stop_reason` use different casing for
+ * the same concept; both are normalized here so the fail-closed check below is
+ * a single provider-agnostic comparison, not two easily-desynced ones.
+ */
+function isMaxTokensStopReason(stopReason) {
+  return typeof stopReason === 'string' && stopReason.toLowerCase() === 'max_tokens';
+}
 
 const STRATA = Object.freeze(['SC', 'OP', 'BC', 'EI', 'PS', 'FR']);
 const SOURCE_HASHES = Object.freeze({
@@ -120,7 +151,7 @@ function workingTreePaths() {
 }
 
 /** Captures the facts that are revalidated immediately before each LIVE call. */
-export function captureRuntimeSnapshot() {
+export function captureRuntimeSnapshot(roundId = 'ROUND_0') {
   const rubric = loadFrozenRubricPasteBytes();
   const sourceHashes = Object.fromEntries(
     Object.keys(SOURCE_HASHES).map((relative) => [
@@ -129,6 +160,7 @@ export function captureRuntimeSnapshot() {
     ])
   );
   const driftPaths = workingTreePaths();
+  const { relative: liveArtifactRelative } = liveArtifactPaths(roundId);
   return {
     capturedAt: nowIso(),
     head: git('rev-parse', 'HEAD'),
@@ -140,7 +172,7 @@ export function captureRuntimeSnapshot() {
     rubricSha256: sha256(rubric),
     sourceHashes,
     workingTreePaths: driftPaths,
-    unexpectedWorkingTreePaths: driftPaths.filter((entry) => !entry.startsWith(LIVE_ARTIFACT_RELATIVE)),
+    unexpectedWorkingTreePaths: driftPaths.filter((entry) => !entry.startsWith(liveArtifactRelative)),
   };
 }
 
@@ -179,8 +211,8 @@ export function assertRuntimeSnapshot(snapshot, { authorizedBaseSha }) {
   return snapshot;
 }
 
-export function createLiveRevalidator({ authorizedBaseSha }) {
-  return async () => assertRuntimeSnapshot(captureRuntimeSnapshot(), { authorizedBaseSha });
+export function createLiveRevalidator({ authorizedBaseSha, roundId = 'ROUND_0' }) {
+  return async () => assertRuntimeSnapshot(captureRuntimeSnapshot(roundId), { authorizedBaseSha });
 }
 
 /** Mechanical CWP-10E pool validation only; never judges scenario content. */
@@ -366,11 +398,13 @@ export async function executeReviewSession({
   credentials,
   revalidate,
   clock = nowIso,
+  roundId = 'ROUND_0',
 }) {
   if (typeof transport !== 'function') throw new TypeError('executeReviewSession: injected transport is required');
   if (typeof revalidate !== 'function') throw new TypeError('executeReviewSession: revalidate is required');
   assertReviewRoute(session);
   requireCredential(session.provider, credentials);
+  const envelope = generationEnvelopeFor(roundId, session.provider);
   const runtimeProvenance = await revalidate();
   try {
     store.assertRawPersistenceReady(session.reviewSessionId);
@@ -405,7 +439,9 @@ export async function executeReviewSession({
     promptVersion: session.prompt.promptVersion,
     promptSha256: session.prompt.promptSha256,
     promptBytes: session.prompt.promptBytes,
-    maxTokensRequested: MAX_OUTPUT_TOKENS,
+    roundId,
+    maxTokensRequested: envelope.maxOutputTokens,
+    thinkingLevelRequested: envelope.thinkingLevel ?? null,
     temperatureRequested: null,
     transportRetryConfiguration: session.provider === 'claude'
       ? 'maxRetries: 0'
@@ -427,7 +463,8 @@ export async function executeReviewSession({
       provider: session.provider,
       model: session.model,
       prompt: session.prompt.modelVisiblePrompt,
-      maxOutputTokens: MAX_OUTPUT_TOKENS,
+      maxOutputTokens: envelope.maxOutputTokens,
+      thinkingLevel: envelope.thinkingLevel ?? null,
       temperature: null,
       reviewSessionId: session.reviewSessionId,
       reviewRole: session.reviewRole,
@@ -475,6 +512,22 @@ export async function executeReviewSession({
     rawResponseBytes: Buffer.byteLength(response.text, 'utf8'),
     ...rawPaths,
   });
+
+  // MAX_TOKENS fail-closed rule (CWP-11B), checked immediately after raw evidence
+  // is durably persisted and before anything else: a truncated response is never
+  // extracted, schema-admitted, retried, or followed by a later call -- even if
+  // the visible truncated text happens to parse as syntactically valid JSON.
+  // Gemini reports this as finishReason "MAX_TOKENS" and Claude as stop_reason
+  // "max_tokens"; isMaxTokensStopReason normalizes the casing difference.
+  if (isMaxTokensStopReason(record.stopReason)) {
+    record.outcome = 'STOP_MAX_TOKENS_TRUNCATED';
+    persistRunState(store, state);
+    throw stop(
+      record.outcome,
+      `provider terminated on max output tokens (stopReason=${JSON.stringify(record.stopReason)}); response is not extracted or admitted regardless of apparent JSON validity`,
+      { record }
+    );
+  }
 
   if (record.providerResolved !== null && record.providerResolved !== session.provider) {
     record.pinStatus = 'MISMATCH';
@@ -598,7 +651,11 @@ export async function runInitialStructuralReviewStage({
   revalidate,
   store: suppliedStore,
   clock,
+  roundId = 'ROUND_0',
 }) {
+  if (!GENERATION_ENVELOPES[roundId]) {
+    throw stop('STOP_ROUND_INVALID', `unknown roundId ${JSON.stringify(roundId)}`);
+  }
   if (!/^[0-9a-f]{40}$/.test(authorizedBaseSha ?? '')) {
     throw stop('STOP_AUTHORIZED_BASE_REQUIRED', 'authorizedBaseSha must be an explicit full lowercase commit SHA');
   }
@@ -635,8 +692,8 @@ export async function runInitialStructuralReviewStage({
   persistRunState(store, state);
   try {
     for (const entry of initialPlan) {
-      await executeReviewSession({ session: initialSession(entry, 'R1'), store, state, transport, credentials, revalidate, clock });
-      await executeReviewSession({ session: initialSession(entry, 'R2'), store, state, transport, credentials, revalidate, clock });
+      await executeReviewSession({ session: initialSession(entry, 'R1'), store, state, transport, credentials, revalidate, clock, roundId });
+      await executeReviewSession({ session: initialSession(entry, 'R2'), store, state, transport, credentials, revalidate, clock, roundId });
     }
   } catch (error) {
     writeStoppedValidation(store, INITIAL_STAGE, error, state);
@@ -670,6 +727,7 @@ export async function runInitialStructuralReviewStage({
     harnessVersion: HARNESS_VERSION,
     protocolVersion: PROTOCOL_VERSION,
     status: 'INITIAL_COMPLETE',
+    roundId,
     poolValidation,
     initialReviewSessionsExpected: CALL_BUDGET.mandatoryTotal,
     sessionsRecorded: state.sessions.length,
@@ -704,7 +762,11 @@ export async function runR3StructuralReviewStage({
   revalidate,
   store: suppliedStore,
   clock,
+  roundId = 'ROUND_0',
 }) {
+  if (!GENERATION_ENVELOPES[roundId]) {
+    throw stop('STOP_ROUND_INVALID', `unknown roundId ${JSON.stringify(roundId)}`);
+  }
   if (!/^[0-9a-f]{40}$/.test(authorizedBaseSha ?? '')) {
     throw stop('STOP_AUTHORIZED_BASE_REQUIRED', 'authorizedBaseSha must be an explicit full lowercase commit SHA');
   }
@@ -714,6 +776,9 @@ export async function runR3StructuralReviewStage({
   if (validation.status !== 'INITIAL_COMPLETE' || validation.sessionsRecorded !== 120
       || validation.reviewsValidated !== 120 || validation.automaticR3Dispatched !== false) {
     throw stop('STOP_INITIAL_STAGE_NOT_COMPLETE', 'R3 requires a completed 120-review initial artifact set');
+  }
+  if (validation.roundId !== undefined && validation.roundId !== roundId) {
+    throw stop('STOP_ROUND_INVALID', `R3 roundId ${JSON.stringify(roundId)} != initial-stage roundId ${JSON.stringify(validation.roundId)}`);
   }
   const promptManifest = store.readJson('PROMPT_MANIFEST.json');
   const initialPlan = reconstructInitialPlan(promptManifest);
@@ -734,7 +799,7 @@ export async function runR3StructuralReviewStage({
 
   try {
     for (const entry of r3Plan) {
-      await executeReviewSession({ session: r3Session(entry), store, state, transport, credentials, revalidate, clock });
+      await executeReviewSession({ session: r3Session(entry), store, state, transport, credentials, revalidate, clock, roundId });
     }
   } catch (error) {
     writeStoppedValidation(store, R3_STAGE, error, state);
@@ -763,7 +828,7 @@ export async function runR3StructuralReviewStage({
 }
 
 export function createRealProviderTransport(credentials) {
-  return async ({ provider, model, prompt, maxOutputTokens }) => {
+  return async ({ provider, model, prompt, maxOutputTokens, thinkingLevel }) => {
     if (provider === 'claude') {
       const client = new Anthropic({ apiKey: credentials.claude, maxRetries: 0 });
       const response = await client.messages.create({
@@ -781,9 +846,18 @@ export function createRealProviderTransport(credentials) {
     }
     if (provider === 'gemini') {
       const client = new GoogleGenerativeAI(credentials.gemini);
+      // The installed SDK (0.24.1) has no typed `thinkingConfig` field and does
+      // no client-side allow-listing: `generationConfig` is stored and
+      // JSON.stringify-serialized verbatim (see index.js's ChatSession/
+      // generateContent request builders), so an extra key here reaches the
+      // API unmodified. Omitted entirely (not merely null) when no
+      // thinkingLevel is requested, so ROUND_0's historical request shape is
+      // reproduced exactly rather than approximated.
+      const generationConfig = { maxOutputTokens };
+      if (thinkingLevel != null) generationConfig.thinkingConfig = { thinkingLevel };
       const response = (await client.getGenerativeModel({ model }).generateContent({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens },
+        generationConfig,
       })).response;
       return {
         text: response.text(),
@@ -802,12 +876,19 @@ export async function dispatchStructuralReviewLive({
   liveExecution,
   authorizedBaseSha,
   stage,
+  roundId,
 } = {}) {
   if (liveExecution !== true) {
     throw stop('STOP_LIVE_FLAG_REQUIRED', 'LIVE dispatch is not authorized without liveExecution: true');
   }
   if (!/^[0-9a-f]{40}$/.test(authorizedBaseSha ?? '')) {
     throw stop('STOP_AUTHORIZED_BASE_REQUIRED', 'authorizedBaseSha must be an explicit full lowercase commit SHA');
+  }
+  // roundId is required, never defaulted, for the real entrypoint: silently
+  // assuming a round for an actual provider-dispatching call is exactly the
+  // kind of implicit behavior this amendment exists to eliminate.
+  if (!GENERATION_ENVELOPES[roundId]) {
+    throw stop('STOP_ROUND_INVALID', `roundId must be one of ${Object.keys(GENERATION_ENVELOPES).join(', ')}, got ${JSON.stringify(roundId)}`);
   }
   const credentials = {
     claude: process.env.ANTHROPIC_API_KEY ?? '',
@@ -816,26 +897,29 @@ export async function dispatchStructuralReviewLive({
   requireCredential('claude', credentials);
   requireCredential('gemini', credentials);
   const transport = createRealProviderTransport(credentials);
-  const revalidate = createLiveRevalidator({ authorizedBaseSha });
+  const revalidate = createLiveRevalidator({ authorizedBaseSha, roundId });
+  const { absolute: artifactDir } = liveArtifactPaths(roundId);
   if (stage === INITIAL_STAGE) {
     const candidateArtifact = JSON.parse(fs.readFileSync(CANDIDATE_PATH, 'utf8'));
     return runInitialStructuralReviewStage({
       authorizedBaseSha,
       pool: candidateArtifact.candidates,
       rubricPasteBytes: loadFrozenRubricPasteBytes(),
-      artifactDir: LIVE_ARTIFACT_DIR,
+      artifactDir,
       transport,
       credentials,
       revalidate,
+      roundId,
     });
   }
   if (stage === R3_STAGE) {
     return runR3StructuralReviewStage({
       authorizedBaseSha,
-      artifactDir: LIVE_ARTIFACT_DIR,
+      artifactDir,
       transport,
       credentials,
       revalidate,
+      roundId,
     });
   }
   throw stop('STOP_STAGE_INVALID', `stage must be ${INITIAL_STAGE} or ${R3_STAGE}`);
