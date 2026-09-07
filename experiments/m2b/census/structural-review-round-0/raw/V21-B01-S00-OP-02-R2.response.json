@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-f13e81a4d51a9fc8ec2018c530036f098e5f2a7b665a963f653955be66767cb5\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for an operational rollout and training sequence under specified constraints, with no external dependencies or specialist steering.\"\n}\n```",
+            "thoughtSignature": "EtMLCtALARFNMg9h66vjSQ/axTMjMfYr+TXaY/Z3kbyccrznheVWv+5sQ18/pfsPEUpd6MPkKFZkc5pbOd7rr56RVSm/Fd0zSytF+rI7MgjsQcsWvcQUV0sD1a2lxntGLd5HSZauYO5Pecd4Hh2IpU0wMU2Hju9085f1/v0t371vndUg3x/0bgBQAAJQN0OF2Q+qTAIrRjgiPzr6Xet2ho72QmCOSY89uMTImpljcAejmkigKK+L5Uv8/7MEBFKUD9cGUlCxwXTRRzIP/n6l4ET1Ho6/3LQxtJ/xahKRvgIRloX3/ymWX5ZI7eDCVC02tcv7JzRxcHVaatb1CL9vybC8yW5UXe3aZk0ruUT47gxfFslyD7u3Wr7wHl8yOg+llwU4y4PeVlDw0xNGIQqdynqKtcsVhsOfzMaxXsuziayuZ321YgxuZjeJywFcPCN1/IAevleYWtyfCqnmpL/I2gHRIq2T3AtKMP/rOOOjbvQB6Pv83Rl08wV7clbfqiyAcLe/+BCxqiabqUHFi3ZOqPp9tYm05WsXjtt0LyoHmkICBllL2S2dG56kQVpUs9g0s9rM8ePcnKu0KkGW/a3nNvIA8twu8EVmVBVFsBTikvtq4yC+B67p/H+X7g5xEEyFBmfHVsdEGPdN9qNbIluOQnvyybNv21+nv7LvXmSlh7xtrTuw6po0eXsaEYfDgi/s6eT5JH0ufVAcmEYVGPoUVejf9ZVAktSTMbiZnACBT3zIoARlmZfxcUpf+J9L70Hhc0a0X2UsgwtZIPvo1R07peHpqFqYYpshW5gWtY0YLIDta49M8/Twurrwaz9GLVc5QhBrmykZJhIjcWwVRtjHFG357YtcLU5EFu4iPZ3mAbzuOvZ4AAQHHWcA9Kpdvmfqcdot3TUuEb5XwzMOOrAepR7Ew/25FoefXQm9R451+tV2qllHaeKlF0xCYl94wrICRXGj1kHjB0IdBTKLJhMEgQrOD+UPXjjCbqkMxQcrzIkESquJ6plNXKrbzoILJ38IS1MpJEW9wJpy60cqEe6EMpJ5QqieduSsUc+3g+jaH148yGvFKaTm6q8vHsuOf7Cj0XWfqJ+Wo/C1m/6ztqw1H+T5G0fgrc6IqdU0NQQ8psuz0vEALnw101qCboejtNmMXt4HHcS+acRMwE1Q66iP2/6dxTPC/Ory0doiz83zE1zRCnXaU+Y9dKZaOp5kiLZPdiRRiRy/IMo1N0IsBNb5aos9FJ1yN6U6mMCUet0UdsrmS+TXyK+Rd0dalDI9dp09vcfCrzAgwCbsrDlw9VKGmfWPdLrqMBGw4ljQKFDPBW7OaG5V9T7pYKHyQagKa3R5OCE1xqmYg0rq8ZLHJQNf3Y4NV2Lz9eWJcp+00DzgnoRQEeNlWBPQ1EcfSObspaFlateOx9MZsrhvBCD0k0ez1AfUjNhAHLVgyWZKsBCKL4lPHJYMAVAam0ygLUmoURozzILQXeiTWb0/tGWhCX2m+8XyOOtE+Td7sULpMdWvy/dESYV2/tMMFooTt/FT4e9x8eG5MGA543TxNoDZXBn1luHlQaXws/AtQg0DHYhnObmFqeTJbP1HO5rHlVogiRzkYBhe4vhQlP2DiDdEi0qs7pncv6UmQ57dYJotxoEh2bSowE5Mk5RAOEzMcHmeFsYEZfv9OeNZBdncBcKy81+YIB8HIPEwVAwfpc8dFcpZzKZrZU0VBHBxy0VYonXf4XSc4nRBLa35MhWJ558tuJi2BoBtDY2AO4IlFJRRzMMh3UNlxuVtcLvbAv2jfRJcEPU0nVXseqBQSQn0KYRCVkWAEvw4MoFt/6UQp/J+lvIiGCDPqjVgtjBkLT0QKVx3adqDjOMGt+2XpT+QIwvEV0mLUMgYb1616d+7k+4dINFgt5lZo2IbQvEnZfDMpnJ0df6yFPgct41yLojoiOnFpxtCv93cn8sH7CnnkSyQMRZ8EE5kEPW8oyD4CFoqKX58bgqfp/tfwIVJ"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1339,
+    "candidatesTokenCount": 170,
+    "totalTokenCount": 1877,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1339
+      }
+    ],
+    "thoughtsTokenCount": 368,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "TACfatipOtmAvr0P_pOckAI"
+}

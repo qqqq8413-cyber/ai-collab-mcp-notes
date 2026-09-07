@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-3f4bd81bff5dc116301a71c2411fa423bf2b4423933a0bb165fbd2c76457418b",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks for the structure and clinical scope of a membership offering — tiers, inclusions, pricing mechanics and terms — which is a single Product / Service Design artifact. The text supplies its own context, reads as a genuine practice-owner request, and contains no leakage or instructions about how or by whom the answer should be produced."
+}
+```

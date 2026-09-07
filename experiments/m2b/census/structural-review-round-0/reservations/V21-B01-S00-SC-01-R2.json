@@ -1,0 +1,12 @@
+{
+  "harnessVersion": "CBRP-STRUCTURAL-REVIEW-LIVE-HARNESS-1",
+  "protocolVersion": "CBRP-STRUCTURAL-REVIEW-PROTOCOL-1",
+  "reviewSessionId": "V21-B01-S00-SC-01-R2",
+  "taskCandidateId": "V21-B01-S00-SC-01",
+  "blindTaskId": "SR-dbe89b0ec4d22b5fe233eba213dae1e710dc14c0a3e3e705c05b06efd86cdb40",
+  "reviewRole": "R2",
+  "providerRequested": "gemini",
+  "modelRequested": "gemini-3.8-flash",
+  "reservationTimestamp": "2026-09-07T18:21:35.252Z",
+  "status": "RESERVED_ATTEMPT_CONSUMED_ON_DISPATCH"
+}

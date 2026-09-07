@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-00717eaec5aa622ec8bd505ebce7b59f75b1fad04d5d3ab26f93815f5b2bbafb\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for brand presentation and positioning guidance, correctly matching the Brand / Creative stratum. It is self-contained, realistic, and free of steering or experiment leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1299,
+    "candidatesTokenCount": 174,
+    "totalTokenCount": 1990,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1299
+      }
+    ],
+    "thoughtsTokenCount": 517,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "kACfaqOmOP_O1e8Ps-bsiAU"
+}

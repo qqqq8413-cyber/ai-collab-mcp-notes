@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-efd6ce169b255a95f3262802a7518b22b424ab750b9dcab83f0f91d9804299a1",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario asks directly for a capital allocation recommendation across competing projects under a fixed cap, perfectly matching the Finance / Resource Allocation category. All required parameters are self-contained and free of specialist steering or leakage."
+}
+```

@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-132ba995c02f17e07e7669a11431932012cb3ef00480950a69827b7b86114ac2",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario correctly targets Operations / Execution with a clear request for an operational schedule and timeline. It is realistic, self-contained, and free of steering or experiment leakage."
+}
+```

@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-d69a4049bb6795a84fe6248923908a2d55330c83e41c975aea4e8c825a840086\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for the design of a new B2B flexible office membership product (structure, allowances, access rules, and pricing), matching the Product / Service Design category. It is self-contained, realistic, and free of steering or experiment leakage.\"\n}\n```",
+            "thoughtSignature": "EvAKCu0KARFNMg89Tt4qKjba2Ohnwk9LX/4JZ5nSfM1rMt7FdsHaSuVuG+l6iwc50PB2OYIrCox/fx0UuD1KxG4Qc0nLzxJGb8nuWpSwpLi7aPylX5kf82EGeJyY/09rkgxwCXnF5EzfaOv0K6zlaOhnILsy6j2GEnBgoG1cKmwBPvjrhh2I4HafaNEzDOV1oZN1ohBttnsp+SGu2kq905a2xpfQsw4lSySdzY5msOfWqEQMdbTg6L5ZM2+tNReVHzK8kc9YsNW5ZvhZk/xgQyDdFKJwT/wm5EKTTsDIxe5gd8h15LY5ECoY+p6juqMbn4SLxcols1L956EgUQHqI9bfes+tF5w4Vrn/ALKhx7a5NR5zedxTSqs6o5sQSHnWcI/os+KhVhEHfqOiajXp0U2X9wIYJ2QUukMuZVJALgEUO0zrLZwa7wgc8Ydl8GejVhQn54qOQdM0l7gZVxv1a4rDeIJVBFAwNcEUeCiWD07aPOBfwhl6JRckhyTRM9ub6REHqAdFHbTlTa3qyujyAJfL0Az3SLagc1FvB3JC4sGhFxcEE3Z8SA+75lJgftn33RfTr7TaZ/C/4Zb1wlbMyNDEeUpJQUk5FFRDOEOe86L3aQO/aTI0hg6p/sGy4o+3bfQw3yc4sE7OyBz9DgaodgNU0nWKJF3M/KhwJaMVQfzgD/70TjLXgCaONZTB3bV9T8ErrTM82E2GhAPEqO6cTDubm5Gz3XiYMgFeCswfgoVFXzWiKSKPZINeaJIVkUfjVv/nZZi7pPZd5YVklgeUOEbHXnNZqdq7oXexeUvD5xYxV5km3s31+tU3Dp1p43F4i21Ac6z5GWmu8qI+DNzutN3Q2zlukKK6aHO/YYhiFGN2Voc9TlZ8tnnxZvYEpB0NfnvCRBPdwmkWQzUiVU09V8rl65XOqEyzhyyq8uX8RbmCQIN6zAbHEpZ3fdeeiv8SL+cz/k90NuYFPb9tYVo/xypElzgNfxwRKtxx8ieFfnAemO9dqIF280LakjqicxtXZ3IpPuCKRzGMCa699cRYk5PcQaeGAWBxhDQJjWqNc248G8ShDgswmjCgZ9jV/bLbnX/p3jJPLVCFoFR7s7ZfSXrGrfc+wE3Rc+U7rbwqU2+GAAVrKiLOlelUVUon7YwPjFFkulJsRW0na7J7Vako6Tu2ZP4DxJEWL3NMY7V9SVQ5wH1Ny/vCldkBOkw5wNApX508PVkxY4cv3Ge6/P2EqWFRacX05GCvAqKWp8Zm/6IwIuvADBDGYEvL/xuZwAgSFhOp5rOLpAjZRuIm1gIy5q7v7NyB9wpR1J86ySn4pqLIz9TWq7E0Hmrx/QqEJoADTTvIf2+gO62xGewrsc3UcI9bGfD06OsvgFSLAOay2Zs7/8f0yNRuerjOoKQU5/kI4ZBKs+Kgja/uMRR+CehkDtWOLRVZXmObp2j111Usq74YnYhdkZwnMPNiR/WIX4fPkQjvzxVKIbguCZXJrZzxNSTDTPsPHdquu+wgLFpImO7m+7a9ney3cwkaJhRDAjI7gr70SbRfgjTwKduHpLl9i+66Vx54attPIruxorotrJKxvp5uAP488REU3G+gxPzG13aH3ty0OvAKbGLzwLe1jEf7ROPJEDMSpq8DDwCD6mWXfEMqBr4evh5oqUfTToljy4Ezk1fbVbX9Fe5qW92gPHJrFotyHmpevnBR/HrPZ2kpCGrz0y0H0TbhbqS+vA7T1BS86tLlP7P90MwiqhlD8SZitTDLsfTDvch/ioTjvXASJb46CciUAaqQoGT37vfMLDJKFI6kL9QImWvL4izeKNVJVp0EpFRo7x/IeM7e11d7LY25UYQvgnPx60x8IrveUn5c"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1400,
+    "candidatesTokenCount": 199,
+    "totalTokenCount": 1871,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1400
+      }
+    ],
+    "thoughtsTokenCount": 272,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "6ACfapX9NuiT9tMPjq2RyA8"
+}

@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-d5a0a4f4c167e262ce4391aa7d4f1b5672c1f977bfa28d38397b3320bd3c50bb",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks what the subscription should contain and how it should be tiered — an offering scope and service-model artifact, matching Product / Service Design (the decision to launch is already settled and rent pressure merely provides context). Constraints, assets and survey findings are all stated in-text, and there is no leakage or direction on how the answer should be produced."
+}
+```

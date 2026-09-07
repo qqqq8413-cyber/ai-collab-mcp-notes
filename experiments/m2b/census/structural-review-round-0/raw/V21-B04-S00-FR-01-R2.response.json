@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-1df1938c8a418f5097ecc5b73e28debd7683da4b130d586a240db51f9d7bde92\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks how to divide a finite capital budget across three competing proposals, matching the Finance / Resource Allocation category. It is fully self-contained, realistic, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "Eq8HCqwHARFNMg8sOphQTctKIoEu+ngnMboYx+KB3hxfRpSyIQEPHBjn/Z1VFM71bef43GORVdmHriP/Z4ie5smOTWM+eEbCBK8/KdzyZ3IEzR6H6R+XuXvY5UZIpbi32elzupjDsabXR9xgQKUaRxVGLP1yFb4pcwF6TCAZPNrShpN4p1Mclnp/EIlTP5S6S5Aet/oGdOPYzhB1A7mjnmgNX6YKJLo3iCHUk/ygeKPI8LCLAz7GtobZurXe7QeE9e758OoDP4Il3z/gDXt2YSF2BGi2AjosmT9IFU2Y0zvkNMKEBUlk61EN5dkjP48qxIYQ6d6lG+QCMqESzD/6GNkI7/dMaVs3dZVPz3z5g4th4WQg10UhtGy8HMeuo+RqnAEsMoYJ97j3J2xrY+KZkr/5WLHw/ShfSDaijQmfOgJy3utlVa/kkVbc5PQy1qJnMgu2Iw2hW9nQK+utDlI1ll5U4UMncTbA9kGv4qcNpsyxdoXzetcEsZepmjFShnt5f20RImEYdI+U77l1Wq4eejExzz2Iq7hMM0CLn90tvM1/llvyM9psR2907dGEtWnWC1A/bD8sTIZ9QAcCFGeanDgZi8jlL1GB2ugfcFgkkphPXEKmc8SVsWCNH5iS6D6kBVzEGJwlm8m5FWCybwETo839RMxV+99lsgiIG6LqGJP/O3LE0t9J3hh67J+Ex0yoK7aKaV2vqSwHtmsQIz8CFM3ncru9Zg4kcxZo3lhTL9y4UODYJeYQ2Fyv2Gxy/apJu9k3uagxf4YxUP14/TOgX70HxcewZAo7FBSXtksAYhvH4bikOsO3jPuME7jqXeia0eSUnI2OEBO6i+bmh/GZg06v8ij0doEJ1PPyfdXXcVmL+5hMtwUMCbI0mIbRK1plC4ZTxMNwCyHIql1ZgExnQCdUsnJFnVZXtIcg7acC5GhENmB5forr+aD/rSdUfR3f0QJXemg3krxrFkChwoOlvZO/i+iTc6XE6/bxrcXPjzbwwFipi5Mq77VEzaiTSi7M54YOz+gLIEzfjdRSMGJp0PDhutc6zMvDfzvjWeCZY0ehOulHGLkiPE1+t6AeiLOeoEt0/0nQSNyFgbqM+jOUCmhs6p59UPYSG1PoazzAhzuDMqHztXcTvbN55h2rVOvfjpp1O7wJsGe2AP/WmAAJWPrNCRGIpypw4ocieBY7eTGGozjCAP5XIU4jkcnklY4adT4Ue8XmZZ1xKg++h3f3n1T0aIZK72bNVyXFq0otYOeuSg=="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1558,
+    "candidatesTokenCount": 183,
+    "totalTokenCount": 1934,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1558
+      }
+    ],
+    "thoughtsTokenCount": 193,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "_wCfaoi-O9ia1e8Ppb7huQU"
+}

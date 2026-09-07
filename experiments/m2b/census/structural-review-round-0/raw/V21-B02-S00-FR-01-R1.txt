@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-efd6ce169b255a95f3262802a7518b22b424ab750b9dcab83f0f91d9804299a1",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks how to divide a fixed $12.5M capital pool among five claimants, matching Finance / Resource Allocation; all figures needed are supplied in the text and there is no leakage or steering about how the answer should be produced."
+}
+```

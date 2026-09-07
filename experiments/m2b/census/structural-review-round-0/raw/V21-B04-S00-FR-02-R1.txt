@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-d05cc219915e058bc71efebd6f109cc8710b659ab31aa8edf6c59636d1378bb5",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request is a distribution of a fixed pool of 14 headcount among three competing claimants, which matches Finance / Resource Allocation; a single clear artifact is requested and all figures (MTBF, penalties, contract values, backlog) are supplied in-text with no steering or leakage."
+}
+```

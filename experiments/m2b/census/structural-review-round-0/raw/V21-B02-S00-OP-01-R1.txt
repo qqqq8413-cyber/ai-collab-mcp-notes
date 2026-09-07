@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-b8161b26303cbaa3afe993881e8c34c62883c3ee415004e795a2b8470fb15425",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The direction (vendor and budget approved) is settled and the final request asks for a sequencing and scheduling plan, which is squarely Operations / Execution. All site, staffing, phase-duration and constraint figures are supplied in the text; 'integration specialists' and 'super-user trainers' describe the organisation's staff, not instructions on how to answer."
+}
+```

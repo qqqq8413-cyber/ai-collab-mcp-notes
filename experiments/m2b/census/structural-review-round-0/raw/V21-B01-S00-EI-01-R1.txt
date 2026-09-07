@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-7986115efa78ad9cb1af99e04bef31124c1f0470c456fd1e251ff35aa288a20f",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks what the retention data actually shows about the curriculum change, an interpretation of supplied confounded evidence, matching Evidence Interpretation; although an attachment is mentioned, all relevant figures are stated inline, so it is answerable from its own text."
+}
+```

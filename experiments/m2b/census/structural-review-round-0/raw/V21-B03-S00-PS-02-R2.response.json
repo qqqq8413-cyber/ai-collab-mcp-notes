@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-d5a0a4f4c167e262ce4391aa7d4f1b5672c1f977bfa28d38397b3320bd3c50bb\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for the scope, inclusions, and tiering structure of a new subscription service, which matches Product / Service Design. It is realistic, self-contained, and free of steering or experiment leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1333,
+    "candidatesTokenCount": 189,
+    "totalTokenCount": 1932,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1333
+      }
+    ],
+    "thoughtsTokenCount": 410,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "hAGfapfbFoeX9tMP8J-K8AI"
+}

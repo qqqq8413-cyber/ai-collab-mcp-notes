@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-5a7238f523724b5bc0df5092766e0806b5d362772e9c142495ad4c1aaf2eaa6a\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario requests an operational sequencing and rollout plan for an already settled consolidation decision. It is self-contained, realistic, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1365,
+    "candidatesTokenCount": 175,
+    "totalTokenCount": 2293,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1365
+      }
+    ],
+    "thoughtsTokenCount": 753,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "cACfavGoCOO-vr0P_J0J"
+}

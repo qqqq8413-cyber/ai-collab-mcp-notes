@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-28f4bbcda46276c5f20edcbf9ff4a62f6065d22963a466377f1f48ae17d9e178",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks how to position the studio's identity and voice, which is a positioning/identity artifact and matches Brand / Creative. It has a single clear ask, supplies all relevant context internally, reads as a genuine founder's message, and contains no leakage or instructions about how or by whom the answer should be produced."
+}
+```

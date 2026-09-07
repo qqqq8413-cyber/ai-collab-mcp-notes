@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-efd6ce169b255a95f3262802a7518b22b424ab750b9dcab83f0f91d9804299a1\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario asks directly for a capital allocation recommendation across competing projects under a fixed cap, perfectly matching the Finance / Resource Allocation category. All required parameters are self-contained and free of specialist steering or leakage.\"\n}\n```",
+            "thoughtSignature": "EugICuUIARFNMg+kuGRpRk9m87+RGPKRvs8u2UA2HnHTC5bl+mdZnwPvfWJU8YgYUry/hE3WneAUSHTrUCUZklEBhBbKBYw65CzrAFGdiM45E86jiyVx5+JmgTjCrJscEVWgT3Q1zTj2Gu8RTFiTzcIf1Y3kc6rPf/yhJW/bjoLvYZCn2caTFt2/1YFo+seiqi9/qBbM38OhGkfN9TRcQ1VMHVAJG2HCej1UdSKgbWD1G8bEXflWB0Vgs1ks3cPEgEmQWGWYUEE0tGOH96Nzp68eKRrDpZv7ZF/1CfLRbHMrvSaILqCcsUMTUjQLjJio3C2/s02SaisxQjPMvxzppVBoP5WpqK6SeXEzPh2WefgQkb5aSqPVMcPmi+XrJDfzOSU7XeLly28bqmQ/3kp9lg7P7YHv478WfpN4ffZhEDhXSzN0lK/LdJwQ/ik+QgUG1+6Fpk7pIEfGoHEx2tWxVogDh+dXZG9RChRL7vIdbfxVGIVw1Z4Cu5suuj8R0BVFo+9pSNhy1xp/nJ8FKmjesyhxlYM2CnGXRvrwXoHGi9hEY+xD4TRvxKCRrpO1mokUt/A+40p+HJvz+19ki2lY/HttXBX7yZZ9DCa3YAT+uHJirDj8H8TttYeB1ZZzQhbE5Ei9GtRY5PZuXgMYSQATkJTYvj1XOeDyusoLpAk8se+Qra1YlxAzbsl5DIXDE08588aTTi0XYvfRwLHB9zC0zT3M0UmLfaV8k0BZoy+a8uiampLlnnzO9LwBZyG/IXUZQeNjv7QhXZVKv6PGFTK+/ynSgNKu8bT79k+H3ePtQDTmTo+EvxqgRScdWV+pR/BhcWTJ2Niv7gH+EetTVWRdPeIxsCuhJl9nP1HYUuQg0tr+BRowJXOWtz3B5cKzt/xq4dAZ4G9xM3twh7fa1PxlXkjJz5EfEd9Eb+p5IFBwEAuI6W9hPngsDSbl37yefExmQ0QsrzqP9rpzy+h+kMLIa5XACImXHa4kHJI+mG88CjbdIanKpy301ijgtOecPPaaXePPSf0cO0oCjNmw7DiG8JgJytfppW6p7jm5rgo+D4aRjMVaCxUdJ+2XFvxS4pvc8ojiJajG6UMMPXLofS1aTJyC5PFce6f48Pe0rDA5fMTEwKkqt7jWSc8vlOrC11/2Y006Epm3cy7xaOe9gVVFAAbwUsFfcWARJ4KYzphUMFxqraLiYrQnvsSHYsLPJHjeZxTOp64lu4UeO/7CsxW+gfzwSxT7pLhHpDvy0dnaRVk+W8FJskbwlWf8B4ofo86DsQqcFdJarzry2ODfuk84oFXCvrHI+PXC6vhPfVRi0Zgl9cSDwdgRlFQAjCI/TJfLInWR34Flq7f/mJT+3BLu39KYtErAKsWbfimQaO+BzQYiJXHaMfScrMdiuNIBLc9OfDGB4KMBXpo5VEeJlhi+3Xvh65NFzOeIuQM7Ky1fWrPfsFW7iTbFXrTrLx3a777Y2J7wSdpUzuyoL0d+bYdc4wmv/0j/X6G9lRJj"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1535,
+    "candidatesTokenCount": 187,
+    "totalTokenCount": 2003,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1535
+      }
+    ],
+    "thoughtsTokenCount": 281,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "BwGfaoz7A-ze1e8PlZT24QQ"
+}

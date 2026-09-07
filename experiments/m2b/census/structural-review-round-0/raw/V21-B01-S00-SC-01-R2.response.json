@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-dbe89b0ec4d22b5fe233eba213dae1e710dc14c0a3e3e705c05b06efd86cdb40\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for a choice between two mutually exclusive strategic directions, matching the Strategy / Commitment category, and satisfies all structural criteria.\"\n}\n```",
+            "thoughtSignature": "Ev4FCvsFARFNMg/5CV1+C3GfTwtmc56zJutfqsXvkqD/yOiMeHxpEnyNc4hWdRZumdZwYXI3d2z3tQkGLlkJ/X0PgKHiKqgtXfvDOzM7dNiMDXmPx1kQBLFuRB1OSi0NE1rCtV8yOjztxRwt/yCTE2atFQas73re67TJJIYrLLoWenwJJ3wXgkLtis8bQ0yfifXXocGNnQuLRBUXj7FqQPXWzcKFcDjQQRz+2STMRybOBLMgpkVDyWxym3uqnJ9FIBRhlbkLm9GFr2wOTYXhuOxkbrYhRyNov5/UuVWPG6NNphCv0GJ2zQzIAmt1ZhWM3RBu4+LgFDKNNGBtZcLHUwfR+ei2UFSc1mVkDMUy/2bsrEiYcVvISvjZtxCmxQpwaSlPaj98y12RWgviUOiJvE82QAwXVXCH+zrC36WJ3DOGCo2r/hl9cL1t8Cwg4OAfFpRhWeTjrT2YwWy1C5fHz6FBnEpnthhL99tRAVWPh7Xj08WkkTLgxgOPpel3HoeIvDORCZIV/4erVsbQUoGB08j4P4YzIfIWXXcR8yFOqdBtxI33Qd7EII2ZBcrTsxNig4fG4w2OLn1yTciWvRchJBOZJO8GdDTtIhdaCOpQjq/tL4fOolMogjxNjrvSzHL3Se/2MlzowFbY3D6HZyyd3n1ZHnMWEvsc1uSzJykDqA6DAD74NDrfbfPvWe45ediQQoiJN3n6EERl4CcT5MOogc32u8DUbxGHrSzYsPA8AmT/oUSdjZQ9JZ0Wdk2JCQdt4vQoZvr96RGlulGODpiSw1GhtUWTYqEzQlHfBBerNJWqUXGGbzyu53s5BSN7MbUWUHcNCCpxkiRy7H6CdqltT+VYCTONwcpgtApCw2/xVEi7K9vspQF8vhSkuqf+myy/zbOD8jAs8VMpXvplpCeyyRroZioJgshiCDsVZHwsWU0SJkwKQ7Un3nrDlO2M9OVeaixvwIgInr9TLhPLB68UZ0/LaSkE13YVCk+cfDm56zz1RfZNtG0cFDLcyJBPk/XXCg=="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1320,
+    "candidatesTokenCount": 169,
+    "totalTokenCount": 1624,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1320
+      }
+    ],
+    "thoughtsTokenCount": 135,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "rwCfarvhF-WD1e8P_cHGAQ"
+}

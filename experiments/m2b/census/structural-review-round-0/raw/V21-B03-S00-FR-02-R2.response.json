@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-18ed118ecb237fa07e9fb2fa5d462dd52c529714c623fed51ac133fb6383557a\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario asks how to allocate a fixed $500,000 profit pool among three competing claimants, which fits Finance / Resource Allocation cleanly. It is realistic, self-contained, and free of steering or experiment leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1377,
+    "candidatesTokenCount": 188,
+    "totalTokenCount": 2203,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1377
+      }
+    ],
+    "thoughtsTokenCount": 638,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "xQCfatLtNMbevr0PrdeosQI"
+}

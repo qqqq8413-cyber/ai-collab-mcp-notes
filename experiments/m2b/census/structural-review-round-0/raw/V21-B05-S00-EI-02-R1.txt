@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-17d7699e65ec66190ab6377cf9c9a462a19a1575ef8d6e4b4e206176efead8a5",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks what the circulation results actually indicate given the described confounds, which is an interpretation of supplied findings, matching Evidence Interpretation. The scenario supplies the effect size and confound structure needed to answer, reads as a plausible library administrator's query, and gives no instructions about how or by whom the answer should be produced."
+}
+```

@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-08067e88360aab32fc440943217456d9a03c746d03ac12c02ca9fea0c9bc1bc8\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for an operational production and baking schedule to execute a settled volume increase using provided facility constraints, meeting all rubric requirements.\"\n}\n```",
+            "thoughtSignature": "EvYOCvMOARFNMg95gs010AnICrXPx5lFGEJ6u2CIni35dIoqe7xMbJaS+FTjpiCzb9IHatobBIHm8XIbm1JiVMq9HnAErM1RXyhLyL6S0EV4jKhzt7EjpWBjM2Hv75cSuuMUZSTwgG5F9Qay28RKiwlAGPTA7vAvfU1B3z8mRHMnpmDVR/s2hcpj9n8ErQ+ThsTDSBmsIbEg77Dt7DTMQrstArlDvnp/WwdKpEppUlB69nJw2TZCclY7+dyT6lgf9fsc4zHF7/qutvVqtP+9uW821bm9+NUGwrLKlNQQQXOlWWxnfO93eHUr+jY6cE6Qkd3ZfJXX7e7qgcwNWp6beaPCIRodYPKV57KTzCg+PoQwEMwThlg+dQbM7K+FvD4/2hyQMO40Om+dprMH/njdNegyp1fQo0CQkMm4YhlGM2oe6eCnmTwxt2RK4369AaP8TmXEnEYwXAa0YE7sXrToT+x5V5ZrpA5Xel5rKl672MvpvByl3UJ0n21gQ0/gcCX9600YVBLh9pdZ1EkVZxL09Gr2JIjAyEZvho4cufV7OfmC+hQndQ45IKHrleSiLnG5VQ3j6TRMRlCGX8MoCNHLNkqWpAT8lVHM5U+QbmAhy8ATkfnUbLWP+QbRtHymQpfgjlwZ7Lmufu1VQyADttc2UfsrP+CzfX7iLZ7ASKjIJWvjjL+k54O4Aax7crDaTlGCPy/gH6CD3SQtzDOP4SUjlutbiMdPkXOUNcc7wrXjEu7pyVamY9TzCD6IZIUrvbWGoq0Y4hHaneimfofg/DoTYBFYnqr619n0or2t1Il+COFxlXqEsFHnhcuizvKGSEnlaNCugp5WC5ZOCl2WD+5Q7zAkYudJra4sUFHTb4KwTvzs9UmWIRtiqbrKtch0DcSWAkvnrHvRGuki0JqkLVuu1ZnrTCCJc0+Lo8UUwGidFdvdOu5b2YR7kUCF922qWsDwU/h+G1C8PJI6tL+7jF1eWB7de0sJmUF20clg3N+4ccUNDUOjouKryLX0zAgbEwx+beDwCeSbXChjZm+FxBWbW0Ca6VwBV0L1i1gjPlZ+SenbSHluEPKLMVgIDtp8lP7OvcdkUODrqTLqNr82r9fv4YvLYP1AklmHQMn8ng54kAGGCcEhjpGalg7QhYRnxkmPJyTTvrxTU/e1fvqOqthiqOEMQggQDggICCMJHHoqmhnEXIBkYQfGam/BAqv5LsoXRog6tkhmQBJs0AE7ZRAI1JvGm61+P0/7YYeFp3lsr4BQ7g4dD+aevKLJhlyb3eAWPHN38jagzDc1r/XKB1NkD5C9QMFz5KSW17UGiLeFs9pq5w/1ChrjgMDnZpne0qAb813ssCBYJcIWT6El0eU8Oscm+q0HU6B66Dzi8Tc/0dLkFaeViGPyhoZk+zwOO48hp1+fJ9FdlQGO+YtMxw9KAqOTf2JBh7cXU5qdrFZJvBRNS6XXt1wuWD4HaqgiZ7NelOvUF2MEUnLimjMRaxbMd6DfZlVU//zn/PJp2MO+KQX/1EtYdeDV+nSOKGLDrlyuz8MuOC843otNUbaiXCc+elnk57W1WYe9i/M+/PAhluYwuWI32HkSMJrufgaMuAIiBjSE4AXmyUsgSKP0A28sioX2bNWeH+mgYrpUdSfAqMTE9TxMHnjZoF5Z5JGH4Db5Gu2kLqDHIqXoRMwsFULTfHFJ9QjT0OjcDV7osJ8bl/7yVq7BuOfWkwsi9RP5xYzNc77RmQhsG052KNjsW746y03cUiKgnD4LfKw7HepFeKB/xl5hme/UeXuHWCR/mcMZcW5L6ooOhJpNUJV4o89y1GNXwRhGxdJ/Z5/Ydw/COeZLjKK4FQc8xLjNBXW1/aVSjBmshMszdPxq0s4Q9+ZcA0+TUa655QwVrNjK8N2MlXQslQuKZ5Vq+xIcm7FITWVQaiaWlx1aqXy3+wErM5wkbpEagT9As9tkW589gaE3os0GBGQYmQm5Mn0lcHSlIbSsvVGPFgHYDGlnbXwxs3vWdezR+GutGvl5iUa0NNGyBnCJxZp7tDyEC7RKEEhyvdLfr0z0nIPlSG9HnusFQ3j7zue7kmUy0II7B0hB+PW0j2xRv6HIKWRWxFXMMdvJ5g0eSq0zwu8sAJ14h0IIOgkvfwlIbRB5yyIExYmbJM4wQgler8I+6DOow9HupAu4qKh2LPGhf8xKJteNhE6bavszNjidVX1uZTj/Nj9K2hPjKra+Mv/6u5+hS9AkduWZzY3BIyJjpx8iJI66W3FfyR6/vYl4gzmISh3zvoq9X+7dRhFPLyTssnM9ecxbwnn4WwG1rRauib9G9BWOvWmWgmh3AQOmIeRgRfh6OlJuYKAk4nPznFPA9Qi/c8RKXgENCeDEfY8Sv6aEpeHY6DFvra57m4lAAEkLqH9O2W/qEj7yocfqqPziogtaJ7BlYPo04n6a6Uu6mQ9AkxOipuN+blBFZVtMlqr9++GmkSt17kR4r1aw6rWLtIATHZrPmSuWwx6GDU7ZifQUJeQQ66iLOcqsNAAxTNI8fsXelr+pZLqBGufBCGSe15xzCyQ="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1459,
+    "candidatesTokenCount": 170,
+    "totalTokenCount": 2066,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1459
+      }
+    ],
+    "thoughtsTokenCount": 437,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "4ACfap7sIumAvr0PsfqjgAI"
+}

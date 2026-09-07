@@ -1,0 +1,11 @@
+```json
+{
+  "taskId": "SR-24350faf18d46ff7b564008662357f8eb756db9ea5de4cca1b5785b66f90e7b3",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": false,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": false,
+  "reasons": "selfContained is false because the prompt asks what the data shows about the cause of the increased claim

@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-ebfc5ae29787372e19600e34fe4b91fae932e353677ce4030e446b5baffef38d",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "All checks pass. The scenario provides a clear, self-contained operational execution request asking for rollout sequencing and shift scheduling under realistic constraints."
+}
+```

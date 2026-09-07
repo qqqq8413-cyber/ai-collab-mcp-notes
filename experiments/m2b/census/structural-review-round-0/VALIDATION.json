@@ -1,0 +1,10 @@
+{
+  "harnessVersion": "CBRP-STRUCTURAL-REVIEW-LIVE-HARNESS-1",
+  "protocolVersion": "CBRP-STRUCTURAL-REVIEW-PROTOCOL-1",
+  "status": "INITIAL_INCOMPLETE",
+  "stopCode": "STOP_MALFORMED_RESPONSE",
+  "stopMessage": "STOP_MALFORMED_RESPONSE: structural-review extractor rejected response",
+  "sessionsRecorded": 80,
+  "reviewsValidated": 79,
+  "providerDispatches": 80
+}

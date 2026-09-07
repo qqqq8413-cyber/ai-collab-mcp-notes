@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-cf0ae31a299a556c0b479d43e7cec61c1740b22f6b02e307abd05afbb7ac6267\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks how to allocate a fixed $250,000 bequest among three competing organizational needs, which directly matches Finance / Resource Allocation. It is fully self-contained, realistic, and free of steering or experiment leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1364,
+    "candidatesTokenCount": 191,
+    "totalTokenCount": 2207,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1364
+      }
+    ],
+    "thoughtsTokenCount": 652,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "UwCfaom3LMmpvr0P9qbR6QU"
+}

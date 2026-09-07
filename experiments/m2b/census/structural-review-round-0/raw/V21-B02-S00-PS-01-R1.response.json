@@ -1,0 +1,35 @@
+{
+  "model": "claude-opus-5",
+  "id": "msg_011CepYYCYqMnxwQQzrsNcCe",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "",
+      "signature": "CAISxAMKjgEIERgCKkA9NPIZlWONtpHTbQ2tZuXKGDGNlrCgK/GeIObaJV3xeVIppcONNsJW4Zf+8o4EhbLSnUKyJFcHl4sFF6Ulkfj3Mg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiRjZTQ2Y2IxNy00NjE2LTQ3ZGMtYjM0Yi0yNjRiMTk1ZWFkMGKoAeaB/NQGEgx8aH/UPEWgq5fisVsaDCaS9vMGKM2MbhFKFiIw5Z9Nq/kRe015GJiuBRQ6vc+zVjBivvS/m68Nruw2YR0knKjXakU5RtP8WHbo+lQJKuIB8LrHfhxXKYvgdc7bJNvtrhXPjrq68iMSFBvZY/DzKRyOWHhJa6tYCsieLjYRMKQf3JaNPs/iZGdgykkCb/ina1cEVtoN4onGuJBaaFAnCyBJUUzeEH9rMhKfQg5XFfH2Wmd5PjwDzQVX3Gw77WPP53LPcYSgbkvFFCNDhVJ7Jp69RhP0sKgcM7TGAYKlUAyo4urMQJQID2XlwzIiYg2ujQImQ4xXARG8RqKnDbXZApMxRY33R2ghZQwflkK7ch/ZJrMN5UW3q5GOJB6IYc7HEuqAWilNp7lDEi5m/FR+9atNZBgB"
+    },
+    {
+      "type": "text",
+      "text": "```json\n{\n  \"taskId\": \"SR-d69a4049bb6795a84fe6248923908a2d55330c83e41c975aea4e8c825a840086\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The final request asks for the structure of a new membership offering — tiers, allowances, access rules, controls — which is a Product / Service Design artifact; pricing here is a component of the offering design, not a split of a fixed pot. Utilization figures, current products and constraints are all supplied in-text, and there is no leakage or steering.\"\n}\n```"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+    "input_tokens": 2034,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 326,
+    "output_tokens_details": {
+      "thinking_tokens": 69
+    },
+    "service_tier": "standard",
+    "inference_geo": "global"
+  }
+}

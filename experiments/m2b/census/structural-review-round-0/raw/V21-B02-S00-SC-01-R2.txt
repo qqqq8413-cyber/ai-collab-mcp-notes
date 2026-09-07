@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-f87bd243a791d24eaa779f1303db5e8238e408e34b77ac7b91ed8397f9d5b1df",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for a choice between two mutually exclusive, high-commitment strategic paths, matching the Strategy / Commitment stratum with all criteria satisfied."
+}
+```

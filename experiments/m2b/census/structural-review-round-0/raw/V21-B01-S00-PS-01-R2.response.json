@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-2a22127bca07940281dcdbaae3906e17a1b2db13e1b4d8f0e98453b5530d1135\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for the scope and tier structure of a new wellness subscription, which squarely fits Product / Service Design. It is self-contained, realistic, and free of steering or experiment leakage.\"\n}\n```",
+            "thoughtSignature": "Ev4GCvsGARFNMg923Eqb88lkXKRfqGoah0tt86JboSZMmn3W+g9zSicjm0XzIGEezAmmR40abBbqymyaeIV2pDUa3M17BWyiu0b3g3mLbs7rz5nw3a5KOh/RZJ534F3EVVjbmwnPA8c6WcPkJKlV1KtapUbby6h3ZBNtrGt1MjiX2+eEVTYrcK/YS0DWXN+GcXAAL3rRema55P/gtIpexsNcmnP9//u3YQTK9RzJkgteywwRjk9LX85S1hOTUEKbdtOmRazxJ9ZC2zuptatHQ/ujCQd0kBomkG+6x4ik2nvoUEwIUdMlAOaXO6YYEZUeVdnuZiNI8UqLuHvB8Pa2YaTP30RpBGU2nvbqS8MlCywWHH5ZQhD+Toatxdawcho7iu6DNpOJOsinkCw2m7hp4CkERYGztaTGGi0NM/Si7uqFopDJFjl5OMZsuYRq0TbxIO7vLTrU6ROwGIi1FNelgXY5ew9wmdNCYsvWfiBfZlm0MsYCGS9NGsuwjwzoqnNQYcR/pwmJZph5f999Mmh/wOsAK2pHRee7fN0eLDPsHzXMpPnxDI27w0AXpXp/8LYmDBWWCNx9JZsfKlByIWo9fVpbbuzOgRrfDT3oiSKNDS4eNeseKdpcKFna3v8m22ihEEQ0dD4Q6NWR8c2P4i5z6E9Zgn4Qd1Mg6EohrgmQzip9VLfibkfE2ik8anGFnFzJBp9ORPSTi0QVIimH6wnGIWuMP0dLCM2QxafuSg62E5L/lLIfHcK5rFZ6qdwvl/QVix67Bzdd9uyf9k1KolfKiREIfIYqvj5CLHAo5+0jnhsqvUSmL5mAy4xlFhhqG8/dK4dsZkJqNTqluj6P/ADB/vBtaIEBgzuWTwzUJBCR7/QXzgjOV6hdfoC1awtSJvW37s23KkmItn9cLqjBQAHe8MGDBfM+j6EwONGPHygHVFJoFuxjjhVgqYFh5O/zvFhpE5yh6tQPpqX4wKGhGs924xqpCfB4T89ukbLNy865vETLkWVHRce8hX7/OpO8CkJXb+vvsOkf9NAJj+f1QHH+Ziuesu9ljTYzR58wGyoaTR+NkD07leKtVrCk2srOU2AQu6eIvW1y2FokqXbQW0l/sUUabJKPsy8wlM1Uj3A2l06YnySJrg4se4Bio61PoJYlIHSUSJyTomz45L2uyUHotkGVX4dw71a13y9lWBn964xU"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1346,
+    "candidatesTokenCount": 186,
+    "totalTokenCount": 1704,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1346
+      }
+    ],
+    "thoughtsTokenCount": 172,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "JAGfapKpJOWD1e8P_cHGAQ"
+}

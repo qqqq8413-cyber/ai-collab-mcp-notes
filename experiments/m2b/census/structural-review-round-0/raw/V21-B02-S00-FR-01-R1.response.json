@@ -1,0 +1,35 @@
+{
+  "model": "claude-opus-5",
+  "id": "msg_011CepYaTJu84z3VgB1H7CeA",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "",
+      "signature": "CAISmwIKjgEIERgCKkCcpM2J4Ta5l8q0GwnkJq2FYWzB3WU4D4haxvEhgeR9aFBVbwuncXKIdZKZxbPPheDjwtTS2s2vAJL3kdr3ajD2Mg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiRjZTQ2Y2IxNy00NjE2LTQ3ZGMtYjM0Yi0yNjRiMTk1ZWFkMGKoAYWC/NQGEgyd+4ol+HKmAQ54maEaDIVygnZAbRklTkqLbCIwwQj6LHWIqTcOnIsYPFvXL36iSzpIDruN7NISJgM43ZeRm3GTfDv/TYGDK8nc1gLBKjqv5OamfIHxNqPceZLDGKOcGXEmwah/mGKKbtYixWiy5MWcBE8Jl2LSumrCLCd9c3En2kCAyhT0vn5uGAE="
+    },
+    {
+      "type": "text",
+      "text": "```json\n{\n  \"taskId\": \"SR-efd6ce169b255a95f3262802a7518b22b424ab750b9dcab83f0f91d9804299a1\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The final request asks how to divide a fixed $12.5M capital pool among five claimants, matching Finance / Resource Allocation; all figures needed are supplied in the text and there is no leakage or steering about how the answer should be produced.\"\n}\n```"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+    "input_tokens": 2261,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 247,
+    "output_tokens_details": {
+      "thinking_tokens": 17
+    },
+    "service_tier": "standard",
+    "inference_geo": "global"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "model": "claude-opus-5",
+  "id": "msg_011CepYcfShxatSpv9uicqG2",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "",
+      "signature": "CAIS0AMKjgEIERgCKkAHHrKHhcHEOQ9NG4aP647ZDkYsc91hT2WvkOSoYMw+H6X5IGI0DJgVZgsuJatHv7+XLxb1wc3WV7IfAGClpPqMMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiRjZTQ2Y2IxNy00NjE2LTQ3ZGMtYjM0Yi0yNjRiMTk1ZWFkMGKoAaKC/NQGEgzic4ybEMcjLI1rSEwaDGmITEjtDdKzCrZZnyIwgtHGbUYYJQ3+q79IloBHdiLvJrtmXZfWn9QTlhDBBCV4+6RBnFKwSQ/pnUtrefiaKu4BRtVKYAnCOvyQ3iAjWlmdZUGaMHi3sBv2Q1oVz5BplT9aKl24HGcoeSfYMSe1+q9QkVakQEmVPC7X5N6ZHSrpZrJzWOHPsHo1Q4tFb5Vh9pl47+dLiYo5ut9msOXlH0n03uz9E4JgtTcWm9xccqTWhse/bHZ0uh3rO0uv7NfJomTygQ6KyHGW61iH4rZu9MmknKay7JKK+iHS5XIY8zeFD4I9dG9k00YPtm+w+no/o0ErI3AuuuO7TRDxa4JN236ODVyAlLi1KnpQh1yFNA3X1tAbWRBcTFddm2JFGvdDVSl4aT+3UpzagzsCVv8rjhgB"
+    },
+    {
+      "type": "text",
+      "text": "```json\n{\n  \"taskId\": \"SR-2a22127bca07940281dcdbaae3906e17a1b2db13e1b4d8f0e98453b5530d1135\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The final request asks what the subscription should include and how many tiers — a service offering scope and tier structure, matching Product / Service Design. Pricing, capacity and cost figures are all supplied in-text, and no steering or leakage is present.\"\n}\n```"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+    "input_tokens": 1912,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 301,
+    "output_tokens_details": {
+      "thinking_tokens": 69
+    },
+    "service_tier": "standard",
+    "inference_geo": "global"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-24cd11285fe70ea6e9739bd03192a6b08557a642e1e6f22f59521abd8d322c4a\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for brand voice and identity guidance, matching the Brand / Creative category. It is self-contained, realistic, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1352,
+    "candidatesTokenCount": 178,
+    "totalTokenCount": 2103,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1352
+      }
+    ],
+    "thoughtsTokenCount": 573,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "owCfauD6DI_K1e8PzfjBsAU"
+}

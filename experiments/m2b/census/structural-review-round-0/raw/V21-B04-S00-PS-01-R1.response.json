@@ -1,0 +1,35 @@
+{
+  "model": "claude-opus-5",
+  "id": "msg_011CepYhKqPEzUdiYLidtwjw",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "",
+      "signature": "CAISzgMKjgEIERgCKkCwfxGxoSCLZN3BVIZlr/6IdqRUbrPBWrcXWAKVOqaYHx5ShEU6PszIaTc2fgN/w2rOMoP1onGPdKJYLrx1NiDkMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiRjZTQ2Y2IxNy00NjE2LTQ3ZGMtYjM0Yi0yNjRiMTk1ZWFkMGKoAeGC/NQGEgxOMH6SDqIAXIx5FG8aDHPdlhPjeTj3OHKcOyIwTJ6xPsPmJHP9jCcybBRI9p669sapFFxsABevxhPObeMwJreMF3IUNSLlI9OZGbFxKuwBdI6b3S3ybHxQOuC5PzaS3vgUnVd07L1n9/fXYSJtsktVJlpgSyI+mzuFadszy9O/SlfmQfuZbdl2h8tZ9agj4F6xBmb6Pcc0yWYqTEW5DRpjlC8Hb2jqfcZy/IhHcLipjT2qxpwjqVXTOTIfTTA2FlIjS+V2Ll2+mpWxi4vQ0SNqHDQjfEj3PJsQLoJDC3xS+FtEiU9AiYJT7Lt+jii414RoZmYTFL40PgKSJtdv7Nklx+/6e+KJikI2+vBIqZKMWUNhXogELNrr0CBj57saKAykJ8qZcVlfim93uin3hLMJ8JP4p8Tp6TvY5EsYAQ=="
+    },
+    {
+      "type": "text",
+      "text": "```json\n{\n  \"taskId\": \"SR-fe1ab1d9f9db884a288e6cc2dafb61a28bd630d652a4c9c9cc962a51abaddd03\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The final request asks for the structure of an offering — membership tiers, entitlements, add-on mechanics, booking rules and access controls — which is a Product / Service Design artifact; the sub-parts form one coherent deliverable, all needed occupancy and inventory figures are supplied, and there is no leakage or instruction on how the answer should be produced.\"\n}\n```"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+    "input_tokens": 2023,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 352,
+    "output_tokens_details": {
+      "thinking_tokens": 79
+    },
+    "service_tier": "standard",
+    "inference_geo": "global"
+  }
+}

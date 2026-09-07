@@ -1,0 +1,35 @@
+{
+  "model": "claude-opus-5",
+  "id": "msg_011CepYPP7LGcvCCt8nWFhzD",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "",
+      "signature": "CAISlwIKjgEIERgCKkA91hnHdwSUZV40pgtBa4/0ULm7hq6uq/bEn3nZEUBfP3oPB3myvGc8IWXipbkFNX5YhCFbVC7vFJdMWBEoeCkuMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiRjZTQ2Y2IxNy00NjE2LTQ3ZGMtYjM0Yi0yNjRiMTk1ZWFkMGKoAe6A/NQGEgxJQLJbSdg8hNIOAKEaDLuRSuoo1S6bmQtqwyIwTvFnugnrA32bB/k/Ceh9P9pmfOFV3Ssu3r719U9mRPrK9LIySZcTtaF1LhfAoD7yKjY8IAdanGQcnejnPrfYvw5CW1cV7Ml5AbvhXErDHq36aQFTQRWeOMyd4XKLoKgN5g/qzZMBn6gYAQ=="
+    },
+    {
+      "type": "text",
+      "text": "```json\n{\n  \"taskId\": \"SR-5a7238f523724b5bc0df5092766e0806b5d362772e9c142495ad4c1aaf2eaa6a\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The direction is settled and the final request asks for a sequencing plan for closures, hiring freeze and migration, which is an execution artifact matching Operations. All figures needed (headcount, lease timings, attrition, batch training rate, peak timing) are supplied in the text, and there is no steering or leakage.\"\n}\n```"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+    "input_tokens": 1920,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 271,
+    "output_tokens_details": {
+      "thinking_tokens": 15
+    },
+    "service_tier": "standard",
+    "inference_geo": "global"
+  }
+}

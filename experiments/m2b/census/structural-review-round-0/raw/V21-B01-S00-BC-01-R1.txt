@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-00717eaec5aa622ec8bd505ebce7b59f75b1fad04d5d3ab26f93815f5b2bbafb",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The single final request asks how to present the brand going forward — an identity/positioning direction, matching Brand / Creative. The situation supplies its own customer-segment evidence and constraints, reads as a genuine owner's query, and gives no instructions about how or by whom the answer should be produced."
+}
+```

@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-2c91ae0bd4513c9654ffa5fd316642855bca7fd9103e9647e0e44f0624d79bb9\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for brand positioning and presentation guidance across two store locations, which directly aligns with Brand / Creative. It is self-contained, realistic, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "EqQHCqEHARFNMg8UDQJQeS9uAXqFnoFJjqVI0233601XeJWnAU0WEYn02RzYGby2kRjOH4snvrV2jH6WZCllHsxfeBkfzUT1aOZ9uOVb/EyVzN2nhqkWEkfAL1S8Pd2ShascvFy3lPygJh/803jLOoafmH3asiZjW1iWLStnp9+wJ21JaN0HsL0zKbpbb+rRCQkvJ8S2new1hf6l7nmdESnylrjpD0PTqcNU7JFtzPcnX89Zgd/HI/QyIC+YkwBt5InV3rF0ihZ+GGZtw2IfPkL30pMahFfcKRTB9Gt4CHPvt27UIKKjPjC0V8lJdCjUb5mIbLoMopX3UHBhfaoNalUDS6Ae6Mh5dZKtQNBCWU0f++YlPGYSFxmvpXQqxcQz0epZszarfprSSem6mC0MTubuvWEyQCoFf7RXoq+P2RTr1qR58Sgza86Tt3mHlXzJQlmsK2dGbE2rKl8tTylAzHm24QBLN5Gx1sh55pNofU5QKaBeJLgzsUx4eIqXMDJimOyW6TrOZIgAasLU1nluRwlkdB8dZEjtygDxh6cGdaV12c93lKfTHqFAUej2rtivmsDz1mcZbiEXvvUo2HL2AMPTg67cwYXfQVWg5GTTt3EZ6wYyncSusNu2tYzwRdqE4NWmuJ74ZeUkTmvwbHZ/FFl0yinv1Pj+Fb+hH7rLRgCJ2AizXDvMoT4H0EEOstqc2E1xnuZYiXc5dLCnsmm5O2qRzqea86wWiubfbi5aD8mkHdDEQIboyuL7wCPbe7oPGf3pyV69zt8BY6xlo34RfZC79nL2bIps9spMGSNyiHLkz15XLnMC01EgxWN4za5w7wNMCacI9UqXOTxVXWczQZqf8Xir3enkpYWd7KxTYH3R4nhe8QfpHeXBfJWRvEA7yF9s0MtogsZwwbsJJIFdaHuduxv5DZ3gIa/A1kzmWFNToh/ci8R1IjuzNqjji1ZekZUlBGTaneQI9asvyzCMrBeE1fLUEnlDgMSxWb8fEid4GYBrr75QuSsDAa1IQGTVwjMOEnlDJLQkhbrzyLdbtf9vVR5pXpSRkXyscEch11uuQ9OVbvhWXx7Jke9KKdH8CvkWfsrP+Xj6RJUd5vANeLdEeCjCnaZX1J71aNOlZSjTrYaua57czqiipwGLfFtma/QwAmzFCDmAIggupYan/MO/wot0rCh00CJ0471W/470hV+7UOSiyFeN5YMP9N47/WJSHyKp4To0uRhAaa6nD0osnYvI11M="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1343,
+    "candidatesTokenCount": 180,
+    "totalTokenCount": 1688,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1343
+      }
+    ],
+    "thoughtsTokenCount": 165,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "HgGfatDbCuO-vr0P_J0J"
+}

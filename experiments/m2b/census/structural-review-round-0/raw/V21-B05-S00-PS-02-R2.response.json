@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-7f2a2d3375beb39070a7f73ae440653eb23bdbc3fa2c384a69cf4429a403514a\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for the design, structure, and benefits of a new loyalty offering, matching Product / Service Design. All other structural and prompt criteria are satisfied.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1332,
+    "candidatesTokenCount": 176,
+    "totalTokenCount": 1988,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1332
+      }
+    ],
+    "thoughtsTokenCount": 480,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "dAGfav63GO-mvr0Po_nh2AQ"
+}

@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-28f4bbcda46276c5f20edcbf9ff4a62f6065d22963a466377f1f48ae17d9e178\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The primary request directly asks how to position the studio's identity and voice, matching Brand / Creative. The scenario is clear, self-contained, realistic, and contains no leakage or steering.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1344,
+    "candidatesTokenCount": 183,
+    "totalTokenCount": 2155,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1344
+      }
+    ],
+    "thoughtsTokenCount": 628,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "aACfauHUNruz9tMPqazjmQU"
+}

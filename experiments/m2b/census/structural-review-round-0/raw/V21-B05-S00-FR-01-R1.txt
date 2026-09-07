@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-cf0ae31a299a556c0b479d43e7cec61c1740b22f6b02e307abd05afbb7ac6267",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks how to split a fixed $250,000 pot among three claimants, which is squarely Finance / Resource Allocation; all needed figures and constraints are supplied in the text, and there is no leakage or steering."
+}
+```

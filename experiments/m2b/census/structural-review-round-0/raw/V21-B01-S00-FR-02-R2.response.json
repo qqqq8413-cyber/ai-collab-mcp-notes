@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-a756b44ece005bf651e99c88e92632d4603cad1b315bd362d44d72d1d957537b\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks how to allocate a finite $150,000 fund among three competing department requests, perfectly matching Finance / Resource Allocation. It is self-contained, realistic, and free of steering or experimental leakage.\"\n}\n```",
+            "thoughtSignature": "Es8ICswIARFNMg+Z0g+WDxJewVN/cG5PeTiccZgTN8ZczrbNVpF9siYZtDzFADx8/BkV3nArSY7WmoKdiaBrhmiU9xZzNwM5bCnHstHc4MpNtoo0yIEhDp/3ZcjFvkeiTxwLJJYMlTwgltaGPzoCnWCuA/JEQy4FyucJBUnqzkzTrT1GQsnCan/LBLpGYuUr8VHeWp5m/Bi0i1Vbmas9kES0XT9EecBuxs2J5h/4hbkzzN9Hp9IHzZ//pvVeiHpph9IdmooFAgeEwmOkknvG5GWcbCmBj3hQZeKvAiGfdtYx8yhVcfcfbKm5SK41Y2EEHySO5UUgS2GKKm98+2INLn3ziRYeYVEvGBFChFe/ypwHJnT1ca4KmA8uYmLC0NS4UaSeHK3pGD0wo79yKQzsNxYtma50JFOF7wAFbqRAWJvhjfM4qGLdE/q8hxSl7rS4DyPBeTVPQ16AhX0diDqrMcNm6e1VJ579kBfpqNzBZoC/nWiehxpDuFZHsCT5PJ6lOYoekvUHvq5OObcPsti+Xx4XKMBAcb0C/sBj05bcZ4Jh+DmK10QJJ21YIOrmW9hcXm0KEculYtWMmOVAV29JtPGxGJuCYJbbJU12VuAUARnYYZeZq5wP3bTpXnMCvMczbQt9uhi/nacRcmlfV3wOwOVdtieSBwBUWhZQOKUhBK12OFAXrMikfr7HixhLYOGzsLthj2cXaPgyjGt7bWJJHxaWL5yJC9adbtVJLm7qaHzwd2QmK0HnTOXvAAug4QLUnGWuBVacI+XktKo+h2j5LoT2xqige7XFli/94k0KHnWLNQtX+h0mZq1p6KxetcxXBbWsY6IC3e7iW08C3MpuqHgh/odcLp3uqSaP5Z1+QjfWn9tbKUyon65K0Kk2JPJeP7aPu+hVZ+du2Rrlah5v2eWpx8nw/SSkvZmW6z2saT9JFOyWZIJePFvALT7oMkvTxr11dzcIJSooAFdsRkrXKHF7FMvjGhQ0oVBR2yghecclNTFfaBZ0qC0hrdEJgL2ZFWSxRlkSmawR1AquJ9XxQMzWZE6fUEU3WkAP4hXc68SuDnC47QFzPkD9edE2u9oIBHtMUFkLuBDcZKGgKAdGPAp2w7DIShH0h63FJ6Co6tW7RLldG87tseXa63gBGgS4bXFjBw2vEGStPjW9gExRq8v7cjd1Gu1pBs29stqodRRmefuFjyQT1KR+Kqm0is6l+3/DAeluRHJVdrWJr7EGMB5IljtpMKMEwfgYuFn64wtuw8TVsVfoReqK7rcSxej5azt+mUyCv/r14k891DuM2ZSKWgqwGSuJyQnfad3ORLohMuIn4t+rgkdOZLiS2QDyF8tRuv2I55AqeQoWwOBnRmWcbHpL8FTwDytb19P/KVQPiNzQGy/6bq7zpDLMCwMGNfy2sAIV+OUWCGpFOlnqNe4+hv8xzrR926wwRltgoKZUbuxpsBg12RxwA63zrxC05C0="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1364,
+    "candidatesTokenCount": 192,
+    "totalTokenCount": 1834,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1364
+      }
+    ],
+    "thoughtsTokenCount": 278,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "gQCfar6qK464vr0Pj7m-6QM"
+}

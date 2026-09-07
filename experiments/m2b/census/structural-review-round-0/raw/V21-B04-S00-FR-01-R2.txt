@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-1df1938c8a418f5097ecc5b73e28debd7683da4b130d586a240db51f9d7bde92",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks how to divide a finite capital budget across three competing proposals, matching the Finance / Resource Allocation category. It is fully self-contained, realistic, and free of steering or leakage."
+}
+```

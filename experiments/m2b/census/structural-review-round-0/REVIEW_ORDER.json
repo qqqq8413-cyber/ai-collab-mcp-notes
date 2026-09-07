@@ -1,0 +1,245 @@
+{
+  "orderVersion": "CBRP-STRUCTURAL-REVIEW-ORDER-v1",
+  "order": [
+    {
+      "taskCandidateId": "V21-B01-S00-OP-02",
+      "reviewOrderKey": "00c9d8f634eb53cb29249f4975e4d5200985da591b6bb2ed92e9ff05d3519a8d"
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-FR-01",
+      "reviewOrderKey": "0546ae1aa8bc606a2b704341a93f289028b27062a2ffe1258722583d4d40230a"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-SC-01",
+      "reviewOrderKey": "08b41212f441ee541a1bcfbcffaba198acac7df89f28f8a6539a0f166b3cee4b"
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-BC-01",
+      "reviewOrderKey": "0a9dbe6dd4053d4dc6eea705f4d1f0d081e912df4631e3069aec6f511d514b2b"
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-BC-02",
+      "reviewOrderKey": "160914295ee97588dbb5400c51bc1481c4b01be0c86637a3775b40eff4a82579"
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-OP-01",
+      "reviewOrderKey": "248c6bc34717f665c0abb1451738ac5f21dd103fc262327aa3be3425888609ea"
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-SC-01",
+      "reviewOrderKey": "2b9ab57d5a2cdd093f437c55e98efef247f5473613ffce2de2fc77904d561908"
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-FR-02",
+      "reviewOrderKey": "2e1381e71dd4ee2c2c7cd388be611eb3f2de5de3ba010c9bcaea2005f7298ac7"
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-SC-02",
+      "reviewOrderKey": "2fdd8e31cdfe7e8e726761b1ecdd9f63ecce7d35a1069e7fd0845ce43153ea8a"
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-BC-01",
+      "reviewOrderKey": "3f933ed34b31790e878449e7d3e974625dade831b5c596793c01691f949d0ad1"
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-EI-02",
+      "reviewOrderKey": "442109246ef55ded641e1fb116a0f28cdc7cc52feae38c0729a84e32c7d2d8e0"
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-BC-02",
+      "reviewOrderKey": "485c5ed90f61611df59dd0c58960e6a044ac5f9ac686d52329450ab6972a6e46"
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-SC-01",
+      "reviewOrderKey": "4e4798e68af0c906c68af438ed6899e567e330e8bb042d8607bacedba16419f1"
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-EI-02",
+      "reviewOrderKey": "4f3aeeffd4dc0fd75cb1d876bc8ea53a9fe305a3656789b27873b5093b7ad0fa"
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-BC-01",
+      "reviewOrderKey": "5339fde285bc60f04af74841d91b7671e653299c8793c8160ce0a99ba9e9e4b1"
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-FR-02",
+      "reviewOrderKey": "61cbd441426b7fc71b36543a34740079a9a06e1c01f245022176297904ea081f"
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-OP-02",
+      "reviewOrderKey": "6529a5234042c96cee615c39b54e978db834f0aa4d3b1bc54ba102172541e882"
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-OP-02",
+      "reviewOrderKey": "6776f50c8afe18c6466e84f5c2f58dbbf90196e0109172f10bc3ca11e0b1862f"
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-PS-01",
+      "reviewOrderKey": "6b87435015cf930342c9bfb7f3722efe1ea96c7b872d465c4f063424c3e2a506"
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-OP-01",
+      "reviewOrderKey": "6f84a0158e9c3e330c3b2276ed16ef4abdec42d990467c8bbd3e6c5e9140ea9c"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-FR-02",
+      "reviewOrderKey": "79d140b3fbbd3497c861b4db16396ffbb7fb0d2c865a662efc10cc798618da6e"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-FR-01",
+      "reviewOrderKey": "7e391ba3f7c56120da0b30fc795c58721344281a30084b55b85d79bc3a68d6c3"
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-FR-01",
+      "reviewOrderKey": "7f92da2fe71084b93635ba7dc09dc3a162d891c139fa6196c504631221f48ec3"
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-FR-02",
+      "reviewOrderKey": "8acd736cc48029209bda33656092f3b930b2564b7a5601f39fabdf482c0f77d3"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-EI-02",
+      "reviewOrderKey": "8bfb55ca51265dbab08d5f6a0af1047ed4b2eb8198b67f38749e2525bac94ad4"
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-BC-01",
+      "reviewOrderKey": "8e6778e489ff87831cee25aa036c4c7463f1e14b1f02afe1b9e799cafc71ce3a"
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-PS-01",
+      "reviewOrderKey": "8fe645ee30ee1254c3f5a765c9ffc5af3c12c9a0fc1ff98f70511e29dbcb65fb"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-BC-02",
+      "reviewOrderKey": "91254a91994877d728390f327e96862376a94da33af984b05a142bce341d3afd"
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-PS-02",
+      "reviewOrderKey": "969ded56d9928c244deb270678c71ec10ce478408f791b4a9876397ba7799277"
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-FR-01",
+      "reviewOrderKey": "984d2bea88c1316f07c2b275f13be3f3de1383132fc32b37068e16855db429d0"
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-SC-01",
+      "reviewOrderKey": "98ef1aaa3c3542a9d1cac8e505c3ec45f44d1142fec7a29121dada958a875916"
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-EI-01",
+      "reviewOrderKey": "99797092bb329386a63e3d9e7382eb1edb102a2dbeefd08d6b4abea6bb1ec945"
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-OP-01",
+      "reviewOrderKey": "9e8124ad0a44aade00e9f4b6058ab302ddc23cba8b9e29aa598a357ea416c642"
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-SC-02",
+      "reviewOrderKey": "9fc04fd502b5a7fb76bf025a075ec4d6d694a9805ba9caa38917be28e3dc640c"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-PS-01",
+      "reviewOrderKey": "a05c85505dfc63daca852b3cfa21572aa69f7b985774b243efd3bb3ecc6458f3"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-PS-02",
+      "reviewOrderKey": "a0e5859c6245df3487696708b076255e0de09be0da55c37a4ef666cfa8f50b80"
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-PS-02",
+      "reviewOrderKey": "a5e946240809e48e2c7aa2085232969c4b3af30c76a56d020d86837880c4af73"
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-FR-02",
+      "reviewOrderKey": "ac2dc0a8839cd7c842eb801bd17c39ab430811d87c9b7c506c59e275bd8fb605"
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-PS-02",
+      "reviewOrderKey": "adbabae79fd3251051184bd47a19e7a792aaf74ebcff8071ff96a91dbc118c9e"
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-EI-02",
+      "reviewOrderKey": "ae1c61049709e863fb1902e97a76e7c38483cd3c1da5530f1a5e4efde909ffb9"
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-OP-01",
+      "reviewOrderKey": "b3c59f219535ff669b3c30196ed8bc8a7836d194f68290e1183424ce369e789b"
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-OP-02",
+      "reviewOrderKey": "bca7cdf0efd181d2746315412cac5dbd12a27d39831a1fb8f905564ff06a2f5e"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-OP-01",
+      "reviewOrderKey": "c678d32fb4ac3a846e5f12a8a194b78f3f47f444aa902d785d240ef20205b2c9"
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-SC-01",
+      "reviewOrderKey": "c93543d7c803f029b1daa0719cad17c4699e6cad15f48e73b22ff6ea17b57020"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-OP-02",
+      "reviewOrderKey": "d15a2f2f8b1a755ad84dd8fae754618d2dd24828d106ac50a594f2b37754fc28"
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-SC-02",
+      "reviewOrderKey": "d663903d5245b5161e6a7f29abeff792197217e98d952f8b653a4f34053e680f"
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-EI-01",
+      "reviewOrderKey": "d7188c54a201094084def1e2a56bf65b2aa581946849012390032aab6218d990"
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-SC-02",
+      "reviewOrderKey": "d73c659ab09ee1f4c469c2f740b99c8aa8ce86d4372d753b50ac5a9e1142602c"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-SC-02",
+      "reviewOrderKey": "d86d525c4a4cb7df613f586f6cd89e6f30616698dd4293c08d49ae6f868c8bb0"
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-BC-02",
+      "reviewOrderKey": "da431dcde965044a915d1c311d6d848d89f6900a831f4f578e2162675d0be242"
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-PS-02",
+      "reviewOrderKey": "e03b394e0eddfa8830b5c2fc3e96f6375903f943fa6312c911fccc0b1101e384"
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-BC-02",
+      "reviewOrderKey": "e14695af08ea59cd93a8548dbc58637ddd115a5be90d59d049339f21edafc8ff"
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-EI-01",
+      "reviewOrderKey": "e1dc7e6bfb011c3ffb0ea1f5ba3f8cf1019ef20e2a354212e99dd8982b105137"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-BC-01",
+      "reviewOrderKey": "eb8b3eef6a887aacffe297b0599c6663f53c7f00b7079ad0dd2c7b6437ad4774"
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-PS-01",
+      "reviewOrderKey": "f031e358970f1ff879408940764fb2e3a0eec55d7eee62f6d3ebeb51260a4e01"
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-PS-01",
+      "reviewOrderKey": "f6fda276cf501e1ff2b84132acba8b826c9e1d99464419c67277f0cb1935c269"
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-EI-01",
+      "reviewOrderKey": "f883c85810f6928fa3b5534b48c3dfcc204a77d37ef0cf8745c9997582e0e54a"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-EI-01",
+      "reviewOrderKey": "fbf32a076dc8e495234c91e0a82c78ecb5792b5e692a28f89963819942ca12b1"
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-EI-02",
+      "reviewOrderKey": "fc06186e395cd596d6168614f709255c8449be51871065b72e20a6c7ec4b93ae"
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-FR-01",
+      "reviewOrderKey": "fd9ef9d3c715c99dec1e855de47cc610f1acc58348aa1e59d423f563b8c51970"
+    }
+  ]
+}

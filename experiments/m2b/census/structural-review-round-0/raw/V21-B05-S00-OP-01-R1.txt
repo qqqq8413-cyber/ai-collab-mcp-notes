@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-5a7238f523724b5bc0df5092766e0806b5d362772e9c142495ad4c1aaf2eaa6a",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The direction is settled and the final request asks for a sequencing plan for closures, hiring freeze and migration, which is an execution artifact matching Operations. All figures needed (headcount, lease timings, attrition, batch training rate, peak timing) are supplied in the text, and there is no steering or leakage."
+}
+```

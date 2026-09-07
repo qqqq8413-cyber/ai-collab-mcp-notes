@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-14b851e6759c43e2f60d6d89039c146341a7deac39ffa9cc1d81e4535ee2bb3f\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks how to allocate a fixed $180,000 capital budget across three competing departmental requests, which correctly aligns with Finance / Resource Allocation. It is realistic, self-contained, and free of steering or experiment leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1387,
+    "candidatesTokenCount": 194,
+    "totalTokenCount": 2195,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1387
+      }
+    ],
+    "thoughtsTokenCount": 614,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "ewGfasWcBaC4vr0PlteVsQ4"
+}

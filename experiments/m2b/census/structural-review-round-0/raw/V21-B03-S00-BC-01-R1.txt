@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-2c91ae0bd4513c9654ffa5fd316642855bca7fd9103e9647e0e44f0624d79bb9",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks what the brand stands for and how it should present itself across both locations, which is identity/positioning — matching Brand / Creative. It is a single clear request, answerable from the given context, plausibly sent by a real owner, and contains no leakage or instructions on how the answer should be produced."
+}
+```

@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-214712513f8c9ed866f854ceb6ee38f6865edfc1e9751363759055c87a7ddd66",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks which of two mutually exclusive, costly-to-reverse directions to commit to, matching Strategy / Commitment; all figures needed are supplied in the text and there is no steering or leakage."
+}
+```

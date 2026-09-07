@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-edbddefab175ad7cc52aa4e38e51a510bf6a3162a94084b78ba6a7eb7f589976\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks how to allocate a fixed pool of 16 headcount positions among four competing departmental requests, which correctly aligns with Finance / Resource Allocation. It is self-contained, realistic, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1482,
+    "candidatesTokenCount": 186,
+    "totalTokenCount": 2144,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1482
+      }
+    ],
+    "thoughtsTokenCount": 476,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "DgGfau3uLK6u9tMP2tOHqAI"
+}

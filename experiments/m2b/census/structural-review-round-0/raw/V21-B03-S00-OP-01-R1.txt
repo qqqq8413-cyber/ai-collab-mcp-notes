@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-ebfc5ae29787372e19600e34fe4b91fae932e353677ce4030e446b5baffef38d",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The direction (dark-kitchen conversion with three virtual brands) is already settled and the final request asks for rollout sequencing and shift organization, which is an execution plan — correctly Operations. One clear request, all constraints (equipment, staff count, timelines, peak windows) supplied in text, and no leakage or steering."
+}
+```

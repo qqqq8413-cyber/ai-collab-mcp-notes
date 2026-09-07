@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-894ddc448f445e45e13f6a3cb7e7af5346a5723e06cd971d2b7d067985337780",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks what the described results and confounds actually indicate about causation, which is an Evidence Interpretation output; the key figures and confounding factors (new curriculum, turnover change, comparison schools) are stated in the text, so it is answerable as written, and it reads as a plausible message from a district administrator with no steering or leakage."
+}
+```

@@ -1,0 +1,12 @@
+{
+  "harnessVersion": "CBRP-STRUCTURAL-REVIEW-LIVE-HARNESS-1",
+  "protocolVersion": "CBRP-STRUCTURAL-REVIEW-PROTOCOL-1",
+  "reviewSessionId": "V21-B03-S00-BC-01-R1",
+  "taskCandidateId": "V21-B03-S00-BC-01",
+  "blindTaskId": "SR-2c91ae0bd4513c9654ffa5fd316642855bca7fd9103e9647e0e44f0624d79bb9",
+  "reviewRole": "R1",
+  "providerRequested": "claude",
+  "modelRequested": "claude-opus-5",
+  "reservationTimestamp": "2026-09-07T18:23:22.077Z",
+  "status": "RESERVED_ATTEMPT_CONSUMED_ON_DISPATCH"
+}

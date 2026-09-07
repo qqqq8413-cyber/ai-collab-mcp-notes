@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-ee81c3732c127bfcdfb051fdd3de122b6af418101469fb2b8963dc447ee42c0d",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks how to think about the deli's identity and voice as expressed in signage, packaging and public communication, which is a Brand / Creative output. It is a single clear request, answerable from the supplied context, plausibly real, and free of leakage or instructions about how the answer should be produced."
+}
+```

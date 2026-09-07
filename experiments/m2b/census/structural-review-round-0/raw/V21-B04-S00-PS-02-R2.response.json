@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-3f4bd81bff5dc116301a71c2411fa423bf2b4423933a0bb165fbd2c76457418b\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for the design, scope, and tier structure of a dental membership offering, matching Product / Service Design. It is realistic, self-contained, and free of steering or experiment leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1349,
+    "candidatesTokenCount": 184,
+    "totalTokenCount": 1994,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1349
+      }
+    ],
+    "thoughtsTokenCount": 461,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "bAGfavXhGrOZvr0P9qfT0QI"
+}

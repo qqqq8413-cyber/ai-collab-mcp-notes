@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-d05cc219915e058bc71efebd6f109cc8710b659ab31aa8edf6c59636d1378bb5\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly requests an allocation of a finite resource (14 engineering headcount positions) across three competing units based entirely on the provided metrics.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1511,
+    "candidatesTokenCount": 168,
+    "totalTokenCount": 2136,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1511
+      }
+    ],
+    "thoughtsTokenCount": 457,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "-ACfat71EKC4vr0PlteVsQ4"
+}

@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-b8161b26303cbaa3afe993881e8c34c62883c3ee415004e795a2b8470fb15425\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for an operational deployment schedule and sequence under defined constraints for an approved initiative, aligning with Operations / Execution. It is self-contained, realistic, and free of steering or experiment leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1451,
+    "candidatesTokenCount": 186,
+    "totalTokenCount": 2077,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1451
+      }
+    ],
+    "thoughtsTokenCount": 440,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "8ACfaq_LG-iT9tMPhK2RyA8"
+}

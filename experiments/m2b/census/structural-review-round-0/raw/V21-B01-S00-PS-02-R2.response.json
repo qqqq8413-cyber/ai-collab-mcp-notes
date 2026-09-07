@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-387a726a1a6a17f8104f5fe3485f765994aaa3a7bc158e51e513903c6d27d071\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for the design, scope, and structure of a new paid membership tier, which correctly matches Product / Service Design, and meets all criteria.\"\n}\n```",
+            "thoughtSignature": "EqEHCp4HARFNMg+uGvMpTuqXk4xTJjkiaf/8E4N/i4w/JO7byjCE8/Y8tuEbNkAYkZdvltynnpsPp3xxYdavviIyUoFQsYDwxafzzyPyWwRZFaubqe4U88rz57k+TfQI0CMLP5BIaeX7DuhKluC9oOg1970DLL82ntfiCxHZaFmLGU5OjOKtPvk669WOrpn4zRtOGVZa/jsXIId1P50uGeKuBOwplF54oAX0lz+s++DIMHA46vdk3N2YC/FzxoBuS5w6FP9BJbK74I2N3Rmgi9U1dSwRsMlxyioVsOI/QA93JZvfWtCFtg50A1g+htpzm2j/c21EoHJH9tx1n/tyFmWnLE1cPgHQmq38ACWyVdEjJHZ7G8TQlQTPCv4v1iRmpHPYEwRLNGIzX5d4oMUB2TcRGFJC28VguChsrJeA5qE8adWv/zJ2uvrvntIChkeymR0zN5UYoJXDn+OS2CHGloFuWXB8bgaNw8HynVHQHbE+UPVRwSq/X4u7bOJrnbUQjtKnnKJjBbyhqlxyugAbZ0XrNM630nuF0M1b2nRj1O88IGQRpiaHJ/jUbmk8f3IBl7iqpYBweLfux4Lb16Vt+IzhRpmv8ITJcHsZuZ9x7FD2pDztjGDvJDDuLnMiskb1Qu/NSZFZGYMj9HvYeg/f3U1d3TDFI4I6T8qvr/0w2ZyIWtqVEYjD1Nb2vgCDhXo1sythbL/QcJXqzKtgIGSi+89kpUUBRpSzTBR+T8nViX0rRXcMPZ/YvH3WSROzMkR4KkBvwXSlx6FPRZYg4WelEecggHDd4reji+ir5SbmmlPS1mZ5LjRDDLulsqhsM5CUYTGrswTYKcSHOTxXcVVwrYWnDn42JnpTyKLnhzLGE4ImwXTGzOxlUuPqS987y9YH1PXcc7aFkdlENdmaRtt4tgk+pWqII4wEoY2Px3eNtH/FDFpsNN7+mP6Naa+FamBVgvTJ3LU6fqZH40BjDKvIbkxoyGP9MUBO4fTeFHLAm0z/VhZ2vC+ISvOZHKF8BVRhwiJdgds//SjL0lBxhIqW+N7JYF4x2REpTAoiZF4AmNu01pRYSgcgJ9zCRxBOzJxNrU8mCvm+J7cUdSPIIy8JvHtPujuKqhQeqXfEcQloy7F7hAdSEGJDtby3mCkHp8G4HS0IH/Ptvro1mlHZ+nqWLtPYQ7SnVSCuPLRVWCuAqwISaJDex5OmkovziVQ8K8CccMTIil7rZgMuZxfDcbIovdLtlS8="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1345,
+    "candidatesTokenCount": 179,
+    "totalTokenCount": 1700,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1345
+      }
+    ],
+    "thoughtsTokenCount": 176,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "MwGfaqOHI5S7vr0PrIL2yAI"
+}

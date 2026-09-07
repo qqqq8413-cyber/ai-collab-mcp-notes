@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-f87bd243a791d24eaa779f1303db5e8238e408e34b77ac7b91ed8397f9d5b1df\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for a choice between two mutually exclusive, high-commitment strategic paths, matching the Strategy / Commitment stratum with all criteria satisfied.\"\n}\n```",
+            "thoughtSignature": "EssGCsgGARFNMg+A6cbmQm8SeyMdduoUMUoWqXSfxp2c0JRbRqvfNjyCytr1hnoJcF08p08y0ajKYVUiGmsxWGghH0TejAvuUbUr2AF8njHCl9wyXDLZeKF/LmeNbPFwakziXVLF8KBOM4/kH7pZX2dGpkBvudqgx2QGBaiEc3jfU2j+fDRvHy3noEG4wnFf7gwm1cd4ujHmve2pYpH1yZsjosO4KdNIlXhY2322kaducDMuJJzh6yoc/C14gXaajMAvZvO2Pn4sFl6t1n31q3CgSDeEc+sexHhLsqv7Bz7L2+Vosj2N3ccjPF1TWs0iHmQE+yE/c45cxyXv2o5OM2RymNpxOvjBgkzBgfVsHg9FBk2J1iT6q3l1JlgKw5ElO3YAmmLd7FeMuEWOu6VPzQI+lUk0+3RSO1wmQschHuohncFh5UYO9Og+B7wKvlHwD9lu+aDyXsBhh6EvoIV1m5fTjCyw2G82fQ0dEVUw+PbExj6KgiCgtx1G4DSXRAK5d0/CfZanLc/LCDBG89JKNsz6d0Pz+UUwKezMTCkEXDcu2hHKmHDJHOopsWFcOWfYxuLEL4p3e1HP0SSY5eM44eZLqjQ8szOu0wDoSBim63EdGz0q349hJYJa+traeLGUvKg26DAL5hh6NP6/AwtFP5snhk70kh+fat0c4ywuqf8/sOiE4st/ID2YfEoR9oOB75pfSZvsTFcI8SfpeM68nNZm+Bax5sEXJaqDky4Eh0o8cumST30MV9rkb65lbs0nK+7eWVHA0/LfykRypgMB0ZvD3z2lF8whawDkHjo0db+Rx1HoAj0IVsHGHMBi/ZgdTI6nQTspETbU2WclriM+KiiiNUmihn+3a0QkrpvCsEUMM97RdAWwBp1fkIqdfq4GVX27INCqp/HpDht3j4PJUO18Qy2egULgnzVhVHWFey/OOcBAnb6BGqcbP+ewvFmxSzKjFalKWwsU57HC6UiPSKv74xhIAxpUqFNI/fMdKidzxz+2gzfhCK0pJ9/MOKzm4euUQvYTfgGpovADBQMG/XwlR91936AwDtsqFJdHIhsznD8ymA9H4c1pWBoRXYHJPZDFrts7DA0nKEnVRCUifXQsxQqmDZPnSnxWiaMU"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1441,
+    "candidatesTokenCount": 173,
+    "totalTokenCount": 1764,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1441
+      }
+    ],
+    "thoughtsTokenCount": 150,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "egCfauqXEtbdvr0PmvCNuQ0"
+}

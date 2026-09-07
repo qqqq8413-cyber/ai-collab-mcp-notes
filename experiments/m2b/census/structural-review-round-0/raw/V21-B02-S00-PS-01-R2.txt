@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-d69a4049bb6795a84fe6248923908a2d55330c83e41c975aea4e8c825a840086",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for the design of a new B2B flexible office membership product (structure, allowances, access rules, and pricing), matching the Product / Service Design category. It is self-contained, realistic, and free of steering or experiment leakage."
+}
+```

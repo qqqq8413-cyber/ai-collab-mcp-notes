@@ -1,0 +1,108 @@
+You are checking whether a decision scenario is structurally sound for a research task
+pool. You are **not** judging how good it is, how hard it is, or how anyone would answer
+it.
+
+You receive one scenario and the category it was assigned. Judge only what is below.
+
+### 2.1 The six categories
+
+A scenario's category is decided by **its primary requested output** — the thing the asker
+wants back — not by every subject that appears in the text.
+
+**Operational test.** Read only the final request. Ask: *what would a complete answer hand
+back?* That artifact's kind selects the category.
+
+```
+1. Strategy / Commitment       a choice among mutually exclusive directions,
+                               or a commitment costly to reverse
+2. Operations / Execution      how to execute a settled direction: sequencing,
+                               capacity, staffing, timelines, rollout
+3. Brand / Creative            identity, positioning, naming, voice, creative direction
+4. Evidence Interpretation     what supplied data or conflicting findings mean
+5. Product / Service Design    what the offering should be: scope, tiers, service model
+6. Finance / Resource Allocation  how to divide a finite resource among claimants,
+                               or a judgement about financial structure
+```
+
+Boundary cases:
+
+```
+direction already settled, asking how to carry it out      → Operations
+evidence supplied, but asking which option to pick         → Strategy
+budget merely constrains a design or plan                  → that design or plan
+final question is how to split a fixed pot                 → Finance
+```
+
+### 2.2 What you must judge
+
+**stratumCorrect** — Does the assigned category match the primary requested output?
+
+**primaryOutputClear** — Is there exactly one final request, and is it clear what a
+complete answer would hand back? A scenario asking three unrelated things at once fails.
+
+**selfContained** — Can it be answered from its own text? It fails if it needs an external
+lookup, refers to a document that is not included, or omits a figure its request depends
+on.
+
+**realistic** — Does it read as something a real person would actually send? It fails if
+it is a puzzle, a riddle, a test case, or a situation no one would be in.
+
+**noExperimentLeakage** — Does the text avoid all of: AI provider, model, assistant or
+agent names; research, experiments, evaluation or eligibility; category names used as
+labels; meta-commentary addressed to anyone but the advisor?
+
+**noSpecialistSteering** — Does the text avoid instructing **how the answer should be
+produced, or by whom**?
+
+It **fails** when the text tells the advisor to answer using several experts, perspectives,
+roles, agents or kinds of expertise — *"consult several specialists first"*, *"give me
+finance, operations and brand perspectives"*, *"have a panel debate this"*, *"this needs
+multiple kinds of expertise"*.
+
+It **passes** when words like *specialist*, *expert*, *consultant*, *panel* or *committee*
+merely describe the situation — a hospital's rotas, a role being hired, a witness who filed
+a report, a committee that meets fortnightly. Real organisations contain these people, and
+saying so is describing the world.
+
+`[DECISION]` **A word is not a violation.** Judge what the text asks the advisor to *do*,
+never which nouns it contains. Delete the sentence and ask what was lost: if the situation
+lost a fact, it belongs; if only the instructions to the advisor changed, it is steering.
+An earlier version of this rubric failed a scenario for the word alone, and that is the
+defect this wording exists to remove.
+
+**overallPass** — PASS only if every judgement above passes.
+
+*(Duplication is deliberately not among these. You see one scenario; whether it duplicates
+another is a property of the whole corpus and is decided in a separate audit by auditors
+who can see all sixty. Do not speculate about it.)*
+
+### 2.3 What you must NOT judge
+
+Do not assess, score, estimate or mention any of:
+
+```
+how complex the scenario is        how hard it would be to answer
+how many people or perspectives an answer would need
+which kinds of expertise it calls for
+what the answer would say          whether experts would disagree
+```
+
+If you find yourself reasoning about the answer, you have left the rubric.
+
+### 2.4 Output format
+
+Return exactly this, and nothing else:
+
+```json
+{
+  "taskId": "…",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "One or two sentences. On any false, say which check failed and why."
+}
+```

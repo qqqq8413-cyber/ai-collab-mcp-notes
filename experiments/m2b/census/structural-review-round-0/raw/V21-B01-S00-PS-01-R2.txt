@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-2a22127bca07940281dcdbaae3906e17a1b2db13e1b4d8f0e98453b5530d1135",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for the scope and tier structure of a new wellness subscription, which squarely fits Product / Service Design. It is self-contained, realistic, and free of steering or experiment leakage."
+}
+```

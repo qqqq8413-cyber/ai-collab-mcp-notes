@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-132ba995c02f17e07e7669a11431932012cb3ef00480950a69827b7b86114ac2",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The direction (tripling production under a signed contract) is settled and the final request asks for a production and delivery schedule — sequencing and capacity — which matches Operations / Execution. One clear deliverable, constraints supplied in-text, plausibly real, and no leakage or steering about how the answer should be produced."
+}
+```

@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-537383ff2537ae97d5001557f43d0391f619a86f31ce32f9b637df06c9f511e4\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for brand positioning and a creative voice framework, which aligns directly with Brand / Creative. It is self-contained, realistic, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "EqMLCqALARFNMg+oYWQSP8w6dA4S6XqEOf8K7CNDv4ttV5VrCYvbn6dDXICYITfLwB0WFbVhKJm+YT/xy+z4OUpKfT7omrXg8Kx1LxnGE8nS7tsyPenooIUX6Y1qWe9i+xkBDHY1HWo7DqT0vksAoBKTqaEPWyftZHtIlJML0h++c/yQKIakmbvdITLvwDspch2QYQRd5hVA9RhpjHO1ewLgZznLNKwY4s1rhGT8JBenL81Yws9944bJtdp33LPdtkFOUq6z4IFXfrlsaQ9wWSfclxBPZzWXFr+hQibVQisPEIhK+UykFq48+4/9p/fca0bwIGKGw4Y6phZCpPif4hSTepuXm3fwI1RDy/NmWfBPceTgCD+yJFJusiR+zGewCBgVGXnQnlba8KL6O/xSa8zr5eScE0OtRrMkeiwHAgdK6PKToFssmagHd9KYXTrtgGfzSpy02j7P4d7y4nbX2JPN6xT57Y+Q5/8ZLVc5d8mthOov89UVxOdokZ9ZU2Rc4HsCOUzSUaWCMnMc8RQNTFBrw9U81ufu2KbuSG8DtAL8UMMccx4AVhtkSPdpTQu4kVHGDd7cVBIsQVHEWYdWnEOsLmW5AoCHC8arMpmc69OsZ2qiChElgD5n7Uur5s0tRIslP3Qh7KpXB6DeAPRwAI6y4oIyaDwKua7kdh1SUXrCltE0a2Eff4hOOpgbfpZxMP5JUWZAedps2KWjkdy4VcMGRxoDoHtPRSaxeOKZ7k0va8vdGNOD2h0GSjB4tFLMTDjoCt+IPSz7aRNxkAZTxSmH0x8Rs3eifPY1UqsuW1lf4s+/zd6gn+ItTAWccN+V0Gc8fE5pnAr4WczhzyN7s29Xga7u3vKgW/DEj8ybmWUrjm5Dqck08HmiX2/WrlkX2LIDXtQ3tUhoaslPHCVHHdOc8VB4+0uPmq9YiZvVuIOzCC0nOeWO0kGw3lhFAi032V1xzByGVT2xn0i9JPvfoZSIyAGpoiO5ml50O/oD3hfLxr4S2SGP0Rz0CfH8zDVJgSEj+lelsqpAn2xlboRDjuuhVC25hrCtH5wTP5lNZ5DILTv8JSYL1rOTClo3rBSibj2PfewxkBHVz1q2Ugt3Ho9T9et041YCkK2MQ1fH8jKr3hIeZQSeYaZyDyerZL+aUd/xzLMCIxmdYRwcBWB2KlmMH9zJZOyirTIOUGp5MtBXnisshYOoOFt9Rkkqqm4vvULe8PfFOqAqgdQW2mXsrTVDBcKIZfMrwmmT+wYey3z5giqg9UefWErd45mq5QXXVSsOPBOd7iTqrJJvF3joMCiuMtGWQPTi8fXBLTUz5VrjtadAMc0wvNvr8huWEMTIjC1pMVaM39uLfmZ7CENE+SmTA4/diCuRXfp1DgtnqRuPB35YOuGPxaYL5w6OWAsy2pPjw+iv09MjywbO/U+uZPu1xGijh+UA31Xa2TPrjGW+sYlzUPSvGuNoDSPBvX7prO+saIg3uBalFUlFL/28iLtIFQ61OwpaVpYsWVpq3QqrpBR1Hy71XFTO22AEe8q5me54LabSeCulx9bXFa4OSeu3ZDKUphSxufyQOnq0RAYzijTSDfZHO6GUME4q9noD3N1Ql/WqND3LqR8FYh0ZpeLhzJmFx34wp9+Wjdei62IHcKX6tQlNSdV5LE13iByiRGyQE5vvpYaGOnVV1qQ4cruWcThvD07izF07odFbkm9mx6okk8vjuddXsFIIRcLbJb8YgM0kP5cSg7V2FZEJAw1SP/cYblYgk4o0DnR0K0ER9llsCesaLdZHiTCezb6LibwawPYKFaUcUZne1JzbJPQye6sV/Ur20eexpOlI1fRcfxrT8HIuA9VM9Cau0RtJdYGgB6yYxLi8tAKD31+MsuIj9V/NFfLX1TC8ug3EIc86XvanH5BWsSM/LsRfIrgvkg9e6Uk1"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1399,
+    "candidatesTokenCount": 183,
+    "totalTokenCount": 1937,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1399
+      }
+    ],
+    "thoughtsTokenCount": 355,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "vwCfapvjI-2T9tMPytyP6AI"
+}

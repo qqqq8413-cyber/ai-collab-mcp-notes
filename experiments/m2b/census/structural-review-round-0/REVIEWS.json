@@ -1,0 +1,1348 @@
+{
+  "harnessVersion": "CBRP-STRUCTURAL-REVIEW-LIVE-HARNESS-1",
+  "reviews": [
+    {
+      "taskCandidateId": "V21-B01-S00-OP-02",
+      "blindTaskId": "SR-f13e81a4d51a9fc8ec2018c530036f098e5f2a7b665a963f653955be66767cb5",
+      "reviewSessionId": "V21-B01-S00-OP-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-f13e81a4d51a9fc8ec2018c530036f098e5f2a7b665a963f653955be66767cb5",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The direction (PACS adoption) is settled and the final request is a rollout and training sequence under stated constraints, matching Operations / Execution; all figures needed are supplied and no steering or leakage appears."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-OP-02",
+      "blindTaskId": "SR-f13e81a4d51a9fc8ec2018c530036f098e5f2a7b665a963f653955be66767cb5",
+      "reviewSessionId": "V21-B01-S00-OP-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-f13e81a4d51a9fc8ec2018c530036f098e5f2a7b665a963f653955be66767cb5",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for an operational rollout and training sequence under specified constraints, with no external dependencies or specialist steering."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-FR-01",
+      "blindTaskId": "SR-cf0ae31a299a556c0b479d43e7cec61c1740b22f6b02e307abd05afbb7ac6267",
+      "reviewSessionId": "V21-B05-S00-FR-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-cf0ae31a299a556c0b479d43e7cec61c1740b22f6b02e307abd05afbb7ac6267",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks how to split a fixed $250,000 pot among three claimants, which is squarely Finance / Resource Allocation; all needed figures and constraints are supplied in the text, and there is no leakage or steering."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-FR-01",
+      "blindTaskId": "SR-cf0ae31a299a556c0b479d43e7cec61c1740b22f6b02e307abd05afbb7ac6267",
+      "reviewSessionId": "V21-B05-S00-FR-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-cf0ae31a299a556c0b479d43e7cec61c1740b22f6b02e307abd05afbb7ac6267",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks how to allocate a fixed $250,000 bequest among three competing organizational needs, which directly matches Finance / Resource Allocation. It is fully self-contained, realistic, and free of steering or experiment leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-SC-01",
+      "blindTaskId": "SR-ec917958e7a71c40b546ac9ef3e2755d7fa6f780df9c83db6bc65d0ec56ee4ec",
+      "reviewSessionId": "V21-B04-S00-SC-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-ec917958e7a71c40b546ac9ef3e2755d7fa6f780df9c83db6bc65d0ec56ee4ec",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks which of two mutually exclusive, irreversible capital commitments to pick, matching Strategy / Commitment; all figures needed are supplied in the text and there is no leakage or instruction on how the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-SC-01",
+      "blindTaskId": "SR-ec917958e7a71c40b546ac9ef3e2755d7fa6f780df9c83db6bc65d0ec56ee4ec",
+      "reviewSessionId": "V21-B04-S00-SC-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-ec917958e7a71c40b546ac9ef3e2755d7fa6f780df9c83db6bc65d0ec56ee4ec",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for a choice between two mutually exclusive strategic investments, matching the Strategy / Commitment category. It is self-contained, realistic, and free of steering or experiment leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-BC-01",
+      "blindTaskId": "SR-ee81c3732c127bfcdfb051fdd3de122b6af418101469fb2b8963dc447ee42c0d",
+      "reviewSessionId": "V21-B05-S00-BC-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-ee81c3732c127bfcdfb051fdd3de122b6af418101469fb2b8963dc447ee42c0d",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks how to think about the deli's identity and voice as expressed in signage, packaging and public communication, which is a Brand / Creative output. It is a single clear request, answerable from the supplied context, plausibly real, and free of leakage or instructions about how the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-BC-01",
+      "blindTaskId": "SR-ee81c3732c127bfcdfb051fdd3de122b6af418101469fb2b8963dc447ee42c0d",
+      "reviewSessionId": "V21-B05-S00-BC-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-ee81c3732c127bfcdfb051fdd3de122b6af418101469fb2b8963dc447ee42c0d",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for guidance on brand identity and voice, matching Brand / Creative, and satisfies all structural criteria."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-BC-02",
+      "blindTaskId": "SR-28f4bbcda46276c5f20edcbf9ff4a62f6065d22963a466377f1f48ae17d9e178",
+      "reviewSessionId": "V21-B01-S00-BC-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-28f4bbcda46276c5f20edcbf9ff4a62f6065d22963a466377f1f48ae17d9e178",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks how to position the studio's identity and voice, which is a positioning/identity artifact and matches Brand / Creative. It has a single clear ask, supplies all relevant context internally, reads as a genuine founder's message, and contains no leakage or instructions about how or by whom the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-BC-02",
+      "blindTaskId": "SR-28f4bbcda46276c5f20edcbf9ff4a62f6065d22963a466377f1f48ae17d9e178",
+      "reviewSessionId": "V21-B01-S00-BC-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-28f4bbcda46276c5f20edcbf9ff4a62f6065d22963a466377f1f48ae17d9e178",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The primary request directly asks how to position the studio's identity and voice, matching Brand / Creative. The scenario is clear, self-contained, realistic, and contains no leakage or steering."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-OP-01",
+      "blindTaskId": "SR-5a7238f523724b5bc0df5092766e0806b5d362772e9c142495ad4c1aaf2eaa6a",
+      "reviewSessionId": "V21-B05-S00-OP-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-5a7238f523724b5bc0df5092766e0806b5d362772e9c142495ad4c1aaf2eaa6a",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The direction is settled and the final request asks for a sequencing plan for closures, hiring freeze and migration, which is an execution artifact matching Operations. All figures needed (headcount, lease timings, attrition, batch training rate, peak timing) are supplied in the text, and there is no steering or leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-OP-01",
+      "blindTaskId": "SR-5a7238f523724b5bc0df5092766e0806b5d362772e9c142495ad4c1aaf2eaa6a",
+      "reviewSessionId": "V21-B05-S00-OP-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-5a7238f523724b5bc0df5092766e0806b5d362772e9c142495ad4c1aaf2eaa6a",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario requests an operational sequencing and rollout plan for an already settled consolidation decision. It is self-contained, realistic, and free of steering or leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-SC-01",
+      "blindTaskId": "SR-f87bd243a791d24eaa779f1303db5e8238e408e34b77ac7b91ed8397f9d5b1df",
+      "reviewSessionId": "V21-B02-S00-SC-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-f87bd243a791d24eaa779f1303db5e8238e408e34b77ac7b91ed8397f9d5b1df",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks which of two mutually exclusive, costly-to-reverse directions to commit to, matching Strategy / Commitment; all figures needed are supplied in the text and no steering or leakage is present."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-SC-01",
+      "blindTaskId": "SR-f87bd243a791d24eaa779f1303db5e8238e408e34b77ac7b91ed8397f9d5b1df",
+      "reviewSessionId": "V21-B02-S00-SC-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-f87bd243a791d24eaa779f1303db5e8238e408e34b77ac7b91ed8397f9d5b1df",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for a choice between two mutually exclusive, high-commitment strategic paths, matching the Strategy / Commitment stratum with all criteria satisfied."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-FR-02",
+      "blindTaskId": "SR-a756b44ece005bf651e99c88e92632d4603cad1b315bd362d44d72d1d957537b",
+      "reviewSessionId": "V21-B01-S00-FR-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-a756b44ece005bf651e99c88e92632d4603cad1b315bd362d44d72d1d957537b",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks how a fixed $150,000 pot should be divided among three competing claimants, matching Finance / Resource Allocation; all figures needed are supplied in the text and no steering or leakage is present."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-FR-02",
+      "blindTaskId": "SR-a756b44ece005bf651e99c88e92632d4603cad1b315bd362d44d72d1d957537b",
+      "reviewSessionId": "V21-B01-S00-FR-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-a756b44ece005bf651e99c88e92632d4603cad1b315bd362d44d72d1d957537b",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks how to allocate a finite $150,000 fund among three competing department requests, perfectly matching Finance / Resource Allocation. It is self-contained, realistic, and free of steering or experimental leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-SC-02",
+      "blindTaskId": "SR-214712513f8c9ed866f854ceb6ee38f6865edfc1e9751363759055c87a7ddd66",
+      "reviewSessionId": "V21-B02-S00-SC-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-214712513f8c9ed866f854ceb6ee38f6865edfc1e9751363759055c87a7ddd66",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks which of two mutually exclusive, costly-to-reverse directions to commit to, matching Strategy / Commitment; all figures needed are supplied in the text and there is no steering or leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-SC-02",
+      "blindTaskId": "SR-214712513f8c9ed866f854ceb6ee38f6865edfc1e9751363759055c87a7ddd66",
+      "reviewSessionId": "V21-B02-S00-SC-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-214712513f8c9ed866f854ceb6ee38f6865edfc1e9751363759055c87a7ddd66",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for a choice between two mutually exclusive strategic directions, matching Strategy / Commitment. It is realistic, fully self-contained, and contains no leakage or steering."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-BC-01",
+      "blindTaskId": "SR-00717eaec5aa622ec8bd505ebce7b59f75b1fad04d5d3ab26f93815f5b2bbafb",
+      "reviewSessionId": "V21-B01-S00-BC-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-00717eaec5aa622ec8bd505ebce7b59f75b1fad04d5d3ab26f93815f5b2bbafb",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The single final request asks how to present the brand going forward — an identity/positioning direction, matching Brand / Creative. The situation supplies its own customer-segment evidence and constraints, reads as a genuine owner's query, and gives no instructions about how or by whom the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-BC-01",
+      "blindTaskId": "SR-00717eaec5aa622ec8bd505ebce7b59f75b1fad04d5d3ab26f93815f5b2bbafb",
+      "reviewSessionId": "V21-B01-S00-BC-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-00717eaec5aa622ec8bd505ebce7b59f75b1fad04d5d3ab26f93815f5b2bbafb",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for brand presentation and positioning guidance, correctly matching the Brand / Creative stratum. It is self-contained, realistic, and free of steering or experiment leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-EI-02",
+      "blindTaskId": "SR-894ddc448f445e45e13f6a3cb7e7af5346a5723e06cd971d2b7d067985337780",
+      "reviewSessionId": "V21-B03-S00-EI-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-894ddc448f445e45e13f6a3cb7e7af5346a5723e06cd971d2b7d067985337780",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks what the described results and confounds actually indicate about causation, which is an Evidence Interpretation output; the key figures and confounding factors (new curriculum, turnover change, comparison schools) are stated in the text, so it is answerable as written, and it reads as a plausible message from a district administrator with no steering or leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-EI-02",
+      "blindTaskId": "SR-894ddc448f445e45e13f6a3cb7e7af5346a5723e06cd971d2b7d067985337780",
+      "reviewSessionId": "V21-B03-S00-EI-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-894ddc448f445e45e13f6a3cb7e7af5346a5723e06cd971d2b7d067985337780",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for an evaluation of whether the supplied pilot data supports a causal conclusion given the presence of confounding variables, which correctly matches Evidence Interpretation."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-BC-02",
+      "blindTaskId": "SR-24cd11285fe70ea6e9739bd03192a6b08557a642e1e6f22f59521abd8d322c4a",
+      "reviewSessionId": "V21-B03-S00-BC-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-24cd11285fe70ea6e9739bd03192a6b08557a642e1e6f22f59521abd8d322c4a",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks what voice and identity the firm should adopt, which is a brand/creative artifact matching the assigned category; the scenario supplies all context needed, reads as a genuine founder's question, and contains no leakage or instructions on how the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-BC-02",
+      "blindTaskId": "SR-24cd11285fe70ea6e9739bd03192a6b08557a642e1e6f22f59521abd8d322c4a",
+      "reviewSessionId": "V21-B03-S00-BC-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-24cd11285fe70ea6e9739bd03192a6b08557a642e1e6f22f59521abd8d322c4a",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for brand voice and identity guidance, matching the Brand / Creative category. It is self-contained, realistic, and free of steering or leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-SC-01",
+      "blindTaskId": "SR-dbe89b0ec4d22b5fe233eba213dae1e710dc14c0a3e3e705c05b06efd86cdb40",
+      "reviewSessionId": "V21-B01-S00-SC-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-dbe89b0ec4d22b5fe233eba213dae1e710dc14c0a3e3e705c05b06efd86cdb40",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks which of two mutually exclusive, hard-to-reverse directions to commit to, matching Strategy / Commitment; all figures and constraints are supplied in the text, it reads as a genuine owner's dilemma, and there is no leakage or instruction about how the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-SC-01",
+      "blindTaskId": "SR-dbe89b0ec4d22b5fe233eba213dae1e710dc14c0a3e3e705c05b06efd86cdb40",
+      "reviewSessionId": "V21-B01-S00-SC-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-dbe89b0ec4d22b5fe233eba213dae1e710dc14c0a3e3e705c05b06efd86cdb40",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for a choice between two mutually exclusive strategic directions, matching the Strategy / Commitment category, and satisfies all structural criteria."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-EI-02",
+      "blindTaskId": "SR-17d7699e65ec66190ab6377cf9c9a462a19a1575ef8d6e4b4e206176efead8a5",
+      "reviewSessionId": "V21-B05-S00-EI-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-17d7699e65ec66190ab6377cf9c9a462a19a1575ef8d6e4b4e206176efead8a5",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks what the circulation results actually indicate given the described confounds, which is an interpretation of supplied findings, matching Evidence Interpretation. The scenario supplies the effect size and confound structure needed to answer, reads as a plausible library administrator's query, and gives no instructions about how or by whom the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-EI-02",
+      "blindTaskId": "SR-17d7699e65ec66190ab6377cf9c9a462a19a1575ef8d6e4b4e206176efead8a5",
+      "reviewSessionId": "V21-B05-S00-EI-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-17d7699e65ec66190ab6377cf9c9a462a19a1575ef8d6e4b4e206176efead8a5",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for an interpretation of confounded circulation data, matching Evidence Interpretation. All details necessary to assess the validity of the board's conclusion are provided without steering or leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-BC-01",
+      "blindTaskId": "SR-537383ff2537ae97d5001557f43d0391f619a86f31ce32f9b637df06c9f511e4",
+      "reviewSessionId": "V21-B02-S00-BC-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-537383ff2537ae97d5001557f43d0391f619a86f31ce32f9b637df06c9f511e4",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks for a brand positioning and creative voice framework, which matches Brand / Creative; it is a single clear ask, answerable from the supplied context, plausible, and free of leakage or steering."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-BC-01",
+      "blindTaskId": "SR-537383ff2537ae97d5001557f43d0391f619a86f31ce32f9b637df06c9f511e4",
+      "reviewSessionId": "V21-B02-S00-BC-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-537383ff2537ae97d5001557f43d0391f619a86f31ce32f9b637df06c9f511e4",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for brand positioning and a creative voice framework, which aligns directly with Brand / Creative. It is self-contained, realistic, and free of steering or leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-FR-02",
+      "blindTaskId": "SR-18ed118ecb237fa07e9fb2fa5d462dd52c529714c623fed51ac133fb6383557a",
+      "reviewSessionId": "V21-B03-S00-FR-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-18ed118ecb237fa07e9fb2fa5d462dd52c529714c623fed51ac133fb6383557a",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks how to divide a fixed $500,000 pool among three claimants, which matches Finance / Resource Allocation; it is a single clear ask, contains all needed figures, reads as a plausible real request, and contains no leakage or steering."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-FR-02",
+      "blindTaskId": "SR-18ed118ecb237fa07e9fb2fa5d462dd52c529714c623fed51ac133fb6383557a",
+      "reviewSessionId": "V21-B03-S00-FR-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-18ed118ecb237fa07e9fb2fa5d462dd52c529714c623fed51ac133fb6383557a",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario asks how to allocate a fixed $500,000 profit pool among three competing claimants, which fits Finance / Resource Allocation cleanly. It is realistic, self-contained, and free of steering or experiment leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-OP-02",
+      "blindTaskId": "SR-132ba995c02f17e07e7669a11431932012cb3ef00480950a69827b7b86114ac2",
+      "reviewSessionId": "V21-B05-S00-OP-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-132ba995c02f17e07e7669a11431932012cb3ef00480950a69827b7b86114ac2",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The direction (tripling production under a signed contract) is settled and the final request asks for a production and delivery schedule — sequencing and capacity — which matches Operations / Execution. One clear deliverable, constraints supplied in-text, plausibly real, and no leakage or steering about how the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-OP-02",
+      "blindTaskId": "SR-132ba995c02f17e07e7669a11431932012cb3ef00480950a69827b7b86114ac2",
+      "reviewSessionId": "V21-B05-S00-OP-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-132ba995c02f17e07e7669a11431932012cb3ef00480950a69827b7b86114ac2",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario correctly targets Operations / Execution with a clear request for an operational schedule and timeline. It is realistic, self-contained, and free of steering or experiment leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-OP-02",
+      "blindTaskId": "SR-08067e88360aab32fc440943217456d9a03c746d03ac12c02ca9fea0c9bc1bc8",
+      "reviewSessionId": "V21-B02-S00-OP-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-08067e88360aab32fc440943217456d9a03c746d03ac12c02ca9fea0c9bc1bc8",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The direction (scale to 11,000 loaves/day) is settled and the single final request is a daily production, proofing, baking and packaging schedule — an execution artifact, matching Operations. All equipment, timing and capacity figures needed are supplied in the text, it reads as a genuine plant manager's request, and it contains no leakage or instructions about how the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-OP-02",
+      "blindTaskId": "SR-08067e88360aab32fc440943217456d9a03c746d03ac12c02ca9fea0c9bc1bc8",
+      "reviewSessionId": "V21-B02-S00-OP-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-08067e88360aab32fc440943217456d9a03c746d03ac12c02ca9fea0c9bc1bc8",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for an operational production and baking schedule to execute a settled volume increase using provided facility constraints, meeting all rubric requirements."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-PS-01",
+      "blindTaskId": "SR-d69a4049bb6795a84fe6248923908a2d55330c83e41c975aea4e8c825a840086",
+      "reviewSessionId": "V21-B02-S00-PS-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-d69a4049bb6795a84fe6248923908a2d55330c83e41c975aea4e8c825a840086",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks for the structure of a new membership offering — tiers, allowances, access rules, controls — which is a Product / Service Design artifact; pricing here is a component of the offering design, not a split of a fixed pot. Utilization figures, current products and constraints are all supplied in-text, and there is no leakage or steering."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-PS-01",
+      "blindTaskId": "SR-d69a4049bb6795a84fe6248923908a2d55330c83e41c975aea4e8c825a840086",
+      "reviewSessionId": "V21-B02-S00-PS-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-d69a4049bb6795a84fe6248923908a2d55330c83e41c975aea4e8c825a840086",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for the design of a new B2B flexible office membership product (structure, allowances, access rules, and pricing), matching the Product / Service Design category. It is self-contained, realistic, and free of steering or experiment leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-OP-01",
+      "blindTaskId": "SR-b8161b26303cbaa3afe993881e8c34c62883c3ee415004e795a2b8470fb15425",
+      "reviewSessionId": "V21-B02-S00-OP-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-b8161b26303cbaa3afe993881e8c34c62883c3ee415004e795a2b8470fb15425",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The direction (vendor and budget approved) is settled and the final request asks for a sequencing and scheduling plan, which is squarely Operations / Execution. All site, staffing, phase-duration and constraint figures are supplied in the text; 'integration specialists' and 'super-user trainers' describe the organisation's staff, not instructions on how to answer."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-OP-01",
+      "blindTaskId": "SR-b8161b26303cbaa3afe993881e8c34c62883c3ee415004e795a2b8470fb15425",
+      "reviewSessionId": "V21-B02-S00-OP-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-b8161b26303cbaa3afe993881e8c34c62883c3ee415004e795a2b8470fb15425",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for an operational deployment schedule and sequence under defined constraints for an approved initiative, aligning with Operations / Execution. It is self-contained, realistic, and free of steering or experiment leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-FR-02",
+      "blindTaskId": "SR-d05cc219915e058bc71efebd6f109cc8710b659ab31aa8edf6c59636d1378bb5",
+      "reviewSessionId": "V21-B04-S00-FR-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-d05cc219915e058bc71efebd6f109cc8710b659ab31aa8edf6c59636d1378bb5",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request is a distribution of a fixed pool of 14 headcount among three competing claimants, which matches Finance / Resource Allocation; a single clear artifact is requested and all figures (MTBF, penalties, contract values, backlog) are supplied in-text with no steering or leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-FR-02",
+      "blindTaskId": "SR-d05cc219915e058bc71efebd6f109cc8710b659ab31aa8edf6c59636d1378bb5",
+      "reviewSessionId": "V21-B04-S00-FR-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-d05cc219915e058bc71efebd6f109cc8710b659ab31aa8edf6c59636d1378bb5",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly requests an allocation of a finite resource (14 engineering headcount positions) across three competing units based entirely on the provided metrics."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-FR-01",
+      "blindTaskId": "SR-1df1938c8a418f5097ecc5b73e28debd7683da4b130d586a240db51f9d7bde92",
+      "reviewSessionId": "V21-B04-S00-FR-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-1df1938c8a418f5097ecc5b73e28debd7683da4b130d586a240db51f9d7bde92",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks how to divide a fixed $2.4M pot among three claimants, which matches Finance / Resource Allocation; all figures, constraints and match conditions needed are supplied in the text, and there is no leakage or instruction on how the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-FR-01",
+      "blindTaskId": "SR-1df1938c8a418f5097ecc5b73e28debd7683da4b130d586a240db51f9d7bde92",
+      "reviewSessionId": "V21-B04-S00-FR-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-1df1938c8a418f5097ecc5b73e28debd7683da4b130d586a240db51f9d7bde92",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks how to divide a finite capital budget across three competing proposals, matching the Finance / Resource Allocation category. It is fully self-contained, realistic, and free of steering or leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-FR-01",
+      "blindTaskId": "SR-efd6ce169b255a95f3262802a7518b22b424ab750b9dcab83f0f91d9804299a1",
+      "reviewSessionId": "V21-B02-S00-FR-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-efd6ce169b255a95f3262802a7518b22b424ab750b9dcab83f0f91d9804299a1",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks how to divide a fixed $12.5M capital pool among five claimants, matching Finance / Resource Allocation; all figures needed are supplied in the text and there is no leakage or steering about how the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-FR-01",
+      "blindTaskId": "SR-efd6ce169b255a95f3262802a7518b22b424ab750b9dcab83f0f91d9804299a1",
+      "reviewSessionId": "V21-B02-S00-FR-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-efd6ce169b255a95f3262802a7518b22b424ab750b9dcab83f0f91d9804299a1",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario asks directly for a capital allocation recommendation across competing projects under a fixed cap, perfectly matching the Finance / Resource Allocation category. All required parameters are self-contained and free of specialist steering or leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-FR-02",
+      "blindTaskId": "SR-edbddefab175ad7cc52aa4e38e51a510bf6a3162a94084b78ba6a7eb7f589976",
+      "reviewSessionId": "V21-B02-S00-FR-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-edbddefab175ad7cc52aa4e38e51a510bf6a3162a94084b78ba6a7eb7f589976",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request is how to divide a fixed pool of 16 approved headcount among four competing departmental claimants, which matches Finance / Resource Allocation. It is a single clear request, all supporting figures are supplied in the text, it reads as a genuine planning question, and it contains no leakage or instructions on how the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-FR-02",
+      "blindTaskId": "SR-edbddefab175ad7cc52aa4e38e51a510bf6a3162a94084b78ba6a7eb7f589976",
+      "reviewSessionId": "V21-B02-S00-FR-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-edbddefab175ad7cc52aa4e38e51a510bf6a3162a94084b78ba6a7eb7f589976",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks how to allocate a fixed pool of 16 headcount positions among four competing departmental requests, which correctly aligns with Finance / Resource Allocation. It is self-contained, realistic, and free of steering or leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-EI-02",
+      "blindTaskId": "SR-07d0cd584dd3ca73f7341b5ace7536362470a3cf7ae0d432f6eb3b6764b114dd",
+      "reviewSessionId": "V21-B04-S00-EI-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-07d0cd584dd3ca73f7341b5ace7536362470a3cf7ae0d432f6eb3b6764b114dd",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks what the supplied trial data demonstrates, so Evidence Interpretation matches the primary requested output. All figures needed are included, the framing is plausible for a clinical research lead, and mentions of a physiotherapist describe the intervention rather than instructing how the advisor should answer."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-EI-02",
+      "blindTaskId": "SR-07d0cd584dd3ca73f7341b5ace7536362470a3cf7ae0d432f6eb3b6764b114dd",
+      "reviewSessionId": "V21-B04-S00-EI-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-07d0cd584dd3ca73f7341b5ace7536362470a3cf7ae0d432f6eb3b6764b114dd",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario correctly aligns with Evidence Interpretation by asking what the supplied trial data demonstrates. It is clear, self-contained, realistic, and free of steering or leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-BC-01",
+      "blindTaskId": "SR-2c91ae0bd4513c9654ffa5fd316642855bca7fd9103e9647e0e44f0624d79bb9",
+      "reviewSessionId": "V21-B03-S00-BC-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-2c91ae0bd4513c9654ffa5fd316642855bca7fd9103e9647e0e44f0624d79bb9",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks what the brand stands for and how it should present itself across both locations, which is identity/positioning — matching Brand / Creative. It is a single clear request, answerable from the given context, plausibly sent by a real owner, and contains no leakage or instructions on how the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-BC-01",
+      "blindTaskId": "SR-2c91ae0bd4513c9654ffa5fd316642855bca7fd9103e9647e0e44f0624d79bb9",
+      "reviewSessionId": "V21-B03-S00-BC-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-2c91ae0bd4513c9654ffa5fd316642855bca7fd9103e9647e0e44f0624d79bb9",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for brand positioning and presentation guidance across two store locations, which directly aligns with Brand / Creative. It is self-contained, realistic, and free of steering or leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-PS-01",
+      "blindTaskId": "SR-2a22127bca07940281dcdbaae3906e17a1b2db13e1b4d8f0e98453b5530d1135",
+      "reviewSessionId": "V21-B01-S00-PS-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-2a22127bca07940281dcdbaae3906e17a1b2db13e1b4d8f0e98453b5530d1135",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks what the subscription should include and how many tiers — a service offering scope and tier structure, matching Product / Service Design. Pricing, capacity and cost figures are all supplied in-text, and no steering or leakage is present."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-PS-01",
+      "blindTaskId": "SR-2a22127bca07940281dcdbaae3906e17a1b2db13e1b4d8f0e98453b5530d1135",
+      "reviewSessionId": "V21-B01-S00-PS-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-2a22127bca07940281dcdbaae3906e17a1b2db13e1b4d8f0e98453b5530d1135",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for the scope and tier structure of a new wellness subscription, which squarely fits Product / Service Design. It is self-contained, realistic, and free of steering or experiment leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-BC-02",
+      "blindTaskId": "SR-9b5e97bceb847b2d4d81b2d4e6561d39e13983196029139e304519e0648dff03",
+      "reviewSessionId": "V21-B04-S00-BC-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-9b5e97bceb847b2d4d81b2d4e6561d39e13983196029139e304519e0648dff03",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks for a brand positioning framework, creative direction and tonal voice, which is a single coherent identity/creative artifact matching Brand / Creative. All context needed is in the text, it reads as a plausible managing director's request, and it contains no leakage or instructions about how or by whom the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-BC-02",
+      "blindTaskId": "SR-9b5e97bceb847b2d4d81b2d4e6561d39e13983196029139e304519e0648dff03",
+      "reviewSessionId": "V21-B04-S00-BC-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-9b5e97bceb847b2d4d81b2d4e6561d39e13983196029139e304519e0648dff03",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly requests brand positioning, creative direction, and tone of voice, perfectly matching Brand / Creative. It is self-contained, realistic, and free of steering or leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-PS-02",
+      "blindTaskId": "SR-387a726a1a6a17f8104f5fe3485f765994aaa3a7bc158e51e513903c6d27d071",
+      "reviewSessionId": "V21-B01-S00-PS-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-387a726a1a6a17f8104f5fe3485f765994aaa3a7bc158e51e513903c6d27d071",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The direction (launching a paid tier) is settled and the final request asks what the premium membership should include and how it should be structured — an offering-scope artifact, correctly assigned to Product / Service Design. Single clear request, all constraints (capacity, licensing costs, survey results) supplied in-text, plausibly real, no leakage or steering."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-PS-02",
+      "blindTaskId": "SR-387a726a1a6a17f8104f5fe3485f765994aaa3a7bc158e51e513903c6d27d071",
+      "reviewSessionId": "V21-B01-S00-PS-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-387a726a1a6a17f8104f5fe3485f765994aaa3a7bc158e51e513903c6d27d071",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for the design, scope, and structure of a new paid membership tier, which correctly matches Product / Service Design, and meets all criteria."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-FR-01",
+      "blindTaskId": "SR-613fa6d42b8bd781a832500cd0eae68c60fc925fa15f2c00ec676e10e8c31b12",
+      "reviewSessionId": "V21-B01-S00-FR-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-613fa6d42b8bd781a832500cd0eae68c60fc925fa15f2c00ec676e10e8c31b12",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks how to divide a fixed $420,000 pot among three claimants, which is squarely Finance / Resource Allocation. Single clear output, all costs, constraints and deadlines supplied in-text, plausible as a real message, and no leakage or instructions about how the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-FR-01",
+      "blindTaskId": "SR-613fa6d42b8bd781a832500cd0eae68c60fc925fa15f2c00ec676e10e8c31b12",
+      "reviewSessionId": "V21-B01-S00-FR-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-613fa6d42b8bd781a832500cd0eae68c60fc925fa15f2c00ec676e10e8c31b12",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks how to allocate a fixed $420,000 capital grant across three defined competing projects, satisfying all criteria without specialist steering or missing information."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-SC-01",
+      "blindTaskId": "SR-a9ccdc253ed180c8ad1c029194719ab07e666b813cc5505128ccaea9838d0a8f",
+      "reviewSessionId": "V21-B03-S00-SC-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-a9ccdc253ed180c8ad1c029194719ab07e666b813cc5505128ccaea9838d0a8f",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks which of two mutually exclusive, hard-to-reverse paths to commit to, matching Strategy / Commitment; it is a single clear request, answerable from the given figures and constraints, plausibly real, and free of leakage or steering."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-SC-01",
+      "blindTaskId": "SR-a9ccdc253ed180c8ad1c029194719ab07e666b813cc5505128ccaea9838d0a8f",
+      "reviewSessionId": "V21-B03-S00-SC-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-a9ccdc253ed180c8ad1c029194719ab07e666b813cc5505128ccaea9838d0a8f",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for a choice between two mutually exclusive strategic paths, matching the Strategy / Commitment category. All criteria are met without experiment leakage or specialist steering."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-EI-01",
+      "blindTaskId": "SR-7986115efa78ad9cb1af99e04bef31124c1f0470c456fd1e251ff35aa288a20f",
+      "reviewSessionId": "V21-B01-S00-EI-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-7986115efa78ad9cb1af99e04bef31124c1f0470c456fd1e251ff35aa288a20f",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks what the retention data actually shows about the curriculum change, an interpretation of supplied confounded evidence, matching Evidence Interpretation; although an attachment is mentioned, all relevant figures are stated inline, so it is answerable from its own text."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-EI-01",
+      "blindTaskId": "SR-7986115efa78ad9cb1af99e04bef31124c1f0470c456fd1e251ff35aa288a20f",
+      "reviewSessionId": "V21-B01-S00-EI-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-7986115efa78ad9cb1af99e04bef31124c1f0470c456fd1e251ff35aa288a20f",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks what the supplied data indicates about the curriculum change given confounding factors, matching Evidence Interpretation. All necessary figures are provided in text and the prompt meets all structural criteria."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-OP-01",
+      "blindTaskId": "SR-ebfc5ae29787372e19600e34fe4b91fae932e353677ce4030e446b5baffef38d",
+      "reviewSessionId": "V21-B03-S00-OP-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-ebfc5ae29787372e19600e34fe4b91fae932e353677ce4030e446b5baffef38d",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The direction (dark-kitchen conversion with three virtual brands) is already settled and the final request asks for rollout sequencing and shift organization, which is an execution plan — correctly Operations. One clear request, all constraints (equipment, staff count, timelines, peak windows) supplied in text, and no leakage or steering."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-OP-01",
+      "blindTaskId": "SR-ebfc5ae29787372e19600e34fe4b91fae932e353677ce4030e446b5baffef38d",
+      "reviewSessionId": "V21-B03-S00-OP-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-ebfc5ae29787372e19600e34fe4b91fae932e353677ce4030e446b5baffef38d",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "All checks pass. The scenario provides a clear, self-contained operational execution request asking for rollout sequencing and shift scheduling under realistic constraints."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-SC-02",
+      "blindTaskId": "SR-ad463f5beadf3f6c157fe780edfb534252b08c8cc95f0a1b63f220d0dc8565a1",
+      "reviewSessionId": "V21-B03-S00-SC-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-ad463f5beadf3f6c157fe780edfb534252b08c8cc95f0a1b63f220d0dc8565a1",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks which of two mutually exclusive, costly-to-reverse directions to commit to, matching Strategy / Commitment; the text supplies all relevant figures and deadlines, reads as a genuine owner's dilemma, and contains no leakage or instructions about how the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-SC-02",
+      "blindTaskId": "SR-ad463f5beadf3f6c157fe780edfb534252b08c8cc95f0a1b63f220d0dc8565a1",
+      "reviewSessionId": "V21-B03-S00-SC-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-ad463f5beadf3f6c157fe780edfb534252b08c8cc95f0a1b63f220d0dc8565a1",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for a strategic choice between two mutually exclusive, high-commitment paths and meets all quality and structural criteria."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-PS-01",
+      "blindTaskId": "SR-fe1ab1d9f9db884a288e6cc2dafb61a28bd630d652a4c9c9cc962a51abaddd03",
+      "reviewSessionId": "V21-B04-S00-PS-01-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-fe1ab1d9f9db884a288e6cc2dafb61a28bd630d652a4c9c9cc962a51abaddd03",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks for the structure of an offering — membership tiers, entitlements, add-on mechanics, booking rules and access controls — which is a Product / Service Design artifact; the sub-parts form one coherent deliverable, all needed occupancy and inventory figures are supplied, and there is no leakage or instruction on how the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-PS-01",
+      "blindTaskId": "SR-fe1ab1d9f9db884a288e6cc2dafb61a28bd630d652a4c9c9cc962a51abaddd03",
+      "reviewSessionId": "V21-B04-S00-PS-01-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-fe1ab1d9f9db884a288e6cc2dafb61a28bd630d652a4c9c9cc962a51abaddd03",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for a product/service design structure for a commercial real estate membership pass, matching the assigned stratum. It is self-contained, realistic, and free of steering or experiment leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-PS-02",
+      "blindTaskId": "SR-3f4bd81bff5dc116301a71c2411fa423bf2b4423933a0bb165fbd2c76457418b",
+      "reviewSessionId": "V21-B04-S00-PS-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-3f4bd81bff5dc116301a71c2411fa423bf2b4423933a0bb165fbd2c76457418b",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks for the structure and clinical scope of a membership offering — tiers, inclusions, pricing mechanics and terms — which is a single Product / Service Design artifact. The text supplies its own context, reads as a genuine practice-owner request, and contains no leakage or instructions about how or by whom the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-PS-02",
+      "blindTaskId": "SR-3f4bd81bff5dc116301a71c2411fa423bf2b4423933a0bb165fbd2c76457418b",
+      "reviewSessionId": "V21-B04-S00-PS-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-3f4bd81bff5dc116301a71c2411fa423bf2b4423933a0bb165fbd2c76457418b",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for the design, scope, and tier structure of a dental membership offering, matching Product / Service Design. It is realistic, self-contained, and free of steering or experiment leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-PS-02",
+      "blindTaskId": "SR-7f2a2d3375beb39070a7f73ae440653eb23bdbc3fa2c384a69cf4429a403514a",
+      "reviewSessionId": "V21-B05-S00-PS-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-7f2a2d3375beb39070a7f73ae440653eb23bdbc3fa2c384a69cf4429a403514a",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The direction (launch a loyalty program) is settled and the final request asks what the membership structure and benefits should be — an offering-design artifact, matching Product / Service Design. Single clear request, answerable from the supplied context, plausibly phrased, with no leakage or instructions about how the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-PS-02",
+      "blindTaskId": "SR-7f2a2d3375beb39070a7f73ae440653eb23bdbc3fa2c384a69cf4429a403514a",
+      "reviewSessionId": "V21-B05-S00-PS-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-7f2a2d3375beb39070a7f73ae440653eb23bdbc3fa2c384a69cf4429a403514a",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for the design, structure, and benefits of a new loyalty offering, matching Product / Service Design. All other structural and prompt criteria are satisfied."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-FR-02",
+      "blindTaskId": "SR-14b851e6759c43e2f60d6d89039c146341a7deac39ffa9cc1d81e4535ee2bb3f",
+      "reviewSessionId": "V21-B05-S00-FR-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-14b851e6759c43e2f60d6d89039c146341a7deac39ffa9cc1d81e4535ee2bb3f",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks how to divide a fixed $180,000 pot among three competing claimants, which matches Finance / Resource Allocation; all figures and constraints needed are supplied in the text, and there is no leakage or steering."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-FR-02",
+      "blindTaskId": "SR-14b851e6759c43e2f60d6d89039c146341a7deac39ffa9cc1d81e4535ee2bb3f",
+      "reviewSessionId": "V21-B05-S00-FR-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-14b851e6759c43e2f60d6d89039c146341a7deac39ffa9cc1d81e4535ee2bb3f",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks how to allocate a fixed $180,000 capital budget across three competing departmental requests, which correctly aligns with Finance / Resource Allocation. It is realistic, self-contained, and free of steering or experiment leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-PS-02",
+      "blindTaskId": "SR-d5a0a4f4c167e262ce4391aa7d4f1b5672c1f977bfa28d38397b3320bd3c50bb",
+      "reviewSessionId": "V21-B03-S00-PS-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-d5a0a4f4c167e262ce4391aa7d4f1b5672c1f977bfa28d38397b3320bd3c50bb",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The final request asks what the subscription should contain and how it should be tiered — an offering scope and service-model artifact, matching Product / Service Design (the decision to launch is already settled and rent pressure merely provides context). Constraints, assets and survey findings are all stated in-text, and there is no leakage or direction on how the answer should be produced."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-PS-02",
+      "blindTaskId": "SR-d5a0a4f4c167e262ce4391aa7d4f1b5672c1f977bfa28d38397b3320bd3c50bb",
+      "reviewSessionId": "V21-B03-S00-PS-02-R2",
+      "reviewRole": "R2",
+      "review": {
+        "taskId": "SR-d5a0a4f4c167e262ce4391aa7d4f1b5672c1f977bfa28d38397b3320bd3c50bb",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The scenario clearly asks for the scope, inclusions, and tiering structure of a new subscription service, which matches Product / Service Design. It is realistic, self-contained, and free of steering or experiment leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-EI-02",
+      "blindTaskId": "SR-24350faf18d46ff7b564008662357f8eb756db9ea5de4cca1b5785b66f90e7b3",
+      "reviewSessionId": "V21-B01-S00-EI-02-R1",
+      "reviewRole": "R1",
+      "review": {
+        "taskId": "SR-24350faf18d46ff7b564008662357f8eb756db9ea5de4cca1b5785b66f90e7b3",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The single final request asks what the described evidence shows about the cause of the rising claim rate, which is Evidence Interpretation; the headline rates, the confounding changes and their relative timing are all stated in the text, so it can be addressed on its own terms. Mentions of a QA lead and legal describe the workplace rather than instructing how the answer should be produced."
+      }
+    }
+  ]
+}

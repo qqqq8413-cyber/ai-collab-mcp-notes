@@ -1,0 +1,11 @@
+{
+  "taskId": "SR-537383ff2537ae97d5001557f43d0391f619a86f31ce32f9b637df06c9f511e4",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks for a brand positioning and creative voice framework, which matches Brand / Creative; it is a single clear ask, answerable from the supplied context, plausible, and free of leakage or steering."
+}
