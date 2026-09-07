@@ -1,4 +1,4 @@
-# ai-collab-mcp — Progress Report (2026-09-07, rev. 36)
+# ai-collab-mcp — Progress Report (2026-09-07, rev. 37)
 
 > **先讀 [`CURRENT_STATE.md`](CURRENT_STATE.md)。** 那是「目前仍有效狀態」的短版 materialized view。
 > 本檔保留完整歷史與 provenance,需要證據時再查對應節次;
@@ -24,7 +24,7 @@
 > | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
 > | **M2-B P03 Acquisition** | **CLOSED / EXHAUSTED —— 9/9 attempted、0 admitted、0 archetypes filled、0 A2 executions,詳見第二十六節** |
 > | **M-ACQ-01** | **OPEN —— natural eligibility base rate 未知;在此問題被 characterize 之前,不得重新設計或執行 M2-B effectiveness experiment** |
-> | **Chief Natural Collaboration Census** | **DRAFT / NOT ACCEPTED / NOT PREREGISTERED / NOT AUTHORIZED —— `experiments/m2b/census/CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md`** |
+> | **Chief Natural Collaboration Census** | **DRAFT / NOT PREREGISTERED / AUTHORING v2 INCOMPLETE —— B02 malformed STOP；2 calls、12/60 provisional、0 admitted；awaiting GPT Architecture** |
 > | **M2-B Fixture Freeze(synthetic)** | **SUPERSEDED —— GPT Fixture Review 判定 FIXTURE PROVENANCE BLOCKER;`fx-01…04` 改列 PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL,檔案原封保留於 `02cbb5f`** |
 > | **M2-B Pre-Synthesis Boundary** | **ACCEPTED(GPT)—— `runRound1Stage()` 已抽出,offline parity byte-identical** |
 > | **M2-B Real Round1 Capture — Set R1** | **FAILED(保存為失敗證據)—— fxr-01…04 四題全 FAIL F1,證據保留於 `81ac330`,詳見第二十七節** |
@@ -3617,3 +3617,56 @@ M2-B effectiveness experiment。**
 該草案同時記錄了 feasibility 結論:**planning-only harness = PARTIAL** ——
 `buildPlanningPrompt` / `CHIEF_SYSTEM_PROMPT` 已匯出,但 `planSchema`、`extractJsonObject`、
 `enforceConstraints` 皆為 module-private,且沒有停在 planning 的 stage primitive。
+
+
+---
+
+# CBRP Authoring v2 Round 0 —— INCOMPLETE / STOPPED（rev.37）
+
+## 執行授權與固定輸入
+
+CWP-10B-CODEX 僅授權 `CBRP-AUTHORING-V2-ROUND-0`，執行 base 為
+`08cd0200ecbd4642dd394e8377362ce18a23566a`。五個 initial sessions 預定依序執行，
+上限五個 logical provider calls；同一份 author-facing prompt 對所有 session 必須逐位元組一致。
+
+```
+protocol       CBRP-AUTHORING-PROTOCOL-2
+brief          CBRP-AUTHORING-BRIEF-2
+brief sha256   a9da93fd5d4dd059c0faebdf3e29713abe2035191af5aac26a5b73eb17842336
+brief bytes    8114
+v1 carry-over  NONE
+```
+
+## 實際執行與停止點
+
+| session | requested / resolved | outcome | candidates |
+|---|---|---|---:|
+| `AUTHOR2-B01-S00` | `claude/claude-sonnet-5` / exact match | `RESPONSE_PRESERVED` | 12 |
+| `AUTHOR2-B02-S00` | `gemini/gemini-3.7-flash` / exact match | `STOP_MALFORMED_RESPONSE` | 0 extracted |
+| `AUTHOR2-B03-S00` | not called | not attempted | 0 |
+| `AUTHOR2-B04-S00` | not called | not attempted | 0 |
+| `AUTHOR2-B05-S00` | not called | not attempted | 0 |
+
+B02 回應包含一個可辨識的 JSON array，之後另有孤立 closing Markdown fence；因它不是
+「單一外層 JSON fence」，凍結的 deterministic extraction 規則不允許刪除或修補。
+這構成 dispatched run-level STOP。原始文字與 provider response 均已保存，未 retry、
+未 follow-up、未 repair、未 replacement，也未呼叫剩餘三個 sessions。
+
+```
+run status             INCOMPLETE
+logical provider calls 2
+pre-dispatch refusals  1（local cross-check script syntax validation；不消耗 provider call）
+ambiguous dispatches   0
+v2 candidates          12/60 ｜ 2 per stratum from B01
+candidate status       PROVISIONAL ｜ UNREVIEWED ｜ NOT ADMISSIBLE
+```
+
+## 驗證與邊界
+
+`VALIDATION.json` 正確回報整輪 mechanical status `FAIL`，因 B02 無法解析且總數只有
+12/60。獨立 Python standard-library parser/hash cross-check 對可抽取的 B01 evidence
+回報 `12/12` raw-to-parsed preservation，沒有把這個 partial check 升格成 acquisition PASS。
+
+本輪未做任何 semantic judgement、literal scan、structural review、duplicate audit、
+replacement、Chief planning、Census、pool freeze 或 ordering。v1 evidence 未修改，v1
+candidate 未重用。**下一步必須回到 GPT Architecture；不得自行續跑 B03-B05 或修復 B02。**

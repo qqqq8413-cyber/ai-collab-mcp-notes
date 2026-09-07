@@ -1,10 +1,10 @@
 # CBRP Session Provenance Schema — DRAFT
 
 ```
-STATUS:  DRAFT ｜ NOT ACCEPTED ｜ NOT PREREGISTERED ｜ NOT AUTHORIZED
-SESSIONS RECORDED:  5     AUTHORING 5 ｜ STRUCTURAL REVIEW 0 ｜ DUPLICATE AUDIT 0
-                          the 5 belong to CBRP-AUTHORING-ROUND-0, whose acquisition
-                          was adjudicated INCOMPLETE / FAILED CLOSED in CWP-9B
+STATUS:  DRAFT ｜ NOT ACCEPTED ｜ NOT PREREGISTERED
+SESSIONS RECORDED:  7     AUTHORING 7 ｜ STRUCTURAL REVIEW 0 ｜ DUPLICATE AUDIT 0
+                          v1: 5, adjudicated INCOMPLETE / FAILED CLOSED in CWP-9B
+                          v2: 2, stopped INCOMPLETE at B02 in CWP-10B
 MODEL PINS:  CBRP-SESSION-MODEL-PINS-1  ｜  D3 ROUTING:  CBRP-D3-v1
 ```
 
@@ -13,7 +13,8 @@ MODEL PINS:  CBRP-SESSION-MODEL-PINS-1  ｜  D3 ROUTING:  CBRP-D3-v1
 > records *what each session must write down*; that one records *which model each role
 > gets*. Nothing here restates a model string.
 
-> The shape of the record every CBRP model session leaves behind. **No session has run.**
+> The shape of the record every CBRP model session leaves behind. Seven authoring sessions
+> have run across v1 and v2; no structural-review or duplicate-audit session has run.
 > Field names are illustrative; the invariants and the exclusions are not.
 
 Companion to [`CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md`](CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md),
@@ -277,17 +278,22 @@ this schema exists to make unnecessary.
 ## 6. Status
 
 ```
-authoring sessions 5 ｜ review sessions 0 ｜ audit sessions 0
-candidates produced 60 ｜ tasks ADMITTED 0 ｜ pools frozen 0
+authoring sessions 7 ｜ review sessions 0 ｜ audit sessions 0
+v1 candidates 60 barred ｜ v2 candidates 12/60 provisional ｜ tasks ADMITTED 0 ｜ pools frozen 0
 ```
 
-The five authoring sessions are `CBRP-AUTHORING-ROUND-0`. Their provenance records are the
-only instance of this schema that exists, and they describe a run whose **acquisition was
-adjudicated INCOMPLETE** in CWP-9B: see
+Five authoring sessions belong to `CBRP-AUTHORING-ROUND-0`; they describe a run whose
+**acquisition was adjudicated INCOMPLETE** in CWP-9B: see
 [`authoring-round-0/AUTHORING_V1_ARCHITECTURE_VERDICT.json`](authoring-round-0/AUTHORING_V1_ARCHITECTURE_VERDICT.json).
+
+Two additional records belong to `CBRP-AUTHORING-V2-ROUND-0`. B01 preserved a mechanically
+valid 12-candidate response. B02 preserved a malformed response and triggered the frozen
+run-level STOP; B03-B05 were not called. See
+[`authoring-v2-round-0/SESSIONS.json`](authoring-v2-round-0/SESSIONS.json).
 
 `[FACT]` In those five records `providerResolved` and `modelResolved` were **observable and
 matching**, so `pinStatus` reads `OBSERVED` rather than the `OPERATOR ATTESTATION` fallback
 §1.0 allows for. `freshContextConfirmed` remains an attestation.
 
-No further session of any kind has been run, and none is authorized.
+No structural-review or duplicate-audit session has been run. The incomplete v2
+acquisition awaits GPT Architecture review before any further session.

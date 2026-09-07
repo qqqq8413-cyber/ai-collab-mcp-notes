@@ -351,7 +351,11 @@ POOL_FREEZE_COMMIT exists
 ## 6. Status
 
 ```
-tasks authored     0        pools frozen       0        duplicate audits   0
-reviews run        0        seeds derived      0        order manifests    0
-provider calls     0
+v2 candidates      12/60 provisional          tasks admitted      0
+pools frozen       0        duplicate audits   0        reviews run  0
+seeds derived      0        order manifests    0
+authoring calls    7 total（v1 5 + v2 2）
 ```
+
+The v2 acquisition stopped incomplete at B02 under CWP-10B. Its 12 mechanically
+extractable B01 records are unreviewed and not admissible, so no pool manifest exists.

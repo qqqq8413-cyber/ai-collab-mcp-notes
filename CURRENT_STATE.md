@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  8d8b686c3bd5ed18d904941d440124a781b6b706
+stateVerifiedThrough  08cd0200ecbd4642dd394e8377362ce18a23566a（CWP-10B execution base）
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -618,14 +618,15 @@ stratum codes   SC / OP / BC / EI / PS / FR（無別名）
 → 該 commit 即 POOL_FREEZE_COMMIT → 之後才可導出順序`。
 
 ```
-study status:  AUTHORING v2 METHODOLOGY FROZEN / NOT EXECUTED —— study 仍 NOT PREREGISTERED
-理由：v1 失敗所需的修訂（C-10）已於 CWP-10A 寫成並凍結，
-      authoring 程序重新完備。缺的回到「內容與執行紀錄」——
-      v2 brief 下 0 題、0 審查、0 稽核、0 凍結、0 seed、0 Chief call。
+study status:  AUTHORING v2 ACQUISITION INCOMPLETE —— study 仍 NOT PREREGISTERED
+理由：CWP-10B 已授權執行；B01 機械通過並抽取 12 個 provisional candidates，
+      B02 因 malformed response 觸發 run-level STOP。B03-B05 未呼叫。
+      現有 12/60 僅為 PARTIAL / UNREVIEWED / NOT ADMISSIBLE evidence；
+      0 審查、0 稽核、0 凍結、0 seed、0 Chief call。
 checklist:     106 項 —— 63 ARCHITECTURE-DECIDED / 1 A-D-FROZEN（C-10）
                / 12 IMPLEMENTED / 9 VERIFIED / 4 CLOSED-VERIFIED-OFFLINE
                / 1 IMPL-VERIFIED-OFFLINE / 6 DRAFT / 2 PROPOSED / 7 OPEN
-               / 1 ATTEMPTED-v1-FAILED-CLOSED（C-8）
+               / 1 ATTEMPTED-INCOMPLETE（C-8；v1 failed closed、v2 stopped incomplete）
 **C-8 與 C-10 之外，已知的方法學決策全部關閉。** 其餘 OPEN 全是「必須由一次未授權的執行
 才會產生的紀錄」—— C-8 六十題、D-12 稽核輪次、E-2/E-3 manifest 與凍結、
 F-1 census harness、A-9/B-7 artifact 版本字串、H-3 外部重現：
@@ -880,7 +881,7 @@ protocol version   CBRP-AUTHORING-PROTOCOL-2
 其 paste section 的位元組未被更動,hash 仍為
 `7f1f9ebe4dfde9402d838137a549859a630b60a93dce93a119b70bf9642d665f`。
 
-### CWP-10A —— CBRP-AUTHORING-PROTOCOL-2（方法學已凍結 / 未執行）
+### CWP-10A / CWP-10B —— CBRP-AUTHORING-PROTOCOL-2（方法學已凍結 / acquisition incomplete）
 
 `[ARCHITECTURE-DECIDED]` v1 失敗所需的修訂已寫成並凍結,**前瞻性、不修復 v1**。
 
@@ -952,22 +953,34 @@ M-CBRP-AUTH-01:  CLOSED AT METHODOLOGY AMENDMENT LEVEL
                  v1 failure 保存 ｜ v2 語意區分凍結
                  **不得稱 v1 的失敗已被修復**
 Authoring v1:    FAILED-CLOSED，僅為歷史證據
-Authoring v2:    METHODOLOGY FROZEN / NOT EXECUTED
+Authoring v2:    INCOMPLETE —— 2 calls ｜ 12/60 provisional candidates
 formal admitted tasks: 0        study: NOT PREREGISTERED
 ```
 
-**CWP-10A 只凍結方法學。執行 `CBRP-AUTHORING-V2-ROUND-0` 需要另一次明確授權;
-在此之前不得產生任何 v2 題目、不得執行結構審查或重複稽核。**
+`[FACT]` CWP-10B 授權的 `CBRP-AUTHORING-V2-ROUND-0` 依序執行到 B02 後停止：
+
+```
+B01  claude / claude-sonnet-5     RESPONSE_PRESERVED ｜ 12 candidates ｜ 2 per stratum
+B02  gemini / gemini-3.7-flash    STOP_MALFORMED_RESPONSE
+B03-B05                           NOT CALLED
+provider calls                    2 ｜ retries 0 ｜ ambiguous dispatches 0
+partial evidence                  12/60 ｜ UNREVIEWED ｜ NOT ADMISSIBLE
+```
+
+B02 原始輸出在有效 JSON array 後另有孤立 closing fence，不能依只允許「移除單一外層
+Markdown JSON fence」的規則確定性抽取。原始證據已保存；未 repair、未 retry、未 replacement。
+後續 structural review、duplicate audit、replacement、pool freeze、ordering、Chief 與 Census
+均未執行，須回到 GPT Architecture 決定下一步。
 
 `[DESIGN]` 出題與審查程序**降低**以結果為導向的選擇偏誤,**不消除**它。
 CBRP 仍是**平衡的合成參照框架**,不得升級為 production-wide、real-user prevalence
 或 natural production distribution。
 
 ```
-study status              NOT PREREGISTERED ｜ NOT AUTHORIZED
+study status              NOT PREREGISTERED ｜ CWP-10B CONSUMED / STOPPED
 planning-only harness     PARTIAL（未實作；runPlanningStage() 抽取僅為概念，未授權）
-task pool                 不存在 —— 0 題已出
-provider calls            0
+task pool                 不存在 —— 12/60 v2 provisional candidates，0 admitted
+provider calls            authoring v2 = 2（B01、B02；B03-B05 not called）
 M-ACQ-01                  仍 OPEN —— CBRP 只刻畫 balanced-reference precursor rate，
                           不會單憑自身確立 production telemetry prevalence
 ```
@@ -1457,7 +1470,7 @@ EXECUTION AUTHORIZATION NOT GRANTED
 Wave 1                  CONSUMED / CLOSED   ← 已於 516d838 執行完畢，該授權不延續
 Wave 2                  CONSUMED / CLOSED   ← 已於 781ade9 執行完畢，該授權不延續
 Wave 3                  CONSUMED / CLOSED   ← 已於 730d350 執行完畢，P03 池已用盡
-Census（新研究）          NOT AUTHORIZED（草案，未預先登記）
+Census（新研究）          CWP-10B AUTHORING CONSUMED / STOPPED；後續 NOT AUTHORIZED
 Gemini A2               NOT AUTHORIZED
 Gate                    NOT AUTHORIZED
 Synthesis               NOT AUTHORIZED
@@ -1497,16 +1510,16 @@ DRAFTED, NOT ACCEPTED     CBRP Natural Collaboration Census（十一份文件）
                           experiments/m2b/census/
                           CBRP ｜ N=60 ｜ 6 strata x 10 ｜ theta_feas=5%
                           AUTHORING v1 FAILED CLOSED（FORBIDDEN_LITERAL_STOP）
-                          AUTHORING v2 METHODOLOGY FROZEN / NOT EXECUTED
-                          study 仍 NOT PREREGISTERED ｜ NOT AUTHORIZED
-                          **這不是 task-content freeze —— 內容不存在**
-                          0 admitted tasks ｜ 60 failed-acquisition candidates 保存
-                          5 authoring provider calls（已關閉，不得重跑）
+                          AUTHORING v2 ACQUISITION INCOMPLETE（B02 malformed STOP）
+                          study 仍 NOT PREREGISTERED ｜ awaiting architecture review
+                          12/60 v2 provisional candidates ｜ UNREVIEWED ｜ NOT ADMISSIBLE
+                          0 admitted tasks ｜ 60 v1 failed-acquisition candidates 保存
+                          provider calls: v1 5（closed）＋ v2 2（CWP-10B stopped）
                           0 reviews ｜ 0 duplicate audit rounds
                           0 pools frozen ｜ 0 seeds materialized ｜ 0 Chief calls
                           census harness NOT implemented
                           C-10 Authoring v2 amendment 已凍結（CBRP-AUTHORING-BRIEF-2）
-                          下一步需要：CBRP-AUTHORING-V2-ROUND-0 的執行授權
+                          下一步需要：GPT Architecture 裁定 incomplete acquisition
 
 STATUS                    等待 GPT architecture interpretation
 ```
@@ -1658,6 +1671,7 @@ F1 FAIL 3/9 ｜ F2 FAIL 7/9 ｜ F3 FAIL 0/9 ｜ ONE SPECIALIST 7/9 /
 A2 = 0 EXECUTIONS ｜ EFFECTIVENESS EXPERIMENT NOT EXECUTED ｜ C vs D₁ UNANSWERED /
 NEW OPEN BLOCKER M-ACQ-01 — NATURAL ELIGIBILITY BASE RATE UNKNOWN /
 CBRP CENSUS METHODOLOGY REVISED — N=60 / 6 STRATA / theta=5% —
-DRAFT, NOT PREREGISTERED, NOT AUTHORIZED, 0 TASKS AUTHORED /
-LIVE = NONE / EXECUTION AUTHORIZATION: NOT GRANTED
+DRAFT, NOT PREREGISTERED / AUTHORING v2 INCOMPLETE AT B02 /
+2 PROVIDER CALLS / 12 OF 60 PROVISIONAL CANDIDATES / 0 ADMITTED /
+LIVE = STOPPED / RETURN TO GPT ARCHITECTURE
 ```

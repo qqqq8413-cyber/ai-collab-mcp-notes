@@ -1,0 +1,9 @@
+{
+  "implementation": "independent Python standard-library JSON parser and hashlib-equivalent Node SHA recomputation",
+  "checked": 12,
+  "extractedCandidatesExpected": 12,
+  "acquisitionCandidatesExpected": 60,
+  "extractedRawToParsedPreservation": "12/12",
+  "acquisitionStatus": "INCOMPLETE_12_OF_60",
+  "problems": []
+}

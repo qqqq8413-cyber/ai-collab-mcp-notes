@@ -78,8 +78,8 @@ STATUS:  DRAFT
 | C-5 | Diversity dimensions | **ARCHITECTURE-DECIDED** | Nine dimensions of the situation; five forbidden instructions about the answer |
 | C-6 | Diversity handling | **ARCHITECTURE-DECIDED** | **No quotas.** Variation requested in the brief; a descriptive diversity report before freeze. Diversity is **not** an admission gate — only structural failure or a confirmed duplicate causes replacement |
 | C-7 | Duplicate handling | **ARCHITECTURE-DECIDED** | Removed from per-task review — one reviewer sees one task. Corpus audit over all 60 texts: 2 blinded auditors, 3rd on a disputed pair, retention by lexicographically smallest candidate ID |
-| C-8 | **The 60 tasks themselves** | **ATTEMPTED UNDER AUTHORING v1 / FAILED CLOSED** | **0 admitted.** One acquisition ran (`CBRP-AUTHORING-ROUND-0`, 5 sessions, 5 provider calls) and produced 60 candidates; GPT Architecture ruled it an INCOMPLETE acquisition — `FORBIDDEN_LITERAL_STOP`, two candidates carrying §2.7's prohibited literal. The 60 are preserved as failed-acquisition evidence and are **barred from any future pool**. No retry, no repair, no replacement under v1 |
-| C-10 | Authoring v2 methodology amendment and re-freeze | **ARCHITECTURE-DECIDED / FROZEN** | `CBRP-AUTHORING-PROTOCOL-2`; brief `CBRP-AUTHORING-BRIEF-2`, sha256 `a9da93fd…`, 8114 bytes. Exactly one rule changed (§2.7): the lexical word-ban becomes a semantic answer-production-steering rule. New run id, session and candidate namespaces; nothing from v1 carries forward. **Frozen, not executed** |
+| C-8 | **The 60 tasks themselves** | **v1 FAILED CLOSED / v2 INCOMPLETE** | **0 admitted.** v1 produced 60 barred failed-acquisition candidates. CWP-10B attempted v2: B01 produced 12 mechanically extractable provisional candidates; B02 malformed output triggered the run-level STOP after the second call; B03-B05 were not called. The 12/60 v2 records are **unreviewed and not admissible**. No retry, repair or replacement ran |
+| C-10 | Authoring v2 methodology amendment and re-freeze | **ARCHITECTURE-DECIDED / FROZEN** | `CBRP-AUTHORING-PROTOCOL-2`; brief `CBRP-AUTHORING-BRIEF-2`, sha256 `a9da93fd…`, 8114 bytes. Exactly one rule changed (§2.7): the lexical word-ban becomes a semantic answer-production-steering rule. New run id, session and candidate namespaces; nothing from v1 carried forward. Method frozen; acquisition attempted and stopped incomplete under CWP-10B |
 | C-9 | Difficulty varies within every stratum | **ARCHITECTURE-DECIDED** | "Ordinary" is not a stratum |
 
 ---
@@ -251,10 +251,10 @@ IMPLEMENTED                      12
 IMPLEMENTED / VERIFIED OFFLINE    1
 CLOSED / VERIFIED OFFLINE         4
 VERIFIED                          9
-ATTEMPTED v1 / FAILED CLOSED      1
+ATTEMPTED / INCOMPLETE            1
 ```
 
-**AUTHORING v2 METHODOLOGY FROZEN, NOT EXECUTED — study NOT PREREGISTERED.** Method,
+**AUTHORING v2 METHODOLOGY FROZEN, ACQUISITION INCOMPLETE — study NOT PREREGISTERED.** Method,
 estimand, decision rule, execution infrastructure, and every authoring, review,
 duplicate-audit, invalid-task, ordering and model-pin procedure are decided and written to
 the level of pasteable briefs and a byte-exact ordering algorithm.
@@ -262,16 +262,18 @@ the level of pasteable briefs and a byte-exact ordering algorithm.
 One acquisition ran under `CBRP-AUTHORING-PROTOCOL-1` and was adjudicated INCOMPLETE: 60
 candidates produced, 0 admissible, the brief superseded, and all sixty permanently barred.
 `CBRP-AUTHORING-PROTOCOL-2` corrects the single rule responsible — prospectively, and
-without rehabilitating anything. What is missing is the study's **content and its execution
-record**: no scenario exists under the v2 brief, no review or audit has run, no pool is
-frozen, no seed has been materialized, and no Chief call has ever been made.
+without rehabilitating anything. CWP-10B then attempted v2: B01 yielded 12 mechanically
+extractable candidates and B02 malformed output stopped the run after two calls. The
+required 60-candidate content and complete execution record are still missing; no review or
+audit has run, no pool is frozen, no seed has been materialized, and no Chief call has been
+made.
 
 **No methodology decision known to this checklist is open.** Every remaining item is a
-record that an unauthorized run would have to produce:
+record that a complete future architecture-authorized process would have to produce:
 
 ```
 C-8            the 60 task texts                      0 admitted; v1 acquisition FAILED CLOSED
-               v2 methodology frozen, NOT EXECUTED — 0 authored under CBRP-AUTHORING-BRIEF-2
+               v2 acquisition INCOMPLETE — 12/60 provisional, unreviewed, not admissible
 D-12           duplicate audit rounds                 0 run
 E-2, E-3       pool manifest and freeze provenance    0 pools frozen
 F-1            the census harness around runPlanningStage()
@@ -279,14 +281,15 @@ A-9, B-7       study-id and decision-rule version strings, fixed at first execut
 H-3            independent bound reproduction by a reviewer
 ```
 
-`[DESIGN]` Most of these are **naturally unexecuted, not undecided** — a record that a run
-has to produce, and no run is authorized.
+`[DESIGN]` Most of these are **unexecuted, not undecided** — a record that a complete run
+has to produce. CWP-10B authorized only the now-stopped v2 initial acquisition.
 
 **C-8 changed character in CWP-9B and C-10 closed in CWP-10A.** Authoring was attempted
 under v1 and **failed closed**: 60 candidates exist, none is admissible, and the brief that
 produced them is superseded. The amendment that failure required is now written and frozen —
 `CBRP-AUTHORING-PROTOCOL-2`, one rule changed — so what stands between here and a task pool
-is once again **only execution**, beginning with an authorized `CBRP-AUTHORING-V2-ROUND-0`.
+was execution. CWP-10B attempted that run, which is now **INCOMPLETE** and awaiting GPT
+Architecture review after its B02 malformed-response STOP.
 
 **A-8 is the one item that is neither decided nor merely unexecuted.** It **asserts** the
 routing rubric is operational enough for two readers to agree, and nothing has measured it.
@@ -294,12 +297,12 @@ D-3's two-reviewer design is what turns the assertion into a number — the real
 inter-reviewer disagreement rate — and that number cannot exist before reviews run. It stays
 `PROPOSED`, not because a decision is missing but because the evidence is.
 
-**Do not read any of this as a task-content freeze.** The procedure is frozen. The content
-does not exist.
+**Do not read any of this as a task-content freeze.** The procedure is frozen. Twelve
+partial provisional records exist, but no complete, admitted or frozen content exists.
 
 Every execution-infrastructure requirement CENSUS-REQ-01 … 10 is closed offline. What stands
-between here and a preregisterable study is the sixty tasks, their screening, and the
-freeze — none of which this packet authorizes.
+between here and a preregisterable study is a complete sixty-task acquisition, its
+screening, and the freeze. CWP-10B stopped before any of those conditions was met.
 
 `[OPEN]` One more limit worth restating: **the census harness has been rehearsed, never
 run.** Every path is exercised against a stub, which proves the refusals fire and the

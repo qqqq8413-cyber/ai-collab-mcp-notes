@@ -1,0 +1,105 @@
+{
+  "runId": "CBRP-AUTHORING-V2-ROUND-0",
+  "protocolVersion": "CBRP-AUTHORING-PROTOCOL-2",
+  "briefVersion": "CBRP-AUTHORING-BRIEF-2",
+  "modelPinVersion": "CBRP-SESSION-MODEL-PINS-1",
+  "baseSha": "08cd0200ecbd4642dd394e8377362ce18a23566a",
+  "promptSha256": "a9da93fd5d4dd059c0faebdf3e29713abe2035191af5aac26a5b73eb17842336",
+  "promptBytes": 8114,
+  "sessionsAuthorized": 5,
+  "sessionsAttempted": 2,
+  "logicalProviderCalls": 2,
+  "preDispatchRefusals": [
+    {
+      "scope": "offline cross-check script syntax validation",
+      "code": "LOCAL_SYNTAX_VALIDATION_FAILURE",
+      "providerCallConsumed": false,
+      "correction": "Escaped markdown-fence backticks inside the embedded Python regular expression.",
+      "frozenPromptChanged": false,
+      "modelPinChanged": false,
+      "studyRuleChanged": false,
+      "candidateContentChanged": false,
+      "providerAssignmentChanged": false
+    }
+  ],
+  "ambiguousDispatches": [],
+  "runStatus": "INCOMPLETE",
+  "stoppedAt": "AUTHOR2-B02-S00",
+  "sessions": [
+    {
+      "protocolVersion": "CBRP-AUTHORING-PROTOCOL-2",
+      "briefVersion": "CBRP-AUTHORING-BRIEF-2",
+      "modelPinVersion": "CBRP-SESSION-MODEL-PINS-1",
+      "authorBlockId": "AUTHOR2-B01",
+      "actualAuthorSessionId": "AUTHOR2-B01-S00",
+      "sessionType": "INITIAL",
+      "providerRequested": "claude",
+      "modelRequested": "claude-sonnet-5",
+      "modelFamily": "CLAUDE_FAMILY",
+      "freshContextConfirmed": true,
+      "freshContextBasis": "OPERATOR ATTESTATION - new SDK client, one stateless request containing only BRIEF_SENT.txt, no system prompt or prior turns. NOT independently verified.",
+      "promptSha256": "a9da93fd5d4dd059c0faebdf3e29713abe2035191af5aac26a5b73eb17842336",
+      "promptBytes": 8114,
+      "maxTokensRequested": 32000,
+      "temperatureRequested": null,
+      "transportRetrySetting": "maxRetries=0",
+      "startedAt": "2026-09-07T08:57:59.406Z",
+      "settledAt": "2026-09-07T08:58:55.310Z",
+      "outcome": "RESPONSE_PRESERVED",
+      "providerResolved": "claude",
+      "modelResolved": "claude-sonnet-5",
+      "resolvedIdentityObservable": true,
+      "pinStatus": "OBSERVED",
+      "stopReason": "end_turn",
+      "rawResponseSha256": "f6c25a35615dd8a0e3dc074029c8fec419c4debea93acfb5b8e6134bbf54eca3",
+      "rawResponseBytes": 12465,
+      "mechanicalValidation": {
+        "ok": true,
+        "errors": [],
+        "scenarioCount": 12,
+        "stratumCounts": {
+          "Strategy / Commitment": 2,
+          "Operations / Execution": 2,
+          "Brand / Creative": 2,
+          "Evidence Interpretation": 2,
+          "Product / Service Design": 2,
+          "Finance / Resource Allocation": 2
+        }
+      }
+    },
+    {
+      "protocolVersion": "CBRP-AUTHORING-PROTOCOL-2",
+      "briefVersion": "CBRP-AUTHORING-BRIEF-2",
+      "modelPinVersion": "CBRP-SESSION-MODEL-PINS-1",
+      "authorBlockId": "AUTHOR2-B02",
+      "actualAuthorSessionId": "AUTHOR2-B02-S00",
+      "sessionType": "INITIAL",
+      "providerRequested": "gemini",
+      "modelRequested": "gemini-3.7-flash",
+      "modelFamily": "GEMINI_FAMILY",
+      "freshContextConfirmed": true,
+      "freshContextBasis": "OPERATOR ATTESTATION - new SDK client, one stateless request containing only BRIEF_SENT.txt, no system prompt or prior turns. NOT independently verified.",
+      "promptSha256": "a9da93fd5d4dd059c0faebdf3e29713abe2035191af5aac26a5b73eb17842336",
+      "promptBytes": 8114,
+      "maxTokensRequested": 32000,
+      "temperatureRequested": null,
+      "transportRetrySetting": "SDK 0.24.1 single-fetch path; no retry option",
+      "startedAt": "2026-09-07T08:58:55.311Z",
+      "settledAt": "2026-09-07T08:59:28.597Z",
+      "outcome": "STOP_MALFORMED_RESPONSE",
+      "providerResolved": "gemini",
+      "modelResolved": "gemini-3.7-flash",
+      "resolvedIdentityObservable": true,
+      "pinStatus": "OBSERVED",
+      "stopReason": "STOP",
+      "rawResponseSha256": "83f6283cdf3f6dfd25c93754d55d7f5931a5430a8664e89421f300f3593f71a3",
+      "rawResponseBytes": 20620,
+      "mechanicalValidation": {
+        "ok": false,
+        "errors": [
+          "JSON_PARSE: Unexpected non-whitespace character after JSON at position 20611 (line 51 column 1)"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "runId": "CBRP-AUTHORING-V2-ROUND-0",
+  "protocolVersion": "CBRP-AUTHORING-PROTOCOL-2",
+  "briefVersion": "CBRP-AUTHORING-BRIEF-2",
+  "promptSha256": "a9da93fd5d4dd059c0faebdf3e29713abe2035191af5aac26a5b73eb17842336",
+  "promptBytes": 8114,
+  "sessionsParsed": 2,
+  "perSession": [
+    {
+      "actualAuthorSessionId": "AUTHOR2-B01-S00",
+      "outcome": "RESPONSE_PRESERVED",
+      "unwrappedFence": true,
+      "candidateCount": 12,
+      "stratumCounts": {
+        "SC": 2,
+        "OP": 2,
+        "BC": 2,
+        "EI": 2,
+        "PS": 2,
+        "FR": 2
+      }
+    },
+    {
+      "actualAuthorSessionId": "AUTHOR2-B02-S00",
+      "outcome": "STOP_MALFORMED_RESPONSE",
+      "candidateCount": 0,
+      "extractionError": "Unexpected non-whitespace character after JSON at position 20611 (line 51 column 1)"
+    }
+  ],
+  "totalCandidates": 12,
+  "globalStratumCounts": {
+    "SC": 2,
+    "OP": 2,
+    "BC": 2,
+    "EI": 2,
+    "PS": 2,
+    "FR": 2
+  },
+  "candidateIdsUnique": true,
+  "candidateHashesComplete": true,
+  "rawToParsedPreservation": "12/12 extracted candidates preserved; acquisition incomplete (12/60)",
+  "scenarioTextRewritten": false,
+  "semanticJudgementsPerformed": false,
+  "literalScan": "NOT_RUN",
+  "mechanicalStatus": "FAIL",
+  "problems": [
+    "AUTHOR2-B02-S00: JSON.parse failed: Unexpected non-whitespace character after JSON at position 20611 (line 51 column 1)",
+    "total 12, expected 60",
+    "SC count 2, expected 10",
+    "OP count 2, expected 10",
+    "BC count 2, expected 10",
+    "EI count 2, expected 10",
+    "PS count 2, expected 10",
+    "FR count 2, expected 10"
+  ]
+}

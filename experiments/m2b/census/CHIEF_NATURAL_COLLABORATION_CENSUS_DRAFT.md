@@ -14,7 +14,9 @@ REVISION: methodology revised after Gemini census review (NEEDS REVISION)
 > version would imply it inherits M2-B's accepted structure, when its whole point
 > is that it asks a prior question M2-B assumed an answer to.
 >
-> No task pool exists. No harness exists. No sample has been drawn. Companion
+> No admissible or frozen task pool exists. Authoring v2 stopped incomplete after two
+> provider calls, leaving 12/60 provisional, unreviewed, not-admissible candidates. No
+> harness exists and no sample has been drawn. Companion
 > documents: [`CBRP_AUTHORING_AND_REVIEW_DRAFT.md`](CBRP_AUTHORING_AND_REVIEW_DRAFT.md),
 > [`CBRP_PREREGISTRATION_CHECKLIST_DRAFT.md`](CBRP_PREREGISTRATION_CHECKLIST_DRAFT.md).
 
@@ -768,19 +770,23 @@ mechanism — the mechanism did not exist then.
 ## 11. What this draft is not
 
 ```
-PREREGISTRATION PROCEDURE COMPLETE — study NOT PREREGISTERED, not authorized
+PREREGISTRATION PROCEDURE COMPLETE — study NOT PREREGISTERED
 
 not protocol 0.4    not an effectiveness study
 does not change F1-F7 ｜ Chief ｜ P03 evidence ｜ M-ACQ-01 status
-0 tasks authored ｜ 0 reviews run ｜ 0 pools frozen ｜ 0 seeds ｜ 0 provider calls
+authoring v2 INCOMPLETE at B02 ｜ 12/60 provisional candidates ｜ 0 admitted
+0 reviews run ｜ 0 pools frozen ｜ 0 seeds ｜ 2 authoring-v2 provider calls
 ```
 
 **Why the procedure is complete but the study is not preregistered.** The method, the
 estimand, the decision rule, the execution infrastructure, and the authoring, review,
 duplicate-audit, invalid-task and ordering procedures are all decided and written down to
-the level of pasteable briefs and a byte-exact ordering algorithm. What does not exist is
-the study's **content and its execution record**: the sixty tasks are unwritten, no review
-has run, no duplicate audit has run, no pool is frozen, and no ordering seed has been
-materialized. Preregistration is the point at which all of that is fixed and committed.
+the level of pasteable briefs and a byte-exact ordering algorithm. CWP-10B attempted the
+v2 acquisition, but a malformed B02 response triggered the frozen run-level STOP after two
+calls. Twelve B01 candidates were mechanically extracted; they are partial, unreviewed and
+not admissible. The required sixty-task content, review record, duplicate audit, frozen
+pool, and ordering seed therefore do not exist. Preregistration is the point at which all
+of that is fixed and committed.
 
-**No real task may be authored until GPT performs the next Architecture Review.**
+**No further authoring, repair, replacement, review or audit may run until GPT performs
+the next Architecture Review.**

@@ -6,8 +6,8 @@ BRIEF:           CBRP-AUTHORING-BRIEF-2
 BRIEF SHA-256:   a9da93fd5d4dd059c0faebdf3e29713abe2035191af5aac26a5b73eb17842336
 BRIEF BYTES:     8114
 
-STATUS:  METHODOLOGY FROZEN ｜ NOT EXECUTED ｜ NOT AUTHORIZED
-RUNS 0 ｜ TASKS AUTHORED 0 ｜ REVIEWS 0 ｜ CHIEF CALLS 0
+STATUS:  METHODOLOGY FROZEN ｜ ACQUISITION INCOMPLETE
+RUNS 1 INCOMPLETE ｜ V2 CANDIDATES 12/60 PROVISIONAL ｜ REVIEWS 0 ｜ CHIEF CALLS 0
 ```
 
 > Prospective amendment motivated by **M-CBRP-AUTH-01**. It does not modify, rehabilitate
@@ -250,9 +250,11 @@ M-CBRP-AUTH-01   CLOSED AT METHODOLOGY AMENDMENT LEVEL
                  the v1 failure is NOT repaired, and is not describable as repaired
 
 Authoring v1     FAILED-CLOSED, historical only
-Authoring v2     METHODOLOGY FROZEN, NOT EXECUTED
+Authoring v2     INCOMPLETE — stopped at B02 after 2 provider calls
 tasks admitted   0        study  NOT PREREGISTERED
 ```
 
-No v2 scenario exists. Execution requires a separate authorization for
-`CBRP-AUTHORING-V2-ROUND-0`.
+CWP-10B authorized `CBRP-AUTHORING-V2-ROUND-0`. B01 yielded 12 mechanically extractable
+provisional candidates; B02 malformed output triggered the frozen run-level STOP. B03-B05
+were not called. The 12 records are unreviewed and not admissible. Any continuation or
+downstream execution requires a new GPT Architecture decision and authorization.

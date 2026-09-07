@@ -3,8 +3,8 @@
 ```
 PIN VERSION:  CBRP-SESSION-MODEL-PINS-1
 D3 ROUTING:   CBRP-D3-v1
-STATUS:       FROZEN as a decision ｜ study NOT PREREGISTERED ｜ NOT AUTHORIZED
-SESSIONS RUN: authoring 0 ｜ structural review 0 ｜ duplicate audit 0
+STATUS:       FROZEN as a decision ｜ study NOT PREREGISTERED
+SESSIONS RUN: authoring 7 total（v1 5 + v2 2）｜ structural review 0 ｜ duplicate audit 0
 ```
 
 > **The canonical table.** Every exact provider/model string used to decide CBRP pool
@@ -295,15 +295,17 @@ described these pins as *verified* would be overclaiming.
 
 ```
 pins frozen as a decision
-authoring sessions run   5   CBRP-AUTHORING-ROUND-0 — acquisition FAILED CLOSED
+authoring sessions run   7   v1 5 FAILED CLOSED ｜ v2 2 INCOMPLETE at B02
 tasks admitted           0
 reviews 0 ｜ duplicate audit rounds 0 ｜ pools frozen 0 ｜ D3 adjudications 0
 ```
 
-`[FACT]` The five authoring sessions ran under these pins and **every one resolved to the
-model it requested** — Anthropic returned `model`, Gemini returned `modelVersion`, and all
-five matched exactly. `claude-sonnet-5` and `gemini-3.7-flash` are therefore observed to
-exist and resolve; `claude-opus-5` and `gemini-3.8-flash` have still never been called.
+`[FACT]` The five v1 authoring sessions and the two attempted v2 authoring sessions ran
+under these pins and **every one resolved to the model it requested** — Anthropic returned
+`model`, Gemini returned `modelVersion`, and all seven matched exactly.
+`claude-sonnet-5` and `gemini-3.7-flash` are therefore observed to exist and resolve;
+`claude-opus-5` and `gemini-3.8-flash` have still never been called.
 
-The run itself failed for an unrelated reason — a prohibited literal in the authoring brief,
-not a pin problem — and no further session is authorized under any role.
+The v1 run failed for an unrelated prohibited-literal reason. The v2 run stopped for an
+unrelated malformed B02 response after B01 and B02; B03-B05 were not called. Neither stop
+was a pin mismatch. No structural reviewer or duplicate auditor has been called.

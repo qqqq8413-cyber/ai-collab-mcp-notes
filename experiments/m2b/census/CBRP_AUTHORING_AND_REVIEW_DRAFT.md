@@ -4,9 +4,9 @@
 STATUS:  DRAFT
          NOT ACCEPTED
          NOT PREREGISTERED
-         NOT AUTHORIZED
+         AUTHORING v2 STOPPED / DOWNSTREAM NOT AUTHORIZED
 
-TASKS AUTHORED SO FAR:  0
+V2 PROVISIONAL CANDIDATES:  12/60 ｜ UNREVIEWED ｜ NOT ADMISSIBLE
 ```
 
 > Companion to [`CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md`](CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md).
@@ -657,14 +657,16 @@ derivation cannot be quietly re-run with a different separator.
 ## 10. What this document is not
 
 ```
-0 tasks authored          0 reviews run              0 duplicate audits run
-0 authoring sessions run  0 pools frozen             0 seeds derived
-0 provider calls
+12/60 v2 provisional candidates   0 reviews run       0 duplicate audits run
+2 v2 authoring sessions attempted 0 pools frozen      0 seeds derived
+2 v2 provider calls               0 tasks admitted
 ```
 
-Procedure is now decided; **content does not exist**. The study is a
-**PREREGISTRATION CANDIDATE**, not preregistered: no task pool exists, no review has run,
-no freeze has occurred, and no ordering seed has been materialized.
+Procedure is now decided. CWP-10B stopped the v2 acquisition at B02 after preserving 12
+mechanically extractable B01 candidates. This partial content is provisional, unreviewed
+and not admissible. The study is a **PREREGISTRATION CANDIDATE**, not preregistered: no
+task pool exists, no review has run, no freeze has occurred, and no ordering seed has been
+materialized.
 
 `[DESIGN]` The author and reviewer procedures **reduce outcome-targeted selection bias.
 They do not eliminate it.** CBRP remains a balanced synthetic reference frame, and no
