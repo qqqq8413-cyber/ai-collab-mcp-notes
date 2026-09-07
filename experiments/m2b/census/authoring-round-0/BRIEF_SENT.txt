@@ -1,0 +1,173 @@
+You are writing realistic decision scenarios for a research task pool.
+
+Write **12 scenarios**: exactly **two** in each of the six categories below.
+
+Each scenario is a self-contained piece of text that a real person might send to an
+advisor, ending in a clear request. Nothing else — no notes to us, no explanations of
+your choices, no commentary about how the scenario should be answered.
+
+### 2.1 The six categories
+
+A scenario's category is decided by **its primary requested output** — the thing the
+asker wants back — **not** by every subject that appears in the text. Real decisions
+touch several domains; the category is the kind of answer being asked for.
+
+**Operational test.** Read only your final request. Ask: *what would a complete answer
+hand back?* That artifact's kind selects the category.
+
+---
+
+**1. Strategy / Commitment** — the requested output is a **choice among mutually
+exclusive directions**, or a commitment that is costly to reverse.
+
+*Not this category if:* the direction is already settled and you are asking how to carry
+it out (that is Operations), or you are asking how to split a fixed pot (that is Finance).
+
+`ILLUSTRATIVE ONLY — NOT ELIGIBLE FOR CBRP:` *A regional clinic group has been offered
+acquisition by a national chain and separately has a bank term sheet to expand
+independently. Both offers lapse in six weeks. Which should they take?*
+
+---
+
+**2. Operations / Execution** — the direction is settled; the requested output is **how
+to execute**: sequencing, capacity, staffing, timelines, throughput, rollout.
+
+*Not this category if:* you are asking whether to do it at all (Strategy), or what the
+offering itself should be (Product / Service Design).
+
+`ILLUSTRATIVE ONLY — NOT ELIGIBLE FOR CBRP:` *A bakery has committed to supplying three
+new supermarket depots from one production site. Given the oven capacity and delivery
+windows below, how should they phase the rollout?*
+
+---
+
+**3. Brand / Creative** — the requested output is a **judgement about identity,
+positioning, naming, voice or creative direction**; its quality is judged by resonance and
+coherence rather than by arithmetic.
+
+*Not this category if:* you are asking which market to pursue (Strategy), or what the
+product should do (Product / Service Design).
+
+`ILLUSTRATIVE ONLY — NOT ELIGIBLE FOR CBRP:` *A 40-year-old tool manufacturer is losing
+younger trade customers who find its brand dated, while older customers cite exactly that
+heritage as why they buy. How should the brand present itself now?*
+
+---
+
+**4. Evidence Interpretation** — you supply data, findings or conflicting reports, and the
+requested output is **what it means**: a reading, a diagnosis, a judgement about whether
+the evidence is sufficient.
+
+*Not this category if:* you supply evidence but ask which option to pick (Strategy), or
+which budget line to fund (Finance).
+
+`ILLUSTRATIVE ONLY — NOT ELIGIBLE FOR CBRP:` *A language school's retention rose 8% after
+a curriculum change, but the same term it also cut class sizes and raised prices. The
+cohort table is below. What does the retention change actually show?*
+
+---
+
+**5. Product / Service Design** — the requested output is **what the offering should be**:
+scope, feature set, tiers, service model, customer-facing mechanics.
+
+*Not this category if:* you are asking how to build or ship it (Operations), or what it
+should be called or stand for (Brand / Creative).
+
+`ILLUSTRATIVE ONLY — NOT ELIGIBLE FOR CBRP:` *A veterinary practice wants to offer a
+subscription for routine care. What should be included, and how should it be structured?*
+
+---
+
+**6. Finance / Resource Allocation** — the requested output is **how to divide a finite
+resource** — money, headcount, capacity — among competing claimants, or a judgement about
+financial structure.
+
+*Not this category if:* a budget merely constrains a design or a plan; then the category is
+that of the design or plan.
+
+`ILLUSTRATIVE ONLY — NOT ELIGIBLE FOR CBRP:` *A museum has one capital grant and three
+claims on it: roof repair, a new gallery, and digitising the archive. How should the grant
+be divided?*
+
+---
+
+**When two subjects appear**, route by the final requested output:
+
+```
+a product-expansion scenario whose final question is how to split a fixed budget
+    → Finance / Resource Allocation
+
+a financially constrained scenario whose final deliverable is a service design
+    → Product / Service Design
+```
+
+### 2.2 What makes a scenario realistic
+
+- a concrete situation with someone who has a reason to decide **now**
+- a genuine tension — the obvious answer costs something
+- enough supplied fact to answer without looking anything up
+- **one** clear final request, whose deliverable decides the category
+- written as the asker would write it, not as a puzzle
+
+### 2.3 Self-contained
+
+The scenario must be answerable **from its own text**. No live lookup, no reference to
+documents you have not included, no "see the attached". If a figure matters, state it.
+
+### 2.4 Length
+
+Roughly **150–450 words**. Long enough to carry a real situation; short enough that the
+request stays clear. This is a guide, not a hard gate.
+
+### 2.5 Vary your twelve
+
+Across your twelve scenarios, vary:
+
+```
+industry / domain          organisation size          time horizon
+reversibility              stakes                     uncertainty
+how much evidence is supplied
+how many explicit alternatives are named
+the style of deliverable requested
+```
+
+Some should be weighty; some should be ordinary. A set made only of momentous decisions
+is not a realistic set.
+
+**Do not** vary anything about the expected *answer*. Specifically, do not try to make
+scenarios that "need several kinds of expertise", "are complex", "require multiple
+perspectives", "would produce disagreement", or "need more than one expert". Those are
+properties of an answer, and shaping the pool around them would invalidate what it is for.
+
+### 2.6 Do not repeat yourself
+
+Your twelve must be twelve different situations. Two scenarios that differ only in
+industry, or only in the numbers, are one scenario. Vary the shape of the decision, not
+the set dressing.
+
+### 2.7 Never include
+
+```
+the names of any AI provider, model, assistant or agent
+the words "specialist", "expert panel", or any requested number of perspectives
+any instruction about how the answer should be produced or by whom
+any mention of research, experiments, evaluation, eligibility or categories-as-labels
+any meta-commentary addressed to us rather than to the advisor
+```
+
+Write the scenario as the asker. Never as someone briefing a system.
+
+### 2.8 Output format
+
+Return exactly this, and nothing else:
+
+```json
+[
+  {
+    "stratum": "Strategy / Commitment",
+    "text": "The full scenario, ending in its request."
+  }
+]
+```
+
+Twelve objects, two per category, `stratum` spelled exactly as the six headings above.

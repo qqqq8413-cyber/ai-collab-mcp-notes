@@ -1,0 +1,107 @@
+{
+  "runId": "CBRP-AUTHORING-ROUND-0",
+  "authoringBriefSha256": "7f1f9ebe4dfde9402d838137a549859a630b60a93dce93a119b70bf9642d665f",
+  "sessionsParsed": 5,
+  "perSession": [
+    {
+      "actualAuthorSessionId": "AUTHOR-B01-S00",
+      "unwrappedFence": true,
+      "count": 12,
+      "stratumCounts": {
+        "SC": 2,
+        "OP": 2,
+        "BC": 2,
+        "EI": 2,
+        "PS": 2,
+        "FR": 2
+      }
+    },
+    {
+      "actualAuthorSessionId": "AUTHOR-B02-S00",
+      "unwrappedFence": false,
+      "count": 12,
+      "stratumCounts": {
+        "SC": 2,
+        "OP": 2,
+        "BC": 2,
+        "EI": 2,
+        "PS": 2,
+        "FR": 2
+      }
+    },
+    {
+      "actualAuthorSessionId": "AUTHOR-B03-S00",
+      "unwrappedFence": true,
+      "count": 12,
+      "stratumCounts": {
+        "SC": 2,
+        "OP": 2,
+        "BC": 2,
+        "EI": 2,
+        "PS": 2,
+        "FR": 2
+      }
+    },
+    {
+      "actualAuthorSessionId": "AUTHOR-B04-S00",
+      "unwrappedFence": false,
+      "count": 12,
+      "stratumCounts": {
+        "SC": 2,
+        "OP": 2,
+        "BC": 2,
+        "EI": 2,
+        "PS": 2,
+        "FR": 2
+      }
+    },
+    {
+      "actualAuthorSessionId": "AUTHOR-B05-S00",
+      "unwrappedFence": true,
+      "count": 12,
+      "stratumCounts": {
+        "SC": 2,
+        "OP": 2,
+        "BC": 2,
+        "EI": 2,
+        "PS": 2,
+        "FR": 2
+      }
+    }
+  ],
+  "totalCandidates": 60,
+  "globalStratumCounts": {
+    "SC": 10,
+    "OP": 10,
+    "BC": 10,
+    "EI": 10,
+    "PS": 10,
+    "FR": 10
+  },
+  "idsUnique": true,
+  "hashesComplete": true,
+  "byteIdenticalTextPairs": 0,
+  "forbiddenLiteralWholeWordCount": 2,
+  "forbiddenLiteralWholeWordIds": [
+    {
+      "id": "B04-S00-FR-02",
+      "hits": [
+        "specialist"
+      ]
+    },
+    {
+      "id": "B05-S00-OP-01",
+      "hits": [
+        "specialist"
+      ]
+    }
+  ],
+  "substringArtifactCount": 4,
+  "literalScanDisposition": "DESCRIPTIVE EVIDENCE ONLY. Recorded for the blinded structural reviewers under CWP-9A §14. Claude Code made no admission, rejection or leakage judgement.",
+  "wordCountRange": [
+    145,
+    311
+  ],
+  "mechanicalStatus": "PASS",
+  "problems": []
+}

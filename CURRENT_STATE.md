@@ -527,8 +527,10 @@ budget 第 61 次、worker-stage 拒絕、重複 attempt、未 settle 的復原�
 **測試用 fixture 全部標記 TEST-ONLY / NOT CBRP CANDIDATES,永不得升格為真實題目。**
 
 ```
-真實 CBRP 題目已出       0        live provider call   0
-census 已執行            NO       study 仍為 NOT PREREGISTERED / NOT AUTHORIZED
+CBRP provisional candidates   60（CWP-9A 出題，PROVISIONAL / UNREVIEWED）
+真實（已入池）CBRP 題目        0        —— 尚無任何 gate 執行
+authoring provider call        5        reviewer / auditor / Chief / Census call   0
+census 已執行                  NO       study 仍為 NOT PREREGISTERED / NOT AUTHORIZED
 ```
 
 ### CWP-8A / 8B / 8C / 8D —— preregistration 程序凍結（內容未凍結)
@@ -763,7 +765,55 @@ D3 另記 selector 的輸入位元組與 digest,使其模型**可重算而非可
 pin 就退化為**帶 attestation 的 operator instruction**,與 `freshContextConfirmed`
 同一種認識論地位。**任何結果都不得把 model pin 寫成 verified。**
 
-**在 GPT 完成下一次 Architecture Review 之前,不得撰寫任何真實 CBRP 題目。**
+### CWP-9A —— AUTHORING ROUND 0（已執行 / 60 provisional candidates）
+
+`[FACT]` 五個 initial authoring session 全部完成,各一次 logical call,共 **5 次 provider
+call**,產出 **60 個 provisional candidate**。證據在
+`experiments/m2b/census/authoring-round-0/`。
+
+```
+AUTHOR-B01-S00  claude / claude-sonnet-5     12
+AUTHOR-B02-S00  gemini / gemini-3.7-flash    12
+AUTHOR-B03-S00  claude / claude-sonnet-5     12
+AUTHOR-B04-S00  gemini / gemini-3.7-flash    12
+AUTHOR-B05-S00  claude / claude-sonnet-5     12
+
+authoringBriefSha256  7f1f9ebe4dfde9402d838137a549859a630b60a93dce93a119b70bf9642d665f
+五個 session 收到逐位元組相同的 prompt（單一檔案讀一次、原樣送出）
+機械檢查全過：每 session 12 題、每層 2 題、全體 60 題、每層 10 題、ID 唯一、hash 齊全
+```
+
+`[FACT]` **五次呼叫的 resolved model identity 全部可觀察,且與 requested pin 完全一致。**
+Anthropic 回傳 `model`、Gemini 回傳 `modelVersion`。
+CWP-8D 曾記錄 `gemini-3.7-flash` 從未被本專案對 live provider 解析過 ——
+**該狀態已被本次執行取代:它存在,且回報的字串與 pin 逐字元相同。**
+`pinStatus` = `OBSERVED`,不是 `OPERATOR ATTESTATION`。
+
+`[DESIGN]` `freshContextConfirmed` 仍是 **operator attestation**:每次呼叫是一個
+stateless request,只帶 brief、無 conversation id、無先前輪次、無 system prompt ——
+這已是 API context 能達到的最新鮮狀態,但仍非獨立驗證。
+
+`[DECISION]` **未改寫任何 scenario 文字。** 唯一的轉換是移除 JSON 的 fenced wrapper
+並讀取兩個宣告欄位;以第二套獨立實作重新解析 raw bytes 驗證:
+60/60 文字與 stratum 完全相同、60/60 `taskSha256` 重算相符。
+
+`[OPEN]` **§2.7 字面違規歸哪一個 gate 管,本輪刻意未裁定。**
+兩個 candidate（`B04-S00-FR-02`、`B05-S00-OP-01`）含被 brief 禁止的字面詞
+"specialist",語意上都是一般商業用法（招募職稱、醫院專科醫師覆蓋）。
+CWP-9A §7/§19 把「contains forbidden leakage」列為整輪 STOP;§14 則把結構判斷
+保留給盲審審查者、並把此掃描定位為 descriptive evidence。兩者在此相反,
+且代價差距極大:STOP 會為兩個字丟掉兩個 session 的 24 題,而逐題審查 rubric
+本來就含「no specialist-count steering」,拒絕後由 replacement session 補位。
+**未入池、未凍結,GPT 兩種裁定都還來得及;單方面決定才是較大的錯誤。**
+
+```
+狀態：60 PROVISIONAL / UNREVIEWED CANDIDATES
+      不得稱為 final CBRP tasks / frozen pool / preregistered task pool
+未執行：R1/R2/R3、duplicate D1/D2/D3、replacement session、diversity report、
+        pool freeze、ordering/seed、Chief planning、Census —— 且均未授權
+```
+
+**在 GPT 完成下一次 Architecture Review 之前,不得執行結構審查、重複稽核或任何後續階段。**
 
 `[DESIGN]` 出題與審查程序**降低**以結果為導向的選擇偏誤,**不消除**它。
 CBRP 仍是**平衡的合成參照框架**,不得升級為 production-wide、real-user prevalence
