@@ -17,14 +17,26 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  364c6c133640cbc7712bbf0b0beb8640850ef957
-production            src/** 停在 d01043b（accepted pre-synthesis boundary）
+stateVerifiedThrough  f2940cb58288dbaae3593986751cda6919352a23
+production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
 
-**production boundary 未移動。** `CWP-1` / `CWP-2` / `CWP-3` / `CWP-3R` / `P-1` 全部只動
-`experiments/m2b/**` 的 acquisition / experiment tooling,**沒有任何一個進入 `src/**`**。
-production Round 1 邊界仍然是 `d01043b` 的 `runRound1Stage()`。
+**production source 的歷史,精確版:**
+
+```
+d01043b   runRound1Stage 抽取 —— accepted pre-synthesis boundary，Wave 1/2/3 皆在此邊界上執行
+1e182f6   runPlanningStage 抽取 —— 目前 src/** 的最新 accepted 變更（CWP-6A）
+```
+
+`CWP-1` / `CWP-2` / `CWP-3` / `CWP-3R` / `P-1` / `CWP-4A` / `CWP-4B` / `CWP-4B-R` /
+`CWP-5A` / `CWP-5B-X` / `CWP-7A` / `CWP-7B` / `CWP-7C` 全部只動
+`experiments/m2b/**`,**沒有任何一個進入 `src/**`**。
+`CWP-6A` 是**唯一**動到 production source 的一輪:把 planning 半段抽成
+`runPlanningStage()`,並以確定性測試證明 Round 1 行為與五次時鐘讀取皆未位移。
+
+**Wave 1 / 2 / 3 的 capture 都是在 `d01043b` 邊界上執行的**,`1e182f6` 在它們之後,
+不影響任何已凍結的證據。
 
 > ⚠️ **`stateVerifiedThrough` 是本檔內容被核對到的那個 commit,不是目前的 branch HEAD。**
 > 本檔一被 commit,任何寫死在裡面的 HEAD 就已經過期 —— 包含這一行。
@@ -407,7 +419,26 @@ CENSUS-REQ-05  Zod installed-byte provenance                CLOSED
 CENSUS-REQ-06  census recorder / session / verifier          CLOSED OFFLINE（已排演）
 CENSUS-REQ-07  build toolchain provenance                   CLOSED / VERIFIED OFFLINE
 CENSUS-REQ-08  node runtime pin                             CLOSED / VERIFIED OFFLINE
+CENSUS-REQ-09  runtime drift enforcement                    CLOSED / VERIFIED OFFLINE
+CENSUS-REQ-10  pre-call provenance revalidation             CLOSED / VERIFIED OFFLINE
 ```
+
+`[FACT]` **CENSUS-REQ-09 —— runtime fingerprint 由「證據」升級為「強制」。**
+語意完全沿用歷史合約(`src/**` 與 `dist/**` 的 file → sha256 map、`fingerprintDiff`),
+**未重新定義**。session 開始前若沒有有效的 start fingerprint →
+`RUNTIME_FINGERPRINT_MISSING`,pre-dispatch 停止、0 reservation、0 call。
+結束時 start ≠ end → `RUNTIME_DRIFT` → `INCOMPLETE` → `NO_STATISTICAL_VERDICT`,
+**即使六十次 planning 全部成功也一樣**。
+
+`[DESIGN]` 另加一道**每題邊界的重採樣**:成本是約三十個檔案雜湊,相對於一次 planning call
+可忽略。它把宣稱從「兩端之間沒有淨漂移」升級為「任一 task 邊界上都沒有觀察到漂移」。
+**它仍然不能證明單次 call 內部沒有改了又改回去的暫態修改** —— 這一點明文寫在程式碼與文件中,不得誇大。
+
+`[FACT]` **CENSUS-REQ-10 —— preflight 改為重算,不再相信旗標。**
+先前的版本檢查 `buildBinding.match === true` 與 `dependencyProvenance.problems.length === 0`,
+那是別人下的結論;拿著 `{ match: true }` 配一個錯誤的編譯器就能開始花掉 attempt。
+現在 session 呼叫**與 verifier 完全相同的純函式**(`toolchainProblems`、`matchesCensusBaseline`)
+對實際記錄重算,因此 preflight 與 verification 不可能漂移成兩套政策,偽造的摘要欄位也買不到任何東西。
 
 `[FACT]` **CENSUS-REQ-07 —— TypeScript 7 是 native port。** `node_modules/.bin/tsc`
 是指向兩行 shim 的符號連結,該 shim 解析並 exec
@@ -484,7 +515,7 @@ verdict gate              僅在 COMPLETE 且恰好 60 筆有效 settled、每�
                           否則 NO_STATISTICAL_VERDICT
 ```
 
-離線 rehearsal 69 項測試涵蓋 k=0 / k=6 / k=7、六十次成功、各類失敗路徑、
+離線 rehearsal 88 項測試涵蓋 k=0 / k=6 / k=7、六十次成功、各類失敗路徑、
 budget 第 61 次、worker-stage 拒絕、重複 attempt、未 settle 的復原、
 依賴與 build 不符、以及 12 種 artifact 竄改。
 **測試用 fixture 全部標記 TEST-ONLY / NOT CBRP CANDIDATES,永不得升格為真實題目。**
@@ -1123,7 +1154,8 @@ pool 設計上做了什麼:九題的選項 C 一律帶有取自該題自身事�
 
 | 主張 | 去哪裡查 |
 |---|---|
-| production Round 1 邊界 | `src/modes/orchestrator.ts` `runRound1Stage()` @ `d01043b`;`experiments/m2b/test-round1-boundary.mjs` |
+| production Round 1 邊界 | `src/modes/orchestrator.ts` `runRound1Stage()` @ `d01043b`(Wave 1/2/3 執行時的邊界);`experiments/m2b/test-round1-boundary.mjs` |
+| production planning 邊界 | `src/modes/orchestrator.ts` `runPlanningStage()` @ `1e182f6`;`test-planning-stage.mjs`(32 項)|
 | protocol 0.3 常數 | `experiments/m2b/protocol/amendment-0-3.mjs` @ `1354863` |
 | protocol 0.3 敘述 + v0.2 全文 | `M2_EFFECTIVENESS_EXPERIMENT.md`「v0.3 Amendment」節 |
 | F1–F7 定義 | `M2_EFFECTIVENESS_EXPERIMENT.md` §13.1 |

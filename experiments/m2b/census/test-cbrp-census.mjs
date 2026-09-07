@@ -43,6 +43,7 @@ import {
   STUDY_VERSION, deriveEvents, runCensusSession,
 } from './census-session.mjs';
 import { verifyCensus } from './census-verify.mjs';
+import { fingerprintDiff, runtimeFingerprint } from '../capture/runtime-fingerprint.mjs';
 import { CBRP_N, TOO_SPARSE, VIABLE, INCONCLUSIVE } from './statistics.mjs';
 
 let passed = 0, failed = 0;
@@ -101,6 +102,8 @@ function stubCall(planFor, { failOn = null, resolveAs = null } = {}) {
 const REAL_BINDING = await buildBinding();
 const GOOD_BINDING = { ...REAL_BINDING, executionHead: 'test-head' };
 const goodDeps = await censusDependencyProvenance();
+/** A real fingerprint map, taken once so the rehearsal is deterministic. */
+const FINGERPRINT = runtimeFingerprint();
 
 const baseArgs = (overrides = {}) => ({
   tasks: TEST_TASKS,
@@ -111,8 +114,9 @@ const baseArgs = (overrides = {}) => ({
   executionHead: 'test-head',
   buildBinding: GOOD_BINDING,
   dependencyProvenance: goodDeps,
-  runtimeFingerprintStart: 'fp-start',
-  runtimeFingerprintEnd: 'fp-start',
+  runtimeFingerprintStart: FINGERPRINT,
+  runtimeFingerprintEnd: FINGERPRINT,
+  fingerprint: () => FINGERPRINT,
   orderRule: { rule: 'test-only-manifest-order', seed: null },
   now: () => new Date('2026-09-07T00:00:00.000Z'),
   ...overrides,
@@ -502,6 +506,115 @@ for (const [label, patch, pattern] of [
   });
 }
 
+console.log('\nCENSUS-REQ-09 — runtime drift enforcement');
+
+await check('a missing start fingerprint stops before any reservation', async () => {
+  for (const bad of [undefined, null, {}, 'fp-start', []]) {
+    const outDir = freshDir('no-fp');
+    const { session } = await runCensusSession(baseArgs({
+      outDir, call: stubCall(planWithKEvents(0)), runtimeFingerprintStart: bad,
+    }));
+    assert.equal(session.stopReason, 'RUNTIME_FINGERPRINT_MISSING', JSON.stringify(bad));
+    assert.equal(session.sessionStatus, SESSION_INCOMPLETE);
+    assert.equal(session.attemptCount, 0);
+    assert.equal(session.logicalCallCount, 0);
+    assert.equal(readRecords(join(outDir, 'attempt-registry.ndjson')).length, 0);
+    assert.equal(session.k, null);
+  }
+});
+
+await check('drift between start and end invalidates an otherwise complete session', async () => {
+  const outDir = freshDir('drift-end');
+  const drifted = { ...FINGERPRINT, 'dist/modes/orchestrator.js': 'f'.repeat(64) };
+  const { session } = await runCensusSession(baseArgs({
+    outDir, call: stubCall(planWithKEvents(7)), runtimeFingerprintEnd: drifted,
+  }));
+  assert.equal(session.stopReason, 'RUNTIME_DRIFT');
+  assert.equal(session.sessionStatus, SESSION_INCOMPLETE);
+  assert.equal(session.attemptCount, 60, 'all sixty calls did happen');
+  assert.equal(session.logicalCallCount, 60);
+  assert.equal(session.k, null, 'and none of it produces a verdict');
+  assert.equal(session.statistics.verdict, NO_STATISTICAL_VERDICT);
+  assert.deepEqual(session.runtimeFingerprintDrift.map((d) => d.file), ['dist/modes/orchestrator.js']);
+});
+
+await check('drift detected mid-session stops before the next reservation', async () => {
+  // The per-task re-sample upgrades the claim from "no net drift between the boundaries"
+  // to "no drift observed at any task boundary". It still cannot prove nothing changed
+  // and changed back inside a single call.
+  const outDir = freshDir('drift-mid');
+  let calls = 0;
+  const { session } = await runCensusSession(baseArgs({
+    outDir,
+    call: stubCall(planWithKEvents(60)),
+    fingerprint: () => { calls += 1; return calls > 3 ? { ...FINGERPRINT, 'src/index.ts': 'a'.repeat(64) } : FINGERPRINT; },
+  }));
+  assert.equal(session.stopReason, 'RUNTIME_DRIFT');
+  assert.equal(session.sessionStatus, SESSION_INCOMPLETE);
+  assert.ok(session.attemptCount < 60 && session.attemptCount > 0, `stopped after ${session.attemptCount}`);
+  assert.equal(session.k, null);
+});
+
+await check('a missing end fingerprint is taken rather than assumed', async () => {
+  const outDir = freshDir('no-end-fp');
+  const { session } = await runCensusSession(baseArgs({
+    outDir, call: stubCall(planWithKEvents(7)), runtimeFingerprintEnd: null,
+  }));
+  assert.ok(session.runtimeFingerprintEnd && Object.keys(session.runtimeFingerprintEnd).length > 0);
+  assert.equal(session.runtimeFingerprintEndSha256.length, 64);
+  assert.equal(session.sessionStatus, SESSION_COMPLETE);
+});
+
+console.log('\nCENSUS-REQ-10 — pre-call provenance revalidation');
+
+for (const [label, overrides, expectedReason] of [
+  ['a forged buildBinding.match with the wrong compiler',
+   { buildBinding: () => ({ ...GOOD_BINDING, match: true, toolchain: { ...GOOD_BINDING.toolchain, compilerExecutableSha256: 'a'.repeat(64) } }) },
+   'TOOLCHAIN_MISMATCH'],
+  ['a forged buildBinding.match with the wrong Node version',
+   { buildBinding: () => ({ ...GOOD_BINDING, match: true, toolchain: { ...GOOD_BINDING.toolchain, nodeVersion: 'v22.0.0' } }) },
+   'TOOLCHAIN_MISMATCH'],
+  ['a forged dependencyProvenance claiming problems: []',
+   { dependencyProvenance: () => ({ ...goodDeps, problems: [], packages: goodDeps.packages.map((p) => (p.name === 'zod' ? { ...p, runtimePackageDigest: 'b'.repeat(64) } : p)) }) },
+   'DEPENDENCY_MISMATCH'],
+  ['a forged dependencyProvenance with the wrong Node version',
+   { dependencyProvenance: () => ({ ...goodDeps, problems: [], node: { ...goodDeps.node, version: 'v22.0.0' } }) },
+   'DEPENDENCY_MISMATCH'],
+  ['a build binding naming a different execution head',
+   { buildBinding: () => ({ ...GOOD_BINDING, executionHead: 'some-other-head' }) },
+   'EXECUTION_HEAD_MISMATCH'],
+  ['a build binding whose dist does not match',
+   { buildBinding: () => ({ ...GOOD_BINDING, match: false }) },
+   'BUILD_BINDING_MISMATCH'],
+  ['a missing build binding', { buildBinding: () => null }, 'BUILD_BINDING_MISMATCH'],
+  ['a missing dependency record', { dependencyProvenance: () => null }, 'DEPENDENCY_MISMATCH'],
+]) {
+  await check(`NEGATIVE: ${label} is refused before any attempt`, async () => {
+    const outDir = freshDir(label.replace(/\W+/g, '-').slice(0, 40));
+    const patch = Object.fromEntries(Object.entries(overrides).map(([k, v]) => [k, v()]));
+    const { session } = await runCensusSession(baseArgs({ outDir, call: stubCall(planWithKEvents(0)), ...patch }));
+    assert.equal(session.stopReason, expectedReason, label);
+    assert.equal(session.sessionStatus, SESSION_INCOMPLETE);
+    assert.equal(session.attemptCount, 0, 'no attempt reserved');
+    assert.equal(session.logicalCallCount, 0, 'no provider call');
+    assert.equal(readRecords(join(outDir, 'attempt-registry.ndjson')).length, 0, 'registry empty');
+    assert.equal(session.k, null);
+  });
+}
+
+await check('preflight and verifier use the same comparison functions', () => {
+  // Not two policies that can drift: the session imports the verifier's own comparators.
+  const source = readFileSync(new URL('./census-session.mjs', import.meta.url), 'utf8');
+  assert.ok(source.includes("import { matchesCensusBaseline } from './census-provenance.mjs'"));
+  assert.ok(source.includes("import { toolchainProblems } from './build-binding.mjs'"));
+  // The preflight body must recompute, not read a caller-supplied verdict. Checked on the
+  // function itself rather than the file, since the header comment names the old shortcut.
+  const preflight = source.slice(source.indexOf('export function precheckSession'), source.indexOf('const isFingerprint'));
+  assert.ok(preflight.includes('toolchainProblems(buildBinding.toolchain)'));
+  assert.ok(preflight.includes('matchesCensusBaseline(dependencyProvenance'));
+  assert.ok(!preflight.includes('.problems'), 'must not read a caller-supplied problems array');
+});
+
 console.log('\nVerifier tamper tests');
 
 const legalDir = freshDir('legal');
@@ -548,6 +661,12 @@ for (const [label, mutate, expectedId] of [
   ['a dropped compiler package attestation', (s) => { s.dependencyProvenance.packages = s.dependencyProvenance.packages.filter((p) => p.name !== APPROVED_COMPILER.package); }, '12c'],
   ['a tampered reference dist digest', (s) => { s.buildBinding.referenceDistDigest = 'c'.repeat(64); s.buildBinding.match = false; }, 11],
   ['a tampered execution dist digest', (s) => { s.buildBinding.executionDistDigest = 'd'.repeat(64); s.buildBinding.match = false; }, 11],
+  ['a tampered start fingerprint', (s) => { s.runtimeFingerprintStart['src/index.ts'] = 'e'.repeat(64); }, '15c'],
+  ['a tampered end fingerprint', (s) => { s.runtimeFingerprintEnd['src/index.ts'] = 'f'.repeat(64); }, '15c'],
+  ['a removed start fingerprint', (s) => { s.runtimeFingerprintStart = {}; }, '15'],
+  ['a removed end fingerprint', (s) => { s.runtimeFingerprintEnd = {}; }, '15b'],
+  ['a COMPLETE session carrying drift', (s) => { s.runtimeFingerprintEnd['dist/index.js'] = 'a'.repeat(64); s.runtimeFingerprintEndSha256 = null; }, '15e'],
+  ['a hidden drift list', (s) => { s.runtimeFingerprintDrift = []; s.runtimeFingerprintEnd['dist/config.js'] = 'b'.repeat(64); s.runtimeFingerprintEndSha256 = null; }, '15d'],
 ]) {
   await check(`NEGATIVE: the verifier catches ${label}`, () => {
     const result = tamperVerify(label.replace(/\W+/g, '-'), mutate);

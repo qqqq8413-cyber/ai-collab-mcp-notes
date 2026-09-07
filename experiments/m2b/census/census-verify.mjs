@@ -16,8 +16,9 @@ import { ATTEMPT_RESERVED, ATTEMPT_SETTLED, readRecords } from './attempt-regist
 import { CENSUS_ALLOWED_STAGES, GLOBAL_LOGICAL_CALL_BUDGET, PER_TASK_LOGICAL_CALL_BUDGET, TRANSPORT_RETRY_POLICY } from './planning-recorder.mjs';
 import { APPROVED_COMPILER, APPROVED_NODE_VERSION, matchesCensusBaseline } from './census-provenance.mjs';
 import { toolchainProblems } from './build-binding.mjs';
+import { fingerprintDiff } from '../capture/runtime-fingerprint.mjs';
 import { ALPHA, BETA, CBRP_N, METHOD_VERSION, THETA_FEAS, decide } from './statistics.mjs';
-import { NO_STATISTICAL_VERDICT, SESSION_COMPLETE, STUDY_VERSION, deriveEvents } from './census-session.mjs';
+import { NO_STATISTICAL_VERDICT, SESSION_COMPLETE, SESSION_INCOMPLETE, STUDY_VERSION, deriveEvents } from './census-session.mjs';
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 const canonical = (value) => JSON.stringify(value, null, 2);
@@ -137,6 +138,32 @@ export function verifyCensus({ outDir, tasks, expectedPin, expectedN = CBRP_N })
     (session.dependencyProvenance?.packages ?? []).some((p) => p.name === 'zod' && typeof p.runtimePackageDigest === 'string'),
     'zod digest present');
 
+  // 6b. runtime fingerprint — CENSUS-REQ-09.
+  //
+  // Recomputed with the historical comparison contract, unchanged: a file -> sha256 map
+  // and `fingerprintDiff`. The session's own drift list and status are re-derived rather
+  // than believed, so a COMPLETE session cannot carry differing fingerprints.
+  const start = session.runtimeFingerprintStart;
+  const end = session.runtimeFingerprintEnd;
+  const isMap = (v) => Boolean(v) && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0;
+  q('15', 'a runtime fingerprint was taken at session start', isMap(start), isMap(start) ? `${Object.keys(start).length} files` : 'absent');
+  q('15b', 'a runtime fingerprint was taken at session end', isMap(end), isMap(end) ? `${Object.keys(end).length} files` : 'absent');
+  q('15c', 'the recorded fingerprint hashes recompute',
+    (!isMap(start) || session.runtimeFingerprintStartSha256 === sha256(canonical(start)))
+      && (!isMap(end) || session.runtimeFingerprintEndSha256 === sha256(canonical(end))),
+    `${session.runtimeFingerprintStartSha256 ?? 'absent'} / ${session.runtimeFingerprintEndSha256 ?? 'absent'}`);
+  const recomputedDrift = isMap(start) && isMap(end) ? fingerprintDiff(start, end) : null;
+  q('15d', 'the recorded drift list matches the recomputed one',
+    recomputedDrift !== null
+      && JSON.stringify(recomputedDrift) === JSON.stringify(session.runtimeFingerprintDrift ?? []),
+    recomputedDrift ? recomputedDrift.map((d) => d.file).join(', ') || 'no drift' : 'not comparable');
+  q('15e', 'a COMPLETE session has no runtime drift',
+    session.sessionStatus !== SESSION_COMPLETE || (recomputedDrift !== null && recomputedDrift.length === 0),
+    `${session.sessionStatus} / ${recomputedDrift?.length ?? 'n/a'} changed files`);
+  q('15f', 'recorded drift is consistent with an INCOMPLETE session',
+    !recomputedDrift || recomputedDrift.length === 0 || session.sessionStatus === SESSION_INCOMPLETE,
+    session.sessionStatus);
+
   // 7. events recomputed from the post-enforcement plan, never read back
   let eventsOk = true;
   for (const result of session.results) {
@@ -154,6 +181,7 @@ export function verifyCensus({ outDir, tasks, expectedPin, expectedN = CBRP_N })
   // 8. statistical recomputation
   const usable = session.results.filter((r) => r.failureCategory === null && r.plan);
   const verdictAllowed = session.sessionStatus === SESSION_COMPLETE
+    && (recomputedDrift !== null && recomputedDrift.length === 0)
     && usable.length === expectedN
     && new Set(usable.map((r) => r.taskId)).size === expectedN;
   if (verdictAllowed) {

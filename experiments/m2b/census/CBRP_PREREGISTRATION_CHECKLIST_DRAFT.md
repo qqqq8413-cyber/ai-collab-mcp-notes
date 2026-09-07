@@ -116,7 +116,7 @@ STATUS:  DRAFT
 | F-6 | Planning provider/model pin | **ARCHITECTURE-DECIDED** | `openai/gpt-5`, no fallback, no substitution; `EXPECTED_PLANNING_PIN`, enforced pre-call and by the verifier |
 | F-7 | Transport retry policy for census calls | **IMPLEMENTED** | `explicit-no-retry` reused; every call records `transportMaxRetriesRequested = 0` |
 | F-8 | Dependency provenance recorded and enforced against a baseline | **IMPLEMENTED** | `census-provenance.mjs`, own baseline `CBRP-CENSUS-DEPS-1`, Zod included |
-| F-9 | Runtime fingerprint recorded | **OPEN** | Scope stays src/ + dist/; dependency, toolchain and Node provenance all sit beside it, never inside it |
+| F-9 | Runtime fingerprint recorded **and enforced** | **VERIFIED** | See CENSUS-REQ-09. Scope stays src/ + dist/; dependency, toolchain and Node provenance sit beside it, never inside it |
 | F-10 | Call budget | **IMPLEMENTED** | 60 global, 1 per task; no slots×4 semantics |
 | F-11 | STOP rules — integrity violations, budget, failure paths | **IMPLEMENTED** | Pre-dispatch refusals cost no attempt; settled failures stop the session with no verdict |
 | F-12 | Retrieval and temperature policy | **IMPLEMENTED** | Both refused pre-call by the census recorder |
@@ -202,20 +202,22 @@ read any of 03–06 as implemented; they are not.**
 | **CENSUS-REQ-06** | Census-specific recorder and artifact contract | **IMPLEMENTED** | `planning-recorder.mjs`, `census-session.mjs` (`CBRP-CENSUS-1`), `census-verify.mjs`; 69 rehearsal tests |
 | **CENSUS-REQ-07** | Build toolchain provenance | **CLOSED / VERIFIED OFFLINE** | Both TypeScript packages attested. TS 7 is the native port, so the compiler is a binary in `@typescript/typescript-darwin-arm64`; the executable is resolved by asking the launcher, not by reading a path, and must land inside the approved package |
 | **CENSUS-REQ-08** | Node runtime pin | **CLOSED / VERIFIED OFFLINE** | `process.version` pinned at `v24.15.0` and fail-closed; platform, arch and other `process.versions` fields recorded as context and never compared |
+| **CENSUS-REQ-09** | Runtime drift enforcement | **CLOSED / VERIFIED OFFLINE** | Historical fingerprint semantics unchanged. Missing start → pre-dispatch stop; any start/end difference → INCOMPLETE and no verdict, even on sixty successes. Re-sampled at each task boundary; **cannot** prove a transient change inside one call |
+| **CENSUS-REQ-10** | Pre-call provenance revalidation | **CLOSED / VERIFIED OFFLINE** | The session calls the verifier's own `toolchainProblems` and `matchesCensusBaseline` on the actual records. A forged `match: true` or `problems: []` is refused before any reservation |
 
 ## J. Readiness summary
 
 ```
-79 checklist items
+81 checklist items
 
 ARCHITECTURE-DECIDED             29
 PROPOSED                          8
-OPEN                             17
+OPEN                             16
 DRAFT                             2
 IMPLEMENTED                      12
 IMPLEMENTED / VERIFIED OFFLINE    1
-CLOSED / VERIFIED OFFLINE         2
-VERIFIED                          8
+CLOSED / VERIFIED OFFLINE         4
+VERIFIED                          9
 ```
 
 **Still not preregistration-ready, and the remaining gap is no longer engineering.**
@@ -236,7 +238,7 @@ each other:
    ordering seed committed before execution.
 
 **The remaining blockers are all methodology and content, not engineering.** Every
-execution-infrastructure requirement CENSUS-REQ-01 … 08 is now closed offline. What
+execution-infrastructure requirement CENSUS-REQ-01 … 10 is now closed offline. What
 stands between here and a preregisterable study is: who writes the sixty tasks and
 how, who reviews them, what happens to an invalid one, what order they run in, and
 then the tasks themselves and their freeze.

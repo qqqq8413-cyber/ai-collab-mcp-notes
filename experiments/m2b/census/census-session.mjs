@@ -17,6 +17,15 @@
  * cannot be retried, replaced, or skipped without corrupting a one-attempt study, so the
  * only safe design is to know it happened.
  *
+ * ## Why the preflight recomputes instead of reading a flag
+ *
+ * An earlier version checked `buildBinding.match === true` and
+ * `dependencyProvenance.problems.length === 0`. Both are conclusions someone else reached,
+ * and a session that trusts them can be handed `{ match: true }` alongside the wrong
+ * compiler and start spending attempts. The same pure comparison functions the verifier
+ * uses are called here on the actual records, so preflight and verification cannot drift
+ * into two policies, and a forged summary field buys nothing.
+ *
  * ## Failure is not Y = 0
  *
  * A provider exception, a parse failure, a schema failure, a plan with no usable
@@ -33,6 +42,9 @@ import {
   NEVER_ATTEMPTED, openAttemptRegistry, recoverSession,
 } from './attempt-registry.mjs';
 import { createPlanningRecorder, GLOBAL_LOGICAL_CALL_BUDGET, PER_TASK_LOGICAL_CALL_BUDGET, TRANSPORT_RETRY_POLICY } from './planning-recorder.mjs';
+import { fingerprintDiff, runtimeFingerprint } from '../capture/runtime-fingerprint.mjs';
+import { matchesCensusBaseline } from './census-provenance.mjs';
+import { toolchainProblems } from './build-binding.mjs';
 import { ALPHA, BETA, CBRP_N, METHOD_VERSION, THETA_FEAS, decide } from './statistics.mjs';
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
@@ -87,6 +99,8 @@ export async function runCensusSession({
   now = () => new Date(),
   globalBudget = GLOBAL_LOGICAL_CALL_BUDGET,
   expectedN = CBRP_N,
+  /** Injectable so a rehearsal can drive drift deterministically; production semantics unchanged. */
+  fingerprint = runtimeFingerprint,
 }) {
   mkdirSync(outDir, { recursive: true });
   const registryPath = join(outDir, 'attempt-registry.ndjson');
@@ -107,6 +121,24 @@ export async function runCensusSession({
     });
   }
 
+  // CENSUS-REQ-09 / CENSUS-REQ-10. Everything that does not depend on a particular task
+  // is checked once, before the registry is even opened, so a bad environment cannot
+  // reserve an attempt on its way to being noticed.
+  const sessionRefusal = precheckSession({
+    buildBinding, dependencyProvenance, executionHead, expectedPin, runtimeFingerprintStart,
+  });
+  if (sessionRefusal) {
+    return sealSession({
+      outDir, now, taskManifestHash, executionHead, buildBinding, dependencyProvenance,
+      runtimeFingerprintStart, runtimeFingerprintEnd, orderRule, expectedPin, globalBudget, expectedN,
+      sessionStatus: SESSION_INCOMPLETE,
+      stopReason: sessionRefusal.code,
+      stopDetail: sessionRefusal.message,
+      results: [], calls: [], startedAt: now().toISOString(),
+      runtimeFingerprintDrift: [],
+    });
+  }
+
   const registry = openAttemptRegistry(registryPath);
   const recorder = createPlanningRecorder({ call, expectedPin, now, globalBudget });
   const startedAt = now().toISOString();
@@ -117,7 +149,10 @@ export async function runCensusSession({
   try {
     for (const [orderIndex, task] of tasks.entries()) {
       // --- Everything checkable before the attempt is claimed.
-      const structural = precheckTask(task, { tasks, buildBinding, dependencyProvenance, executionHead, expectedPin, registry });
+      const drift = fingerprintDiff(runtimeFingerprintStart, fingerprint());
+      const structural = drift.length
+        ? { code: 'RUNTIME_DRIFT', message: `runtime changed before ${task.taskId}: ${drift.map((d) => d.file).join(', ')}` }
+        : precheckTask(task, { tasks, executionHead, registry });
       if (structural) {
         // A pre-dispatch refusal is not a consumed attempt and must not look like one.
         stopReason = structural.code;
@@ -186,31 +221,76 @@ export async function runCensusSession({
     registry.close();
   }
 
-  const complete = stopReason === null && results.length === tasks.length;
+  // CENSUS-REQ-09. The end fingerprint is required, and any net drift invalidates the
+  // session even when all sixty calls succeeded: the plans were produced by a runtime we
+  // can no longer name.
+  const endFingerprint = runtimeFingerprintEnd ?? fingerprint();
+  const drift = fingerprintDiff(runtimeFingerprintStart, endFingerprint);
+  if (drift.length && stopReason === null) {
+    stopReason = 'RUNTIME_DRIFT';
+    stopDetail = `runtime changed during the session: ${drift.map((d) => d.file).join(', ')}`;
+  }
+
+  const complete = stopReason === null && drift.length === 0 && results.length === tasks.length;
   return sealSession({
     outDir, now, taskManifestHash, executionHead, buildBinding, dependencyProvenance,
-    runtimeFingerprintStart, runtimeFingerprintEnd, orderRule, expectedPin, globalBudget, expectedN,
+    runtimeFingerprintStart, runtimeFingerprintEnd: endFingerprint, orderRule, expectedPin,
+    globalBudget, expectedN,
     sessionStatus: complete ? SESSION_COMPLETE : SESSION_INCOMPLETE,
     stopReason, stopDetail, results,
     calls: recorder.calls,
     startedAt,
+    runtimeFingerprintDrift: drift,
   });
 }
 
+/**
+ * Session-wide preflight, recomputed rather than read.
+ *
+ * Every check here calls the same pure function the verifier calls, on the record itself.
+ * A caller that hands over `{ match: true }` with the wrong compiler, or a provenance
+ * object asserting `problems: []`, gets refused on the evidence rather than believed on
+ * the summary.
+ */
+export function precheckSession({ buildBinding, dependencyProvenance, executionHead, expectedPin, runtimeFingerprintStart }) {
+  const fail = (code, message) => ({ code, message });
+
+  if (!executionHead) return fail('EXECUTION_HEAD_MISSING', 'no execution head recorded');
+  if (!expectedPin?.provider || !expectedPin?.model) return fail('PIN_MISSING', 'no expected planning pin');
+
+  if (!isFingerprint(runtimeFingerprintStart)) {
+    return fail('RUNTIME_FINGERPRINT_MISSING', 'no runtime fingerprint was taken for the authorized execution state');
+  }
+
+  if (!buildBinding) return fail('BUILD_BINDING_MISMATCH', 'no build binding recorded');
+  if (buildBinding.executionHead !== executionHead) {
+    return fail('EXECUTION_HEAD_MISMATCH',
+      `build binding names ${buildBinding.executionHead}, session names ${executionHead}`);
+  }
+  const toolchain = toolchainProblems(buildBinding.toolchain);
+  if (toolchain.length) return fail('TOOLCHAIN_MISMATCH', toolchain.join('; '));
+  if (buildBinding.match !== true) {
+    return fail('BUILD_BINDING_MISMATCH', 'dist/ was not built from the authorized source');
+  }
+
+  const dependency = matchesCensusBaseline(dependencyProvenance ?? {});
+  if (dependency.length) return fail('DEPENDENCY_MISMATCH', dependency.join('; '));
+
+  return null;
+}
+
+const isFingerprint = (value) =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0;
+
 /** Everything that can refuse a task before an attempt is spent on it. */
-function precheckTask(task, { tasks, buildBinding, dependencyProvenance, executionHead, expectedPin, registry }) {
+/** Per-task checks. The environment-wide ones ran once, in `precheckSession`. */
+function precheckTask(task, { tasks, executionHead, registry }) {
   const fail = (code, message) => ({ code, message });
   if (!task || typeof task.text !== 'string') return fail('TASK_MISSING', `${task?.taskId ?? '(unknown)'} has no text`);
   if (sha256(task.text) !== task.taskSha256) {
     return fail('TASK_HASH_MISMATCH', `${task.taskId} does not hash to its frozen ${task.taskSha256}`);
   }
   if (!tasks.some((t) => t.taskId === task.taskId)) return fail('MANIFEST_MEMBERSHIP', `${task.taskId} is not in the manifest`);
-  if (!executionHead) return fail('EXECUTION_HEAD_MISSING', 'no execution head recorded');
-  if (!buildBinding?.match) return fail('BUILD_BINDING_MISMATCH', 'dist/ was not built from the authorized source');
-  if (!dependencyProvenance || dependencyProvenance.problems?.length) {
-    return fail('DEPENDENCY_MISMATCH', (dependencyProvenance?.problems ?? ['no dependency provenance']).join('; '));
-  }
-  if (!expectedPin?.provider || !expectedPin?.model) return fail('PIN_MISSING', 'no expected planning pin');
   if (registry.stateOf(task.taskId, task.taskSha256) !== NEVER_ATTEMPTED) {
     return fail('DUPLICATE_ATTEMPT', `${task.taskId} has already been attempted`);
   }
@@ -241,11 +321,14 @@ function sealSession(args) {
     outDir, now, taskManifestHash, executionHead, buildBinding, dependencyProvenance,
     runtimeFingerprintStart, runtimeFingerprintEnd, orderRule, expectedPin, globalBudget,
     expectedN, sessionStatus, stopReason, stopDetail, results, calls, startedAt,
+    runtimeFingerprintDrift = [],
   } = args;
 
   const settled = results.filter((r) => r.attemptState === ATTEMPT_SETTLED && r.failureCategory === null);
   const uniqueIds = new Set(settled.map((r) => r.taskId));
+  // A drifted runtime forfeits the verdict even if every call succeeded.
   const verdictAllowed = sessionStatus === SESSION_COMPLETE
+    && runtimeFingerprintDrift.length === 0
     && settled.length === expectedN
     && uniqueIds.size === expectedN;
 
@@ -277,6 +360,9 @@ function sealSession(args) {
     dependencyProvenance,
     runtimeFingerprintStart,
     runtimeFingerprintEnd,
+    runtimeFingerprintStartSha256: runtimeFingerprintStart ? sha256(canonical(runtimeFingerprintStart)) : null,
+    runtimeFingerprintEndSha256: runtimeFingerprintEnd ? sha256(canonical(runtimeFingerprintEnd)) : null,
+    runtimeFingerprintDrift,
     orderRule,
     startedAt,
     completedAt: now().toISOString(),
