@@ -14,7 +14,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ATTEMPT_RESERVED, ATTEMPT_SETTLED, readRecords } from './attempt-registry.mjs';
 import { CENSUS_ALLOWED_STAGES, GLOBAL_LOGICAL_CALL_BUDGET, PER_TASK_LOGICAL_CALL_BUDGET, TRANSPORT_RETRY_POLICY } from './planning-recorder.mjs';
-import { matchesCensusBaseline } from './census-provenance.mjs';
+import { APPROVED_COMPILER, APPROVED_NODE_VERSION, matchesCensusBaseline } from './census-provenance.mjs';
+import { toolchainProblems } from './build-binding.mjs';
 import { ALPHA, BETA, CBRP_N, METHOD_VERSION, THETA_FEAS, decide } from './statistics.mjs';
 import { NO_STATISTICAL_VERDICT, SESSION_COMPLETE, STUDY_VERSION, deriveEvents } from './census-session.mjs';
 
@@ -112,8 +113,26 @@ export function verifyCensus({ outDir, tasks, expectedPin, expectedN = CBRP_N })
     `${session.buildBinding?.referenceDistDigest ?? 'absent'} vs ${session.buildBinding?.executionDistDigest ?? 'absent'}`);
   q('11b', 'the build binding names the execution head',
     session.buildBinding?.executionHead === session.executionHead, session.executionHead ?? 'absent');
+  // The toolchain is part of the proof, not a footnote: reference and execution digests
+  // agreeing says the two trees match, never that an approved compiler made either.
+  const toolProblems = toolchainProblems(session.buildBinding?.toolchain);
+  q('11c', 'the build toolchain matches the approved one', toolProblems.length === 0, toolProblems.join(' | ') || 'approved');
+  q('11d', 'the recorded Node runtime is the approved one',
+    session.buildBinding?.toolchain?.nodeVersion === APPROVED_NODE_VERSION
+      && session.dependencyProvenance?.node?.version === APPROVED_NODE_VERSION,
+    `${session.buildBinding?.toolchain?.nodeVersion ?? 'absent'} vs ${APPROVED_NODE_VERSION}`);
+  q('11e', 'the compiler that built dist resolves inside the approved package',
+    session.buildBinding?.toolchain?.compilerResolvesInsideApprovedPackage === true
+      && session.buildBinding?.toolchain?.compilerExecutableRelative === APPROVED_COMPILER.executableRelative
+      && session.buildBinding?.toolchain?.compilerExecutableSha256 === APPROVED_COMPILER.executableSha256,
+    session.buildBinding?.toolchain?.compilerExecutableRelative ?? 'absent');
+
   const depProblems = matchesCensusBaseline(session.dependencyProvenance ?? {});
   q(12, 'dependency provenance equals the census baseline', depProblems.length === 0, depProblems.join(' | ') || 'identical');
+  q('12c', 'the toolchain packages are attested alongside the runtime ones',
+    ['typescript', APPROVED_COMPILER.package].every((name) =>
+      (session.dependencyProvenance?.packages ?? []).some((p) => p.name === name && typeof p.runtimePackageDigest === 'string')),
+    'typescript + native compiler digests present');
   q('12b', 'Zod provenance is attested',
     (session.dependencyProvenance?.packages ?? []).some((p) => p.name === 'zod' && typeof p.runtimePackageDigest === 'string'),
     'zod digest present');

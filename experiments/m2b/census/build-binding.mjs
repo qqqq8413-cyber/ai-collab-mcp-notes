@@ -24,6 +24,9 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, lstatSync, 
 import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  APPROVED_COMPILER, APPROVED_NODE_VERSION, assertCensusDependencies, censusDependencyProvenance,
+} from './census-provenance.mjs';
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 
@@ -77,6 +80,38 @@ export function sourceTreeIdentity(head = 'HEAD') {
 }
 
 /**
+ * The toolchain slice of the record, and the check that the build may proceed at all.
+ *
+ * A matching reference and execution digest proves the two trees agree; it does not prove
+ * either was produced by an approved compiler. Both could have come from the same wrong
+ * one. So the toolchain identity is verified before the reference build runs, and the
+ * evidence travels in the binding artifact rather than being implied by it.
+ */
+export async function toolchainRecord() {
+  const provenance = await assertCensusDependencies();
+  const typescript = provenance.packages.find((p) => p.name === 'typescript');
+  const nativeCompiler = provenance.packages.find((p) => p.name === APPROVED_COMPILER.package);
+  return {
+    nodeVersion: provenance.node.version,
+    approvedNodeVersion: APPROVED_NODE_VERSION,
+    nodeContext: provenance.node.context,
+    packageLockSha256: provenance.packageLockSha256,
+    typescriptLockedVersion: typescript?.lockedVersion ?? null,
+    typescriptInstalledVersion: typescript?.installedVersion ?? null,
+    typescriptManifestSha256: typescript?.installedManifestSha256 ?? null,
+    typescriptPackageDigest: typescript?.runtimePackageDigest ?? null,
+    typescriptFileCount: typescript?.runtimePackageFileCount ?? null,
+    compilerPackage: APPROVED_COMPILER.package,
+    compilerPackageDigest: nativeCompiler?.runtimePackageDigest ?? null,
+    compilerPackageFileCount: nativeCompiler?.runtimePackageFileCount ?? null,
+    compilerExecutableRelative: provenance.compiler.executableRelative,
+    compilerExecutableSha256: provenance.compiler.executableSha256,
+    compilerLauncherRelative: provenance.compiler.launcherRelative,
+    compilerResolvesInsideApprovedPackage: provenance.compiler.resolvesInsideApprovedPackage,
+  };
+}
+
+/**
  * Rebuilds the authorized commit in a temp directory and digests the result.
  *
  * The commit is extracted with `git archive` rather than copied from the working tree, so
@@ -127,7 +162,10 @@ export const executionBuild = (distRoot = join(REPO_ROOT, 'dist')) => treeDigest
  * Returns the evidence including `match`, so a caller can store the refusal as well as the
  * pass. `assertBuildBinding` is the fail-closed wrapper.
  */
-export function buildBinding(head = 'HEAD', distRoot = join(REPO_ROOT, 'dist')) {
+export async function buildBinding(head = 'HEAD', distRoot = join(REPO_ROOT, 'dist')) {
+  // Fail closed before compiling anything: an unapproved Node or compiler makes the
+  // reference build worthless as evidence, so it is not worth producing.
+  const toolchain = await toolchainRecord();
   const source = sourceTreeIdentity(head);
   const reference = referenceBuild(head);
   const execution = executionBuild(distRoot);
@@ -135,6 +173,7 @@ export function buildBinding(head = 'HEAD', distRoot = join(REPO_ROOT, 'dist')) 
     executionHead: source.head,
     srcTreeSha: source.srcTreeSha,
     configHashes: source.configHashes,
+    toolchain,
     buildCommand: [...BUILD_COMMAND],
     referenceDistDigest: reference.digest,
     referenceDistFileCount: reference.fileCount,
@@ -144,8 +183,51 @@ export function buildBinding(head = 'HEAD', distRoot = join(REPO_ROOT, 'dist')) 
   };
 }
 
-export function assertBuildBinding(binding = null, head = 'HEAD', distRoot = join(REPO_ROOT, 'dist')) {
-  const record = binding ?? buildBinding(head, distRoot);
+/** The toolchain half of the proof, checkable on an artifact without rebuilding. */
+export function toolchainProblems(toolchain) {
+  const problems = [];
+  if (!toolchain) return ['no toolchain record'];
+  if (toolchain.nodeVersion !== APPROVED_NODE_VERSION) {
+    problems.push(`node runtime is ${toolchain.nodeVersion}, approved is ${APPROVED_NODE_VERSION}`);
+  }
+  if (toolchain.compilerExecutableRelative !== APPROVED_COMPILER.executableRelative) {
+    problems.push(`compiler is ${toolchain.compilerExecutableRelative}, approved is ${APPROVED_COMPILER.executableRelative}`);
+  }
+  if (toolchain.compilerExecutableSha256 !== APPROVED_COMPILER.executableSha256) {
+    problems.push(`compiler bytes ${toolchain.compilerExecutableSha256} do not match the approved ${APPROVED_COMPILER.executableSha256}`);
+  }
+  if (toolchain.compilerResolvesInsideApprovedPackage !== true) {
+    problems.push(`the compiler does not resolve inside ${APPROVED_COMPILER.package}`);
+  }
+  const baseline = CENSUS_TOOLCHAIN_EXPECTATIONS;
+  for (const [field, expected] of Object.entries(baseline)) {
+    if (toolchain[field] !== expected) problems.push(`${field} is ${toolchain[field]}, approved is ${expected}`);
+  }
+  return problems;
+}
+
+/** Pinned here so an artifact can be judged without re-reading node_modules. */
+export const CENSUS_TOOLCHAIN_EXPECTATIONS = Object.freeze({
+  typescriptLockedVersion: '7.0.2',
+  typescriptInstalledVersion: '7.0.2',
+  typescriptManifestSha256: '3722b30210616a13a3213ded11575ba6b2dbab10c32a5ef67afca8513e27017e',
+  typescriptPackageDigest: '2681b5b29b8b50b532287288d676b3d319310554526c04d0f19fee64aea87640',
+  typescriptFileCount: 416,
+  compilerPackageDigest: '119d596ea13a77feec98dfc0bbc78c7ed3c874031f9038f305a531cab0d07443',
+  compilerPackageFileCount: 113,
+  packageLockSha256: '4fde57dc2c3102c081674bd6286dbc77aa9f8ecd128aa43450568edff840c5e1',
+});
+
+export async function assertBuildBinding(binding = null, head = 'HEAD', distRoot = join(REPO_ROOT, 'dist')) {
+  const record = binding ?? (await buildBinding(head, distRoot));
+  const toolchain = toolchainProblems(record.toolchain);
+  if (toolchain.length) {
+    throw new BuildBindingError(
+      'Refusing to run: the build toolchain is not the approved one.\n'
+        + `  - ${toolchain.join('\n  - ')}\n`
+        + '  A matching dist digest proves both trees agree, not that an approved compiler made them.',
+    );
+  }
   if (!record.match) {
     throw new BuildBindingError(
       'Refusing to run: the executable dist/ was not built from the authorized source.\n'

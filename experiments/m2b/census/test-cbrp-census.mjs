@@ -33,8 +33,11 @@ import {
   CENSUS_ALLOWED_STAGES, GLOBAL_LOGICAL_CALL_BUDGET, PER_TASK_LOGICAL_CALL_BUDGET,
   createPlanningRecorder,
 } from './planning-recorder.mjs';
-import { CENSUS_DEPENDENCY_BASELINE, censusDependencyProvenance, matchesCensusBaseline, assertCensusDependencies, CensusProvenanceError } from './census-provenance.mjs';
-import { assertBuildBinding, buildBinding, BuildBindingError } from './build-binding.mjs';
+import {
+  APPROVED_COMPILER, APPROVED_NODE_VERSION, CENSUS_DEPENDENCY_BASELINE,
+  censusDependencyProvenance, matchesCensusBaseline, assertCensusDependencies, CensusProvenanceError,
+} from './census-provenance.mjs';
+import { assertBuildBinding, buildBinding, toolchainProblems, CENSUS_TOOLCHAIN_EXPECTATIONS, BuildBindingError } from './build-binding.mjs';
 import {
   EXPECTED_PLANNING_PIN, NO_STATISTICAL_VERDICT, SESSION_COMPLETE, SESSION_INCOMPLETE,
   STUDY_VERSION, deriveEvents, runCensusSession,
@@ -93,7 +96,10 @@ function stubCall(planFor, { failOn = null, resolveAs = null } = {}) {
   return call;
 }
 
-const GOOD_BINDING = { match: true, executionHead: 'test-head', referenceDistDigest: 'a'.repeat(64), executionDistDigest: 'a'.repeat(64) };
+// A real binding, so the rehearsal exercises the toolchain evidence rather than a
+// hand-written stand-in that could not fail the checks it is meant to satisfy.
+const REAL_BINDING = await buildBinding();
+const GOOD_BINDING = { ...REAL_BINDING, executionHead: 'test-head' };
 const goodDeps = await censusDependencyProvenance();
 
 const baseArgs = (overrides = {}) => ({
@@ -396,6 +402,32 @@ await check('NEGATIVE: a Zod byte drift at the same version is refused', async (
   assert.match(String(err), /may never be regenerated during a session/);
 });
 
+await check('NEGATIVE: a Node runtime mismatch is refused before any dispatch', async () => {
+  const record = await censusDependencyProvenance();
+  const wrongNode = { ...record, node: { ...record.node, version: 'v22.0.0' } };
+  assert.ok(matchesCensusBaseline(wrongNode).some((p) => /node runtime is v22\.0\.0/.test(p)));
+  const err = await mustReject(() => assertCensusDependencies(wrongNode), 'node mismatch');
+  assert.ok(err instanceof CensusProvenanceError);
+  assert.match(String(err), /node runtime is v22\.0\.0, approved is v24\.15\.0/);
+});
+
+await check('NEGATIVE: a compiler resolving outside the approved package is refused', async () => {
+  const record = await censusDependencyProvenance();
+  const escaped = {
+    ...record,
+    compiler: { ...record.compiler, resolvesInsideApprovedPackage: false, escapedTo: '/elsewhere/tsc' },
+  };
+  const err = await mustReject(() => assertCensusDependencies(escaped), 'escaped compiler');
+  assert.match(String(err), /tsc resolves outside @typescript\/typescript-darwin-arm64/);
+});
+
+await check('NEGATIVE: compiler bytes that differ at the same version are refused', async () => {
+  const record = await censusDependencyProvenance();
+  const drifted = { ...record, compiler: { ...record.compiler, executableSha256: 'f'.repeat(64) } };
+  const err = await mustReject(() => assertCensusDependencies(drifted), 'compiler drift');
+  assert.match(String(err), /compiler\.executableSha256/);
+});
+
 await check('the census baseline is its own object, not the capture one', async () => {
   const capture = await import('../capture/dependency-provenance.mjs');
   assert.notEqual(CENSUS_DEPENDENCY_BASELINE, capture.APPROVED_DEPENDENCY_BASELINE);
@@ -403,21 +435,72 @@ await check('the census baseline is its own object, not the capture one', async 
   assert.ok(!('zod' in capture.APPROVED_DEPENDENCY_BASELINE.packages), 'capture does not, and is unchanged');
 });
 
-await check('the executable dist really was built from the authorized source', () => {
-  const record = assertBuildBinding();
+await check('the executable dist really was built from the authorized source', async () => {
+  const record = await assertBuildBinding();
   assert.equal(record.match, true);
   assert.equal(record.referenceDistDigest, record.executionDistDigest);
   assert.ok(record.referenceDistFileCount > 0);
   assert.deepEqual(record.buildCommand, ['node_modules/.bin/tsc', '--project', 'tsconfig.json']);
 });
 
-await check('NEGATIVE: a dist digest that disagrees with the reference build is refused', () => {
-  const record = buildBinding();
-  const err = (() => { try { assertBuildBinding({ ...record, match: false }); } catch (e) { return e; } })();
+await check('NEGATIVE: a dist digest that disagrees with the reference build is refused', async () => {
+  const err = await mustReject(() => assertBuildBinding({ ...REAL_BINDING, match: false }), 'dist mismatch');
   assert.ok(err instanceof BuildBindingError);
   assert.match(String(err), /was not built from the authorized source/);
   assert.match(String(err), /do not adjust the expectation/);
 });
+
+console.log('\nBuild toolchain provenance — CENSUS-REQ-07 and CENSUS-REQ-08');
+
+await check('the toolchain record names the native compiler, not just the launcher', () => {
+  const t = REAL_BINDING.toolchain;
+  assert.equal(t.nodeVersion, APPROVED_NODE_VERSION);
+  assert.equal(t.typescriptInstalledVersion, CENSUS_TOOLCHAIN_EXPECTATIONS.typescriptInstalledVersion);
+  assert.equal(t.typescriptPackageDigest, CENSUS_TOOLCHAIN_EXPECTATIONS.typescriptPackageDigest);
+  assert.equal(t.typescriptFileCount, CENSUS_TOOLCHAIN_EXPECTATIONS.typescriptFileCount);
+  // TypeScript 7 is the native port: bin/tsc execs a platform binary, so the bytes that
+  // compile dist/ are in the platform package rather than in the JS wrapper.
+  assert.equal(t.compilerPackage, APPROVED_COMPILER.package);
+  assert.equal(t.compilerExecutableRelative, APPROVED_COMPILER.executableRelative);
+  assert.equal(t.compilerExecutableSha256, APPROVED_COMPILER.executableSha256);
+  assert.equal(t.compilerResolvesInsideApprovedPackage, true);
+  assert.notEqual(t.compilerExecutableRelative, t.compilerLauncherRelative, 'the launcher is not the compiler');
+  assert.deepEqual(toolchainProblems(t), []);
+});
+
+await check('the compiler resolution is by execution, not by path string', async () => {
+  // `node_modules/.bin/tsc` is a symlink whose name proves nothing; the launcher is asked
+  // where it would actually exec, and that answer is what gets checked.
+  const provenance = await censusDependencyProvenance();
+  assert.equal(provenance.compiler.launcherRelative, 'node_modules/.bin/tsc');
+  assert.ok(provenance.compiler.executableRelative.startsWith(`node_modules/${APPROVED_COMPILER.package}/`));
+  assert.equal(provenance.compiler.resolvesInsideApprovedPackage, true);
+});
+
+for (const [label, patch, pattern] of [
+  ['a wrong Node version', { nodeVersion: 'v22.0.0' }, /node runtime is v22\.0\.0/],
+  ['a wrong TypeScript locked version', { typescriptLockedVersion: '7.0.3' }, /typescriptLockedVersion/],
+  ['a wrong TypeScript installed version', { typescriptInstalledVersion: '7.0.3' }, /typescriptInstalledVersion/],
+  ['a wrong TypeScript manifest hash', { typescriptManifestSha256: 'a'.repeat(64) }, /typescriptManifestSha256/],
+  ['a wrong TypeScript package digest', { typescriptPackageDigest: 'b'.repeat(64) }, /typescriptPackageDigest/],
+  ['a wrong TypeScript file count', { typescriptFileCount: 415 }, /typescriptFileCount/],
+  ['a wrong compiler package digest', { compilerPackageDigest: 'c'.repeat(64) }, /compilerPackageDigest/],
+  ['a wrong compiler file count', { compilerPackageFileCount: 112 }, /compilerPackageFileCount/],
+  ['a wrong tsc entrypoint', { compilerExecutableRelative: 'node_modules/typescript/bin/tsc' }, /compiler is node_modules\/typescript\/bin\/tsc/],
+  ['tsc bytes that are not the approved ones', { compilerExecutableSha256: 'd'.repeat(64) }, /compiler bytes/],
+  ['a tsc path escaping the approved package', { compilerResolvesInsideApprovedPackage: false }, /does not resolve inside/],
+  ['a package-lock mismatch', { packageLockSha256: 'e'.repeat(64) }, /packageLockSha256/],
+]) {
+  await check(`NEGATIVE: the build binding refuses ${label}`, async () => {
+    const tampered = { ...REAL_BINDING, toolchain: { ...REAL_BINDING.toolchain, ...patch } };
+    assert.ok(toolchainProblems(tampered.toolchain).length > 0, label);
+    const err = await mustReject(() => assertBuildBinding(tampered), label);
+    assert.ok(err instanceof BuildBindingError);
+    assert.match(String(err), /the build toolchain is not the approved one/);
+    assert.match(String(err), pattern);
+    assert.match(String(err), /proves both trees agree, not that an approved compiler made them/);
+  });
+}
 
 console.log('\nVerifier tamper tests');
 
@@ -455,6 +538,16 @@ for (const [label, mutate, expectedId] of [
   ['a dropped transport policy', (s) => { delete s.calls[0].transportRetryPolicy; }, 10],
   ['a smuggled worker call', (s) => { s.calls.push({ ...s.calls[0], seq: s.calls.length + 1, stage: 'round1_worker' }); }, '7b'],
   ['a duplicated task result', (s) => { s.results.push({ ...s.results[0] }); }, '4b'],
+  ['a wrong Node version in the artifact', (s) => { s.buildBinding.toolchain.nodeVersion = 'v22.0.0'; }, '11c'],
+  ['a wrong Node version in the dependency record', (s) => { s.dependencyProvenance.node.version = 'v22.0.0'; }, '11d'],
+  ['a tampered TypeScript package digest', (s) => { s.buildBinding.toolchain.typescriptPackageDigest = 'a'.repeat(64); }, '11c'],
+  ['a tampered compiler binary hash', (s) => { s.buildBinding.toolchain.compilerExecutableSha256 = 'b'.repeat(64); }, '11e'],
+  ['a compiler that escaped its package', (s) => { s.buildBinding.toolchain.compilerResolvesInsideApprovedPackage = false; }, '11e'],
+  ['a swapped compiler entrypoint', (s) => { s.buildBinding.toolchain.compilerExecutableRelative = 'node_modules/typescript/bin/tsc'; }, '11e'],
+  ['a dropped toolchain record', (s) => { delete s.buildBinding.toolchain; }, '11c'],
+  ['a dropped compiler package attestation', (s) => { s.dependencyProvenance.packages = s.dependencyProvenance.packages.filter((p) => p.name !== APPROVED_COMPILER.package); }, '12c'],
+  ['a tampered reference dist digest', (s) => { s.buildBinding.referenceDistDigest = 'c'.repeat(64); s.buildBinding.match = false; }, 11],
+  ['a tampered execution dist digest', (s) => { s.buildBinding.executionDistDigest = 'd'.repeat(64); s.buildBinding.match = false; }, 11],
 ]) {
   await check(`NEGATIVE: the verifier catches ${label}`, () => {
     const result = tamperVerify(label.replace(/\W+/g, '-'), mutate);
