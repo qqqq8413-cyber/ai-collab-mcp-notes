@@ -10,14 +10,10 @@
  * filesystem access beyond what the caller already resolved, no provider
  * calls, no side effects.
  *
- * `dispatchLiveStructuralReview` is deliberately unimplemented. CWP-10G's
- * authorization is OFFLINE METHODOLOGY / EXECUTION-HARNESS FREEZE only --
- * building a real Anthropic/Gemini dispatch path now, with no LIVE
- * authorization to exercise or validate it against, would be untested code
- * shipped as if it were trustworthy. The guard keeps that gap honest: calling
- * it always throws, so no test, import, or accidental invocation can reach a
- * provider from this file. A future execution packet carrying explicit LIVE
- * authorization is the one that gets to write this function's body.
+ * `dispatchLiveStructuralReview` is the guarded bridge to the offline-tested
+ * CWP-10H harness. A default call still throws before loading any transport;
+ * future LIVE execution additionally requires the harness's explicit flag,
+ * authorized base, credentials, runtime/source checks, and durable reservation.
  */
 
 import { buildStructuralReviewPrompt } from './structural-review-prompt-v1.mjs';
@@ -120,15 +116,17 @@ export function computeR3Plan({ initialPlan, reviewResultsByTaskId }) {
 }
 
 /**
- * Guarded future LIVE entrypoint. Always throws in CWP-10G. See the module
- * docstring for why this is a stub rather than a real (untestable) dispatch
- * implementation.
+ * Guarded future LIVE entrypoint. Dynamic import keeps ordinary tests/imports
+ * away from provider transport construction; the harness repeats the flag
+ * guard and enforces every remaining precondition.
  */
-export async function dispatchLiveStructuralReview() {
-  throw new Error(
-    'CBRP-STRUCTURAL-REVIEW-PROTOCOL-1: LIVE dispatch is not authorized. ' +
-    'This entrypoint is a guarded stub frozen by CWP-10G; it must not be implemented ' +
-    'or called before a future GPT execution packet grants explicit LIVE authorization ' +
-    'for structural review.'
-  );
+export async function dispatchLiveStructuralReview(options = {}) {
+  if (options.liveExecution !== true) {
+    throw new Error(
+      'CBRP-STRUCTURAL-REVIEW-PROTOCOL-1: LIVE dispatch is not authorized without ' +
+      'an explicit liveExecution: true flag and a separate GPT execution packet.'
+    );
+  }
+  const { dispatchStructuralReviewLive } = await import('./structural-review-live-harness-v1.mjs');
+  return dispatchStructuralReviewLive(options);
 }

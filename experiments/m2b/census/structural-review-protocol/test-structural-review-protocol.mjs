@@ -606,7 +606,7 @@ check('order is a strict function of taskCandidateId + taskSha256, not array pos
   assert.deepEqual(orderAB, orderBA);
 });
 
-console.log('\n--- RUNNER (plan composition; the guarded LIVE stub) ---');
+console.log('\n--- RUNNER (plan composition; the guarded LIVE bridge) ---');
 
 function makeSyntheticPool(n = 6) {
   const codes = ['SC', 'OP', 'BC', 'EI', 'PS', 'FR'];
@@ -687,7 +687,7 @@ check('PROTOCOL_VERSION is reported', () => {
   assert.equal(PROTOCOL_VERSION, 'CBRP-STRUCTURAL-REVIEW-PROTOCOL-1');
 });
 
-await checkAsync('dispatchLiveStructuralReview is a guarded stub: it always rejects, never dispatches', async () => {
+await checkAsync('dispatchLiveStructuralReview requires an explicit LIVE flag and rejects the default call', async () => {
   await assert.rejects(() => dispatchLiveStructuralReview(), /LIVE dispatch is not authorized/);
 });
 

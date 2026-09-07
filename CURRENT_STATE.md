@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  cd7558e7b18a7de7f6f879a4fc0e6ff0c2895e4b（CWP-10G execution base）
+stateVerifiedThrough  fe8b4a79bddbee0765e4b439e704157bc9378b0d（CWP-10H execution base）
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -1200,6 +1200,34 @@ structural reviews            0        provider calls                    0
 **尚無任何空缺存在——60 題 Protocol-2.1 candidate 尚未經過結構審查。
 本協定治理的是「第一次真的有空缺時該怎麼做」,不早於此。**
 
+### CWP-10G-R / CWP-10H —— exact-fence repair 與 LIVE harness（僅離線驗證）
+
+`[FACT]` CWP-10G-R 已完成 extractor 的 exact-fence conformance repair；
+CWP-10H 在其執行基礎 `fe8b4a79bddbee0765e4b439e704157bc9378b0d` 上實作
+`CBRP-STRUCTURAL-REVIEW-LIVE-HARNESS-1`，但**沒有執行任何真實結構審查**。
+
+```
+harness                         CBRP-STRUCTURAL-REVIEW-LIVE-HARNESS-1
+max output tokens               4096
+INITIAL maximum                 120 calls（60 tasks × R1 then R2）
+automatic R3                    NO
+R3 execution boundary           separate / explicit
+reservation                     durable exclusive create + fsync before provider dispatch
+evidence order                  raw text + raw provider JSON before extraction/schema/decision
+per-call guards                 authorized base / clean worktree / runtime / SDK / frozen source hashes
+Claude retry                    SDK maxRetries = 0
+Gemini retry                    no harness retry layer
+synthetic harness tests         29/29 passed
+synthetic INITIAL               120/120 fake calls
+synthetic R3                    20/20 fake calls
+real provider calls             0
+real structural-review calls    0
+real R3 calls                   0
+real artifact namespace         NOT CREATED
+```
+
+60 題 Protocol-2.1 candidates 仍為 **PROVISIONAL / UNREVIEWED**；正式 admitted tasks 仍為 0。
+
 ### 目前的 M2-B 狀態（不得混淆 acquisition 與 effectiveness)
 
 ```
@@ -1889,7 +1917,7 @@ Protocol 與 Structural Review Protocol 均已凍結）。以下為更正後、�
 的收尾狀態：
 
 ```
-STATE ALIGNED THROUGH cd7558e7b18a7de7f6f879a4fc0e6ff0c2895e4b (CWP-10G execution base) /
+STATE ALIGNED THROUGH fe8b4a79bddbee0765e4b439e704157bc9378b0d (CWP-10H execution base) /
 P03 CLOSED — 9/9 ATTEMPTED, 0 ADMITTED, 0 ARCHETYPES FILLED /
 F1 FAIL 3/9 ｜ F2 FAIL 7/9 ｜ F3 FAIL 0/9 ｜ ONE SPECIALIST 7/9 /
 A2 = 0 EXECUTIONS ｜ EFFECTIVENESS EXPERIMENT NOT EXECUTED ｜ C vs D₁ UNANSWERED /
@@ -1900,7 +1928,8 @@ AUTHORING Protocol-2 INCOMPLETE AT B02 (12/60, not carried forward) /
 AUTHORING Protocol-2.1 ACQUISITION COMPLETE (CWP-10E) — 60/60 ACQUIRED, UNREVIEWED /
 authoring provider calls total = 12 (v1 5 + Protocol-2 2 + Protocol-2.1 5) /
 CBRP-REPLACEMENT-PROTOCOL-1 FROZEN (CWP-10F) ｜ index invariant conformance-repaired (CWP-10F-R) /
-CBRP-STRUCTURAL-REVIEW-PROTOCOL-1 FROZEN / OFFLINE VERIFIED / NOT EXECUTED (CWP-10G) /
+CBRP-STRUCTURAL-REVIEW-PROTOCOL-1 FROZEN / CWP-10G-R VERIFIED /
+CBRP-STRUCTURAL-REVIEW-LIVE-HARNESS-1 IMPLEMENTED / OFFLINE VERIFIED (CWP-10H) /
 0 structural reviews ｜ 0 duplicate audit rounds ｜ 0 replacement sessions ｜
 0 pools frozen ｜ 0 Chief Census calls ｜ 0 formal admitted tasks /
 LIVE = STOPPED / RETURN TO GPT ARCHITECTURE
