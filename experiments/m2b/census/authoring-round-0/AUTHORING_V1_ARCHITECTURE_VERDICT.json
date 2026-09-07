@@ -1,0 +1,81 @@
+{
+  "artifact": "AUTHORING_V1_ARCHITECTURE_VERDICT",
+  "supersedes": "the study-state interpretation of SESSIONS.json and VALIDATION.json",
+  "appendOnly": "This file records an adjudication. It does not alter any artifact it refers to.",
+  "runId": "CBRP-AUTHORING-ROUND-0",
+  "authoringProtocolVersion": "CBRP-AUTHORING-PROTOCOL-1",
+  "authoringBriefSha256": "7f1f9ebe4dfde9402d838137a549859a630b60a93dce93a119b70bf9642d665f",
+  "modelPinVersion": "CBRP-SESSION-MODEL-PINS-1",
+  "providerExecutionStatus": "COMPLETE",
+  "providerCallsConsumed": 5,
+  "authoringAcquisitionStatus": "INCOMPLETE",
+  "stopCode": "FORBIDDEN_LITERAL_STOP",
+  "stopBasis": "The frozen authoring brief (section 2.7) categorically prohibits the literal word \"specialist\". CWP-9A's frozen STOP envelope lists \"contains forbidden leakage\" as an authoring-stage STOP condition. Two produced candidates contain the prohibited literal, so the run cannot be reinterpreted as a successful acquisition on the grounds that both uses are semantically ordinary.",
+  "triggerCandidateIds": [
+    "B04-S00-FR-02",
+    "B05-S00-OP-01"
+  ],
+  "triggerEvidence": [
+    {
+      "taskCandidateId": "B04-S00-FR-02",
+      "authorBlockId": "AUTHOR-B04",
+      "actualAuthorSessionId": "AUTHOR-B04-S00",
+      "stratumDeclaredByAuthor": "Finance / Resource Allocation",
+      "prohibitedLiteral": "specialist",
+      "exactPhrase": "technical onboarding specialists",
+      "context": "…ified inbound demo requests by 140%. 4. Customer Success & Implementation ($1.0M): Hire 5 technical onboarding specialists and an enterprise account manager. Our current customer churn rate is 14% annually, prima…",
+      "taskSha256": "307169eeb118e1855d3efa15e6a57a7debcffc3b98d7af5fa56a9a0270250c3b",
+      "classification": "LEXICAL AUTHORING-BRIEF VIOLATION",
+      "semanticInterpretation": "ordinary domain/business usage",
+      "notMeasuredEventSteering": true
+    },
+    {
+      "taskCandidateId": "B05-S00-OP-01",
+      "authorBlockId": "AUTHOR-B05",
+      "actualAuthorSessionId": "AUTHOR-B05-S00",
+      "stratumDeclaredByAuthor": "Operations / Execution",
+      "prohibitedLiteral": "specialist",
+      "exactPhrase": "duplicating specialist coverage",
+      "context": "… decision made by the board six months ago after the standalone ERs were losing money and duplicating specialist coverage. The new facility will have 40 beds versus the combined 55 across the three current sites…",
+      "taskSha256": "2d802929f61d5d68468d32ceb62ae42cc158fec38f3de0411668e5ae2b1b084a",
+      "classification": "LEXICAL AUTHORING-BRIEF VIOLATION",
+      "semanticInterpretation": "ordinary domain/business usage",
+      "notMeasuredEventSteering": true
+    }
+  ],
+  "structuralReviewAuthorized": false,
+  "duplicateAuditAuthorized": false,
+  "candidateReuseAuthorized": false,
+  "retryAuthorized": false,
+  "replacementAuthorized": false,
+  "renumberingToFinalIdsAuthorized": false,
+  "promotionIntoAuthoringV2Authorized": false,
+  "permittedUses": [
+    "historical failed-acquisition evidence",
+    "methodology-design evidence"
+  ],
+  "censusRelevance": "NONE — Chief was never called. No planning, no event, no statistics.",
+  "chiefCalls": 0,
+  "reviewerCalls": 0,
+  "duplicateAuditCalls": 0,
+  "historicalFieldMeanings": {
+    "SESSIONS.json runStatus = COMPLETE": "the five provider responses completed; NOT that the frozen authoring protocol passed",
+    "VALIDATION.json mechanicalStatus = PASS": "count, schema and hash mechanics passed; NOT that the frozen authoring protocol passed",
+    "note": "Both fields are accurate for what they measure and are left exactly as the executor recorded them at execution time. This verdict supersedes them for study-state interpretation only."
+  },
+  "methodLesson": "M-CBRP-AUTH-01",
+  "futureVersionRequired": true,
+  "futureVersionBoundary": {
+    "protocolVersion": "CBRP-AUTHORING-PROTOCOL-2",
+    "requires": [
+      "a new authoring brief version and hash",
+      "a new run ID",
+      "a new candidate namespace"
+    ],
+    "carriesForward": "nothing — no CWP-9A candidate is carried forward",
+    "retroactivity": "FORBIDDEN — any v2 revision applies prospectively only"
+  },
+  "architectureReviewedAt": "2026-09-07T16:23:46+08:00",
+  "adjudicatedBy": "GPT Architecture (CWP-9B)",
+  "materializedBy": "Claude Code, offline, 0 provider calls"
+}

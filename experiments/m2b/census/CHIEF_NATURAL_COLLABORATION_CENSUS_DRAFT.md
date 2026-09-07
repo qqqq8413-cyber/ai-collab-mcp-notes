@@ -582,7 +582,15 @@ provenance    CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md — every authoring, revie
               resolved identity is unobservable — never verified facts
 ```
 
-`[DESIGN]` **Procedure is frozen; content does not exist.** Nothing above has been run.
+`[DESIGN]` **The authoring half of this procedure has been run once, and failed.**
+`CBRP-AUTHORING-ROUND-0` executed the five initial sessions under
+`CBRP-AUTHORING-PROTOCOL-1` and was adjudicated an **INCOMPLETE acquisition** in CWP-9B —
+`FORBIDDEN_LITERAL_STOP`, two of sixty candidates carrying the brief's prohibited literal.
+The sixty are preserved as failed-acquisition evidence and are barred from any pool.
+
+Everything after authoring — review, duplicate audit, freeze, ordering, Census — is still
+frozen procedure that **has never been run**. A renewed acquisition requires
+`CBRP-AUTHORING-PROTOCOL-2`, and nothing carries forward.
 
 ---
 

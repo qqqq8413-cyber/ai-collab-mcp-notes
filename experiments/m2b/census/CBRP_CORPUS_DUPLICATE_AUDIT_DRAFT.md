@@ -440,7 +440,9 @@ different procedure from the one that produced it.
 audit rounds run 0 ｜ auditors assigned 0 ｜ pairs confirmed 0 ｜ tasks replaced 0
 ```
 
-No task exists to audit. Auditor provider/model IDs are **frozen** —
+No auditable task exists. Sixty candidates were produced by `CBRP-AUTHORING-ROUND-0` and
+are **barred from admission** by the CWP-9B verdict, so they are not audit input and never
+will be. Auditor provider/model IDs are **frozen** —
 [`CBRP_MODEL_PINS_PREREG_DRAFT.md`](CBRP_MODEL_PINS_PREREG_DRAFT.md) §4 for D1 and D2, §7.2
 for the derived D3 route, and
 [`CBRP_AUTHORING_AND_REVIEW_DRAFT.md`](CBRP_AUTHORING_AND_REVIEW_DRAFT.md) §6.2 for why the

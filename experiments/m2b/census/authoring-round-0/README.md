@@ -1,15 +1,30 @@
-# CBRP Authoring Round 0 — raw evidence
+# CBRP Authoring Round 0 — FAILED ACQUISITION, preserved
 
 ```
-RUN:     CBRP-AUTHORING-ROUND-0          STATUS:  COMPLETE
-PINS:    CBRP-SESSION-MODEL-PINS-1       CALLS:   5 logical, 5 authorized
+RUN:       CBRP-AUTHORING-ROUND-0        PROTOCOL:  CBRP-AUTHORING-PROTOCOL-1
+PINS:      CBRP-SESSION-MODEL-PINS-1     CALLS:     5 logical, 5 authorized
 
-CANDIDATES:  60 PROVISIONAL / UNREVIEWED
+provider execution      COMPLETE      the five responses came back
+authoring acquisition   INCOMPLETE    FORBIDDEN_LITERAL_STOP
 ```
 
-> **These are not CBRP tasks.** They are not structurally admitted, not duplicate-cleared,
-> not frozen, not ordered and not Census-eligible. They may not be called a frozen pool or
-> a preregistered task pool. Nothing here has passed a gate, because no gate has run.
+> ## Superseded by architecture verdict
+>
+> GPT Architecture reviewed this run in CWP-9B and ruled the **authoring acquisition
+> INCOMPLETE**: the frozen brief categorically prohibits the literal word *specialist*, and
+> CWP-9A's frozen STOP envelope lists "contains forbidden leakage" as an authoring-stage
+> STOP. Two candidates contain it. The run may **not** be reinterpreted as a successful
+> acquisition on the grounds that both uses are semantically ordinary.
+>
+> The adjudication is
+> [`AUTHORING_V1_ARCHITECTURE_VERDICT.json`](AUTHORING_V1_ARCHITECTURE_VERDICT.json).
+> Everything below is preserved exactly as recorded at execution time; the verdict
+> supersedes it for **study-state interpretation only**, and alters nothing.
+
+> **None of these 60 are CBRP tasks, and none ever will be.** Not admitted, not
+> duplicate-cleared, not frozen, not ordered, not Census-eligible — and now not eligible for
+> any future pool. They are historical failed-acquisition evidence and methodology-design
+> evidence, and nothing else. No gate ever ran on them.
 
 ---
 
@@ -80,6 +95,18 @@ word count range                                          145 – 311
 
 Purely mechanical. No structural judgement was made anywhere in this run.
 
+`[FACT]` **What the two historical status fields do and do not mean.** Both are left exactly
+as the executor wrote them, because both are true of what they measure:
+
+```
+SESSIONS.json      runStatus = COMPLETE        the five provider responses completed
+VALIDATION.json    mechanicalStatus = PASS     count, schema and hash mechanics passed
+```
+
+Neither says the frozen authoring protocol passed, and neither was ever capable of saying
+so — a literal-prohibition breach is invisible to a count-and-hash check. The architecture
+verdict supersedes them for study-state interpretation, and does not edit them.
+
 ## 5. Forbidden-literal scan — DESCRIPTIVE EVIDENCE, NOT A VERDICT
 
 Recorded for the blinded structural reviewers. **Claude Code made no admission, rejection
@@ -97,31 +124,55 @@ coincidences do not. Both lists are stored so the scan itself stays auditable �
 pass using bare substring matching reported six hits, four of which were artifacts, and
 handing those to a reviewer would have been false leakage evidence.
 
-### 5.1 An open question for GPT, deliberately not answered here
+### 5.1 Adjudicated — this is what closed the run
 
-The brief's §2.7 bans the literal word *specialist*. Two candidates contain it, in ordinary
-business senses — a hiring line item, and hospital physician coverage.
-
-CWP-9A **§7 and §19** make "contains forbidden leakage" an unusable-response STOP for the
-whole run. **§14** reserves structural judgement for the blinded reviewers and casts this
-scan as descriptive evidence. Those pull in opposite directions here, and the two readings
-have very different costs: a STOP discards 24 candidates from two sessions over two words,
-while the per-task review gate already carries "no specialist-count steering" and is
-designed to reject exactly this — producing a vacancy that a replacement session fills.
-
-`[OPEN]` **Which gate owns a §2.7 literal violation in a minority of candidates.** Nothing
-is lost by leaving it open: no candidate is admitted, nothing is frozen, and CWP-9A §23
-requires a return to GPT before any further stage. Deciding it unilaterally in either
-direction would have been the larger error.
-
-## 6. Not done, not authorized
+`[DECISION]` The question of which gate owns a §2.7 literal violation was left open at
+execution time and **decided by GPT Architecture in CWP-9B**: the brief's prohibition is
+categorical, the STOP envelope is frozen, and the run is therefore an **INCOMPLETE
+authoring acquisition** — `FORBIDDEN_LITERAL_STOP`.
 
 ```
-structural review R1 / R2 / R3        NOT RUN
-corpus duplicate audit D1 / D2 / D3   NOT RUN
-replacement sessions                  NOT RUN, none authorized
+B04-S00-FR-02   "technical onboarding specialists"
+B05-S00-OP-01   "duplicating specialist coverage"
+```
+
+`[FACT]` The correct label is **LEXICAL AUTHORING-BRIEF VIOLATION**. Both are ordinary
+domain usage — a hiring line item and hospital physician coverage — and **neither is
+measured-event steering**; nothing here steered a Chief toward assigning more workers, and
+no Chief was ever called. Under Authoring v1 as written, an ordinary usage is still a STOP,
+because the prohibition was lexical rather than semantic.
+
+`[DESIGN]` That gap is recorded as method lesson **M-CBRP-AUTH-01**: lexical occurrence and
+answer-production steering are distinct concepts, and v1's rule conflated them. **The
+lesson does not rescue this run.** Any revision is prospective, in a new protocol version;
+applying it backwards would be deciding a gate's outcome after seeing what it caught.
+
+## 6. Not done, and now permanently not authorized for these candidates
+
+```
+structural review R1 / R2 / R3        NOT RUN ｜ NOT AUTHORIZED for these 60
+corpus duplicate audit D1 / D2 / D3   NOT RUN ｜ NOT AUTHORIZED for these 60
+replacement sessions                  NOT RUN ｜ none authorized under v1
+retry / repair / same-session cont.   FORBIDDEN — CWP-9A was one-shot
+renumbering into final CBRP ids       FORBIDDEN
+promotion into Authoring v2           FORBIDDEN
 diversity report                      NOT RUN
 pool freeze ｜ POOL_FREEZE_COMMIT      NOT DONE
 ordering ｜ seed                       NOT DERIVED
-Chief planning ｜ Census               NOT RUN
+Chief planning ｜ Census               NOT RUN — Census relevance is NONE
 ```
+
+## 7. What a renewed acquisition needs
+
+`[ARCHITECTURE-DECIDED]` A new version, not a continuation:
+
+```
+protocol version      CBRP-AUTHORING-PROTOCOL-2
+                      a new authoring brief version and hash
+                      a new run ID
+                      a new candidate namespace
+carries forward       nothing
+```
+
+The five sessions in this directory are closed. They are not rerun, not repaired, and not
+continued.

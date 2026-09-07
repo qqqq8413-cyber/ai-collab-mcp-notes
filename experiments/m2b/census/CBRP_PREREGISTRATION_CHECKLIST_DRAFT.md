@@ -22,6 +22,10 @@ STATUS:  DRAFT
 > ARCHITECTURE-DECIDED  GPT has decided it
 > IMPLEMENTED           code or artifacts exist
 > VERIFIED              proven by a deterministic check
+>
+> ATTEMPTED … / FAILED CLOSED
+>                       a stage was executed, adjudicated a failure, and closed;
+>                       its evidence is preserved and is not reusable
 > ```
 >
 > **Nothing below is IMPLEMENTED or VERIFIED.** No task exists, no harness
@@ -74,7 +78,8 @@ STATUS:  DRAFT
 | C-5 | Diversity dimensions | **ARCHITECTURE-DECIDED** | Nine dimensions of the situation; five forbidden instructions about the answer |
 | C-6 | Diversity handling | **ARCHITECTURE-DECIDED** | **No quotas.** Variation requested in the brief; a descriptive diversity report before freeze. Diversity is **not** an admission gate — only structural failure or a confirmed duplicate causes replacement |
 | C-7 | Duplicate handling | **ARCHITECTURE-DECIDED** | Removed from per-task review — one reviewer sees one task. Corpus audit over all 60 texts: 2 blinded auditors, 3rd on a disputed pair, retention by lexicographically smallest candidate ID |
-| C-8 | **The 60 tasks themselves** | **OPEN** | **0 authored.** Procedure is frozen; authoring is not authorized |
+| C-8 | **The 60 tasks themselves** | **ATTEMPTED UNDER AUTHORING v1 / FAILED CLOSED** | **0 admitted.** One acquisition ran (`CBRP-AUTHORING-ROUND-0`, 5 sessions, 5 provider calls) and produced 60 candidates; GPT Architecture ruled it an INCOMPLETE acquisition — `FORBIDDEN_LITERAL_STOP`, two candidates carrying §2.7's prohibited literal. The 60 are preserved as failed-acquisition evidence and are **barred from any future pool**. No retry, no repair, no replacement under v1 |
+| C-10 | Authoring v2 methodology amendment and re-freeze | **OPEN** | A renewed acquisition needs `CBRP-AUTHORING-PROTOCOL-2`: a new brief version and hash, a new run ID, a new candidate namespace. M-CBRP-AUTH-01 is the input; the amendment is **prospective only** and nothing from round 0 carries forward |
 | C-9 | Difficulty varies within every stratum | **ARCHITECTURE-DECIDED** | "Ordinary" is not a stratum |
 
 ---
@@ -233,7 +238,7 @@ read any of 03–06 as implemented; they are not.**
 ## J. Readiness summary
 
 ```
-103 checklist items
+104 checklist items
 
 ARCHITECTURE-DECIDED             61
 PROPOSED                          2
@@ -243,20 +248,26 @@ IMPLEMENTED                      12
 IMPLEMENTED / VERIFIED OFFLINE    1
 CLOSED / VERIFIED OFFLINE         4
 VERIFIED                          9
+ATTEMPTED v1 / FAILED CLOSED      1
 ```
 
-**PRE-AUTHORING METHODOLOGY FREEZE COMPLETE — study NOT PREREGISTERED.** Method, estimand,
-decision rule, execution infrastructure, and every authoring, review, duplicate-audit,
-invalid-task and ordering procedure are decided and written to the level of pasteable
-briefs and a byte-exact ordering algorithm. What is missing is the study's **content and
-its execution record**: the sixty tasks are unwritten, no review or audit has run, no pool
-is frozen, and no seed has been materialized.
+**AUTHORING v1 FAILED CLOSED — study NOT PREREGISTERED.** Method, estimand, decision rule,
+execution infrastructure, and every review, duplicate-audit, invalid-task, ordering and
+model-pin procedure remain decided and written to the level of pasteable briefs and a
+byte-exact ordering algorithm. **The authoring procedure no longer does.**
+
+One acquisition ran under `CBRP-AUTHORING-PROTOCOL-1` and was adjudicated an INCOMPLETE
+acquisition: 60 candidates produced, 0 admissible, the brief superseded. What is missing is
+therefore both a **methodology amendment** (C-10, Authoring v2) and, after it, the study's
+content and its execution record — no review or audit has run, no pool is frozen, no seed
+has been materialized, and no Chief call has ever been made.
 
 **No methodology decision known to this checklist is open.** Every remaining item is a
 record that an unauthorized run would have to produce:
 
 ```
-C-8            the 60 task texts                      0 authored
+C-8            the 60 task texts                      0 admitted; v1 acquisition FAILED CLOSED
+C-10           Authoring v2 amendment and re-freeze   prospective; not drafted
 D-12           duplicate audit rounds                 0 run
 E-2, E-3       pool manifest and freeze provenance    0 pools frozen
 F-1            the census harness around runPlanningStage()
@@ -264,10 +275,14 @@ A-9, B-7       study-id and decision-rule version strings, fixed at first execut
 H-3            independent bound reproduction by a reviewer
 ```
 
-`[DESIGN]` These are **naturally unexecuted, not undecided.** The distinction is the whole
-status: a study can be fully preregistered and still have produced nothing, and that is
-exactly where this one stands. Describing C-8 or E-2 as an open methodology question would
-misstate what is missing.
+`[DESIGN]` Most of these are **naturally unexecuted, not undecided** — a record that a run
+has to produce, and no run is authorized.
+
+**C-8 and C-10 are the exception, and they changed character in CWP-9B.** Authoring was
+attempted under v1 and **failed closed**: 60 candidates exist, none is admissible, and the
+brief that produced them is superseded. So what stands between here and a task pool is no
+longer only execution — it is a **methodology amendment (C-10) that has not been written**,
+and then a fresh acquisition under it. That is a genuine open decision, not a pending run.
 
 **A-8 is the one item that is neither decided nor merely unexecuted.** It **asserts** the
 routing rubric is operational enough for two readers to agree, and nothing has measured it.

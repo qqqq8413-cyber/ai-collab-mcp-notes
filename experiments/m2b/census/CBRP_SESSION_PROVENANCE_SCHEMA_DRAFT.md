@@ -2,7 +2,9 @@
 
 ```
 STATUS:  DRAFT ｜ NOT ACCEPTED ｜ NOT PREREGISTERED ｜ NOT AUTHORIZED
-SESSIONS RECORDED:  0     AUTHORING 0 ｜ STRUCTURAL REVIEW 0 ｜ DUPLICATE AUDIT 0
+SESSIONS RECORDED:  5     AUTHORING 5 ｜ STRUCTURAL REVIEW 0 ｜ DUPLICATE AUDIT 0
+                          the 5 belong to CBRP-AUTHORING-ROUND-0, whose acquisition
+                          was adjudicated INCOMPLETE / FAILED CLOSED in CWP-9B
 MODEL PINS:  CBRP-SESSION-MODEL-PINS-1  ｜  D3 ROUTING:  CBRP-D3-v1
 ```
 
@@ -275,8 +277,17 @@ this schema exists to make unnecessary.
 ## 6. Status
 
 ```
-authoring sessions 0 ｜ review sessions 0 ｜ audit sessions 0
-tasks produced 0 ｜ pools frozen 0
+authoring sessions 5 ｜ review sessions 0 ｜ audit sessions 0
+candidates produced 60 ｜ tasks ADMITTED 0 ｜ pools frozen 0
 ```
 
-No session has been run and none is authorized.
+The five authoring sessions are `CBRP-AUTHORING-ROUND-0`. Their provenance records are the
+only instance of this schema that exists, and they describe a run whose **acquisition was
+adjudicated INCOMPLETE** in CWP-9B: see
+[`authoring-round-0/AUTHORING_V1_ARCHITECTURE_VERDICT.json`](authoring-round-0/AUTHORING_V1_ARCHITECTURE_VERDICT.json).
+
+`[FACT]` In those five records `providerResolved` and `modelResolved` were **observable and
+matching**, so `pinStatus` reads `OBSERVED` rather than the `OPERATOR ATTESTATION` fallback
+§1.0 allows for. `freshContextConfirmed` remains an attestation.
+
+No further session of any kind has been run, and none is authorized.

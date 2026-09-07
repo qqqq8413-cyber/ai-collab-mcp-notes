@@ -1,9 +1,29 @@
 # CBRP Authoring Brief — DRAFT
 
 ```
-STATUS:  DRAFT ｜ NOT ACCEPTED ｜ NOT PREREGISTERED ｜ NOT AUTHORIZED
-TASKS AUTHORED UNDER THIS BRIEF SO FAR:  0
+BRIEF VERSION:  CBRP-AUTHORING-PROTOCOL-1  —  CLOSED / FAILED
+STATUS:  SUPERSEDED ｜ NOT ACCEPTED ｜ NOT PREREGISTERED ｜ NOT AUTHORIZED
+sha256:  7f1f9ebe4dfde9402d838137a549859a630b60a93dce93a119b70bf9642d665f
+
+TASKS ADMITTED UNDER THIS BRIEF:      0
+CANDIDATES PRODUCED, THEN FAILED:    60   experiments/m2b/census/authoring-round-0/
 ```
+
+> ## Do not run this brief again
+>
+> The one acquisition run under it — `CBRP-AUTHORING-ROUND-0`, five sessions, five provider
+> calls — was ruled an **INCOMPLETE authoring acquisition** by GPT Architecture in CWP-9B:
+> `FORBIDDEN_LITERAL_STOP`. Two of the sixty candidates contained §2.7's prohibited literal
+> *specialist*, in ordinary business usage, and the frozen STOP envelope made that fatal to
+> the run rather than to the two candidates.
+>
+> `[DESIGN]` Method lesson **M-CBRP-AUTH-01**: §2.7's prohibition is **lexical**, and lexical
+> occurrence is not the same concept as steering how the answer gets produced. That is a real
+> defect in this brief — and it is **not retroactive**. v1 stands as written and stands as
+> failed.
+>
+> A renewed acquisition requires **CBRP-AUTHORING-PROTOCOL-2**: a new brief version and hash,
+> a new run ID, and a new candidate namespace. Nothing from round 0 carries forward.
 
 > **This document is the complete brief.** Everything below §1 is written to be pasted
 > into a fresh authoring session with no supplementary explanation. If a session needs
