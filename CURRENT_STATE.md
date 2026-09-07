@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  f5c566f43722ccdd1bdb8f016aa5416b517c19c7
+stateVerifiedThrough  1e182f62472f554ec4a180f3772cf3d3f4169a24
 production            src/** 停在 d01043b（accepted pre-synthesis boundary）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -396,16 +396,66 @@ production 的 planning 半段現在可單獨呼叫、零 worker call,
 `runRound1Stage()` 改為呼叫它,行為與五次時鐘讀取皆經確定性測試證明未位移。
 `planSchema` / `extractJsonObject` / `enforceConstraints` **維持 private**,無重複實作。
 
-其餘 census 工程需求**皆未實作**:
+**CWP-7A 已把其餘 census 工程需求全部實作(離線,零 provider call):**
 
 ```
-CENSUS-REQ-03  durable pre-dispatch attempt reservation     未實作
-CENSUS-REQ-04  source ↔ dist execution binding              未實作（fingerprint 不證明編譯關係）
-CENSUS-REQ-05  Zod installed-byte provenance                未實作（Zod 參與 plan 解析，
-                                                             未來 census provenance 必須涵蓋它；
-                                                             本輪未動任何套件版本，
-                                                             歷史 CAPTURE-3 主張不受影響）
-CENSUS-REQ-06  census recorder / artifact contract           未實作
+CENSUS-REQ-01  runPlanningStage parity                      IMPLEMENTED / VERIFIED
+CENSUS-REQ-02  post-enforcement event source                ARCHITECTURE-DECIDED，已被驗證器重算
+CENSUS-REQ-03  durable pre-dispatch attempt reservation     IMPLEMENTED
+CENSUS-REQ-04  source ↔ dist execution binding              IMPLEMENTED
+CENSUS-REQ-05  Zod installed-byte provenance                IMPLEMENTED
+CENSUS-REQ-06  census recorder / session / verifier          IMPLEMENTED
+```
+
+`[FACT]` **統計方法已實作並驗證:`CBRP-MT-BUEHLER-1`**
+(`experiments/m2b/census/statistics.mjs`,31 項確定性測試)。
+八組 pinned vector、`beta_60 = 0.7357675420279305` 支援守衛、單調性、
+`L(k) = 1 − U(N−k)` 對稱性、分區轉折全部通過;並有測試**拒絕**在
+`k = 1` 與 `k = N−1` 使用 ordinary CP 的值。數值合約固定:bracket `[0,1]`、
+tolerance 1e-14、200 次固定 bisection、無隨機、決策比較**不四捨五入**、顯示 6 位。
+
+```
+M-CBRP-STAT-01   規格 CLOSED ｜ 實作 VERIFIED
+decision 不對稱   ARCHITECTURE-DECIDED / ACCEPTED FOR PHASE 1
+                  —— 只有 k=0 能得 TOO_SPARSE；INCONCLUSIVE 是合法的預先登記結果
+```
+
+`[FACT]` **durable one-attempt registry**:append-only NDJSON + 每筆 fsync,
+reservation 在 provider 邊界**之前**落盤。重啟後可分辨三種狀態;
+`reserved 但未 settled` = **AMBIGUOUS ATTEMPT CONSUMED** → session `INCOMPLETE`、
+**不重試、不替換、不跳過**、不再發任何 call。
+
+`[FACT]` **source ↔ dist binding**:以 `git archive` 取出授權 commit 的 `src/` 與 build config,
+用倉庫自己釘住的編譯器在暫存目錄重建,對輸出取確定性 digest 後與執行用 `dist/` 比對。
+**歷史 `runtimeFingerprint` 的定義未被改動** —— 這是另一份獨立記錄。
+
+`[FACT]` **census dependency baseline `CBRP-CENSUS-DEPS-1` 含 Zod**
+(`plan.assignments` 由 `planSchema.parse()` 產生,Zod 就在事件的產生路徑上)。
+census 有**自己的** baseline 物件,不與 capture 共用;未改任何套件版本,
+**歷史 CAPTURE-2 / CAPTURE-3 主張不受影響**。
+
+`[FACT]` **session 格式為 `CBRP-CENSUS-1`,不是 CAPTURE-3。** planning-only:
+
+```
+allowed stage             planning（round1_worker / synthesis / gate / round2 / decision 全部拒絕）
+global logical budget     60          per-task budget   1        （無 slots×4 語意）
+planning pin              openai / gpt-5，無 fallback、無替代
+transport                 explicit-no-retry
+失敗處理                   provider / parse / schema / constraint / resolved-pin 失敗
+                          → 保存證據、STOP、sessionStatus = INCOMPLETE、無統計判定
+                          **失敗絕不轉成 Y = 0**
+verdict gate              僅在 COMPLETE 且恰好 60 筆有效 settled、每題各一次時才產生判定，
+                          否則 NO_STATISTICAL_VERDICT
+```
+
+離線 rehearsal 42 項測試涵蓋 k=0 / k=6 / k=7、六十次成功、各類失敗路徑、
+budget 第 61 次、worker-stage 拒絕、重複 attempt、未 settle 的復原、
+依賴與 build 不符、以及 12 種 artifact 竄改。
+**測試用 fixture 全部標記 TEST-ONLY / NOT CBRP CANDIDATES,永不得升格為真實題目。**
+
+```
+真實 CBRP 題目已出       0        live provider call   0
+census 已執行            NO       study 仍為 NOT PREREGISTERED / NOT AUTHORIZED
 ```
 
 ```

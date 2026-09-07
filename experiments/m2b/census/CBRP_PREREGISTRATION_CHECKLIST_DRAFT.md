@@ -47,16 +47,16 @@ STATUS:  DRAFT
 | # | Item | Status | Note |
 |---|---|---|---|
 | B-0 | Model: independent, **non-identically** distributed Bernoulli; estimand `p̄ = (1/N)Σpi`; count is Poisson-binomial, never an ordinary Binomial | **ARCHITECTURE-DECIDED** | Census §2.2 |
-| B-1 | **M-CBRP-STAT-01** — heterogeneous-Bernoulli-valid Buehler-optimal one-sided bounds (Mattner–Tasto), α = 0.05, β = 0.95 | **ARCHITECTURE-DECIDED** | Method chosen; **implementation still open — see B-2** |
+| B-1 | **M-CBRP-STAT-01** — specification | **ARCHITECTURE-DECIDED** | Specification **CLOSED**; implemented as `CBRP-MT-BUEHLER-1` |
 | B-1b | MT endpoints: `k = 1` lower `(1−β)/N`, `k = N−1` upper `1−(1−β)/N`, CP interior | **ARCHITECTURE-DECIDED** | Census §5.2 |
 | B-1c | Independence is a **modeling assumption**, not attested by fingerprint / model pin / provider pin | **ARCHITECTURE-DECIDED** | Census §5.2.1 |
-| B-2 | Interval **implementation**, including the two MT special cases | **OPEN** | Census §5.3; must be pinned before execution |
-| B-3 | Numerical convention — tolerance, iteration bound, reported precision | **OPEN** | |
-| B-4 | Edge cases `k = 0`, `k = 1`, `k = N−1`, `k = N` | **OPEN** | `k = 0` decides TOO_SPARSE, so its handling is load-bearing; `k = 1` and `k = N−1` are where MT and CP differ |
-| B-5 | Independent reproduction path for both bounds | **OPEN** | A second toolchain as cross-check, not as source of truth |
+| B-2 | Interval **implementation**, including the two MT special cases | **VERIFIED** | `statistics.mjs`; 31 tests including rejection of CP at `k = 1` and `k = N−1` |
+| B-3 | Numerical convention — tolerance, iteration bound, reported precision | **VERIFIED** | `NUMERICAL_CONTRACT`: bracket [0,1], 1e-14, 200 fixed iterations, unrounded decisions, 6-dp display |
+| B-4 | Edge cases `k = 0`, `k = 1`, `k = N−1`, `k = N` | **VERIFIED** | All four pinned; plus a `beta_N` support guard that fails closed |
+| B-5 | Independent reproduction path for both bounds | **OPEN** | Eight vectors are pinned to 12 decimals for an external toolchain to reproduce; the cross-check itself is not yet run |
 | B-6 | Point estimate reported descriptively only | **ARCHITECTURE-DECIDED** | The ≥ 10% point-estimate rule is explicitly rejected |
 | B-7 | Decision-rule version string recorded in the artifact | **OPEN** | |
-| B-8 | Asymmetry of the rule stated in any published result | **OPEN** | Only `k = 0` yields TOO_SPARSE; see Census §5.2 |
+| B-8 | Asymmetry of the rule, and INCONCLUSIVE as a valid outcome | **ARCHITECTURE-DECIDED** | Accepted for Phase 1; must be stated alongside any verdict |
 
 ---
 
@@ -113,13 +113,13 @@ STATUS:  DRAFT
 | F-3 | Proof the extraction moved no behaviour | **VERIFIED** | Full Round 1 output, provider call order and the five-read stepped clock all asserted unchanged |
 | F-4 | Chief system prompt unchanged | **ARCHITECTURE-DECIDED** | |
 | F-5 | `SPECIALIST_CAP`, registry, planner logic unchanged | **ARCHITECTURE-DECIDED** | |
-| F-6 | Planning provider/model pin | **OPEN** | P03 used `openai/gpt-5`; not carried over by default |
-| F-7 | Transport retry policy for census calls | **OPEN** | CAPTURE-3's `explicit-no-retry` is the obvious candidate |
-| F-8 | Dependency provenance recorded and enforced against a baseline | **OPEN** | `dependency-provenance.mjs` exists and would apply |
+| F-6 | Planning provider/model pin | **ARCHITECTURE-DECIDED** | `openai/gpt-5`, no fallback, no substitution; `EXPECTED_PLANNING_PIN`, enforced pre-call and by the verifier |
+| F-7 | Transport retry policy for census calls | **IMPLEMENTED** | `explicit-no-retry` reused; every call records `transportMaxRetriesRequested = 0` |
+| F-8 | Dependency provenance recorded and enforced against a baseline | **IMPLEMENTED** | `census-provenance.mjs`, own baseline `CBRP-CENSUS-DEPS-1`, Zod included |
 | F-9 | Runtime fingerprint recorded | **OPEN** | Scope stays src/ + dist/; dependency provenance stays separate |
-| F-10 | Call budget | **OPEN** | One planning call per task implies 60; the ceiling must be explicit |
-| F-11 | STOP rules — integrity violations, budget, fingerprint drift | **OPEN** | |
-| F-12 | Retrieval and temperature policy | **OPEN** | |
+| F-10 | Call budget | **IMPLEMENTED** | 60 global, 1 per task; no slots×4 semantics |
+| F-11 | STOP rules — integrity violations, budget, failure paths | **IMPLEMENTED** | Pre-dispatch refusals cost no attempt; settled failures stop the session with no verdict |
+| F-12 | Retrieval and temperature policy | **IMPLEMENTED** | Both refused pre-call by the census recorder |
 
 ---
 
@@ -156,8 +156,8 @@ eventDeep ｜ eventAssignedGte2 ｜ eventJoint
 |---|---|---|
 | G-1 | Session field set | **DRAFT** |
 | G-2 | Per-task field set | **DRAFT** |
-| G-3 | Event fields recomputable from the raw response | **OPEN** |
-| G-4 | Verifier for census artifacts | **OPEN** |
+| G-3 | Event fields recomputable from the post-enforcement plan | **VERIFIED** |
+| G-4 | Verifier for census artifacts | **IMPLEMENTED** |
 
 ---
 
@@ -165,8 +165,8 @@ eventDeep ｜ eventAssignedGte2 ｜ eventJoint
 
 | # | Item | Status | Note |
 |---|---|---|---|
-| H-1 | Analysis script design | **OPEN** | Must recompute events from artifacts, never read `eventJoint` as given |
-| H-2 | Reproducibility check — same artifacts, same verdict | **OPEN** | |
+| H-1 | Analysis recomputation | **IMPLEMENTED** | The verifier recomputes events, k, bounds and zone; never reads `eventJoint` as given |
+| H-2 | Reproducibility check — same artifacts, same verdict | **VERIFIED** | Bit-identical bounds on repeat; the verifier re-derives the verdict from artifacts |
 | H-3 | Independent bound reproduction by a reviewer | **OPEN** | See B-5 |
 | H-4 | Descriptive measures reported | **PROPOSED** | Census §8 |
 | H-5 | No causal language in results | **ARCHITECTURE-DECIDED** | |
@@ -196,39 +196,49 @@ read any of 03–06 as implemented; they are not.**
 |---|---|---|---|
 | **CENSUS-REQ-01** | `runPlanningStage()` parity — a production plan obtainable with zero worker calls, behaviour provably unmoved | **IMPLEMENTED** | Extracted; 32 planning-stage tests and 18 Round 1 boundary tests, both in the root test command |
 | **CENSUS-REQ-02** | Post-enforcement event source — the formal assignment count is `runPlanningStage().plan.assignments.length`, never the raw Chief JSON | **ARCHITECTURE-DECIDED** | Documented in Census §2.2; a test pins that raw 5 becomes enforced 4. **The census consumer of it does not exist yet** |
-| **CENSUS-REQ-03** | Durable **pre-dispatch** attempt reservation — a task must be recorded as attempted before its call leaves, so a crash cannot hide a spent attempt | **OPEN** | Not implemented. The capture recorder reserves a budget slot pre-call and journals post-settle; a census needs the attempt itself durable before dispatch |
-| **CENSUS-REQ-04** | Source ↔ dist execution binding — proof that the executed `dist/` was built from the authorized source HEAD | **OPEN** | Not implemented. The runtime fingerprint hashes both trees but does **not** establish that one was compiled from the other |
-| **CENSUS-REQ-05** | Zod installed-byte provenance | **OPEN** | Not implemented. Zod parses the plan, so it is on the path that produces the event; a census must attest its installed bytes as the provider SDKs are attested. Package versions unchanged by this round |
-| **CENSUS-REQ-06** | Census-specific recorder and artifact contract | **OPEN** | Not implemented. Draft schema in §G; no recorder, no session driver, no analysis runner |
+| **CENSUS-REQ-03** | Durable **pre-dispatch** attempt reservation | **IMPLEMENTED** | `attempt-registry.mjs`: append-only NDJSON, fsync per record, three distinguishable recovery states; reserved-but-unsettled = `AMBIGUOUS_ATTEMPT_CONSUMED`, session INCOMPLETE, no retry |
+| **CENSUS-REQ-04** | Source ↔ dist execution binding | **IMPLEMENTED** | `build-binding.mjs`: `git archive` the authorized commit, rebuild with the pinned compiler, digest and compare. Historical `runtimeFingerprint` untouched |
+| **CENSUS-REQ-05** | Zod installed-byte provenance | **IMPLEMENTED** | In the census baseline with lock integrity, manifest hash, entrypoint, digest and file count. No package version changed |
+| **CENSUS-REQ-06** | Census-specific recorder and artifact contract | **IMPLEMENTED** | `planning-recorder.mjs`, `census-session.mjs` (`CBRP-CENSUS-1`), `census-verify.mjs`; 42 rehearsal tests |
 
 ## J. Readiness summary
 
 ```
 77 checklist items
 
-ARCHITECTURE-DECIDED   28
+ARCHITECTURE-DECIDED   30
 PROPOSED                8
-OPEN                   36
+OPEN                   18
 DRAFT                   2
-IMPLEMENTED             2     （CENSUS-REQ-01 and F-2: the same extraction）
-VERIFIED                1     （F-3: parity proven by deterministic test）
+IMPLEMENTED            13
+VERIFIED                6
 ```
+
+**Still not preregistration-ready, and the remaining gap is no longer engineering.**
+Everything a live session needs to refuse a bad run now exists and is tested. What
+is missing is the study's *content* and its *procedure*: the sixty tasks, who
+writes them and how, who reviews them, what happens to an invalid one, and the
+order they run in.
 
 **Not preregistration-ready.** The blocking clusters, in the order they gate
 each other:
 
-1. **B-2 … B-5** — the interval implementation decides the verdict; it cannot be
-   chosen at analysis time.
-2. **D-2, D-3, D-6, E-4, E-5** — authoring, review and ordering must be fixed
-   before a single task is written, or the pool inherits whatever was convenient.
-3. **C-8** — the 60 tasks. Nothing can be frozen until they exist, and they may
-   not be authored until the items above are settled.
-4. **CENSUS-REQ-03 … 06** — the census harness itself. `runPlanningStage()` now
-   exists (CENSUS-REQ-01), so the remaining engineering is the recorder, the
-   durable attempt reservation, the source↔dist binding and Zod provenance.
-   None is implemented, and none is authorized by the packet that produced this.
+1. **D-2, D-3, D-6, E-4, E-5** — authoring, review, invalid-task handling and
+   ordering must be fixed before a single task is written, or the pool inherits
+   whatever was convenient at the time.
+2. **C-8** — the 60 tasks. Nothing can be frozen until they exist, and they may
+   not be authored until the items above are settled. **0 authored.**
+3. **B-5** — an independent reproduction of the bounds in a second toolchain. The
+   vectors are pinned for it; the cross-check has not been run.
+4. **E-2, E-3, E-6** — the freeze itself: task hashes, freeze provenance, and the
+   ordering seed committed before execution.
 
 `[OPEN]` One structural gap worth naming: **A-8 asserts the routing rubric is
 operational, and nothing currently measures it.** D-3's two-reviewer design is
 the only proposal that would turn that assertion into a number. If a single
 reviewer is chosen instead, the rubric's central claim stays untested.
+
+`[OPEN]` A second: **the census harness has been rehearsed, never run.** Every
+path is exercised against a stub, which proves the refusals fire and the artifact
+is verifiable. It does not prove the production Chief behaves as the stub did, and
+nothing offline can.
