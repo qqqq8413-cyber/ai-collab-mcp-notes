@@ -91,6 +91,13 @@ p̄ = (1/N) · Σ pi          over the frozen CBRP population
 
 Required name for this quantity: **reference-population assignment rate**.
 
+`[ARCHITECTURE-DECIDED]` **The inferential target is the average one-draw event
+probability over the exact frozen CBRP tasks.** It does **not** include
+task-sampling uncertainty from a larger real-world population, per-task
+repeatability, production-wide prevalence, or any claim that a task's
+classification is deterministic. Encoded as `ESTIMAND_SCOPE` in `statistics.mjs`
+so the exclusions travel with the number.
+
 **Model assumption:** independent, potentially **non-identically distributed**
 Bernoulli observations. The count `K = Σ Yi` is a **Poisson-binomial** count, an
 inhomogeneous Bernoulli chain — **not** an ordinary Binomial random variable, and
@@ -434,20 +441,41 @@ preregistered order — **reduce avoidable nonstationarity**. They do not prove
 backend stochastic independence, and no artifact this study can produce would.
 Any result must state the assumption rather than imply it was verified.
 
-`[OPEN]` **The rule is asymmetric and this must be stated in any result.** Only
-`k = 0` can produce TOO_SPARSE, so the design rules *in* far more readily than it
-rules *out*. A single event makes a sparse-but-nonzero rate unresolvable at
-N = 60. Whether that asymmetry is acceptable, or whether TOO_SPARSE should
-require a larger N, is an architecture decision this draft does not make.
+`[ARCHITECTURE-DECIDED]` **The rule is asymmetric, and the asymmetry is accepted
+for Phase 1.** Only `k = 0` can produce TOO_SPARSE, so the design rules *in* far
+more readily than it rules *out*, and a single event makes a sparse-but-nonzero
+rate unresolvable at N = 60. That is accepted rather than engineered away.
+
+**INCONCLUSIVE is a valid preregistered outcome.** It is what the design returns
+when sixty observations genuinely do not separate the hypotheses, and reporting it
+is the study working. The alternative — enlarging N after seeing k, or moving θ
+until a bound lands somewhere decisive — is exactly what preregistering the rule
+prevents. Any result must state the asymmetry alongside the verdict.
 
 ### 5.3 Exact interval implementation — OPEN
 
-`[OPEN]` **M-CBRP-STAT-01 — heterogeneous Bernoulli interval specification.**
-Not chosen here, deliberately. The bounds decide the study's verdict, so the
-implementation must be preregistered rather than picked at analysis time. It must
-implement the MT endpoints of §5.2, **including the `k = 1` and `k = N−1` special
-cases** — an implementation that silently used CP throughout would be wrong in
-exactly the two places the correction exists for.
+`[CLOSED]` **M-CBRP-STAT-01 — heterogeneous Bernoulli interval specification.**
+
+```
+specification   CLOSED
+implementation  CBRP-MT-BUEHLER-1  →  experiments/m2b/census/statistics.mjs
+status          VERIFIED — 31 deterministic tests, all eight pinned vectors,
+                beta_60 guard, monotonicity, L(k) = 1 − U(N−k), zone transitions
+```
+
+The implementation pins the numerical contract — bracket `[0,1]`, tolerance 1e-14,
+200 fixed bisection iterations, no stochastic step, unrounded decision comparisons,
+six-decimal display — and implements the MT endpoints of §5.2 **including the
+`k = 1` and `k = N−1` special cases**. A test asserts that ordinary CP's values at
+those two points are *rejected*, since an implementation that silently used CP
+throughout would agree everywhere else and be wrong exactly where the correction
+matters.
+
+It also fails closed below the Buehler-optimality condition
+`beta_N = (1 − 1/N)^(N−1)(2 − 1/N)`, which is `0.7357675420279305` at N = 60. The
+method is not applied outside its supported range.
+
+The candidate approaches below are retained as the record of what was considered.
 
 | Approach | For | Against |
 |---|---|---|
