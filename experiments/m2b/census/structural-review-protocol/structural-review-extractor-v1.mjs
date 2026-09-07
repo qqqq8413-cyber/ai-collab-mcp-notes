@@ -56,7 +56,7 @@ const sha256 = (value) => crypto.createHash('sha256').update(value, 'utf8').dige
  * accepted -- accepting arbitrary tags would turn "recognize a fence" into
  * "guess what the model meant by a fence," which is repair, not normalization.
  */
-const OPENING_FENCE_LINE = /^```(?:json)?[ \t]*$/i;
+const OPENING_FENCE_LINE = /^```(?:json)?$/i;
 const BARE_FENCE = '```';
 
 function isPlainObject(value) {
@@ -114,11 +114,12 @@ function tryPlainJsonObject(raw) {
  * optional surrounding whitespace, and nothing else.
  */
 function tryCompleteOuterFence(raw) {
-  const trimmed = raw.trim();
-  const lines = trimmed.split(/\r?\n/);
+  const lines = raw.split(/\r?\n/);
+  while (lines.length > 0 && /^[ \t]*$/.test(lines[0])) lines.shift();
+  while (lines.length > 0 && /^[ \t]*$/.test(lines[lines.length - 1])) lines.pop();
   if (lines.length < 3) return null;
   if (!OPENING_FENCE_LINE.test(lines[0])) return null;
-  if (lines[lines.length - 1].trim() !== BARE_FENCE) return null;
+  if (lines[lines.length - 1] !== BARE_FENCE) return null;
   const inner = lines.slice(1, -1).join('\n').trim();
   if (!inner.startsWith('{')) return null;
   let parsed;

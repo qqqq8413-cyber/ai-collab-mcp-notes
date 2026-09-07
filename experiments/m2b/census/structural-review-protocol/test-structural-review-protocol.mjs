@@ -224,6 +224,51 @@ check('COMPLETE_OUTER_FENCE, json-tagged fence (case-insensitive)', () => {
   assert.equal(r1.representationDetected, REPRESENTATIONS.COMPLETE_OUTER_FENCE);
 });
 
+check('COMPLETE_OUTER_FENCE rejects leading whitespace on a bare opening fence', () => {
+  const r = extractStructuralReviewResponse(' ```\n{"a":1}\n```');
+  assert.equal(r.ok, false);
+});
+
+check('COMPLETE_OUTER_FENCE rejects trailing whitespace on a bare opening fence', () => {
+  const r = extractStructuralReviewResponse('``` \n{"a":1}\n```');
+  assert.equal(r.ok, false);
+});
+
+check('COMPLETE_OUTER_FENCE rejects leading whitespace on a json opening fence', () => {
+  const r = extractStructuralReviewResponse(' ```json\n{"a":1}\n```');
+  assert.equal(r.ok, false);
+});
+
+check('COMPLETE_OUTER_FENCE rejects trailing whitespace on a json opening fence', () => {
+  const r = extractStructuralReviewResponse('```json \n{"a":1}\n```');
+  assert.equal(r.ok, false);
+});
+
+check('COMPLETE_OUTER_FENCE rejects leading whitespace on the closing fence', () => {
+  const r = extractStructuralReviewResponse('```\n{"a":1}\n ```');
+  assert.equal(r.ok, false);
+});
+
+check('COMPLETE_OUTER_FENCE rejects trailing whitespace on the closing fence', () => {
+  const r = extractStructuralReviewResponse('```\n{"a":1}\n``` ');
+  assert.equal(r.ok, false);
+});
+
+check('COMPLETE_OUTER_FENCE rejects a tab before the closing fence', () => {
+  const r = extractStructuralReviewResponse('```\n{"a":1}\n\t```');
+  assert.equal(r.ok, false);
+});
+
+check('COMPLETE_OUTER_FENCE rejects a tab after the closing fence', () => {
+  const r = extractStructuralReviewResponse('```\n{"a":1}\n```\t');
+  assert.equal(r.ok, false);
+});
+
+check('COMPLETE_OUTER_FENCE rejects a language tag on the closing fence', () => {
+  const r = extractStructuralReviewResponse('```\n{"a":1}\n```json');
+  assert.equal(r.ok, false);
+});
+
 check('ORPHAN_TRAILING_FENCE, LF line boundary', () => {
   const r = extractStructuralReviewResponse('{"a":1}\n```');
   assert.equal(r.ok, true);
