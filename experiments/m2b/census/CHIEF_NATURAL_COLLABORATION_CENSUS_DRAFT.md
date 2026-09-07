@@ -475,6 +475,25 @@ It also fails closed below the Buehler-optimality condition
 `beta_N = (1 − 1/N)^(N−1)(2 − 1/N)`, which is `0.7357675420279305` at N = 60. The
 method is not applied outside its supported range.
 
+**INDEPENDENT STATISTICAL REPRODUCTION: VERIFIED.** An independent Codex audit
+reproduced the specification from scratch and matched it: the model
+(`Yi ~ Bernoulli(pi)`, independent and not necessarily identically distributed,
+`K` Poisson-binomial, estimand `p̄ = mean(pi)`); the applicability condition
+`beta_60 = 0.7357675420279305` with β = 0.95 passing it; all eight pinned test
+vectors; the zone transitions at `k = 0` / `1..6` / `7..60`; and the sample-size
+note that 59 is the mathematical minimum while 60 is the smallest balanced
+six-stratum design. **That audit made no change to this repository** — it is a
+second derivation, which is the point of running one.
+
+```
+M-CBRP-STAT-01
+  SPECIFICATION            CLOSED
+  IMPLEMENTATION           VERIFIED
+  INDEPENDENT REPRODUCTION VERIFIED
+```
+
+No methodology blocker remains on the interval formula.
+
 The candidate approaches below are retained as the record of what was considered.
 
 | Approach | For | Against |
@@ -637,6 +656,38 @@ were never production-equivalent.
 
 **Not done here:** no harness, no export, no task pool, no `src/**` change, no
 provider call.
+
+### 10.1 Execution infrastructure, as it now stands
+
+All eight execution requirements are closed offline. The census cannot start
+without passing, in this order and all before any attempt is reserved:
+
+```
+approved Node runtime            process.version pinned, fail-closed
+approved build toolchain         both TypeScript packages attested by installed bytes;
+                                 the compiler resolved by asking the launcher where it
+                                 would exec, and required to land inside that package
+approved dependencies            provider SDKs + Zod, equality against a census baseline
+source -> dist binding           the authorized commit rebuilt and digest-compared
+frozen task identity             text rehashed against the manifest
+durable attempt reservation      fsynced before the provider boundary
+```
+
+`[FACT]` **TypeScript 7 is the native port.** `node_modules/.bin/tsc` is a symlink
+to a shim that execs a platform binary from
+`@typescript/typescript-darwin-arm64`, so the bytes that compile `dist/` are that
+binary and not the `typescript` package's JavaScript. Attesting only the latter
+would attest a launcher.
+
+`[DESIGN]` The Node pin is narrow on purpose. Equal `process.version` does **not**
+make behaviour bit-identical across machines; platform, arch and the other
+`process.versions` fields are recorded as context and never compared. The claim is
+only that the census may not silently run under a different runtime generation
+than the one reviewed and rehearsed.
+
+**None of this touches the historical `runtimeFingerprint`, CAPTURE-2, CAPTURE-3,
+or any Wave claim.** Wave 3's compiler identity was not established by this
+mechanism — the mechanism did not exist then.
 
 ---
 

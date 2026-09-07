@@ -47,13 +47,13 @@ STATUS:  DRAFT
 | # | Item | Status | Note |
 |---|---|---|---|
 | B-0 | Model: independent, **non-identically** distributed Bernoulli; estimand `p̄ = (1/N)Σpi`; count is Poisson-binomial, never an ordinary Binomial | **ARCHITECTURE-DECIDED** | Census §2.2 |
-| B-1 | **M-CBRP-STAT-01** — specification | **ARCHITECTURE-DECIDED** | Specification **CLOSED**; implemented as `CBRP-MT-BUEHLER-1` |
+| B-1 | **M-CBRP-STAT-01** | **VERIFIED** | Specification CLOSED ｜ implementation VERIFIED ｜ independent reproduction VERIFIED. No methodology blocker remains on the interval formula |
 | B-1b | MT endpoints: `k = 1` lower `(1−β)/N`, `k = N−1` upper `1−(1−β)/N`, CP interior | **ARCHITECTURE-DECIDED** | Census §5.2 |
 | B-1c | Independence is a **modeling assumption**, not attested by fingerprint / model pin / provider pin | **ARCHITECTURE-DECIDED** | Census §5.2.1 |
 | B-2 | Interval **implementation**, including the two MT special cases | **VERIFIED** | `statistics.mjs`; 31 tests including rejection of CP at `k = 1` and `k = N−1` |
 | B-3 | Numerical convention — tolerance, iteration bound, reported precision | **VERIFIED** | `NUMERICAL_CONTRACT`: bracket [0,1], 1e-14, 200 fixed iterations, unrounded decisions, 6-dp display |
 | B-4 | Edge cases `k = 0`, `k = 1`, `k = N−1`, `k = N` | **VERIFIED** | All four pinned; plus a `beta_N` support guard that fails closed |
-| B-5 | Independent reproduction path for both bounds | **OPEN** | Eight vectors are pinned to 12 decimals for an external toolchain to reproduce; the cross-check itself is not yet run |
+| B-5 | Independent reproduction of both bounds | **VERIFIED** | Reproduced independently by Codex: model, `beta_60`, all eight pinned vectors, the zone transitions, and N = 59 / 60. No repository change was made by that audit |
 | B-6 | Point estimate reported descriptively only | **ARCHITECTURE-DECIDED** | The ≥ 10% point-estimate rule is explicitly rejected |
 | B-7 | Decision-rule version string recorded in the artifact | **OPEN** | |
 | B-8 | Asymmetry of the rule, and INCONCLUSIVE as a valid outcome | **ARCHITECTURE-DECIDED** | Accepted for Phase 1; must be stated alongside any verdict |
@@ -116,7 +116,7 @@ STATUS:  DRAFT
 | F-6 | Planning provider/model pin | **ARCHITECTURE-DECIDED** | `openai/gpt-5`, no fallback, no substitution; `EXPECTED_PLANNING_PIN`, enforced pre-call and by the verifier |
 | F-7 | Transport retry policy for census calls | **IMPLEMENTED** | `explicit-no-retry` reused; every call records `transportMaxRetriesRequested = 0` |
 | F-8 | Dependency provenance recorded and enforced against a baseline | **IMPLEMENTED** | `census-provenance.mjs`, own baseline `CBRP-CENSUS-DEPS-1`, Zod included |
-| F-9 | Runtime fingerprint recorded | **OPEN** | Scope stays src/ + dist/; dependency provenance stays separate |
+| F-9 | Runtime fingerprint recorded | **OPEN** | Scope stays src/ + dist/; dependency, toolchain and Node provenance all sit beside it, never inside it |
 | F-10 | Call budget | **IMPLEMENTED** | 60 global, 1 per task; no slots×4 semantics |
 | F-11 | STOP rules — integrity violations, budget, failure paths | **IMPLEMENTED** | Pre-dispatch refusals cost no attempt; settled failures stop the session with no verdict |
 | F-12 | Retrieval and temperature policy | **IMPLEMENTED** | Both refused pre-call by the census recorder |
@@ -197,21 +197,25 @@ read any of 03–06 as implemented; they are not.**
 | **CENSUS-REQ-01** | `runPlanningStage()` parity — a production plan obtainable with zero worker calls, behaviour provably unmoved | **IMPLEMENTED** | Extracted; 32 planning-stage tests and 18 Round 1 boundary tests, both in the root test command |
 | **CENSUS-REQ-02** | Post-enforcement event source — the formal assignment count is `runPlanningStage().plan.assignments.length`, never the raw Chief JSON | **ARCHITECTURE-DECIDED** | Documented in Census §2.2; a test pins that raw 5 becomes enforced 4. **The census consumer of it does not exist yet** |
 | **CENSUS-REQ-03** | Durable **pre-dispatch** attempt reservation | **IMPLEMENTED** | `attempt-registry.mjs`: append-only NDJSON, fsync per record, three distinguishable recovery states; reserved-but-unsettled = `AMBIGUOUS_ATTEMPT_CONSUMED`, session INCOMPLETE, no retry |
-| **CENSUS-REQ-04** | Source ↔ dist execution binding | **IMPLEMENTED** | `build-binding.mjs`: `git archive` the authorized commit, rebuild with the pinned compiler, digest and compare. Historical `runtimeFingerprint` untouched |
+| **CENSUS-REQ-04** | Source ↔ dist execution binding | **IMPLEMENTED / VERIFIED OFFLINE** | Now consumes CENSUS-REQ-07 and -08: toolchain and runtime are asserted before the reference build, and travel in the artifact. Historical `runtimeFingerprint` untouched |
 | **CENSUS-REQ-05** | Zod installed-byte provenance | **IMPLEMENTED** | In the census baseline with lock integrity, manifest hash, entrypoint, digest and file count. No package version changed |
-| **CENSUS-REQ-06** | Census-specific recorder and artifact contract | **IMPLEMENTED** | `planning-recorder.mjs`, `census-session.mjs` (`CBRP-CENSUS-1`), `census-verify.mjs`; 42 rehearsal tests |
+| **CENSUS-REQ-06** | Census-specific recorder and artifact contract | **IMPLEMENTED** | `planning-recorder.mjs`, `census-session.mjs` (`CBRP-CENSUS-1`), `census-verify.mjs`; 69 rehearsal tests |
+| **CENSUS-REQ-07** | Build toolchain provenance | **CLOSED / VERIFIED OFFLINE** | Both TypeScript packages attested. TS 7 is the native port, so the compiler is a binary in `@typescript/typescript-darwin-arm64`; the executable is resolved by asking the launcher, not by reading a path, and must land inside the approved package |
+| **CENSUS-REQ-08** | Node runtime pin | **CLOSED / VERIFIED OFFLINE** | `process.version` pinned at `v24.15.0` and fail-closed; platform, arch and other `process.versions` fields recorded as context and never compared |
 
 ## J. Readiness summary
 
 ```
-77 checklist items
+79 checklist items
 
-ARCHITECTURE-DECIDED   30
-PROPOSED                8
-OPEN                   18
-DRAFT                   2
-IMPLEMENTED            13
-VERIFIED                6
+ARCHITECTURE-DECIDED             29
+PROPOSED                          8
+OPEN                             17
+DRAFT                             2
+IMPLEMENTED                      12
+IMPLEMENTED / VERIFIED OFFLINE    1
+CLOSED / VERIFIED OFFLINE         2
+VERIFIED                          8
 ```
 
 **Still not preregistration-ready, and the remaining gap is no longer engineering.**
@@ -228,10 +232,14 @@ each other:
    whatever was convenient at the time.
 2. **C-8** — the 60 tasks. Nothing can be frozen until they exist, and they may
    not be authored until the items above are settled. **0 authored.**
-3. **B-5** — an independent reproduction of the bounds in a second toolchain. The
-   vectors are pinned for it; the cross-check has not been run.
-4. **E-2, E-3, E-6** — the freeze itself: task hashes, freeze provenance, and the
+3. **E-2, E-3, E-6** — the freeze itself: task hashes, freeze provenance, and the
    ordering seed committed before execution.
+
+**The remaining blockers are all methodology and content, not engineering.** Every
+execution-infrastructure requirement CENSUS-REQ-01 … 08 is now closed offline. What
+stands between here and a preregisterable study is: who writes the sixty tasks and
+how, who reviews them, what happens to an invalid one, what order they run in, and
+then the tasks themselves and their freeze.
 
 `[OPEN]` One structural gap worth naming: **A-8 asserts the routing rubric is
 operational, and nothing currently measures it.** D-3's two-reviewer design is

@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  1e182f62472f554ec4a180f3772cf3d3f4169a24
+stateVerifiedThrough  364c6c133640cbc7712bbf0b0beb8640850ef957
 production            src/** 停在 d01043b（accepted pre-synthesis boundary）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -396,16 +396,44 @@ production 的 planning 半段現在可單獨呼叫、零 worker call,
 `runRound1Stage()` 改為呼叫它,行為與五次時鐘讀取皆經確定性測試證明未位移。
 `planSchema` / `extractJsonObject` / `enforceConstraints` **維持 private**,無重複實作。
 
-**CWP-7A 已把其餘 census 工程需求全部實作(離線,零 provider call):**
+**census 的執行基礎設施已全部離線關閉(CWP-7A + CWP-7B,零 provider call):**
 
 ```
-CENSUS-REQ-01  runPlanningStage parity                      IMPLEMENTED / VERIFIED
-CENSUS-REQ-02  post-enforcement event source                ARCHITECTURE-DECIDED，已被驗證器重算
-CENSUS-REQ-03  durable pre-dispatch attempt reservation     IMPLEMENTED
-CENSUS-REQ-04  source ↔ dist execution binding              IMPLEMENTED
-CENSUS-REQ-05  Zod installed-byte provenance                IMPLEMENTED
-CENSUS-REQ-06  census recorder / session / verifier          IMPLEMENTED
+CENSUS-REQ-01  runPlanningStage parity                      CLOSED / VERIFIED
+CENSUS-REQ-02  post-enforcement event source                ARCHITECTURE-DECIDED（驗證器重算）
+CENSUS-REQ-03  durable pre-dispatch attempt reservation     CLOSED
+CENSUS-REQ-04  source ↔ dist execution binding              CLOSED / VERIFIED OFFLINE
+CENSUS-REQ-05  Zod installed-byte provenance                CLOSED
+CENSUS-REQ-06  census recorder / session / verifier          CLOSED OFFLINE（已排演）
+CENSUS-REQ-07  build toolchain provenance                   CLOSED / VERIFIED OFFLINE
+CENSUS-REQ-08  node runtime pin                             CLOSED / VERIFIED OFFLINE
 ```
+
+`[FACT]` **CENSUS-REQ-07 —— TypeScript 7 是 native port。** `node_modules/.bin/tsc`
+是指向兩行 shim 的符號連結,該 shim 解析並 exec
+`@typescript/typescript-darwin-arm64` 內的原生執行檔。**真正編譯出 `dist/` 的位元組是那個
+23 MB 的原生二進位檔,不是 `typescript` 套件的 JavaScript** —— 只證明後者等於只證明了一個啟動器。
+兩個套件現在都在 census baseline 內;執行檔的身分是**問啟動器它會 exec 什麼**得到的,
+不是讀路徑字串,且必須落在核准套件之內。
+
+```
+typescript                           locked/installed 7.0.2 ｜ digest 2681b5b2… ｜ 416 files
+@typescript/typescript-darwin-arm64  locked/installed 7.0.2 ｜ digest 119d596e… ｜ 113 files
+compiler executable                  node_modules/@typescript/typescript-darwin-arm64/lib/tsc
+                                     sha256 a82f7313…
+```
+
+`[FACT]` **CENSUS-REQ-08 —— Node runtime pin `v24.15.0`,fail-closed。**
+`[DESIGN]` 這個 pin 刻意狹窄:**相同 Node 版本並不保證跨機器 bit-identical 行為**,
+platform / arch / 其他 `process.versions` 欄位只作 recorded context,**不參與比對**。
+它唯一的用途是:census 不得在未經審查的另一個 runtime 世代下被靜默執行。
+
+toolchain 與 Node 的檢查都在 **reference build 之前**執行 —— 編譯器若未經核准,
+那次重建本身就不構成證據,不值得產生。相關證據隨 build binding 進入 artifact,
+因此驗證器可以在不重建的情況下判定,**且「兩個 digest 相符」不再足以讓竄改過的 artifact 通過**。
+
+**以上一律不改動歷史 `runtimeFingerprint`、CAPTURE-2、CAPTURE-3 或任何 Wave 主張。**
+Wave 3 的 compiler identity **並未**由此機制證明 —— 當時它還不存在。
 
 `[FACT]` **統計方法已實作並驗證:`CBRP-MT-BUEHLER-1`**
 (`experiments/m2b/census/statistics.mjs`,31 項確定性測試)。
@@ -415,10 +443,18 @@ CENSUS-REQ-06  census recorder / session / verifier          IMPLEMENTED
 tolerance 1e-14、200 次固定 bisection、無隨機、決策比較**不四捨五入**、顯示 6 位。
 
 ```
-M-CBRP-STAT-01   規格 CLOSED ｜ 實作 VERIFIED
+M-CBRP-STAT-01   SPECIFICATION CLOSED ｜ IMPLEMENTATION VERIFIED
+                 ｜ INDEPENDENT REPRODUCTION VERIFIED
 decision 不對稱   ARCHITECTURE-DECIDED / ACCEPTED FOR PHASE 1
                   —— 只有 k=0 能得 TOO_SPARSE；INCONCLUSIVE 是合法的預先登記結果
 ```
+
+`[FACT]` **獨立統計重現:VERIFIED。** Codex 的獨立稽核從頭重推並相符 ——
+模型(`Yi ~ Bernoulli(pi)`,獨立、不必同分佈;`K` 為 Poisson-binomial;
+estimand `p̄ = mean(pi)`)、適用條件 `beta_60 = 0.7357675420279305` 且 β = .95 通過、
+八組 pinned vector、`k = 0 / 1..6 / 7..60` 的分區轉折,以及
+「59 是數學最小值、60 是最小的六層平衡設計」。**該次稽核未修改本 repository。**
+interval formula 上已無方法學阻塞。
 
 `[FACT]` **durable one-attempt registry**:append-only NDJSON + 每筆 fsync,
 reservation 在 provider 邊界**之前**落盤。重啟後可分辨三種狀態;
@@ -448,7 +484,7 @@ verdict gate              僅在 COMPLETE 且恰好 60 筆有效 settled、每�
                           否則 NO_STATISTICAL_VERDICT
 ```
 
-離線 rehearsal 42 項測試涵蓋 k=0 / k=6 / k=7、六十次成功、各類失敗路徑、
+離線 rehearsal 69 項測試涵蓋 k=0 / k=6 / k=7、六十次成功、各類失敗路徑、
 budget 第 61 次、worker-stage 拒絕、重複 attempt、未 settle 的復原、
 依賴與 build 不符、以及 12 種 artifact 竄改。
 **測試用 fixture 全部標記 TEST-ONLY / NOT CBRP CANDIDATES,永不得升格為真實題目。**
