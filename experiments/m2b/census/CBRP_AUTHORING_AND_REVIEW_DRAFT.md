@@ -101,68 +101,71 @@ peer challenge ｜ experiment ｜ eligibility ｜ archetype ｜ stratum names as
 
 ---
 
-## 3. Authoring session design — three options
-
-`[OPEN]` Not chosen here.
-
-### Option A — one fresh session authors all 60
-
-| | |
-|---|---|
-| Session-style dependence | **Highest.** One voice, one set of narrative habits across the entire population |
-| Cross-task homogeneity | High risk: 60 tasks that share sentence rhythm and framing |
-| Author contamination | Rises with length — by task 40 the author has inferred a great deal about what is wanted, even unprompted |
-| Consistency | Best: one interpretation of the rubric throughout |
-| Operational burden | Lowest |
-| Auditability | Simple provenance: one session, one transcript |
-
-### Option B — six fresh sessions, one per stratum
-
-| | |
-|---|---|
-| Session-style dependence | **Confounded with stratum.** Each stratum inherits one author's voice, so a stratum difference and an author difference become indistinguishable |
-| Cross-task homogeneity | Lower overall, but high *within* stratum |
-| Author contamination | Lower per session (10 tasks each) |
-| Consistency | Six rubric interpretations; boundary cases may route differently |
-| Operational burden | Moderate |
-| Auditability | Clean: six transcripts, one per stratum |
-
-### Option C — multiple fresh sessions with balanced allocation across strata
-
-Each session authors a few tasks in **several** strata; every stratum is covered
-by several sessions.
-
-| | |
-|---|---|
-| Session-style dependence | **Lowest, and not confounded with stratum** — style spreads across strata rather than aligning with them |
-| Cross-task homogeneity | Lowest |
-| Author contamination | Lowest: short sessions, no long arc to infer from |
-| Consistency | Weakest; needs the routing rubric to carry more weight |
-| Operational burden | Highest: more sessions, more allocation bookkeeping |
-| Auditability | Most transcripts, but a clear allocation table makes it tractable |
-
-### Recommendation
+## 3. Authoring session design — DECIDED
 
 ```
-PROPOSAL ONLY — NOT ACCEPTED
+[ARCHITECTURE-DECIDED]
 
-Option C, with an allocation that gives every stratum tasks from
-at least three different sessions.
+five fresh authoring sessions   AUTHOR-01 … AUTHOR-05
+each authors 12 tasks           two per stratum, all six strata
+                                5 x 2 x 6 = 60
+every stratum therefore draws its ten tasks from all five session identities
 ```
 
-Reasoning: Option B's flaw is disqualifying for this study specifically. The
-estimand is a rate compared across a stratified frame; if author identity aligns
-with stratum, any per-stratum pattern is uninterpretable. Option A is
-acceptable if operational cost dominates, but it maximizes both homogeneity and
-the long-session contamination that blinding is meant to limit. C costs the most
-and is the only option that leaves no structural confound.
+This is the shape that keeps **author identity from being structurally confounded with
+stratum**. The estimand is a rate across a stratified frame, so if a stratum's tasks came
+from one author, a per-stratum difference and an author difference would be the same
+observation and neither could be read. Spreading every session across every stratum makes
+authoring style a source of noise instead of a source of structure.
 
-`[OPEN]` The exact number of sessions and the allocation table are unset. So is
-whether "fresh session" means a fresh model context, a different model, or a
-human author — a real question, since a same-model author shares priors with the
-Chief being measured.
+It also bounds the other risk. A single session authoring all sixty would infer a great
+deal about what is wanted by task forty, unprompted; twelve is short enough that there is
+little arc to infer from.
 
----
+The cost is five sessions instead of one, and a small allocation table. That is the price
+of the confound not existing.
+
+### 3.1 Fresh authoring session — operational definition
+
+`[ARCHITECTURE-DECIDED]` A session qualifies only if **all** of these hold. Each:
+
+- begins as a **new clean conversation**, with no carried context
+- receives **no prior CBRP conversation history**
+- receives **no Chief planning output**, from any run
+- receives **no previously authored task text**, including its own from another session
+- receives **no P03 outcome**
+- receives **no F1 / F2 definition**
+- receives **no formal event definition** — including the fact that assignment count is
+  what gets measured
+- receives **no θ_feas**
+- receives **no desired specialist count**
+- receives **no desired complexity**
+- receives **no provider / model role map**
+- receives **no peer-challenge arm information**
+
+and receives **the same frozen authoring brief** as every other session, byte for byte.
+
+Allowed context, and nothing else:
+
+```
+six-stratum routing rubric ｜ two-per-stratum requirement ｜ realism rules
+self-containment rules ｜ diversity rules ｜ output schema ｜ forbidden leakage list
+```
+
+All of it lives in
+[`CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md`](CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md), whose
+hash is recorded in the pool manifest so a later reader can confirm every session got the
+same brief.
+
+`[OPEN]` Whether "fresh session" is satisfied by a fresh model context, a different model,
+or a human author. A same-model author shares priors with the Chief being measured, which
+is a real limitation of the cheapest reading and is not resolved here.
+
+### 3.2 Session identity is provenance only
+
+`AUTHOR-01 … AUTHOR-05` identify where a task came from. The authoring provider and model
+may be recorded beside them, but **the census does not estimate an author-model effect**
+and no result may be presented as one.
 
 ## 4. Task diversity controls
 
@@ -194,9 +197,24 @@ Each of these is the event definition wearing a diversity costume. The
 distinction is that legitimate dimensions vary properties of the **situation**;
 forbidden ones vary properties of the **expected answer**.
 
-`[OPEN]` Whether diversity is enforced as hard quotas per dimension or as a
-review-time check that no dimension is degenerate. Quotas are auditable but can
-themselves shape the pool; a review check is softer but weaker.
+`[ARCHITECTURE-DECIDED]` The forbidden instructions, stated as instructions rather than
+as guidance, because each is the event definition in a diversity costume:
+
+```
+make some tasks deep
+make some tasks multi-domain
+make some tasks require multiple experts
+ensure disagreement
+ensure multiple specialists
+```
+
+The line is that legitimate dimensions vary properties of the **situation**; forbidden
+ones vary properties of the **expected answer**.
+
+`[OPEN]` Whether diversity is enforced as hard quotas per dimension or as a review-time
+check that no dimension is degenerate. Quotas are auditable but can themselves shape the
+pool; a review check is softer but weaker. The brief currently states the dimensions and
+asks for variation without quotas.
 
 **No actual tasks are designed here.**
 
@@ -251,72 +269,91 @@ review output is what decides whether a task enters the frozen pool.
 
 ---
 
-## 6. Reviewer independence — four options
-
-`[OPEN]` Not chosen here.
-
-| Option | For | Against |
-|---|---|---|
-| **One reviewer for all 60** | Uniform rubric interpretation; boundary cases decided the same way throughout | A single systematic misreading propagates to the whole pool with nothing to catch it |
-| **One reviewer per stratum** | Parallel; each reviewer becomes fluent in one stratum | Reviewer identity aligns with stratum — the same confound rejected for authoring Option B |
-| **Two reviewers per task, disagreement resolved** | Disagreement rate is itself evidence the routing rubric is operational; catches individual misreadings | Doubles review cost; needs a stated resolution procedure |
-| **GPT architecture adjudication for structural disputes only** | A defined terminal authority; keeps unresolved disputes from silently defaulting | Must be strictly limited to structural disputes, or it becomes an outcome-aware editing channel |
-
-### Recommendation
+## 6. Reviewer independence — DECIDED
 
 ```
-PROPOSAL ONLY — NOT ACCEPTED
+[ARCHITECTURE-DECIDED]
 
-Two independent reviewers per task, with GPT architecture adjudication
-reserved for structural disputes the two cannot resolve.
-Reviewers must NOT be assigned by stratum.
+two independent blinded structural reviews per task     <taskId>-R1, <taskId>-R2
+reviewed separately; neither sees the other's answer
+on disagreement, a third fresh blinded reviewer         <taskId>-R3
+majority of the three is final
 ```
 
-Reasoning: the routing rubric's whole justification is that two reviewers can
-usually agree from the task text. Two reviewers make that claim **measurable**
-instead of asserted — the inter-reviewer disagreement rate should be reported as
-a property of the rubric. Adjudication is bounded to structural disputes because
-any wider remit would make the adjudicator an editor with knowledge the authors
-were denied.
+The third reviewer receives the task, its assigned stratum and the same frozen rubric —
+and **not** the two earlier answers, nor the fact that a disagreement occurred. Told there
+was a split, a tie-breaker is answering a different and much easier question than the one
+the other two answered.
 
----
+Two reviewers rather than one because the routing rubric's central claim is that two
+readers can usually agree from the task text. Two makes that **measurable**: the
+inter-reviewer disagreement rate is reported as a property of the rubric rather than
+asserted about it. Reviewers are **not** assigned by stratum, for the same reason authors
+are not.
 
-## 7. Invalid task handling
+### 6.1 GPT does not adjudicate task-level disagreements
 
-`[OPEN]` This remains open before preregistration. The distinction that matters:
+`[ARCHITECTURE-DECIDED]` **FORBIDDEN.** GPT knows the measured event, θ, and the entire
+P03 history. A tie-break from that position is an outcome-aware decision about which tasks
+enter the pool, however carefully it is made, and it would be the one such decision in an
+otherwise blinded procedure.
+
+GPT audits afterwards: the procedure, the aggregate review evidence, protocol compliance.
+The tie-break is a third blinded reviewer.
+
+Full rubric and visibility rules:
+[`CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md`](CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md).
+
+## 7. Invalid task handling — DECIDED
+
+`[ARCHITECTURE-DECIDED]` Three moments, three different rules, because the risk is
+entirely a function of when the problem is found.
+
+### 7.1 Pre-freeze — replacement permitted
+
+Before the pool is frozen and before any Chief output exists, a structurally rejected task
+is discarded and replaced. The replacement:
 
 ```
-pre-freeze structural rejection    caught by review, before any Chief call
-post-first-call invalid discovery  found after execution has begun
+comes from a fresh authoring session under the same frozen brief
+keeps the intended stratum and session quota
+receives two independent structural reviews, and a third on disagreement
 ```
 
-The first is ordinary quality control. The second is dangerous, because by then
-the pool's outcomes are partly known.
+A rejected task **may never re-enter the pool**, and the rejection and replacement lineage
+is preserved in the freeze manifest. Nothing here is outcome-informed: no Chief output
+exists yet, so there is no outcome to be informed by.
 
-| Option | For | Against |
-|---|---|---|
-| **A. Invalid frozen task stays in the denominator** | Maximally conservative; no post-hoc removal is possible, so no outcome-informed exclusion can occur | A genuinely broken task (contradictory, unanswerable) permanently distorts the rate |
-| **B. Excluded under a preregistered structural-invalid rule** | Allows removal of genuinely broken items while binding the criteria in advance | The rule must be airtight and outcome-blind; any ambiguity becomes a discretionary exclusion channel |
-| **C. Pre-freeze replacement permitted; post-freeze replacement forbidden** | Matches where the risk actually is; unlimited fixing before freeze, none after | Says nothing about what to do with an invalid task discovered *after* the freeze |
-
-### Recommendation
+### 7.2 Post-freeze, before the first Chief call — whole-pool re-freeze only
 
 ```
-PROPOSAL ONLY — NOT ACCEPTED
-
-C as the freeze discipline, combined with A as the post-freeze default,
-and B available only under a structural-invalid rule that is written,
-outcome-blind, and preregistered before the first planning call.
+no task-text rewrite ｜ no task-content replacement
 ```
 
-Reasoning: C and A are compatible and address different moments — C governs
-authoring, A governs execution. B is worth having only if its criteria are
-fixed in advance and can be applied from the task text alone; a rule invented
-after seeing which tasks produced inconvenient results is not a rule.
+A **task-content methodological defect** invalidates the **complete pool freeze**: work
+returns to authoring and review, and a new pool version covering all sixty tasks is frozen.
+Patching one task would leave a pool whose members were admitted under two standards, with
+nothing in the artifact recording which.
 
-**Absolute:** no outcome-informed replacement, under any option.
+A **mechanical packaging error** may be corrected only if the **task bytes are unchanged**
+and the correction is fully auditable.
 
----
+### 7.3 After the first Chief call — nothing moves
+
+```
+no rewrite ｜ no replacement ｜ no exclusion ｜ no stratum reassignment
+```
+
+If a frozen task is then found to have a genuine structural defect: **STOP**, study status
+`INCOMPLETE`, return to GPT Architecture Review. **A task is never dropped from the
+denominator because of its result.**
+
+### 7.4 Execution failure is not structural invalidity
+
+`[DECISION]` The two must not be mixed. Provider, parse, schema, constraint and
+resolved-pin failures remain governed by the census session contract — preserve, STOP,
+`INCOMPLETE`, `NO_STATISTICAL_VERDICT`, no retry — and none of them says anything about
+whether the task was well formed.
 
 ## 8. Freeze boundary
 
@@ -338,39 +375,85 @@ allows, and not one case further.
 
 ---
 
-## 9. Ordering / randomization
-
-`[OPEN]` Not chosen here. The concern is that provider behaviour may drift over
-a session, so the order in which strata meet the Chief can confound stratum with
-time.
-
-| Rule | Temporal / provider drift | Reproducibility | Auditability | Stratum clustering |
-|---|---|---|---|---|
-| **Deterministic task-id order** | Worst: if ids are grouped by stratum, stratum aligns exactly with time | Perfect | Perfect — no seed to check | Maximal |
-| **Seeded random order** | Good on average; a single draw can still cluster | Perfect given a preregistered seed | Good — seed must be committed *before* execution | Possible by chance |
-| **Stratum-blocked seeded randomization** | Good: each block contains all six strata, so drift hits strata evenly | Perfect given the seed | Good | Bounded by construction |
-| **Round-robin interleaving across strata** | Best against drift; strictly even spacing | Perfect, no seed needed | Best — order is derivable from the manifest | None, but the pattern is rigid and predictable |
-
-### Recommendation
+## 9. Ordering — DECIDED
 
 ```
-PROPOSAL ONLY — NOT ACCEPTED
+[ARCHITECTURE-DECIDED]
 
-Stratum-blocked seeded randomization: ten blocks of six, one task per
-stratum per block, order within block from a seed committed before execution.
+seeded ROUND-ROBIN INTERLEAVING across the six strata
+
+ten rounds, each containing exactly one task from each stratum
+within-stratum order, and the order of the six strata within each round,
+come from the frozen seed procedure
+
+NOT six contiguous stratum blocks
 ```
 
-Reasoning: it bounds clustering by construction like round-robin, while keeping
-within-block order unpredictable, and it stays exactly reproducible from a
-committed seed. The seed must be in the frozen commit — a seed chosen after
-seeing any result is not a seed.
+### 9.1 What it buys, and what it does not
 
----
+Provider behaviour may drift across a session, so the order in which strata meet the Chief
+can confound **stratum identity** with **execution time**. Round-robin bounds that by
+construction: each stratum appears once per round, so drift is spread evenly across all
+six rather than concentrated in whichever ran last. Seeding the within-round order keeps
+the sequence from being a fixed, predictable pattern while staying exactly reproducible.
+
+`[DESIGN]` **It reduces structural confounding. It does not prove the absence of time
+effects.** No ordering can; the claim available is that stratum and position are not
+aligned by construction.
+
+### 9.2 Seed governance
+
+The seed must be derived **after** all sixty tasks are frozen and **before** any Chief
+planning output exists:
+
+```
+task freeze commit
+  → seed derivation
+  → deterministic order materialization
+  → order manifest commit and push
+  → Final Pre-Live Review
+  → only then may LIVE authorization even be considered
+```
+
+**A seed may never be selected on the basis of observed Chief output**, and the order
+manifest is a separate artifact from the pool manifest precisely so the freeze commit
+exists before the seed can be computed.
+
+### 9.3 Seed method
+
+```
+PROPOSAL FOR GPT REVIEW — not accepted
+
+seed = SHA-256( frozenPoolCommitSha + "\n" + "CBRP-ORDER-v1" )
+
+then: a deterministic permutation derived from that seed, by a stated algorithm,
+      applied within each stratum and to the six positions of each round
+```
+
+Its property is the one that matters: **the seed is a function of a commit that already
+exists**, so there is exactly one seed and no discretionary choice. Seed shopping — trying
+values until an attractive ordering appears — is not merely forbidden but unavailable,
+because there is nothing to try.
+
+The domain separator `CBRP-ORDER-v1` is preregistered so the derivation cannot be quietly
+re-run with a different literal to obtain a different permutation.
+
+`[OPEN]` The exact permutation algorithm from seed bytes to ordering is not fixed here.
+Whatever is chosen must be deterministic, stated in advance, and independently reproducible
+from the committed seed — and it must be fixed before the freeze, not after.
 
 ## 10. What this document is not
 
 ```
-0 tasks authored          0 reviewers assigned       0 sessions run
-no option accepted        no seed chosen             no pool frozen
-no provider call          no harness
+0 tasks authored          0 reviews run              0 authoring sessions run
+0 pools frozen            0 seeds derived            0 provider calls
 ```
+
+Procedure is now decided; **content does not exist**. The study is a
+**PREREGISTRATION CANDIDATE**, not preregistered: no task pool exists, no review has run,
+no freeze has occurred, and no ordering seed has been materialized.
+
+`[DESIGN]` The author and reviewer procedures **reduce outcome-targeted selection bias.
+They do not eliminate it.** CBRP remains a balanced synthetic reference frame, and no
+result from it may be upgraded to production-wide, real-user prevalence, or a natural
+production distribution.

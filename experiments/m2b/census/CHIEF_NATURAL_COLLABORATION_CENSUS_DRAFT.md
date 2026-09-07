@@ -523,6 +523,27 @@ identifiable channel — writing toward a known target — has been removed.
 
 Full envelope: [`CBRP_AUTHORING_AND_REVIEW_DRAFT.md`](CBRP_AUTHORING_AND_REVIEW_DRAFT.md).
 
+### 6.1 Procedure, as decided in CWP-8A
+
+```
+authoring     5 fresh sessions AUTHOR-01..05, each 12 tasks, 2 per stratum
+              every stratum draws from all five sessions, so author identity is
+              never confounded with stratum
+brief         one frozen brief, byte-identical to every session
+              CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md
+review        2 independent blinded structural reviews per task, 3rd on disagreement,
+              majority final; GPT does NOT adjudicate at task level
+              CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md
+invalid task  pre-freeze: discard and replace from a fresh session, lineage preserved
+              post-freeze pre-call: whole-pool re-freeze only, never a one-task patch
+              post-first-call: STOP, INCOMPLETE, return to GPT — never dropped for its result
+ordering      seeded round-robin across the six strata, ten rounds of six
+              seed derived from the frozen pool commit, after freeze, before any output
+manifest      CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md
+```
+
+`[DESIGN]` **Procedure is frozen; content does not exist.** Nothing above has been run.
+
 ---
 
 ## 7. Phase 1 measures assignment, not F2
@@ -694,8 +715,16 @@ mechanism — the mechanism did not exist then.
 ## 11. What this draft is not
 
 ```
-not accepted        not preregistered      not authorized
+PREREGISTRATION CANDIDATE — not preregistered, not authorized
+
 not protocol 0.4    not an effectiveness study
 does not change F1-F7 ｜ Chief ｜ P03 evidence ｜ M-ACQ-01 status
-0 tasks authored ｜ 0 harness code ｜ 0 provider calls
+0 tasks authored ｜ 0 reviews run ｜ 0 pools frozen ｜ 0 seeds ｜ 0 provider calls
 ```
+
+**Why candidate and not preregistered.** The method, the estimand, the decision rule, the
+execution infrastructure and now the authoring, review, invalid-task and ordering
+procedures are all decided. What does not exist is the study's content and its execution
+record: the sixty tasks have not been written, no review has run, no pool has been frozen,
+and no ordering seed has been materialized. Preregistration is the point at which all of
+that is fixed and committed, and none of it is.

@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  f2940cb58288dbaae3593986751cda6919352a23
+stateVerifiedThrough  cdcab3c361072f2e0469a654e60959d82fec8edf
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -524,6 +524,47 @@ budget 第 61 次、worker-stage 拒絕、重複 attempt、未 settle 的復原�
 真實 CBRP 題目已出       0        live provider call   0
 census 已執行            NO       study 仍為 NOT PREREGISTERED / NOT AUTHORIZED
 ```
+
+### CWP-8A —— preregistration 程序凍結（內容未凍結)
+
+`[ARCHITECTURE-DECIDED]` 剩下的方法學程序已全部裁定,文件共六份於 `experiments/m2b/census/`:
+
+```
+authoring     5 個 fresh session（AUTHOR-01…05），每個 12 題、每 stratum 2 題
+              → 每個 stratum 的十題都來自全部五個 session
+              目的：作者身分絕不與 stratum 結構性共線 —— 否則 per-stratum 差異
+              與作者差異會是同一個觀察，兩者都讀不出來
+brief         單一凍結 brief，逐位元組相同地交給每個 session
+              CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md（可直接貼入，無需補充說明）
+review        每題兩份獨立盲審，不一致時交第三位盲審，三取二定案
+              CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md
+invalid task  凍結前：丟棄並由 fresh session 依同一 brief 補題，保存 lineage
+              凍結後、首次 call 前：只能整池重新凍結，不得單題修補
+              首次 call 之後：STOP / INCOMPLETE / 回 GPT —— 絕不因結果把題目移出分母
+ordering      六層 seeded round-robin，十輪、每輪六題各一層（非連續分塊）
+manifest      CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md（task id 只編碼 stratum）
+```
+
+`[DECISION]` **GPT 不擔任個別 task 的盲審仲裁。** GPT 知道被測事件、θ 與完整 P03 歷史;
+從那個位置做 tie-break,等於在一套盲化程序中唯一一次以知情狀態決定題目能否入池。
+GPT 事後稽核程序與彙總證據,**tie-break 交給第三位盲審**。
+
+`[DESIGN]` seed 必須在**凍結之後、任何 Chief 輸出之前**導出,方法提案為
+`SHA-256(frozenPoolCommit + "CBRP-ORDER-v1")` —— 其性質是**種子是一個已存在 commit 的函數**,
+因此只有一個種子,「試到好看的順序為止」不是被禁止,而是**不存在可試的東西**。
+方法標記為 `PROPOSAL FOR GPT REVIEW`,由 seed 位元組到排列的演算法仍 `[OPEN]`。
+
+```
+study status:  PREREGISTRATION CANDIDATE —— 尚未 PREREGISTERED
+理由：程序已定，內容不存在 —— 60 題未寫、0 份審查、0 次凍結、0 個 seed
+checklist:     83 項 —— 42 ARCHITECTURE-DECIDED / 12 IMPLEMENTED / 9 VERIFIED
+               / 4 CLOSED-VERIFIED-OFFLINE / 1 IMPLEMENTED-VERIFIED-OFFLINE
+               / 4 DRAFT / 3 PROPOSED / 8 OPEN
+```
+
+`[DESIGN]` 出題與審查程序**降低**以結果為導向的選擇偏誤,**不消除**它。
+CBRP 仍是**平衡的合成參照框架**,不得升級為 production-wide、real-user prevalence
+或 natural production distribution。
 
 ```
 study status              NOT PREREGISTERED ｜ NOT AUTHORIZED
