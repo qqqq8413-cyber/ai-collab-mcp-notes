@@ -1,0 +1,138 @@
+{
+  "actualAuthorSessionId": "AUTHOR21-B04-S00",
+  "extractorRepresentation": "PLAIN_JSON",
+  "candidates": [
+    {
+      "taskCandidateId": "V21-B04-S00-SC-01",
+      "authorBlockId": "AUTHOR21-B04",
+      "actualAuthorSessionId": "AUTHOR21-B04-S00",
+      "stratumDeclaredByAuthor": "Strategy / Commitment",
+      "stratumCode": "SC",
+      "indexInResponse": 0,
+      "taskText": "I run Meridian Cold Chain, a refrigerated logistics provider operating across the Benelux region. We currently generate €28M in annual revenue with an EBITDA margin of 14%. We have reached a strategic juncture where we must commit our entire remaining borrowing capacity (€12M under our existing credit facility) to one of two mutually exclusive paths, both of which require board sign-off by the end of this month.\n\nOption A is acquiring Vandeberg Logistics, a family-owned competitor in Antwerp. Vandeberg has €11M in revenue, an aging fleet, and long-standing contracts with three major Belgian pharmaceutical distributors. The acquisition price is €10.5M cash plus €1.5M in immediate fleet refurbishments. This deal gives us instant market density in Flanders, high-barrier pharma accounts, and immediate revenue scale, but it carries labor integration risks and inherits an older, leased warehouse facility with six years remaining on unfavorable lease terms.\n\nOption B is constructing a fully automated, multi-temperature cold-storage hub on our owned land adjacent to the Port of Rotterdam. The €12M capital expenditure would fund automated storage and retrieval systems (ASRS) that cut labor requirements per pallet by 55% and lower refrigeration energy costs by 30%. This project will take 18 months to commission, during which it generates zero revenue, but once live, it establishes a proprietary cost and efficiency moat against regional competitors and enables higher-margin deep-freeze (-25°C) bio-storage.\n\nOur debt covenants restrict us from undertaking both projects within the next four years. Which strategic direction should Meridian Cold Chain commit to?",
+      "taskBytes": 1688,
+      "taskSha256": "85f8c2cd0235b05ce0df0994d961a1ea1f52567e8dfb91a49f96967255587d74"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-SC-02",
+      "authorBlockId": "AUTHOR21-B04",
+      "actualAuthorSessionId": "AUTHOR21-B04-S00",
+      "stratumDeclaredByAuthor": "Strategy / Commitment",
+      "stratumCode": "SC",
+      "indexInResponse": 1,
+      "taskText": "I am the founder and CEO of Aurelia Diagnostics, an early-stage diagnostics firm. We developed a proprietary microfluidic chip capable of running rapid multiplex respiratory panels at the point of care with central-lab sensitivity. We hold three core patents and have completed CE-IVD registration, with FDA 510(k) clearance currently in review.\n\nWe have reached the end of our initial runway and must choose between two irreversible commercial models:\n\n1. Exclusive Global OEM Licensing: A multinational medical technology conglomerate has offered a $9M upfront license fee, an ongoing 7.5% royalty on consumable cartridge sales, and full funding for all manufacturing scale-up and global distribution. In exchange, Aurelia must grant them exclusive worldwide rights across all clinical indications for ten years. Aurelia would downsize to a core R&D team of 8 scientists, eliminating commercial and manufacturing overhead while yielding predictable cash flow.\n\n2. Independent Direct Commercialization: A syndicate of venture investors has offered $16M in Series B funding at a pre-money valuation of $32M. This capital would fund our own ISO-13485 manufacturing facility, a direct hospital sales force in the US, and regional distributor partnerships in Europe. We retain full ownership of our brand, technology, and future clinical panels (e.g., oncology and sepsis), but take on intense commercial execution risk, inventory liabilities, and direct competition with established diagnostic giants who control hospital procurement channels.\n\nOur board meets in ten days to vote. Which commercial strategy should Aurelia commit to?",
+      "taskBytes": 1631,
+      "taskSha256": "81cc4cc14e562ccd71829d7950c304354ec1da617c68981dff24e679b1648ed5"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-OP-01",
+      "authorBlockId": "AUTHOR21-B04",
+      "actualAuthorSessionId": "AUTHOR21-B04-S00",
+      "stratumDeclaredByAuthor": "Operations / Execution",
+      "stratumCode": "OP",
+      "indexInResponse": 2,
+      "taskText": "We are the operations leadership team for the Northfield Municipal Water District. The district board has approved the complete replacement of 32,000 legacy mechanical water meters with automated smart meters across four distinct geographic quadrants over an 8-month execution window running from April 1 to November 30.\n\nOur execution parameters and operational constraints are as follows:\n- Quadrant 1 (Downtown Commercial): 4,000 meters. Installations can only take place during night shifts (20:00 to 05:00) due to commercial traffic restrictions. Average install time is 45 minutes per meter.\n- Quadrant 2 (High-Density Residential): 12,000 meters. Standard single-family and small multi-family indoor/outdoor settings. Average install time is 25 minutes per meter.\n- Quadrant 3 (Suburban Residential): 10,000 meters. Outdoor pit meters with easy curbside access. Average install time is 18 minutes per meter.\n- Quadrant 4 (Rural/Hillside): 6,000 meters. Significant driving distance between meters (average 15 minutes transit between sites). Average install time is 30 minutes per meter.\n\nWorkforce availability:\n- Internal union staff: 12 full-time technicians working 8-hour shifts, maximum 5 days per week. Under union agreements, internal staff cannot be mandated to work night shifts.\n- Contract field technicians: A third-party firm has provided 8 technicians who can work day or night shifts on 8-hour blocks.\n- Quality assurance: Every installed meter requires a digital signal handshake test before a crew can leave the zone; failed handshake rate runs at historical 4%, requiring an immediate 15-minute diagnostic protocol.\n\nProvide an operational staging and crew sequencing plan that allocates internal and contracted crews across the four quadrants to complete all 32,000 installations within the 8-month timeline while respecting shift and union constraints.",
+      "taskBytes": 1878,
+      "taskSha256": "ac4959ba77a149fcf44c6d9332c25edcbed2538626835e6fe588b5dd2c655112"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-OP-02",
+      "authorBlockId": "AUTHOR21-B04",
+      "actualAuthorSessionId": "AUTHOR21-B04-S00",
+      "stratumDeclaredByAuthor": "Operations / Execution",
+      "stratumCode": "OP",
+      "indexInResponse": 3,
+      "taskText": "I am the head of production at Kestrel Confections. We produce high-end boxed chocolates and have committed to fulfilling wholesale holiday orders for 60 specialty retail stores totaling 48,000 16-piece gift boxes across an 8-week production run starting October 1st and ending November 24th.\n\nOur facility constraints and process steps are:\n1. Ganache and Center Preparation: Kitchen capacity allows preparing 600 kg of fillings per day. Fillings require a mandatory 24-hour setting time in climate room A before enrobing.\n2. Shell Molding & Enrobing: We have two tempering lines. Line 1 processes dark chocolate at a maximum throughput of 120 kg per hour. Line 2 processes milk and white chocolate at 80 kg per hour. Both lines operate a single 8-hour daily shift (effective run time: 7 hours after sanitation and setup). Each finished box contains 200g of chocolate product (60% dark, 40% milk/white).\n3. Packing & Boxing: Manual sorting and automated box-sleeve sealing machine has a maximum capacity of 1,200 finished boxes per 8-hour shift. We have 4 packaging operators.\n4. Finished Goods Storage: Our temperature-controlled holding room can hold a maximum of 10,000 finished boxes at any one time. Shipments to retail distributors occur in four scheduled pickup batches: 8,000 boxes at the end of Week 2; 12,000 at Week 4; 16,000 at Week 6; and 12,000 at Week 8.\n\nHow should we sequence daily batch production, chocolate tempering line utilization, and packaging schedules to meet all four shipping milestones without exceeding the 10,000-box cold-storage limit or causing line bottlenecks?",
+      "taskBytes": 1598,
+      "taskSha256": "2626b0395afdd26f1c5cf628ae81ff28867d545a30e218f045af9f51816dfa8b"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-BC-01",
+      "authorBlockId": "AUTHOR21-B04",
+      "actualAuthorSessionId": "AUTHOR21-B04-S00",
+      "stratumDeclaredByAuthor": "Brand / Creative",
+      "stratumCode": "BC",
+      "indexInResponse": 4,
+      "taskText": "I am the marketing director for Vael, a technical mountaineering apparel brand founded in 1988. Our brand reputation is built on extreme-condition outerwear tested in alpine and polar environments. Our core line carries technical naming conventions (e.g., 'Expedition Hardshell 8000') and an austere, functional visual identity favored by serious alpinists and rescue guides.\n\nOver the past two years, 45% of our revenue has organically shifted toward urban professionals purchasing our high-end waterproof shells for daily city commuting. In response, we are launching an urban mobility line featuring tailored waterproof topcoats, commuter blazers with hidden thermal regulation, and weather-resistant trousers.\n\nWe face a fundamental branding dilemma:\n- Our alpine community values Vael's uncompromised, utilitarian credibility. Long-time brand advocates express concern in user forums that urban lifestyle positioning will dilute the brand's technical authority.\n- Urban commuter customers find our current brand voice overly aggressive, intimidating, and overly focused on mountain survival rather than architectural aesthetics, workplace versatility, and sophisticated daily utility.\n\nWe need to decide whether to launch this line under the masterbrand (Vael), as a distinct sub-brand (e.g., Vael Atelier or Vael Lab), or via a new standalone brand identity. How should the brand position, name, and architect this new line, and what should be its core narrative and tonal direction to succeed in the urban market without alienating our mountaineering heritage?",
+      "taskBytes": 1567,
+      "taskSha256": "22819f9c2bbd3dcbd3d7847cce311555befb6283c2f10fcebb5c9a7423ec633e"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-BC-02",
+      "authorBlockId": "AUTHOR21-B04",
+      "actualAuthorSessionId": "AUTHOR21-B04-S00",
+      "stratumDeclaredByAuthor": "Brand / Creative",
+      "stratumCode": "BC",
+      "indexInResponse": 5,
+      "taskText": "I am the managing director of Eldridge & Sons, a 120-year-old British manufacturer of handcrafted solid-hardwood furniture. Historically, we have traded on traditional craftsmanship, bespoke commissions, and generational longevity, selling through heritage department stores and our single rural showroom. Our visual identity relies on classic serif typography, deep forest green and gold hues, and imagery emphasizing woodworking planes and sawdust.\n\nTo secure our commercial future, we are launching a direct-to-consumer line of flat-pack, tool-free assembly solid-oak furniture designed for apartment living. The line can be assembled in under five minutes using patented precision-milled joinery.\n\nOur current brand presentation feels stuffy, aristocratic, and out of touch with 28- to 45-year-old design-conscious urban renters and first-time homeowners. However, completely shedding our heritage risks making us look like an undifferentiated, disposable venture-backed flat-pack brand.\n\nWhat creative direction, tonal voice, and brand positioning framework should Eldridge & Sons adopt across its visual identity and messaging to authentically communicate modern engineering and urban convenience while retaining the prestige of our 120-year woodworking provenance?",
+      "taskBytes": 1271,
+      "taskSha256": "8dd01e86376a931da127a5a300313d9d8e69e92c5df0db80255019b9929051f0"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-EI-01",
+      "authorBlockId": "AUTHOR21-B04",
+      "actualAuthorSessionId": "AUTHOR21-B04-S00",
+      "stratumDeclaredByAuthor": "Evidence Interpretation",
+      "stratumCode": "EI",
+      "indexInResponse": 6,
+      "taskText": "I manage growth analytics for ApexFlow, a B2B SaaS workflow management tool. In Q3, we deployed a major redesign of our user onboarding flow. Under the legacy onboarding, new signups were dropped directly into a blank workspace with a simple product tour checklist. Under the new onboarding, users are forced to complete a mandatory 4-step setup wizard (role selection, inviting at least one teammate, connecting a cloud storage integration, and selecting a starter template) before accessing the dashboard.\n\nOur product and marketing teams are locked in an argument over the 90-day post-launch cohort data:\n\n- Signup-to-Workspace Completion Rate: Dropped from 68% under the legacy flow to 44% under the new wizard flow.\n- Team Activation Rate (defined as workspaces where ≥2 users complete an action within 7 days): Rose from 14% of total signups to 21% of total signups.\n- Day-30 Retention: Increased from 18% to 29% for all completed workspaces.\n- Trial-to-Paid Conversion: Fell from 3.8% of total signups to 3.4% of total signups overall; however, average contract value (ACV) of converting accounts increased by 42% (from $1,200/yr to $1,704/yr).\n- Support Ticket Volume: Onboarding friction tickets increased by 55%, while 'how-to-use' feature confusion tickets during weeks 2–4 decreased by 38%.\n- Paid Acquisition Context: Paid search ad spend and top-of-funnel signup volume remained constant across both periods, but marketing switched 25% of the ad budget from Google Search to LinkedIn Lead Gen halfway through the quarter.\n\nThe marketing team argues the new onboarding is harming top-of-funnel conversion and choking growth. The product team argues the new flow is successfully qualifying higher-value teams and driving stickiness.\n\nWhat does this dataset actually indicate about the impact of the onboarding redesign versus the underlying shifts in acquisition quality?",
+      "taskBytes": 1887,
+      "taskSha256": "0963792c8b4e049419471f71fd7730aab860bc60be1bdae130276287146279a4"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-EI-02",
+      "authorBlockId": "AUTHOR21-B04",
+      "actualAuthorSessionId": "AUTHOR21-B04-S00",
+      "stratumDeclaredByAuthor": "Evidence Interpretation",
+      "stratumCode": "EI",
+      "indexInResponse": 7,
+      "taskText": "I am the head of clinical research at a workplace health consultancy. We conducted a 6-month prospective study across a 1,200-employee engineering firm to evaluate three distinct ergonomics interventions designed to reduce reported neck and lower-back musculoskeletal pain among remote workers.\n\nEmployees were assigned to three trial arms and a control group:\n- Group A (n=300): Received an ergonomic home-office hardware stipend ($600 per worker for task chairs/monitor arms).\n- Group B (n=300): Required to install background software that prompts mandatory 3-minute posture and mobility micro-breaks every 50 minutes of active screen time.\n- Group C (n=300): Assigned a 30-minute monthly one-on-one virtual consultation with a licensed physiotherapist.\n- Control Group D (n=300): Received standard digital ergonomic guideline PDF sheets with no active intervention.\n\nCollected Outcome Data at Month 6:\n1. Pain Score Reduction (Visual Analog Scale 0–10, baseline average across all groups was 6.2):\n   - Group A: Mean reduction of 1.4 points. Survey completion rate at month 6: 78%.\n   - Group B: Mean reduction of 0.6 points. Survey completion rate at month 6: 42% (software compliance logs showed only 28% of users kept the application active past Month 2).\n   - Group C: Mean reduction of 1.9 points. Survey completion rate at month 6: 86%.\n   - Group D: Mean reduction of 0.8 points. Survey completion rate at month 6: 64%.\n2. Ergonomics-Related Sick Leave Days (total cumulative days per cohort over 6 months):\n   - Group A: 142 days (vs 160 baseline equivalent)\n   - Group B: 155 days (vs 158 baseline equivalent)\n   - Group C: 98 days (vs 162 baseline equivalent)\n   - Group D: 168 days (vs 159 baseline equivalent)\n3. Confounding Context: Two months into the trial, the company announced a mandatory return-to-office policy of 2 days per week, causing widespread employee dissatisfaction reported in company-wide engagement surveys.\n\nWhat does this evidence actually demonstrate regarding the comparative efficacy, compliance, and clinical validity of these three interventions?",
+      "taskBytes": 2091,
+      "taskSha256": "e64e7d085b5a04361de2647e1367b7b92dc88789b799f425554dbc973c7bd3bf"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-PS-01",
+      "authorBlockId": "AUTHOR21-B04",
+      "actualAuthorSessionId": "AUTHOR21-B04-S00",
+      "stratumDeclaredByAuthor": "Product / Service Design",
+      "stratumCode": "PS",
+      "indexInResponse": 8,
+      "taskText": "I run asset management for Sovereign Commercial, a firm managing four Class-A downtown office towers totaling 1.6 million square feet. Due to hybrid work models, our tenant office occupancy averages 58% on peak days (Tuesday–Thursday) and 22% on Mondays and Fridays. Our buildings contain extensive underutilized common infrastructure: 14 premium boardrooms, two auditorium spaces, three tenant lounges, an executive gym, and 12 vacant spec suites.\n\nWe want to design and launch an internal flexible amenity and workspace membership service called 'Sovereign Pass'. This offering will be sold both to our existing commercial leaseholders (who want flexible overflow space for distributed employees without expanding leased square footage) and to vetted external corporate teams seeking downtown meeting and co-working privileges.\n\nDesign the product and service structure for Sovereign Pass. Specifically, define the membership tiers, included access entitlements versus chargeable add-on mechanics, booking and cancellation rules for premium meeting spaces, and operational access controls to ensure existing long-term tenants do not experience amenity overcrowding or security degradation.",
+      "taskBytes": 1193,
+      "taskSha256": "4b53556bde66034390b1d8a6e10c9e3ff24e1b1a4439041e36dd1b5c7ca06b04"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-PS-02",
+      "authorBlockId": "AUTHOR21-B04",
+      "actualAuthorSessionId": "AUTHOR21-B04-S00",
+      "stratumDeclaredByAuthor": "Product / Service Design",
+      "stratumCode": "PS",
+      "indexInResponse": 9,
+      "taskText": "I am the managing partner of Cedar Valley Pediatric Dentistry, a group practice with three clinical locations and eight dentists. Approximately 34% of the families in our operating territory are uninsured or underinsured, leading to high cancellation rates for routine preventative visits and frequent emergency department referrals for avoidable pediatric dental infections.\n\nWe want to design an in-house direct-to-consumer pediatric dental membership plan that families pay annually or monthly. The goal is to provide predictable subscription revenue for the clinic, encourage strict preventative compliance for children aged 1 to 17, and make restorative dental work financially manageable for parents without accepting third-party insurance write-downs.\n\nWhat should the structure and clinical scope of this membership service be? Please define the service tiers (accounting for age brackets such as infants vs. adolescents), exact preventative care inclusions, discounted pricing mechanics for restorative and emergency treatments (e.g., fillings, crowns, pulpotomies), terms of membership, and policies regarding non-compliance or missed appointments.",
+      "taskBytes": 1158,
+      "taskSha256": "7ee5f7c9c55a163c9307913048544f07f032196244041785be2a80dfd556856a"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-FR-01",
+      "authorBlockId": "AUTHOR21-B04",
+      "actualAuthorSessionId": "AUTHOR21-B04-S00",
+      "stratumDeclaredByAuthor": "Finance / Resource Allocation",
+      "stratumCode": "FR",
+      "indexInResponse": 10,
+      "taskText": "I am the director of the Oakridge Regional Library System. Our board has received a one-time municipal capital improvement allocation of $2,400,000 that must be fully committed across our capital accounts before the end of the fiscal year. We have received three competing funding proposals from our department heads, totaling $3,650,000 in requests:\n\n1. Central Branch Infrastructure Renewal (Request: $1,400,000):\n   - Critical replacement of the 30-year-old HVAC system ($850,000) and roof repair ($550,000). If deferred, engineering reports project emergency repair costs could reach $300,000 over the next two years, with risk of building closure during extreme summer heat. No external matching funds available.\n\n2. Mobile Digital Inclusion Units (Request: $1,100,000):\n   - Purchase and outfitting of two custom tech-enabled mobile library vans ($550,000 each) to serve 14 rural and low-income community centers lacking broadband access. A regional philanthropic foundation has formally pledged a $400,000 matching grant that is contingent upon the library system funding at least $700,000 from its own capital allocation toward this specific initiative.\n\n3. Regional Heritage Archive Digitization & Public Learning Lab (Request: $1,150,000):\n   - High-throughput scanning equipment, digital repository licensing, and construction of an interactive public media classroom. Projected to generate $95,000 annually in university research licensing and paid workshop fees, while preserving historical state collections currently degrading in non-climate-controlled storage.\n\nHow should we allocate the finite $2,400,000 municipal capital fund across these three initiatives to maximize operational viability, external grant capture, and community service continuity?",
+      "taskBytes": 1769,
+      "taskSha256": "91b86869f809b7e422ede216c536758fd1abc215c0a1cfe402920d9c3dbfc51a"
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-FR-02",
+      "authorBlockId": "AUTHOR21-B04",
+      "actualAuthorSessionId": "AUTHOR21-B04-S00",
+      "stratumDeclaredByAuthor": "Finance / Resource Allocation",
+      "stratumCode": "FR",
+      "indexInResponse": 11,
+      "taskText": "I am the VP of Engineering at Solas Robotics. We design autonomous mobile robots (AMRs) for industrial fulfillment centers. Our executive committee has approved the hiring of 14 new full-time engineering headcount positions for the upcoming fiscal year. Our engineering department is divided into three distinct units, all of which are currently constrained and demanding resources:\n\n1. Core Fleet Reliability & Firmware (Current headcount: 12):\n   - Requesting 6 engineers. The existing fleet of 800 deployed robots is experiencing a mean-time-between-failure (MTBF) of 420 hours against an SLA target of 600 hours. Missing SLA targets will trigger financial penalty rebates to our two largest enterprise logistics customers totaling up to $45,000 per month starting next quarter.\n\n2. Next-Gen Hardware & Sensor R&D (Current headcount: 8):\n   - Requesting 5 engineers. This team is designing our Gen-3 robot chassis featuring solid-state LiDAR and a 35% higher payload capacity. Completing this prototype within 9 months is a contractual condition for closing a $4M exclusive deployment contract with an automotive manufacturing partner.\n\n3. Customer Integration & Field Engineering (Current headcount: 6):\n   - Requesting 6 engineers. Responsible for mapping customer warehouses, integrating our API with customer ERP/WMS systems, and on-site commissioning. We currently have a 4-month deployment backlog representing $2.8M in unrecognized booked revenue that cannot be billed until commissioning is signed off.\n\nProvide an allocation plan distributing the 14 available engineering headcount positions across these three units, specifying the distribution and justifying the trade-offs based on revenue recognition, SLA risk, and milestone obligations.",
+      "taskBytes": 1754,
+      "taskSha256": "d91ab31759592579022d19221a07b0ce9beed1cad68007bb25abd7f8e954a2d6"
+    }
+  ]
+}

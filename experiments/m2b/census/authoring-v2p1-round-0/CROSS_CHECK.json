@@ -1,0 +1,17 @@
+{
+  "runId": "CBRP-AUTHORING-V2P1-ROUND-0",
+  "method": "independent re-implementation, no import of cbrp-author-extractor.mjs",
+  "officialCandidateCount": 60,
+  "independentlyRecoveredCount": 60,
+  "countsMatch": true,
+  "stratumTotals": {
+    "Strategy / Commitment": 10,
+    "Operations / Execution": 10,
+    "Brand / Creative": 10,
+    "Evidence Interpretation": 10,
+    "Product / Service Design": 10,
+    "Finance / Resource Allocation": 10
+  },
+  "problems": [],
+  "status": "CROSS_CHECK_PASS"
+}

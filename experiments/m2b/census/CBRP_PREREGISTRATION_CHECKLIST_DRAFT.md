@@ -78,9 +78,9 @@ STATUS:  DRAFT
 | C-5 | Diversity dimensions | **ARCHITECTURE-DECIDED** | Nine dimensions of the situation; five forbidden instructions about the answer |
 | C-6 | Diversity handling | **ARCHITECTURE-DECIDED** | **No quotas.** Variation requested in the brief; a descriptive diversity report before freeze. Diversity is **not** an admission gate — only structural failure or a confirmed duplicate causes replacement |
 | C-7 | Duplicate handling | **ARCHITECTURE-DECIDED** | Removed from per-task review — one reviewer sees one task. Corpus audit over all 60 texts: 2 blinded auditors, 3rd on a disputed pair, retention by lexicographically smallest candidate ID |
-| C-8 | **The 60 tasks themselves** | **v1 FAILED CLOSED / v2 INCOMPLETE** | **0 admitted.** v1 produced 60 barred failed-acquisition candidates. CWP-10B attempted v2: B01 produced 12 mechanically extractable provisional candidates; B02 malformed output triggered the run-level STOP after the second call; B03-B05 were not called. The 12/60 v2 records are **unreviewed and not admissible**. No retry, repair or replacement ran |
+| C-8 | **The 60 tasks themselves** | **v1 FAILED CLOSED / Protocol-2 INCOMPLETE / Protocol-2.1 ACQUIRED-UNREVIEWED** | **0 admitted.** v1 produced 60 barred failed-acquisition candidates. Protocol 2's `CBRP-AUTHORING-V2-ROUND-0` stopped incomplete at B02 (12/60, not carried forward). Protocol 2.1's `CBRP-AUTHORING-V2P1-ROUND-0` (CWP-10E) completed all five sessions: **60/60 candidates acquired**, mechanically verified twice (extractor + an independent no-shared-code cross-check), **still unreviewed and not admissible** — no structural review, duplicate audit, freeze or ordering has run |
 | C-10 | Authoring v2 methodology amendment and re-freeze | **ARCHITECTURE-DECIDED / FROZEN** | `CBRP-AUTHORING-PROTOCOL-2`; brief `CBRP-AUTHORING-BRIEF-2`, sha256 `a9da93fd…`, 8114 bytes. Exactly one rule changed (§2.7): the lexical word-ban becomes a semantic answer-production-steering rule. New run id, session and candidate namespaces; nothing from v1 carried forward. Method frozen; acquisition attempted and stopped incomplete under CWP-10B |
-| C-11 | Authoring v2.1 extraction amendment and re-run | **ARCHITECTURE-DECIDED / FROZEN** | `CBRP-AUTHORING-PROTOCOL-2.1` (D-29); a new run identity `CBRP-AUTHORING-V2P1-ROUND-0` with `AUTHOR21-*` sessions and `V21-*` candidate ids, none colliding with v1 or Protocol 2. B01's 12 valid Protocol-2 candidates are **not** carried forward — homogeneous-provenance choice, not a quality judgement. Method frozen; acquisition **not authorized** |
+| C-11 | Authoring v2.1 extraction amendment and re-run | **ARCHITECTURE-DECIDED / FROZEN / ACQUISITION COMPLETE** | `CBRP-AUTHORING-PROTOCOL-2.1` (D-29); run identity `CBRP-AUTHORING-V2P1-ROUND-0` with `AUTHOR21-*` sessions and `V21-*` candidate ids, none colliding with v1 or Protocol 2. B01's 12 valid Protocol-2 candidates were **not** carried forward — homogeneous-provenance choice, not a quality judgement. CWP-10E (under CWP-10E-AUTH's explicit `EXECUTION AUTHORIZATION: GRANTED`) executed all five sessions: 60/60 candidates, all requested/resolved model pins matched, evidence at `experiments/m2b/census/authoring-v2p1-round-0/`. Content still **unreviewed**; structural review is a separate, unauthorized next step |
 | C-9 | Difficulty varies within every stratum | **ARCHITECTURE-DECIDED** | "Ordinary" is not a stratum |
 
 ---
@@ -244,37 +244,45 @@ read any of 03–06 as implemented; they are not.**
 ```
 108 checklist items
 
-ARCHITECTURE-DECIDED             63
-ARCHITECTURE-DECIDED / FROZEN     3
-PROPOSED                          2
-OPEN                              7
-DRAFT                             6
-IMPLEMENTED                      12
-IMPLEMENTED / VERIFIED OFFLINE    1
-CLOSED / VERIFIED OFFLINE         4
-VERIFIED                          9
-v1 FAILED CLOSED / v2 INCOMPLETE  1
+ARCHITECTURE-DECIDED                                              63
+ARCHITECTURE-DECIDED / FROZEN                                      2
+ARCHITECTURE-DECIDED / FROZEN / ACQUISITION COMPLETE               1
+PROPOSED                                                           2
+OPEN                                                               7
+DRAFT                                                              6
+IMPLEMENTED                                                       12
+IMPLEMENTED / VERIFIED OFFLINE                                     1
+CLOSED / VERIFIED OFFLINE                                          4
+VERIFIED                                                           9
+v1 FAILED CLOSED / Protocol-2 INCOMPLETE / Protocol-2.1 ACQUIRED-UNREVIEWED  1
 ```
 
-**AUTHORING v2 METHODOLOGY FROZEN, ACQUISITION INCOMPLETE — study NOT PREREGISTERED.** Method,
+**AUTHORING ACQUISITION COMPLETE, SCREENING NOT STARTED — study NOT PREREGISTERED.** Method,
 estimand, decision rule, execution infrastructure, and every authoring, review,
 duplicate-audit, invalid-task, ordering and model-pin procedure are decided and written to
 the level of pasteable briefs and a byte-exact ordering algorithm.
 
 One acquisition ran under `CBRP-AUTHORING-PROTOCOL-1` and was adjudicated INCOMPLETE: 60
 candidates produced, 0 admissible, the brief superseded, and all sixty permanently barred.
-`CBRP-AUTHORING-PROTOCOL-2` corrects the single rule responsible — prospectively, and
-without rehabilitating anything. CWP-10B then attempted v2: B01 yielded 12 mechanically
-extractable candidates and B02 malformed output stopped the run after two calls. The
-required 60-candidate content and complete execution record are still missing; no review or
-audit has run, no pool is frozen, no seed has been materialized, and no Chief call has been
-made.
+`CBRP-AUTHORING-PROTOCOL-2` corrected the single rule responsible — prospectively, without
+rehabilitating anything — and its own acquisition, `CBRP-AUTHORING-V2-ROUND-0` (CWP-10B),
+stopped incomplete at B02 after two calls (12/60, not carried forward). `CBRP-AUTHORING-
+PROTOCOL-2.1` (CWP-10C, grammar-tightened in CWP-10C-R) corrected the extraction defect
+that caused that stop, and under CWP-10E-AUTH's explicit execution authorization,
+`CBRP-AUTHORING-V2P1-ROUND-0` (CWP-10E) acquired **all 60 candidates in one pass** — five
+sessions, five calls, no retry, no repair, every requested/resolved model pin matched.
+
+**The 60 candidates that will make or fail this study now exist, and are entirely
+unreviewed.** No structural review, no duplicate audit, no pool freeze, no ordering seed,
+and no Chief call — each requires its own separate GPT authorization, none of which this
+packet or CWP-10E granted.
 
 **No methodology decision known to this checklist is open.** Every remaining item is a
 record that a complete future architecture-authorized process would have to produce:
 
 ```
-C-8            the 60 task texts                      0 admitted; v1 acquisition FAILED CLOSED
+C-8            the 60 task texts                      0 admitted; v1 FAILED CLOSED, Protocol-2 INCOMPLETE,
+               Protocol-2.1 60/60 ACQUIRED-UNREVIEWED (CWP-10E)
                v2 acquisition INCOMPLETE — 12/60 provisional, unreviewed, not admissible
 D-12           duplicate audit rounds                 0 run
 E-2, E-3       pool manifest and freeze provenance    0 pools frozen
@@ -284,14 +292,19 @@ H-3            independent bound reproduction by a reviewer
 ```
 
 `[DESIGN]` Most of these are **unexecuted, not undecided** — a record that a complete run
-has to produce. CWP-10B authorized only the now-stopped v2 initial acquisition.
+has to produce. CWP-10E executed the acquisition that CWP-10B could not complete.
 
-**C-8 changed character in CWP-9B and C-10 closed in CWP-10A.** Authoring was attempted
-under v1 and **failed closed**: 60 candidates exist, none is admissible, and the brief that
-produced them is superseded. The amendment that failure required is now written and frozen —
-`CBRP-AUTHORING-PROTOCOL-2`, one rule changed — so what stands between here and a task pool
-was execution. CWP-10B attempted that run, which is now **INCOMPLETE** and awaiting GPT
-Architecture review after its B02 malformed-response STOP.
+**C-8's content now exists.** v1 failed closed (60 barred candidates); Protocol 2's
+`CBRP-AUTHORING-V2-ROUND-0` stopped incomplete at B02 (12/60, not carried forward);
+Protocol 2.1 corrected the extraction defect that caused that stop (M-CBRP-AUTH-02,
+CWP-10C, tightened for grammar conformance in CWP-10C-R) and, under CWP-10E-AUTH's
+explicit execution authorization, `CBRP-AUTHORING-V2P1-ROUND-0` (CWP-10E) acquired all
+**60/60 candidates** in one pass — five sessions, five calls, no retry, no repair. What
+stands between here and a task pool is no longer acquisition. It is **screening**: every
+one of the 60 candidates is currently unreviewed (per-task structural review, D-3/D-4's
+design, has 0 executions), and D-12 (corpus duplicate audit execution) is still 0 rounds.
+Both require a separate GPT authorization that neither this checklist nor CWP-10E
+granted — CWP-10E's own boundary (§23) explicitly forbids running either next.
 
 **A-8 is the one item that is neither decided nor merely unexecuted.** It **asserts** the
 routing rubric is operational enough for two readers to agree, and nothing has measured it.

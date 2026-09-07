@@ -774,9 +774,9 @@ PREREGISTRATION PROCEDURE COMPLETE — study NOT PREREGISTERED
 
 not protocol 0.4    not an effectiveness study
 does not change F1-F7 ｜ Chief ｜ P03 evidence ｜ M-ACQ-01 status
-CBRP-AUTHORING-V2-ROUND-0 (Protocol 2) INCOMPLETE at B02 ｜ 12/60 candidates ｜ 0 admitted
-Protocol 2.1 wrapper-extraction amendment FROZEN, NOT EXECUTED ｜ 0 candidates carried forward
-0 reviews run ｜ 0 pools frozen ｜ 0 seeds ｜ 2 authoring-v2 provider calls
+CBRP-AUTHORING-V2-ROUND-0 (Protocol 2) INCOMPLETE at B02 ｜ 12/60 ｜ 0 carried forward
+CBRP-AUTHORING-V2P1-ROUND-0 (Protocol 2.1, CWP-10E) COMPLETE ｜ 60/60 ACQUIRED / UNREVIEWED
+0 reviews run ｜ 0 duplicate audits ｜ 0 pools frozen ｜ 0 seeds ｜ 0 Chief calls
 ```
 
 **Why the procedure is complete but the study is not preregistered.** The method, the
@@ -788,10 +788,15 @@ could not recognize triggered the run-level STOP after two calls. Twelve B01 can
 were mechanically extracted; they are partial, unreviewed, not admissible, and — per
 CWP-10C — not carried forward into any renewed run. CWP-10C froze
 `CBRP-AUTHORING-PROTOCOL-2.1`, a deterministic wrapper-recognition amendment for exactly
-the shape that stopped B02, under a new run identity that cannot collide with the closed
-one. The required sixty-task content, review record, duplicate audit, frozen pool, and
-ordering seed therefore still do not exist. Preregistration is the point at which all of
-that is fixed and committed.
+the shape that stopped B02, tightened for exact-line conformance in CWP-10C-R, under a
+new run identity that cannot collide with the closed one. Under CWP-10E-AUTH's explicit
+`EXECUTION AUTHORIZATION: GRANTED`, CWP-10E then ran that acquisition to completion: five
+sessions, five calls, **60/60 candidates**, every requested/resolved model pin observed
+and matching, extraction performed only by the frozen extractor and cross-checked by an
+independent from-scratch re-parse. The sixty-task content now exists. The review record,
+duplicate audit, frozen pool, and ordering seed still do not — each is its own
+unauthorized next step. Preregistration is the point at which all of that is fixed and
+committed.
 
 **No further authoring, repair, replacement, review or audit may run until GPT performs
 the next Architecture Review.**

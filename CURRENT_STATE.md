@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  09f1b4bb929dfbc063c774c022b8f4cc0ac84503（CWP-10C execution base）
+stateVerifiedThrough  942367178b54a7e16b67c114798bc8c943a5d1d6（CWP-10E execution base）
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -1082,12 +1082,63 @@ author block design 未變更（5 blocks × 每層 2 題 = 60）
 ```
 M-CBRP-AUTH-02:  CLOSED AT METHODOLOGY AMENDMENT LEVEL
 Authoring Protocol 2:    CWP-10B INCOMPLETE / CLOSED（2 calls ｜ 12 candidates ｜ 0 帶入 2.1）
-Authoring Protocol 2.1:  METHODOLOGY FROZEN / NOT EXECUTED
+Authoring Protocol 2.1:  METHODOLOGY FROZEN，已於 CWP-10E 執行（見下節）
 formal admitted tasks: 0        study: NOT PREREGISTERED
 ```
 
-**CWP-10C 只凍結抽取層方法學。執行 `CBRP-AUTHORING-V2P1-ROUND-0` 需要另一次明確授權;
-在此之前不得產生任何新題目、不得執行結構審查或重複稽核。**
+### CWP-10E —— CBRP-AUTHORING-V2P1-ROUND-0（LIVE，已完成，60/60）
+
+`[FACT]` **在取得逐字 `EXECUTION AUTHORIZATION: GRANTED`(CWP-10E-AUTH)之後,
+五個 authoring session 全部依序執行一次,零重試、零 repair、零替補。**
+
+```
+run id             CBRP-AUTHORING-V2P1-ROUND-0
+protocol           CBRP-AUTHORING-PROTOCOL-2.1
+extractor          CBRP-AUTHOR-EXTRACTOR-2.1
+provider calls     5（Claude 3、Gemini 2，符合 §25 預算上限）
+證據               experiments/m2b/census/authoring-v2p1-round-0/
+```
+
+```
+AUTHOR21-B01-S00  claude / claude-sonnet-5     COMPLETE_OUTER_FENCE   12 candidates
+AUTHOR21-B02-S00  gemini / gemini-3.7-flash    PLAIN_JSON             12
+AUTHOR21-B03-S00  claude / claude-sonnet-5     COMPLETE_OUTER_FENCE   12
+AUTHOR21-B04-S00  gemini / gemini-3.7-flash    PLAIN_JSON             12
+AUTHOR21-B05-S00  claude / claude-sonnet-5     COMPLETE_OUTER_FENCE   12
+
+promptSha256 全部相同  a9da93fd5d4dd059c0faebdf3e29713abe2035191af5aac26a5b73eb17842336
+```
+
+`[FACT]` **五次呼叫的 resolved model identity 全部可觀察,且與 requested pin 逐字相符**
+（`pinStatus: OBSERVED`,無一落入 attestation 後備）。本輪沒有任何回應落入 CWP-10C-R
+才收緊的 `ORPHAN_TRAILING_FENCE` 形狀 —— 三次是 `COMPLETE_OUTER_FENCE`、兩次是
+`PLAIN_JSON`;收緊後的 Case C 邏輯僅由離線測試與 B02 描述性驗證行使,未在本次 live run
+中被觸發。
+
+```
+機械驗證(獨立重跑兩次,不信任抽取器自身紀錄)：
+  總數 60/60，六層各 10 題                          PASS
+  candidate ID 60 個全不重複                         PASS
+  taskSha256 60/60 重算相符                          PASS
+  raw → parsed 逐字保存：獨立重新解析 raw bytes       PASS（0 mismatch）
+  cross-check.mjs（不 import 抽取器模組的第二套實作） PASS，CROSS_CHECK.json
+```
+
+`[DESIGN]` 逐題語意判斷(`stratumCorrect`、`realistic`、`selfContained`、
+`noSpecialistSteering`…)一律未執行,屬盲審審查者的問題。§19 選擇性描述性掃描
+找到 2 個 whole-word「specialist」命中(`V21-B02-S00-SC-01`、`V21-B02-S00-OP-01`),
+均為一般商業用語(「specialist machining firm」、「IT integration specialists」);
+**掃描結果無 STOP/拒絕/入池權限,且不得進入未來審查者 prompt。**
+
+```
+status:  60 PROTOCOL-2.1 PROVISIONAL / UNREVIEWED CANDIDATES
+         不得稱為 structurally admitted / duplicate-cleared / final CBRP tasks /
+         pool-frozen / ordered / Census-eligible
+```
+
+**CWP-10E 完成後 STOP。不得執行結構審查、重複稽核、replacement session、
+diversity admission、pool freeze、ordering、Chief planning 或 Census,
+須先回到 GPT Architecture Review。**
 
 ### 目前的 M2-B 狀態（不得混淆 acquisition 與 effectiveness)
 
@@ -1574,7 +1625,8 @@ EXECUTION AUTHORIZATION NOT GRANTED
 Wave 1                  CONSUMED / CLOSED   ← 已於 516d838 執行完畢，該授權不延續
 Wave 2                  CONSUMED / CLOSED   ← 已於 781ade9 執行完畢，該授權不延續
 Wave 3                  CONSUMED / CLOSED   ← 已於 730d350 執行完畢，P03 池已用盡
-Census（新研究）          CWP-10B AUTHORING CONSUMED / STOPPED；後續 NOT AUTHORIZED
+Census（新研究）          CWP-10B（Protocol 2）CONSUMED/STOPPED；CWP-10E（Protocol 2.1）
+                          CONSUMED / COMPLETE（60/60 acquired）；後續 NOT AUTHORIZED
 Gemini A2               NOT AUTHORIZED
 Gate                    NOT AUTHORIZED
 Synthesis               NOT AUTHORIZED
@@ -1614,18 +1666,19 @@ DRAFTED, NOT ACCEPTED     CBRP Natural Collaboration Census（十一份文件）
                           experiments/m2b/census/
                           CBRP ｜ N=60 ｜ 6 strata x 10 ｜ theta_feas=5%
                           AUTHORING v1 FAILED CLOSED（FORBIDDEN_LITERAL_STOP）
-                          AUTHORING v2 ACQUISITION INCOMPLETE（B02 malformed STOP）
+                          AUTHORING Protocol-2 ACQUISITION INCOMPLETE（B02 malformed STOP）
+                          AUTHORING Protocol-2.1 ACQUISITION COMPLETE（CWP-10E，60/60）
                           study 仍 NOT PREREGISTERED ｜ awaiting architecture review
-                          12/60 v2 provisional candidates ｜ UNREVIEWED ｜ NOT ADMISSIBLE
-                          0 admitted tasks ｜ 60 v1 failed-acquisition candidates 保存
-                          provider calls: v1 5（closed）＋ v2 2（CWP-10B stopped）
+                          60/60 Protocol-2.1 candidates ｜ ACQUIRED ｜ UNREVIEWED ｜ NOT ADMISSIBLE
+                          0 admitted tasks ｜ 60 v1 ＋ 12 Protocol-2 failed/barred candidates 保存
+                          provider calls: v1 5（closed）＋ Protocol-2 2（CWP-10B stopped）
+                                        ＋ Protocol-2.1 5（CWP-10E complete）
                           0 reviews ｜ 0 duplicate audit rounds
                           0 pools frozen ｜ 0 seeds materialized ｜ 0 Chief calls
                           census harness NOT implemented
-                          C-10 Authoring v2 amendment 已凍結（CBRP-AUTHORING-BRIEF-2）
-                          下一步需要：GPT Architecture 裁定 incomplete acquisition
+                          下一步需要：GPT Architecture 授權結構審查（R1/R2/R3）
 
-STATUS                    等待 GPT architecture interpretation
+STATUS                    等待 GPT architecture 下一步授權（結構審查／重複稽核）
 ```
 
 **沒有已定義的下一個 live 步驟。** P03 已用盡,而 M-ACQ-01 未解決之前
