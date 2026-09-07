@@ -349,12 +349,17 @@ P03 假設「`deep` + multi-specialist 的案例可以被取得」,但**從未�
 `[DECISION]` **在這個 base-rate 問題被 characterize 之前,不得重新設計或執行
 M2-B effectiveness experiment。**
 
-處理方向的草案(**未接受、未預先登記、未授權**),共三份,經 Gemini census 方法學審查
+處理方向的草案(**未接受、未預先登記、未授權**),共八份,經 Gemini census 方法學審查
 (NEEDS REVISION)與 GPT 裁定(ACCEPT WITH CORRECTIONS)後修訂:
 
 ```
 experiments/m2b/census/CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md   方法學本體
 experiments/m2b/census/CBRP_AUTHORING_AND_REVIEW_DRAFT.md            出題與結構審查控制
+experiments/m2b/census/CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md          凍結出題 brief（可直接貼入）
+experiments/m2b/census/CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md        逐題結構審查 rubric
+experiments/m2b/census/CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md          全 corpus 重複稽核（分輪）
+experiments/m2b/census/CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md       出題／審查／稽核 session provenance
+experiments/m2b/census/CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md            pool manifest 與 CBRP-ORDER-v1
 experiments/m2b/census/CBRP_PREREGISTRATION_CHECKLIST_DRAFT.md       preregistration 就緒清單
 ```
 
@@ -525,9 +530,9 @@ budget 第 61 次、worker-stage 拒絕、重複 attempt、未 settle 的復原�
 census 已執行            NO       study 仍為 NOT PREREGISTERED / NOT AUTHORIZED
 ```
 
-### CWP-8A —— preregistration 程序凍結（內容未凍結)
+### CWP-8A / 8B / 8C —— preregistration 程序凍結（內容未凍結)
 
-`[ARCHITECTURE-DECIDED]` 剩下的方法學程序已全部裁定,文件共六份於 `experiments/m2b/census/`:
+`[ARCHITECTURE-DECIDED]` 剩下的方法學程序已全部裁定,文件共八份於 `experiments/m2b/census/`:
 
 ```
 authoring     5 個 quota BLOCK（AUTHOR-B01…B05），每 block × 每 stratum = 2 題入池
@@ -541,16 +546,30 @@ author model  fresh session = fresh model context，不要求每個 session 換�
               被測的 Chief 模型 openai/gpt-5 **禁止**擔任出題模型（去除直接耦合）
               五個 block 至少涵蓋兩個非 Chief 模型家族；每個 block 跨全部六層
               → author-model family 亦不與 stratum 共線
+              family 配置（CWP-8C 裁定）：
+                  AUTHOR-B01 / B03 / B05 → CLAUDE_FAMILY
+                  AUTHOR-B02 / B04       → GEMINI_FAMILY
+              3:2 的不平均是「五個 block、兩個 family」所必然；但因每 block × 每 stratum
+              = 2 題，**每一層都恰好是 6 CLAUDE ＋ 4 GEMINI**，六層完全相同
+              → family 與 stratum 嚴格正交（這才是分層估計量在意的性質）
+              block 的 replacement session 沿用該 block 的 family，不因被拒而換家族
+              **實際 provider/model ID 仍 OPEN**，由 GPT 在出題前凍結
+reviewer      被測 Chief 模型 openai/gpt-5 **同樣禁止**擔任結構審查者與重複稽核者
+              理由：被測模型不得決定「它稍後將被測量的那個池」的成員資格 ——
+              逐題放行與裁定重複，與親自出題是同樣直接的槓桿
+              一條規則、三種 session 一致適用；**這同樣不消除 shared priors**
+              實際 reviewer/auditor ID 仍 OPEN，由 GPT 在首次審查前凍結
               **這不消除 shared-prior bias**；fresh context 只降低對話污染，
               不使模型輸出在統計上獨立
 brief         單一凍結 brief，逐位元組相同地交給每個 session
               CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md（可直接貼入，無需補充說明）
 gate 1        逐題結構盲審：兩份獨立、不一致交第三位、三取二定案
               CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md
-gate 2        全 corpus 重複稽核（六十題文本一次看完），在 gate 1 全過之後
-              兩位盲審稽核者，爭議配對交第三位；保留規則為
-              **confirmed pair/component 中字典序最小的 candidate ID**
-              —— 無任何裁量空間
+gate 2        全 corpus 重複稽核，**分輪進行**，在 gate 1 全過之後
+              DUP-R00（FULL）：初始六十題的全部 1770 個配對
+              DUP-R01+（INCREMENTAL）：只審「至少一端屬於該輪 replacement」的配對
+              **old-old 配對永不重審（forbidden）**
+              每輪兩位 fresh 盲審稽核者，爭議配對交第三位 fresh 盲審
               CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md
 diversity     僅產出描述性報告，**不是入池關卡**、無硬性配額
               只有結構審查失敗或確認重複才會造成凍結前替換
@@ -591,10 +610,85 @@ stratum codes   SC / OP / BC / EI / PS / FR（無別名）
 study status:  PREREGISTRATION PROCEDURE COMPLETE —— 但 study 仍 NOT PREREGISTERED
 理由：程序已完備到「可貼上的 brief ＋ 逐位元組的排序演算法」，但內容不存在 ——
       60 題未寫、0 份審查、0 次重複稽核、0 次凍結、0 個 seed
-checklist:     89 項 —— 48 ARCHITECTURE-DECIDED / 12 IMPLEMENTED / 9 VERIFIED
+checklist:     98 項 —— 55 ARCHITECTURE-DECIDED / 12 IMPLEMENTED / 9 VERIFIED
                / 4 CLOSED-VERIFIED-OFFLINE / 1 IMPL-VERIFIED-OFFLINE
-               / 4 DRAFT / 2 PROPOSED / 9 OPEN
+               / 5 DRAFT / 2 PROPOSED / 10 OPEN
+剩餘 pre-authoring OPEN 主要只剩兩項「模型 ID 凍結」：
+               D-20 出題 provider/model ID   D-21 審查／稽核 provider/model ID
+其餘 OPEN（C-8 六十題、D-12 稽核執行、E-2/E-3 凍結、F-1 census harness、
+A-9/B-7 artifact 版本字串、H-3 外部重現）皆為 **naturally unexecuted** ——
+不是未裁定，而是「必須由一次未被授權的執行才會產生的紀錄」
 ```
+
+### CWP-8C —— incremental duplicate audit 與 session provenance
+
+`[ARCHITECTURE-DECIDED]` 重複稽核不是單一事件。被拒 → 產生空缺 → 補題 → 補題也要被稽核。
+
+```
+DUP-R00      FULL          初始六十題的全部 1770 個配對
+DUP-R01+     INCREMENTAL   focusSet_j = 該輪「通過結構審查」的全部 replacement
+                           in scope     ：至少一端在 focusSet_j 的所有配對
+                           out of scope ：兩端都是 incumbent 的配對 —— 永不重審
+```
+
+`[DESIGN]` **維持的不變式:任一輪完成後,現行 corpus 中的每個配對,都恰好被一個
+已完成的稽核輪次篩過一次。** round 0 是基底;之後 incumbent 帶著「彼此已篩完」進入,
+該輪再篩掉 incumbent×replacement 與 replacement×replacement,存活者即完整篩過。
+是 **exactly one**,不是 at least one —— 後續輪次的 focusSet 只含尚不存在的題目,
+存活配對不可能重新進入 scope。
+
+`[DESIGN]` **為何要 incremental。** 若每次補題都重跑 old-old,一道題被篩的次數會取決於
+「這次流程剛好需要幾輪補題」—— 補了四輪的 corpus 中,同一道題會被五組不同稽核者看五次,
+就有五次被誤判為重複的機會。**成員資格會變成流程運氣的函數。** incremental 讓每個配對
+都只被篩一次。
+
+`[DESIGN]` **代價是真實的、且已接受:round 0 的 false negative 是永久的。** 兩位稽核者在
+round 0 一起漏掉的配對,之後不會再被看第二次。設計選擇是:固定「每配對一次」可以預先登記,
+「次數由運氣決定」不能。公平的單位是**配對,不是題目**。
+
+`[ARCHITECTURE-DECIDED]` **保留規則:一條規則涵蓋所有輪次。** 取該輪 confirmed pair 構成的圖,
+對每個連通元件 `C`,令 `I = C ∩ incumbents`、`R = C ∩ focusSet`:
+
+```
+I 非空   →  保留 I 全部           拒絕 R 全部
+I 為空   →  保留 R 中字典序最小    拒絕 R 其餘
+```
+
+round 0 沒有 incumbent,`I` 恆為空,即化約成原本的「字典序最小」規則 —— 不是第二條規則。
+`[DECISION]` **incumbent 永不被後到的 replacement 擠掉。** 否則池的成員資格就能靠
+「多生幾個 replacement」來改變,而生幾個正是流程自己決定的 —— 那是一個 outcome-shaped 槓桿。
+
+`[DESIGN]` 元件的**遞移性只用於拒絕,永不用於移除 incumbent**:`{r1,r2,i}` 中即使 `r1`
+未與 `i` 直接確認,仍一併拒絕(保守方向,代價只是一次補題);但由 `i1~r`、`r~i2`
+**不得**推出 `i1~i2` —— 重複狀態是配對專屬的。
+
+`[ARCHITECTURE-DECIDED]` **輪次先決條件與終止:**
+
+```
+前一輪未完成（含空缺補滿、且補題已通過結構審查）→ 下一輪不得開始
+空缺一次批次決定、批次補齊；補題若結構審查失敗，先補到通過才進下一輪
+   → 結構審查被拒的補題，永遠不會送到重複稽核者面前
+無輪次上限；補不到合格題目 → STOP、回 GPT
+**絕不為了讓流程收斂而放寬 rubric** —— 收斂由 STOP 保證，不由規則保證
+```
+
+`[ARCHITECTURE-DECIDED]` **每輪使用全新 fresh 稽核 context**(`DUP-R00-D1`、`DUP-R01-D1`…);
+沿用舊 context 等於把上一輪的結果帶進來。D3 的 id 為
+`DUP-R0j-D3-<idA>__<idB>`,兩個 id **依字典序**排列而非依「誰標記的」——
+後者會把「哪一位持異議」寫進被保存的識別碼裡。
+
+`[DECISION]` **rubric 在所有輪次逐位元組相同**,scope 以資料欄位 `auditScopeIds` 傳遞
+(round 0 = 全部六十個 id,scope 條款自然落空)。因此 `duplicateAuditRubricSha256`
+在整個研究中只有一個值 —— 每輪改 rubric 等於每輪換一把尺,「大家用同一份 rubric」
+就不再可查。
+
+`[DRAFT]` **session provenance schema** 已建立
+(`CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md`):出題／結構審查／重複稽核三種 session,
+各記 provider、model、modelFamily、rubric 或 brief 的 SHA-256、以及
+`freshContextConfirmed`。
+`[DESIGN]` **`freshContextConfirmed` 是 operator attestation,不是可驗證事實** ——
+沒有任何 artifact 能證明一段對話開始時是空的。schema 讓這個宣稱變成明確、可歸屬、
+可被反駁的紀錄;它不會讓宣稱自我證明,**任何結果都不得把它寫成 verified**。
 
 **在 GPT 完成下一次 Architecture Review 之前,不得撰寫任何真實 CBRP 題目。**
 
@@ -1132,11 +1226,14 @@ NEXT P03 WAVE             NONE（池已用盡；不得新增第十題）
 
 BLOCKING QUESTION         M-ACQ-01 —— natural eligibility base rate UNKNOWN
 
-DRAFTED, NOT ACCEPTED     CBRP Natural Collaboration Census（三份文件）
+DRAFTED, NOT ACCEPTED     CBRP Natural Collaboration Census（七份文件）
                           experiments/m2b/census/
                           CBRP ｜ N=60 ｜ 6 strata x 10 ｜ theta_feas=5%
-                          DRAFT ｜ NOT PREREGISTERED ｜ NOT AUTHORIZED
-                          0 tasks authored ｜ harness NOT implemented
+                          PREREGISTRATION PROCEDURE COMPLETE
+                          study 仍 NOT PREREGISTERED ｜ NOT AUTHORIZED
+                          0 tasks authored ｜ 0 reviews ｜ 0 duplicate audit rounds
+                          0 pools frozen ｜ 0 seeds materialized
+                          census harness NOT implemented
 
 STATUS                    等待 GPT architecture interpretation
 ```

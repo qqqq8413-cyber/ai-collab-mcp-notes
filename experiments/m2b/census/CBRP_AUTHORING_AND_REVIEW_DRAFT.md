@@ -209,13 +209,40 @@ The exact provider/model per block is **frozen before authoring begins** and rec
 the pool manifest as `authorBlockModels`. It is provenance. **No author-model
 effectiveness claim may be made**, and the census does not estimate one.
 
-`[OPEN]` The actual provider/model IDs per block. Not chosen here.
+#### Family allocation — DECIDED
+
+```
+[ARCHITECTURE-DECIDED]
+
+AUTHOR-B01 → CLAUDE_FAMILY
+AUTHOR-B02 → GEMINI_FAMILY
+AUTHOR-B03 → CLAUDE_FAMILY
+AUTHOR-B04 → GEMINI_FAMILY
+AUTHOR-B05 → CLAUDE_FAMILY
+```
+
+Two distinct non-Chief families, as required above. A block's **replacement** sessions use
+that block's family too — a block does not change family because one of its tasks was
+rejected.
+
+`[DESIGN]` The 3 : 2 split is forced; five blocks do not divide evenly into two families.
+It confounds nothing, because each block × each stratum = 2 admitted tasks, so **every
+stratum receives 6 CLAUDE_FAMILY and 4 GEMINI_FAMILY tasks — the same split in all six.**
+Family is unbalanced overall and exactly orthogonal to stratum, which is the property a
+stratified estimand needs.
+
+`[OPEN]` The actual provider/model IDs per block. GPT freezes them immediately before
+authoring. Not chosen here.
 
 ### 3.2 Session identity is provenance only
 
-`AUTHOR-01 … AUTHOR-05` identify where a task came from. The authoring provider and model
-may be recorded beside them, but **the census does not estimate an author-model effect**
-and no result may be presented as one.
+`AUTHOR-B01 … AUTHOR-B05` say which quota block a task belongs to;
+`AUTHOR-B01-S00` / `-R01` … say which session actually wrote it. The authoring provider,
+model and declared family may be recorded beside them, but **the census does not estimate
+an author-model effect** and no result may be presented as one.
+
+Full record shape:
+[`CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md`](CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md).
 
 ## 4. Task diversity controls
 
@@ -383,6 +410,35 @@ The tie-break is a third blinded reviewer.
 Full rubric and visibility rules:
 [`CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md`](CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md).
 
+### 6.2 Which models may review or audit — DECIDED
+
+```
+[ARCHITECTURE-DECIDED]
+
+openai / gpt-5 — the Chief planning model under measurement — is FORBIDDEN as
+    a structural reviewer
+    a corpus duplicate auditor
+
+exactly as it is forbidden as an author (§3.1.1)
+```
+
+One rule, three applications. **A model under measurement must not control membership in
+the pool it will later be measured on** — and admitting tasks one at a time, or ruling on
+which of a duplicate pair survives, is controlling membership just as directly as writing
+the tasks. The earlier author-only prohibition left the two gates open, which is the larger
+lever of the three: a gatekeeper decides what the pool contains without having to write a
+line of it.
+
+`[DESIGN]` **This does not eliminate shared priors or model-family bias.** It removes one
+identifiable coupling and nothing wider. Two non-Chief models still share a great deal
+about what a realistic business decision looks like, and no model-assignment rule available
+here changes that. Any result must be worded accordingly.
+
+`[OPEN]` The exact reviewer and auditor provider/model IDs, frozen by GPT before the first
+review runs. That freeze also settles whether a reviewer or auditor may share a model
+family with the author of the task it judges — nothing above forbids it, and the decision
+belongs with the ID assignment.
+
 ## 7. Invalid task handling — DECIDED
 
 `[ARCHITECTURE-DECIDED]` Three moments, three different rules, because the risk is
@@ -400,8 +456,41 @@ uses the same frozen authoring brief
 uses the same predeclared model family as that author BLOCK
 targets only the vacant stratum slot
 receives normal R1 / R2 structural review, and R3 if they disagree
-participates in the corpus duplicate audit
+enters the NEXT corpus duplicate audit round, if it passes structural review
 ```
+
+#### 7.1.1 Vacancies are filled as a batch, and the batch closes before the next audit
+
+`[ARCHITECTURE-DECIDED]` Replacements are not generated one at a time.
+
+```
+1  a duplicate audit round completes and all its rejections are known
+2  ALL vacancies are determined FIRST, as one batch
+3  the whole batch is authored — one new fresh replacement session per vacated slot
+4  every replacement receives R1 / R2, and R3 on disagreement
+5  a replacement that FAILS structural review is itself replaced and re-reviewed,
+   until every vacated slot holds a structurally-passing task
+6  only then does the next duplicate audit round begin
+```
+
+`[DESIGN]` Step 5 is a **closure requirement**. The duplicate auditors are given the sixty
+current texts, and there are sixty only when every vacancy is filled. So structural review
+of a replacement batch runs to completion — including replacing the replacements that fail
+it — before the next duplicate round can start. A replacement rejected at structural review
+never reaches a duplicate auditor.
+
+Batching also keeps the round count honest: filling vacancies one at a time would put each
+new task in a round of its own and multiply rounds without changing what gets screened.
+
+#### 7.1.2 Later duplicate rounds are incremental
+
+`[ARCHITECTURE-DECIDED]` Round 0 audits all 1770 pairs of the initial sixty. Every later
+round audits **only pairs with at least one endpoint among that round's replacements**;
+pairs of two incumbents are never re-audited. Incumbents are never displaced by a later
+replacement.
+
+Full rule, the invariant that justifies it, and the retention procedure:
+[`CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`](CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md) §2 and §7.
 
 Recorded provenance, truthfully:
 
@@ -410,7 +499,13 @@ authorBlockId          AUTHOR-B01 … B05
 actualAuthorSessionId  AUTHOR-B01-R01, etc. — never the original -S00
 replacementOf          the rejected task's id
 replacementGeneration  1, 2, … for successive replacements of the same slot
+rejectedPredecessorBy  STRUCTURAL_REVIEW | CORPUS_DUPLICATE
 ```
+
+`replacementGeneration` increments on every replacement of a slot whichever gate rejected
+the predecessor; `rejectedPredecessorBy` records which one it was. The two gates leave
+different downstream evidence — a structurally rejected task never reached an auditor — so
+they must stay distinguishable in the record.
 
 `[DECISION]` **A replacement session is never recorded as the original session.** The
 pool's provenance has to describe how the pool was actually produced, or it is decoration.

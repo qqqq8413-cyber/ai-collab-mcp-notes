@@ -9,7 +9,9 @@ STATUS:  DRAFT
 > Everything that must be resolved before GPT may accept the CBRP census as a
 > preregistered study. Companions:
 > [`CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md`](CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md),
-> [`CBRP_AUTHORING_AND_REVIEW_DRAFT.md`](CBRP_AUTHORING_AND_REVIEW_DRAFT.md).
+> [`CBRP_AUTHORING_AND_REVIEW_DRAFT.md`](CBRP_AUTHORING_AND_REVIEW_DRAFT.md),
+> [`CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`](CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md),
+> [`CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md`](CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md).
 >
 > Status vocabulary, strictly:
 >
@@ -31,7 +33,7 @@ STATUS:  DRAFT
 | # | Item | Status | Note |
 |---|---|---|---|
 | A-1 | CBRP definition — synthetic, preregistered, equally weighted reference frame | **ARCHITECTURE-DECIDED** | Census §2.1 |
-| A-2 | Primary estimand `P(deep ∧ assigned ≥ 2 | CBRP)` | **ARCHITECTURE-DECIDED** | Named *reference-population assignment rate* |
+| A-2 | Primary estimand `P(deep ∧ assigned ≥ 2 \| CBRP)` | **ARCHITECTURE-DECIDED** | Named *reference-population assignment rate* |
 | A-3 | Six primary-intent strata | **ARCHITECTURE-DECIDED** | Census §3 |
 | A-4 | Equal weighting, 10 tasks per stratum | **ARCHITECTURE-DECIDED** | Never a usage-frequency claim |
 | A-5 | N = 60 | **ARCHITECTURE-DECIDED** | N = 59 is the statistical minimum; **60 is the smallest balanced six-stratum design** meeting it. Derived from θ, never from cost |
@@ -87,11 +89,20 @@ STATUS:  DRAFT
 | D-5 | Reviewer must not score likelihood of the event | **ARCHITECTURE-DECIDED** | Authoring §5.4 |
 | D-6 | "Fresh session" and author model rule | **ARCHITECTURE-DECIDED** | Fresh = fresh model context, not necessarily a different model. `openai/gpt-5` **forbidden** as an author. ≥ 2 non-Chief model families across the five blocks. Reduces coupling; does **not** eliminate shared-prior bias |
 | D-7 | Blinding described as reduction, never elimination | **ARCHITECTURE-DECIDED** | Must appear in any result. Extends to author independence: fresh contexts reduce conversational contamination, they do **not** make outputs statistically independent |
-| D-8 | Corpus duplicate audit procedure | **ARCHITECTURE-DECIDED** | `CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`; runs after all 60 pass per-task review, before freeze; stratum labels withheld |
-| D-9 | Duplicate retention rule | **ARCHITECTURE-DECIDED** | Lexicographically smallest candidate ID in a confirmed pair or component is retained; outcome-blind and deterministic |
+| D-8 | Corpus duplicate audit procedure | **ARCHITECTURE-DECIDED** | `CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`; runs after all 60 pass per-task review, before freeze; stratum labels withheld; two fresh blinded auditors per round, third on a disputed pair |
+| D-9 | Duplicate retention rule | **ARCHITECTURE-DECIDED** | One rule, every round: a component containing incumbents keeps all of them and rejects every replacement in it; a component of replacements only keeps the lexicographically smallest candidate ID. Round 0 has no incumbents, so it reduces to the lexicographic rule. Outcome-blind and deterministic |
 | D-10 | Replacement provenance truthfulness | **ARCHITECTURE-DECIDED** | `authorBlockId` separated from `actualAuthorSessionId`; a replacement is never recorded as the original session |
-| D-11 | Author model families frozen before authoring | **OPEN** | The rule is decided; the actual provider/model IDs per block are not chosen |
-| D-12 | Corpus duplicate audit **execution** | **OPEN** | 0 audits run |
+| D-11 | Author model **family** allocation | **ARCHITECTURE-DECIDED** | B01/B03/B05 → CLAUDE_FAMILY, B02/B04 → GEMINI_FAMILY. The 3:2 split is forced by five blocks and two families; every stratum still receives 6 CLAUDE and 4 GEMINI, so family stays orthogonal to stratum |
+| D-12 | Corpus duplicate audit **execution** | **OPEN** | 0 rounds run |
+| D-13 | Incremental duplicate audit rule | **ARCHITECTURE-DECIDED** | DUP-R00 full (1770 pairs); DUP-R01+ scoped to pairs touching that round's replacements. Old–old re-audit **forbidden**. Invariant: every surviving pair is screened by exactly **one** completed round. Accepted cost: a round-0 false negative is permanent |
+| D-14 | Incumbent displacement | **ARCHITECTURE-DECIDED** | **Never.** A task that survived a completed round cannot be removed by a later replacement — otherwise pool membership would be alterable by generating more replacements, and the process controls how many it generates |
+| D-15 | Fresh auditor sessions per round | **ARCHITECTURE-DECIDED** | New contexts every round; a reused context would arrive carrying the previous round's outcome. D3 ids order the disputed pair lexicographically, never by flagger |
+| D-16 | Round termination | **ARCHITECTURE-DECIDED** | No round cap. Continue until 60 tasks and no in-scope confirmed duplicate. If no valid replacement can be obtained: STOP to GPT. **The rubric is never weakened to make the process terminate** — termination is guaranteed by the STOP, not by the rule |
+| D-17 | Round sequencing preconditions | **ARCHITECTURE-DECIDED** | A round may not begin until the previous one is complete and every vacancy is filled by a structurally-passing task. Vacancies are batched; a replacement failing structural review is replaced before the next audit round, and never reaches an auditor |
+| D-18 | Session provenance schema | **DRAFT** | `CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md`: authoring, review and audit sessions. `freshContextConfirmed` is an operator **attestation**, not a verified fact, and no result may present it as verified |
+| D-19 | Chief model as reviewer or auditor | **ARCHITECTURE-DECIDED** | `openai/gpt-5` **forbidden** in all three session kinds. A model under measurement must not control membership in the pool it is later measured on — gatekeeping is as direct a lever as authoring. Does **not** eliminate shared priors |
+| D-20 | Exact author provider/model IDs | **OPEN** | Family allocation decided; the IDs are not. Frozen by GPT immediately before authoring |
+| D-21 | Exact reviewer / auditor provider/model IDs | **OPEN** | Policy decided; the IDs are not. That freeze also settles whether a judge may share a model family with the author of the task it judges |
 
 ---
 
@@ -216,12 +227,12 @@ read any of 03–06 as implemented; they are not.**
 ## J. Readiness summary
 
 ```
-89 checklist items
+98 checklist items
 
-ARCHITECTURE-DECIDED             48
+ARCHITECTURE-DECIDED             55
 PROPOSED                          2
-OPEN                              9
-DRAFT                             4
+OPEN                             10
+DRAFT                             5
 IMPLEMENTED                      12
 IMPLEMENTED / VERIFIED OFFLINE    1
 CLOSED / VERIFIED OFFLINE         4
@@ -238,16 +249,22 @@ is frozen, and no seed has been materialized.
 **Not preregistration-ready.** The blocking clusters, in the order they gate
 each other:
 
-1. **D-11** — the actual provider/model per author block. The rule is decided; the
-   assignment is not, and it must be frozen before authoring begins.
+1. **D-20, D-21** — the exact provider/model IDs for authors, reviewers and duplicate
+   auditors. The *families* are allocated and the Chief model is excluded from all three
+   roles; the specific IDs are not chosen, and they must be frozen before the work they
+   govern begins — D-20 before authoring, D-21 before the first review.
 2. **C-8** — the 60 tasks. **0 authored**, and authoring is not authorized.
-3. **D-12, E-2, E-3** — review execution, duplicate-audit execution, and the freeze. None
+3. **D-12, E-2, E-3** — duplicate-audit execution, the pool manifest, and the freeze. None
    can begin until the tasks exist.
 4. **A-8** — the routing rubric's operability, which only becomes measurable once reviews
    actually run.
 
-**Everything procedural is now decided.** What remains is content, its screening, and the
-freeze — none of which this packet authorizes.
+**Everything procedural is now decided.** What remains, apart from two model-ID freezes, is
+content, its screening, and the freeze — none of which this packet authorizes.
+
+`[DESIGN]` The four remaining execution OPENs (C-8, D-12, E-2, E-3) plus F-1's census
+harness and the two artifact-string OPENs (A-9, B-7) are **naturally unexecuted**, not
+undecided: each is a record that a run has to produce, and no run is authorized.
 
 **The remaining blockers are all methodology and content, not engineering.** Every
 execution-infrastructure requirement CENSUS-REQ-01 … 10 is now closed offline. What

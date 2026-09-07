@@ -523,7 +523,7 @@ identifiable channel — writing toward a known target — has been removed.
 
 Full envelope: [`CBRP_AUTHORING_AND_REVIEW_DRAFT.md`](CBRP_AUTHORING_AND_REVIEW_DRAFT.md).
 
-### 6.1 Procedure, as decided in CWP-8A
+### 6.1 Procedure, as decided in CWP-8A / 8B / 8C
 
 ```
 authoring     5 quota BLOCKS AUTHOR-B01..B05, each block × each stratum = 2 admitted tasks
@@ -532,16 +532,28 @@ authoring     5 quota BLOCKS AUTHOR-B01..B05, each block × each stratum = 2 adm
               every stratum draws from all five blocks, so author identity is
               never confounded with stratum
 author model  fresh session = fresh model context, not necessarily a different model
-              openai/gpt-5 — the Chief under measurement — FORBIDDEN as an author
-              ≥ 2 distinct non-Chief model families across the five blocks
+              openai/gpt-5 — the Chief under measurement — FORBIDDEN as an author,
+              as a structural reviewer, and as a duplicate auditor: a model under
+              measurement does not control membership in the pool it is measured on
+              B01/B03/B05 → CLAUDE_FAMILY, B02/B04 → GEMINI_FAMILY
+              → every stratum gets 6 CLAUDE and 4 GEMINI, the same split in all six,
+                so family is orthogonal to stratum
+              exact provider/model IDs: OPEN, frozen by GPT before authoring
 brief         one frozen brief, byte-identical to every session
               CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md
 gate 1        per-task structural review: 2 blinded reviews, 3rd on disagreement,
               majority final; GPT does NOT adjudicate at task level
               CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md
-gate 2        corpus duplicate audit over all 60 texts at once, after gate 1 passes
-              2 blinded auditors, 3rd on a disputed pair; retention by
-              lexicographically smallest candidate ID — no discretionary choice
+gate 2        corpus duplicate audit, in rounds, after gate 1 passes
+              DUP-R00 full: all 1770 pairs of the initial 60
+              DUP-R01+ incremental: only pairs touching that round's replacements —
+              old-old pairs are never re-audited, so every pair is screened
+              exactly once and screening intensity cannot depend on process luck
+              2 fresh blinded auditors per round, 3rd on a disputed pair
+              retention: incumbents are never displaced; among replacements the
+              lexicographically smallest candidate ID survives — no discretion
+              no round cap; if no valid replacement can be obtained, STOP to GPT,
+              and the rubric is never weakened to make the process terminate
               CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md
 diversity     descriptive report only; NOT an admission gate, no quotas
 invalid task  pre-freeze: discard and replace, truthful session lineage preserved
@@ -550,7 +562,11 @@ invalid task  pre-freeze: discard and replace, truthful session lineage preserve
 ordering      CBRP-ORDER-v1: seeded round-robin, ten rounds of six, no PRNG
               seed = SHA256(POOL_FREEZE_COMMIT + "\n" + "CBRP-ORDER-v1")
 manifest      CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md — content identity only,
-              no self-referential commit SHA
+              no self-referential commit SHA; every audit round referenced, not
+              only the last
+provenance    CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md — every authoring, review and
+              audit session records provider/model/family and its rubric hash;
+              freshContextConfirmed is an ATTESTATION, never a verified fact
 ```
 
 `[DESIGN]` **Procedure is frozen; content does not exist.** Nothing above has been run.

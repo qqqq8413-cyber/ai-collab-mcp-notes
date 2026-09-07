@@ -67,6 +67,26 @@ replacement was needed.
 Provider and model are recorded per block as provenance. **No result may be read as an
 author-model effect**, which this study does not estimate.
 
+### 1.4 Duplicate audit rounds and auditors
+
+```
+DUP-R00                       round 0 — full, all 1770 pairs of the initial sixty
+DUP-R01, DUP-R02, …           incremental rounds, one per replacement batch
+
+DUP-R00-D1 ｜ DUP-R00-D2      that round's two independent blinded auditors
+DUP-R00-D3-<idA>__<idB>       third auditor, one disputed pair, ids ascending lexical
+```
+
+A round id says when the round ran. An auditor id says which round and, for D3, which pair
+was adjudicated. **Neither encodes an outcome**, and the D3 pair is ordered
+lexicographically rather than by which auditor flagged it, so the identifier does not
+record who dissented.
+
+Full procedure:
+[`CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`](CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md).
+Session records:
+[`CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md`](CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md).
+
 ---
 
 ## 2. Pool manifest
@@ -82,7 +102,9 @@ taskCount                60
 stratumCounts            { each of the six: 10 }
 authorBlockCounts        { AUTHOR-B01..B05: 12 }
 authorBlockByStratum     { stratum: { AUTHOR-B01..B05: 2 } }
-authorBlockModels        { AUTHOR-B01..B05: { provider, model } }  — frozen before authoring
+authorBlockModels        { AUTHOR-B01..B05: { provider, model, modelFamily } }
+                         frozen before authoring; families are B01/B03/B05 CLAUDE,
+                         B02/B04 GEMINI — so every stratum gets 6 CLAUDE and 4 GEMINI
 
 authoringBriefSha256        the exact brief every session received
 reviewRubricSha256          the exact rubric every reviewer received
@@ -96,13 +118,27 @@ tasks[]                  taskId
                          replacementGeneration  0 for an initial task, 1.. for replacements
                          structuralReviewIds    ["…-R1", "…-R2", optionally "…-R3"]
                          structuralPass         true — a frozen pool contains only passes
-                         duplicateAuditRounds   the audit rounds it survived
+                         survivedAuditRounds    every round in which it was in scope
+                         admittedAtRound        the round after which its pairs were all screened
                          replacementOf          a rejected task's id, or null
 
 discarded[]              taskId ｜ stratum ｜ authorBlockId ｜ authorSessionId
                          rejectedBy             STRUCTURAL_REVIEW | CORPUS_DUPLICATE
+                         rejectedAtRound        the duplicate round, or null if structural
                          structuralReviewIds ｜ duplicateAuditEvidence
                          rejectedAt ｜ replacedBy
+
+duplicateAuditRounds[]   roundId                DUP-R00, DUP-R01, …
+                         roundType              FULL | INCREMENTAL
+                         auditScopeIds          the exact list supplied to the auditors
+                         corpusTaskIds          the corpus as it stood for that round
+                         corpusTaskSha256       matching hashes at that moment
+                         auditorSessionIds      D1, D2, and each D3
+                         returnedPairs          verbatim per auditor, empty lists included
+                         confirmedPairs         after majority
+                         components             with the incumbent / replacement split shown
+                         retained ｜ rejected     the §7 rule applied, shown not just asserted
+                         vacanciesCreated       and the batch that filled them
 ```
 
 ### 2.0 No self-referential commit
@@ -126,12 +162,25 @@ exactly 10 per stratum
 exactly 2 per stratum per author BLOCK, for all five blocks
 every taskSha256 recomputes from the frozen bytes
 every task has R1 and R2; R3 present iff R1 and R2 disagreed
-every task survived the final corpus duplicate audit round
 every discarded task names its replacement, and no discarded id appears in tasks[]
 every replacement names a session in the same author block as the task it replaced
 the three rubric hashes are identical across every task
 no confirmed-duplicate pair remains in tasks[]
+
+duplicateAuditRounds[] begins with DUP-R00, roundType FULL, auditScopeIds = all 60 ids
+every later round has roundType INCREMENTAL and auditScopeIds = that round's replacements
+no auditor session id appears under two roundIds
+one duplicateAuditRubricSha256 across every round
+the last round produced no vacancy, and the corpus at that round is tasks[]
+EVERY UNORDERED PAIR IN tasks[] IS IN THE SCOPE OF EXACTLY ONE ROUND — recomputable
+    from the rounds' auditScopeIds and corpusTaskIds alone
 ```
+
+`[DESIGN]` The last invariant is the one that makes an incremental audit checkable. It is a
+property of the recorded rounds, not a claim about them: a reader replays the scope lists,
+takes the union of the pairs each round covered, and either it is the complete pair set of
+the frozen pool or the audit had a hole. Every other invariant here would still hold on a
+pool with an unscreened pair in it.
 
 ---
 
