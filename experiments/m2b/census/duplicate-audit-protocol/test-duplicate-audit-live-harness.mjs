@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 
 import {
   HARNESS_VERSION,
@@ -592,6 +593,40 @@ await check('dispatchLiveDuplicateAudit refuses without a valid authorizedBaseSh
 await check('dispatchLiveDuplicateAudit refuses an unrecognized roundId', async () => {
   await assert.rejects(() => dispatchLiveDuplicateAudit({ liveExecution: true, authorizedBaseSha: AUTHORIZED_BASE, roundId: 'NOT-A-ROUND', stage: 'D1D2' }),
     (error) => error.code === 'STOP_ROUND_INVALID');
+});
+
+console.log('\n--- Credential bootstrap (CWP-12D-R) ---');
+
+await check('importing the LIVE harness in a fresh child process bootstraps repository dotenv config from DOTENV_CONFIG_PATH (sentinel values only, no real credentials, 0 provider calls)', () => {
+  const sentinelClaude = `sentinel-claude-${crypto.randomBytes(8).toString('hex')}`;
+  const sentinelGemini = `sentinel-gemini-${crypto.randomBytes(8).toString('hex')}`;
+  const envFile = path.join(SCRATCH, 'sentinel.env');
+  fs.writeFileSync(envFile, `ANTHROPIC_API_KEY=${sentinelClaude}\nGEMINI_API_KEY=${sentinelGemini}\n`, 'utf8');
+
+  const harnessUrl = new URL('./duplicate-audit-live-harness-v1.mjs', import.meta.url).href;
+  const childScript = path.join(SCRATCH, 'dotenv-bootstrap-child.mjs');
+  fs.writeFileSync(
+    childScript,
+    `import ${JSON.stringify(harnessUrl)};\n`
+      + `console.log(JSON.stringify({\n`
+      + `  claudeOk: process.env.ANTHROPIC_API_KEY === ${JSON.stringify(sentinelClaude)},\n`
+      + `  geminiOk: process.env.GEMINI_API_KEY === ${JSON.stringify(sentinelGemini)},\n`
+      + `}));\n`,
+    'utf8'
+  );
+
+  // Child inherits nothing from any real ANTHROPIC_API_KEY/GEMINI_API_KEY the
+  // parent test process may have; only the synthetic sentinel file (via
+  // DOTENV_CONFIG_PATH) can make the harness's own `import 'dotenv/config'`
+  // populate these two variables.
+  const childEnv = { ...process.env, DOTENV_CONFIG_PATH: envFile };
+  delete childEnv.ANTHROPIC_API_KEY;
+  delete childEnv.GEMINI_API_KEY;
+
+  const stdout = execFileSync('node', [childScript], { encoding: 'utf8', env: childEnv });
+  const result = JSON.parse(stdout.trim());
+  assert.equal(result.claudeOk, true);
+  assert.equal(result.geminiOk, true);
 });
 
 console.log('\n--- Real-data blindness and namespace guard ---');

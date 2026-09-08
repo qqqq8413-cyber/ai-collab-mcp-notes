@@ -24,7 +24,7 @@
 > | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
 > | **M2-B P03 Acquisition** | **CLOSED / EXHAUSTED —— 9/9 attempted、0 admitted、0 archetypes filled、0 A2 executions,詳見第二十六節** |
 > | **M-ACQ-01** | **OPEN —— natural eligibility base rate 未知;在此問題被 characterize 之前,不得重新設計或執行 M2-B effectiveness experiment** |
-> | **Chief Natural Collaboration Census** | **DRAFT / NOT PREREGISTERED —— Protocol 2.1 60/60 acquired; Structural Review ROUND_2 R3_COMPLETE / CLOSED (60/60 FINAL, 0 PENDING_R3 @ a4c343a); Duplicate Audit Protocol-1 SPECIFICATION CLOSED / IMPLEMENTATION VERIFIED OFFLINE / DUP-R00 PRE-LIVE INPUT BINDING VERIFIED (CWP-12A..12C, strict JSON-only extraction, canonical corpus binding, frozen execution envelope), Final Pre-Live GPT approval NOT YET GRANTED, LIVE NOT AUTHORIZED, 0 AUDIT ROUNDS RUN** |
+> | **Chief Natural Collaboration Census** | **DRAFT / NOT PREREGISTERED —— Protocol 2.1 60/60 acquired; Structural Review ROUND_2 R3_COMPLETE / CLOSED (60/60 FINAL, 0 PENDING_R3 @ a4c343a); Duplicate Audit Protocol-1 SPECIFICATION CLOSED / IMPLEMENTATION VERIFIED OFFLINE / DUP-R00 PRE-LIVE INPUT BINDING VERIFIED (CWP-12A..12C, strict JSON-only extraction, canonical corpus binding, frozen execution envelope); DUP-R00 D1/D2 LIVE first attempt FAILED CLOSED PRE-DISPATCH (CWP-12D @ 84157f9a: STOP_CREDENTIAL_MISSING, 0 provider calls, D1/D2 not consumed); credential bootstrap repaired offline (CWP-12D-R), Final Pre-Live GPT approval NOT YET GRANTED, LIVE NOT AUTHORIZED, 0 AUDIT ROUNDS RUN** |
 > | **M2-B Fixture Freeze(synthetic)** | **SUPERSEDED —— GPT Fixture Review 判定 FIXTURE PROVENANCE BLOCKER;`fx-01…04` 改列 PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL,檔案原封保留於 `02cbb5f`** |
 > | **M2-B Pre-Synthesis Boundary** | **ACCEPTED(GPT)—— `runRound1Stage()` 已抽出,offline parity byte-identical** |
 > | **M2-B Real Round1 Capture — Set R1** | **FAILED(保存為失敗證據)—— fxr-01…04 四題全 FAIL F1,證據保留於 `81ac330`,詳見第二十七節** |
@@ -3779,11 +3779,49 @@ candidate 未重用。**下一步必須回到 GPT Architecture；不得自行續
     one-attempt rule、raw-first rule、JSON-only extractor rule 全數未變動。
   - **尚未取得 Final Pre-Live GPT approval**——留待下一次 GPT repository
     review 判斷，本檔不代為宣告。
+- **DUP-R00 D1/D2 LIVE 初次嘗試：FAILED CLOSED PRE-DISPATCH（CWP-12D @
+  `84157f9a30ae8c21336b2616c0220a76678cf29f`）**：
+  - 以硬化過的 `dispatchLiveDuplicateAudit()`（僅四個授權公開參數）嘗試真正
+    DUP-R00 D1/D2 LIVE dispatch，於任何 provider transport 之前即
+    `STOP_CREDENTIAL_MISSING`（`required claude credential is missing`）。
+  - 根因已機械確認：`duplicate-audit-live-harness-v1.mjs` 從未
+    `import 'dotenv/config'`（`structural-review-live-harness-v1.mjs` 有此
+    import，本檔沒有），故獨立 process 呼叫此模組時
+    `ANTHROPIC_API_KEY`/`GEMINI_API_KEY` 從未被填入——即使 repository `.env`
+    本身確實含有效值（以獨立 `node -e` 直接載入 dotenv 已核實）。這是
+    CWP-12B 遺留的實作缺口，不是憑證真正缺失。
+  - 依 CWP-12D 明文「Do not modify code to make execution easier」與其
+    STOP CONDITIONS 清單，本次未修補程式碼，原地回報 STOP，交回 GPT。
+  - 0 provider calls，0 reservations，0 `duplicate-audit-round-00` 證據，
+    D1/D2 attempts 未被消耗（未來仍可重新嘗試）。**未宣告 CWP-12D LIVE
+    完成，未宣告 D1 或 D2 已執行。**
+- **Duplicate Audit LIVE 憑證 bootstrap 修補（CWP-12D-R，offline）**：
+  - 修補 `duplicate-audit-live-harness-v1.mjs`：於模組最上方加入
+    `import 'dotenv/config';`（與 `structural-review-live-harness-v1.mjs`
+    一致），並將頂部註解由「importing performs no I/O」修正為「importing
+    may bootstrap environment configuration, performs no provider call,
+    creates no research evidence」。
+  - 新增一項 offline regression：子行程以 `DOTENV_CONFIG_PATH` 指向臨時
+    合成 env 檔（sentinel 值、非真實憑證）匯入本模組，驗證
+    `ANTHROPIC_API_KEY`/`GEMINI_API_KEY` 確實被填入 sentinel 值；僅印出
+    布林結果，不印出任何實際憑證，0 provider calls，0
+    duplicate-audit-round-* 證據。
+  - `test-duplicate-audit-live-harness.mjs` 38/38（+1）；
+    `test-duplicate-audit-corpus-binding.mjs` 42/42 不變；
+    `test-duplicate-audit-protocol.mjs` 60/60 不變；duplicate-audit 離線
+    測試合計 140 項，0 provider calls；Structural Review 迴歸 49/49；
+    `npm test` 全綠。
+  - Layer A、D1/D2/D3 prompt、extractor、corpus binding、1770-pair
+    universe、provider/model pins、generation envelope、CBRP-D3-v1、
+    retention、attempt、raw-first 語意全數未變動。**DUP-R00 仍未執行、
+    Duplicate Audit LIVE 仍需另一份明寫 `EXECUTION AUTHORIZATION: GRANTED`
+    的 GPT packet。**
 - **當前邊界**：
   - 下一個研究階段為 Duplicate Audit：規格已封閉、harness 已離線實作並驗證、
-    DUP-R00 pre-live input binding 已驗證，但**執行仍尚未授權（LIVE NOT
-    AUTHORIZED）且尚未執行（UNEXECUTED）**，Final Pre-Live GPT approval
-    尚未取得。
+    DUP-R00 pre-live input binding 已驗證、LIVE 憑證 bootstrap 缺口已於
+    CWP-12D-R 修補，但**執行仍尚未授權（LIVE NOT AUTHORIZED）且尚未執行
+    （UNEXECUTED）**，Final Pre-Live GPT approval 尚未取得,D1/D2 attempts
+    尚未被消耗。
   - DUP-R00 input population = 通過 Structural Review ROUND_2 的現行 60 個
     Protocol-2.1 candidates，並已機械綁定（CWP-12C）。
   - 0 duplicate audit rounds，0 pool freeze，0 Chief Census calls，亦無任何 effectiveness 實驗結果。

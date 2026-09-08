@@ -17,7 +17,8 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  9d38810807743ec6eb978dca059f22ec26c78b33（CWP-12C execution base）
+stateVerifiedThrough  84157f9a30ae8c21336b2616c0220a76678cf29f（CWP-12D authorized base；
+                      CWP-12D 於此 base 上 STOP_CREDENTIAL_MISSING，CWP-12D-R 於同一 base 修補）
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -1587,6 +1588,75 @@ duplicate-audit-round-* 目錄  0（全程未建立）
 GPT repository review 的判斷，本檔不代為宣告。Duplicate Audit LIVE 仍需
 另一份明寫 `EXECUTION AUTHORIZATION: GRANTED` 的 GPT packet。
 
+### CWP-12D —— DUP-R00 D1/D2 LIVE 初次嘗試：FAILED CLOSED PRE-DISPATCH
+
+```
+Duplicate Audit Protocol-1:
+SPECIFICATION CLOSED
+IMPLEMENTATION VERIFIED OFFLINE
+DUP-R00 PRE-LIVE INPUT BINDING VERIFIED
+DUP-R00 D1/D2 LIVE ATTEMPT: FAILED CLOSED PRE-DISPATCH (STOP_CREDENTIAL_MISSING)
+LIVE NOT AUTHORIZED (unchanged)
+0 DUPLICATE AUDIT ROUNDS
+```
+
+`[FACT]` CWP-12D 以硬化過的 `dispatchLiveDuplicateAudit()`（僅四個授權公開
+參數：`liveExecution`／`authorizedBaseSha`／`roundId`／`stage`）嘗試真正的
+DUP-R00 D1/D2 LIVE dispatch，於任何 provider transport 之前即
+`STOP_CREDENTIAL_MISSING`（`required claude credential is missing`）。
+
+`[FACT]` **根因已機械確認**：`duplicate-audit-live-harness-v1.mjs` 從未
+`import 'dotenv/config'`（結構性審查的 `structural-review-live-harness-v1.mjs`
+有此 import，本檔沒有），故獨立 process 呼叫此模組時
+`process.env.ANTHROPIC_API_KEY`／`GEMINI_API_KEY` 從未被填入——即使
+repository `.env` 本身確實含有效值（以獨立 `node -e` 直接載入 dotenv 已核實）。
+這是 CWP-12B 遺留的實作缺口,不是憑證真正缺失。
+
+`[FACT]` 依 CWP-12D 明文「Do not modify code to make execution easier」與其
+STOP CONDITIONS 清單（credential missing 屬其中一項），本次**未**修補程式碼，
+原地回報 STOP，交回 GPT。
+
+```
+provider calls               0
+reservations                 0
+duplicate-audit-round-00 證據 0（namespace 從未建立）
+D1/D2 attempts consumed      0（未被消耗，未來仍可重新嘗試）
+working tree drift           0（除本次未做的修補外，無其他變更）
+```
+
+`[DECISION]` **未宣告 CWP-12D LIVE 完成，未宣告 D1 或 D2 已執行。** 這是一次
+乾淨的 pre-dispatch fail-closed，不是研究結果。
+
+### CWP-12D-R —— Duplicate Audit LIVE 憑證 bootstrap 修補（offline）
+
+`[FACT]` 已修補 `duplicate-audit-live-harness-v1.mjs`：於模組最上方加入
+`import 'dotenv/config';`（與 `structural-review-live-harness-v1.mjs` 一致），
+並將頂部註解由「importing performs no I/O」修正為「importing may bootstrap
+environment configuration, performs no provider call, creates no research
+evidence」，避免加入 dotenv 後與註解本身矛盾。
+
+`[FACT]` 新增一項 offline regression（`test-duplicate-audit-live-harness.mjs`）：
+以子行程（`DOTENV_CONFIG_PATH` 指向臨時合成 env 檔、含 sentinel 值、非真實
+憑證）匯入本模組，驗證 `ANTHROPIC_API_KEY`／`GEMINI_API_KEY` 確實被填入
+sentinel 值——僅印出布林結果，不印出任何實際憑證，0 provider calls，0
+duplicate-audit-round-* 證據。
+
+```
+新增/更新測試          test-duplicate-audit-live-harness.mjs 38/38（+1，
+                      credential bootstrap regression）
+                      test-duplicate-audit-corpus-binding.mjs 42/42（不變）
+                      test-duplicate-audit-protocol.mjs 60/60（不變）
+regression suite       structural review 49/49；npm test 全綠
+provider calls          0
+duplicate-audit-round-* 目錄  0（全程未建立）
+```
+
+`[DECISION]` 本次僅修補 CWP-12D 揭露的憑證 bootstrap 缺口，未變更 Layer
+A／D1/D2/D3 prompt／extractor／corpus binding／1770-pair universe／
+provider-model pins／generation envelope／CBRP-D3-v1／retention／attempt／
+raw-first 語意。**DUP-R00 仍未執行、Duplicate Audit LIVE 仍需另一份明寫
+`EXECUTION AUTHORIZATION: GRANTED` 的 GPT packet。**
+
 ### 目前的 M2-B 狀態（不得混淆 acquisition 與 effectiveness)
 
 ```
@@ -2084,10 +2154,15 @@ Structural Review ROUND_2 R3  CONSUMED / CLOSED ← 已於 a4c343a (CWP-11G) 執
 Duplicate Audit           NOT AUTHORIZED ← 規格已於 CWP-12A 封閉、harness 已於
                           CWP-12B 離線實作並驗證、CWP-12B-R 移除越權的 fenced
                           extractor 行為、CWP-12C 完成 DUP-R00 pre-live corpus
-                          binding 與 execution envelope 硬化（duplicate-audit
-                          離線測試合計 139 項、0 provider calls）。尚未取得
-                          Final Pre-Live GPT
-                          approval；DUP-R00 LIVE 仍未授權、尚未執行
+                          binding 與 execution envelope 硬化。CWP-12D 首次真正
+                          LIVE D1/D2 dispatch 嘗試於 0 provider calls 時
+                          STOP_CREDENTIAL_MISSING（FAILED CLOSED PRE-DISPATCH，
+                          憑證未真正缺失，是 harness 缺少 dotenv bootstrap）；
+                          CWP-12D-R 已 offline 修補該 bootstrap 缺口
+                          （duplicate-audit 離線測試合計 140 項、0 provider
+                          calls）。尚未取得 Final Pre-Live GPT
+                          approval；DUP-R00 LIVE 仍未授權、尚未執行、D1/D2 皆
+                          未消耗
 Gemini A2               NOT AUTHORIZED
 Gate                    NOT AUTHORIZED
 Synthesis               NOT AUTHORIZED
@@ -2290,7 +2365,7 @@ Protocol 與 Structural Review Protocol 均已凍結）。以下為更正後、�
 的收尾狀態：
 
 ```
-STATE ALIGNED THROUGH 9d38810807743ec6eb978dca059f22ec26c78b33 (CWP-12C execution base) / CWP-11H /
+STATE ALIGNED THROUGH 84157f9a30ae8c21336b2616c0220a76678cf29f (CWP-12D authorized base) / CWP-11H /
 P03 CLOSED — 9/9 ATTEMPTED, 0 ADMITTED, 0 ARCHETYPES FILLED /
 F1 FAIL 3/9 ｜ F2 FAIL 7/9 ｜ F3 FAIL 0/9 ｜ ONE SPECIALIST 7/9 /
 A2 = 0 EXECUTIONS ｜ EFFECTIVENESS EXPERIMENT NOT EXECUTED ｜ C vs D₁ UNANSWERED /
@@ -2320,8 +2395,17 @@ CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-1 SPECIFICATION CLOSED (CWP-12A/12A-R) —
   DUP-R00 PRE-LIVE INPUT BINDING VERIFIED (CWP-12C: canonical 60-task corpus
   mechanically bound to Structural Review ROUND_2 FINAL_DECISIONS/VALIDATION,
   scope invariant enforced, generation envelope frozen, real LIVE entrypoint
-  rejects operator overrides and DUP-R01+, D3 never auto-chained, 139
-  duplicate-audit offline tests, 0 provider calls) /
+  rejects operator overrides and DUP-R01+, D3 never auto-chained) /
+  DUP-R00 D1/D2 LIVE FIRST ATTEMPT FAILED CLOSED PRE-DISPATCH (CWP-12D @
+  84157f9a30ae8c21336b2616c0220a76678cf29f: STOP_CREDENTIAL_MISSING before
+  any transport call, 0 provider calls, 0 reservations, 0
+  duplicate-audit-round-00 evidence, D1/D2 attempts not consumed; cause was
+  a missing dotenv bootstrap in the LIVE harness, not genuinely absent
+  credentials) /
+  DUP-R00 CREDENTIAL BOOTSTRAP REPAIRED OFFLINE (CWP-12D-R: added
+  `import 'dotenv/config'` to duplicate-audit-live-harness-v1.mjs mirroring
+  structural-review-live-harness-v1.mjs; 140 duplicate-audit offline tests,
+  0 provider calls; DUP-R00 LIVE still NOT re-attempted) /
   Final Pre-Live GPT approval NOT YET GRANTED / LIVE NOT AUTHORIZED /
   0 AUDIT ROUNDS RUN /
 60/60 structural decisions FINAL ｜ 0 duplicate audit rounds ｜ 0 replacement sessions ｜

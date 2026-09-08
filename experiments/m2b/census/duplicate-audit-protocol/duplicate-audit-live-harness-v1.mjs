@@ -2,8 +2,10 @@
  * CBRP-DUPLICATE-AUDIT-LIVE-HARNESS-1
  *
  * Offline-tested transport and evidence boundary for future
- * CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-1 execution. Importing this module
- * performs no I/O and no provider call. The real transport is reachable only
+ * CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-1 execution. Importing this module may
+ * bootstrap environment configuration (repository `.env`, via `dotenv/config`,
+ * mirroring `structural-review-live-harness-v1.mjs`) but performs no provider
+ * call and creates no research evidence. The real transport is reachable only
  * through `dispatchLiveDuplicateAudit()`, which requires an explicit LIVE
  * flag, authorized base SHA, exact artifact namespace, credentials,
  * runtime/source revalidation, and a durable exclusive reservation for every
@@ -14,7 +16,15 @@
  * CWP-12B: implemented and offline-verified only. DUP-R00 has not run and
  * this module makes zero provider calls when imported or exercised by the
  * offline conformance suite -- every test injects a fake `transport`.
+ *
+ * CWP-12D-R: added the `dotenv/config` bootstrap below (previously missing,
+ * unlike the structural-review harness) after a real DUP-R00 D1/D2 dispatch
+ * attempt (CWP-12D) STOPped on STOP_CREDENTIAL_MISSING even though the
+ * repository `.env` held valid credentials -- this module simply never
+ * loaded it when invoked from a fresh process. Zero provider calls were made
+ * under CWP-12D; this repair only restores the credential bootstrap.
  */
+import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
