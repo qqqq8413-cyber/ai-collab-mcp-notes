@@ -24,7 +24,7 @@
 > | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
 > | **M2-B P03 Acquisition** | **CLOSED / EXHAUSTED —— 9/9 attempted、0 admitted、0 archetypes filled、0 A2 executions,詳見第二十六節** |
 > | **M-ACQ-01** | **OPEN —— natural eligibility base rate 未知;在此問題被 characterize 之前,不得重新設計或執行 M2-B effectiveness experiment** |
-> | **Chief Natural Collaboration Census** | **DRAFT / NOT PREREGISTERED —— Protocol 2.1 60/60 acquired; Structural Review ROUND_2 R3_COMPLETE / CLOSED (60/60 FINAL, 0 PENDING_R3 @ a4c343a); Duplicate Audit Protocol-1 SPECIFICATION CLOSED / IMPLEMENTATION VERIFIED OFFLINE (CWP-12A/12B/12B-R, strict JSON-only extraction), LIVE NOT AUTHORIZED, 0 AUDIT ROUNDS RUN** |
+> | **Chief Natural Collaboration Census** | **DRAFT / NOT PREREGISTERED —— Protocol 2.1 60/60 acquired; Structural Review ROUND_2 R3_COMPLETE / CLOSED (60/60 FINAL, 0 PENDING_R3 @ a4c343a); Duplicate Audit Protocol-1 SPECIFICATION CLOSED / IMPLEMENTATION VERIFIED OFFLINE / DUP-R00 PRE-LIVE INPUT BINDING VERIFIED (CWP-12A..12C, strict JSON-only extraction, canonical corpus binding, frozen execution envelope), Final Pre-Live GPT approval NOT YET GRANTED, LIVE NOT AUTHORIZED, 0 AUDIT ROUNDS RUN** |
 > | **M2-B Fixture Freeze(synthetic)** | **SUPERSEDED —— GPT Fixture Review 判定 FIXTURE PROVENANCE BLOCKER;`fx-01…04` 改列 PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL,檔案原封保留於 `02cbb5f`** |
 > | **M2-B Pre-Synthesis Boundary** | **ACCEPTED(GPT)—— `runRound1Stage()` 已抽出,offline parity byte-identical** |
 > | **M2-B Real Round1 Capture — Set R1** | **FAILED(保存為失敗證據)—— fxr-01…04 四題全 FAIL F1,證據保留於 `81ac330`,詳見第二十七節** |
@@ -3745,9 +3745,45 @@ candidate 未重用。**下一步必須回到 GPT Architecture；不得自行續
     其餘全數機械核實未變動。0 provider calls；D1/D2/D3 prompt bytes、
     pair-universe、D3 routing、model pins、decision matrix、retention、
     route-manifest sequencing、LIVE guard 全數未變動。
+- **DUP-R00 pre-live corpus binding 與 execution envelope（CWP-12C @ `9d38810`起）**：
+  - 新增 `duplicate-audit-corpus-binding-v1.mjs`：DUP-R00 機械化 corpus
+    綁定，十項檢核（authoring runId、60 候選、ID 唯一、taskText 雜湊/位元組
+    相符、與 structural FINAL_DECISIONS ID 集合完全相等、60 筆皆
+    FINAL/finalPass=true、VALIDATION 為 ROUND_2/R3_COMPLETE/0 pending），
+    任何一項不符即 STOP；純驗證函式與真實檔案讀取分層，全部失效模式可用
+    合成 fixture 測試，未修改任何真實 committed evidence。
+  - 新增 `duplicate-audit-preflight-v1.mjs`，產出並提交
+    `experiments/m2b/census/duplicate-audit-preflight/DUP_R00_PRELIVE_MANIFEST.json`
+    ——純函式、可重現的 offline pre-live manifest，與
+    `duplicate-audit-round-*/`（真正 round 證據）明確分開；本次未建立任何
+    round 證據目錄。
+  - 凍結 `DUP_R00_GENERATION_ENVELOPES`：Claude maxOutputTokens=32768/
+    thinkingLevel=null；Gemini maxOutputTokens=32768/thinkingLevel=medium
+    （與 Structural Review ROUND_1/2 已實測的 Gemini envelope 相同數值）。
+    Claude 的 32768 為本專案首次使用，已機械核實 SDK 型別層級可表達，
+    未做任何 provider 呼叫驗證。
+  - 硬化真正的 LIVE entrypoint `dispatchLiveDuplicateAudit`：不再接受
+    corpusTasks/auditScopeIds/maxOutputTokens/thinkingLevel/temperature
+    任何覆寫（一律 STOP_UNAUTHORIZED_OVERRIDE）；roundId 必須精確等於
+    DUP-R00（DUP-R01+ 一律 STOP_ROUND_NOT_LIVE_READY）；stage 僅接受
+    D1D2（顯式要求 D3 一律 STOP_STAGE_NOT_LIVE_READY，D3 從不自動串接）。
+    `executeDuplicateAuditSession` 同步改為 `envelopeForProvider(provider)`
+    per-session 查表，鏡射 structural review 的 `generationEnvelopeFor`。
+  - 新增 `test-duplicate-audit-corpus-binding.mjs`（42 項測試）；
+    `test-duplicate-audit-live-harness.mjs` 37/37（+1）；
+    `test-duplicate-audit-protocol.mjs` 60/60 不變；duplicate-audit 離線
+    測試合計 139 項，0 provider calls；Structural Review 迴歸 80/80、
+    49/49；`npm test` 全綠。
+  - Duplicate Audit 語意 rubric、Layer A、D1/D2/D3 prompt 文字、D1/D2
+    pins、CBRP-D3-v1、retention rules、pair-universe semantics、
+    one-attempt rule、raw-first rule、JSON-only extractor rule 全數未變動。
+  - **尚未取得 Final Pre-Live GPT approval**——留待下一次 GPT repository
+    review 判斷，本檔不代為宣告。
 - **當前邊界**：
-  - 下一個研究階段為 Duplicate Audit：規格已封閉、harness 已離線實作並驗證，
-    但**執行仍尚未授權（LIVE NOT AUTHORIZED）且尚未執行（UNEXECUTED）**。
+  - 下一個研究階段為 Duplicate Audit：規格已封閉、harness 已離線實作並驗證、
+    DUP-R00 pre-live input binding 已驗證，但**執行仍尚未授權（LIVE NOT
+    AUTHORIZED）且尚未執行（UNEXECUTED）**，Final Pre-Live GPT approval
+    尚未取得。
   - DUP-R00 input population = 通過 Structural Review ROUND_2 的現行 60 個
-    Protocol-2.1 candidates。
+    Protocol-2.1 candidates，並已機械綁定（CWP-12C）。
   - 0 duplicate audit rounds，0 pool freeze，0 Chief Census calls，亦無任何 effectiveness 實驗結果。

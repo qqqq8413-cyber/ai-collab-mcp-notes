@@ -38,6 +38,58 @@ export const D1_PIN = Object.freeze({ provider: 'claude', model: 'claude-opus-5'
 export const D2_PIN = Object.freeze({ provider: 'gemini', model: 'gemini-3.8-flash', modelFamily: 'GEMINI_FAMILY' });
 
 /**
+ * CWP-12C: DUP-R00's frozen, provider-keyed generation envelope -- the
+ * duplicate-audit analogue of `GENERATION_ENVELOPES` in
+ * structural-review-runner.mjs. A LIVE operator cannot change
+ * maxOutputTokens/thinkingLevel/temperature ad hoc: the real LIVE entrypoint
+ * (duplicate-audit-live-harness-v1.mjs's `dispatchLiveDuplicateAudit`) reads
+ * these values internally and does not accept them as caller-suppliable
+ * parameters. D3 uses the envelope entry for whichever provider
+ * CBRP-D3-v1 selects for that pair.
+ *
+ * Claude's `max_tokens: 32768` is mechanically representable by the
+ * installed `@anthropic-ai/sdk` (0.123.0) without changing provider/model
+ * semantics: `max_tokens` on the plain (non-beta) `messages.create` request
+ * is typed simply as `number`, with no beta-header or endpoint-switch
+ * requirement documented for that field -- unlike the SDK's separate
+ * `output-128k-2025-02-19` beta flag, which applies only to the beta
+ * endpoint this transport does not use. Whether the API itself honors
+ * 32768 for `claude-opus-5` at request time is a LIVE-time question the
+ * existing STOP_PROVIDER_ERROR / MAX_TOKENS fail-closed paths already
+ * handle; it is not a build-time representability failure.
+ *
+ * Gemini's `maxOutputTokens: 32768` / `thinkingLevel: 'medium'` are the
+ * exact values structural review's ROUND_1/ROUND_2 envelope already used in
+ * real LIVE Gemini dispatches (CBRP-STRUCTURAL-REVIEW-EXECUTION-AMENDMENT-1,
+ * CWP-11B), so their representability is not merely mechanical but already
+ * empirically exercised by this repository.
+ */
+export const DUP_R00_GENERATION_ENVELOPES = Object.freeze({
+  claude: Object.freeze({
+    provider: 'claude', model: 'claude-opus-5',
+    maxOutputTokens: 32768, thinkingLevel: null, temperature: null,
+  }),
+  gemini: Object.freeze({
+    provider: 'gemini', model: 'gemini-3.8-flash',
+    maxOutputTokens: 32768, thinkingLevel: 'medium', temperature: null,
+  }),
+});
+export const DUP_R00_GENERATION_ENVELOPE_VERSION = 'CBRP-DUPLICATE-AUDIT-DUP-R00-GENERATION-ENVELOPE-1';
+
+/**
+ * Looks up DUP-R00's frozen envelope for one provider. Fails closed (throws)
+ * on an unknown provider rather than silently falling back to a default --
+ * mirrors `generationEnvelopeFor` in structural-review-runner.mjs.
+ */
+export function dupR00EnvelopeFor(provider) {
+  const envelope = DUP_R00_GENERATION_ENVELOPES[provider];
+  if (!envelope) {
+    throw new TypeError(`dupR00EnvelopeFor: unknown provider ${JSON.stringify(provider)}`);
+  }
+  return envelope;
+}
+
+/**
  * Builds one round's complete D1/D2 session plan: the deterministic in-scope
  * pair universe (§5.1), and the two sessions (`<roundId>-D1`, `<roundId>-D2`)
  * that share byte-identical model-visible prompts (§7) and differ only in

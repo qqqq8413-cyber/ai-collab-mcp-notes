@@ -140,6 +140,22 @@ await check('protocol/module source hash drift is rejected (source/prompt drift 
   );
 });
 
+await check('CWP-12C: drift on any of the three canonical DUP-R00 evidence files (authoring/FINAL_DECISIONS/VALIDATION) is rejected before transport', () => {
+  for (const relativePath of [
+    'experiments/m2b/census/authoring-v2p1-round-0/CANDIDATES.json',
+    'experiments/m2b/census/structural-review-round-2/FINAL_DECISIONS.json',
+    'experiments/m2b/census/structural-review-round-2/VALIDATION.json',
+  ]) {
+    const sourceHashes = { ...EXPECTED_RUNTIME.sourceHashes };
+    sourceHashes[relativePath] = '0'.repeat(64);
+    assert.throws(
+      () => assertRuntimeSnapshot(makeSnapshot({ sourceHashes }), { authorizedBaseSha: AUTHORIZED_BASE }),
+      (error) => error instanceof DuplicateAuditStop && error.code === 'STOP_SOURCE_DRIFT',
+      `expected STOP_SOURCE_DRIFT for drift on ${relativePath}`
+    );
+  }
+});
+
 await check('Layer A byte/hash drift is rejected', () => {
   assert.throws(
     () => assertRuntimeSnapshot(makeSnapshot({ layerASha256: '0'.repeat(64) }), { authorizedBaseSha: AUTHORIZED_BASE }),
@@ -226,7 +242,7 @@ await check('a provider transport error stops after one attempt, with no retry o
   await assert.rejects(() => executeDuplicateAuditSession({
     session: { ...plan.d1, roundId: 'DUP-R00' }, store, state, transport,
     credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(),
-    corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, maxOutputTokens: 4096,
+    corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
   }), (error) => error.code === 'STOP_PROVIDER_ERROR');
   assert.equal(state.sessions.length, 1);
   assert.equal(state.sessions[0].outcome, 'STOP_PROVIDER_ERROR');
@@ -244,7 +260,7 @@ await check('a MAX_TOKENS-signaled response stops even though the truncated text
   await assert.rejects(() => executeDuplicateAuditSession({
     session: { ...plan.d1, roundId: 'DUP-R00' }, store, state, transport,
     credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(),
-    corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, maxOutputTokens: 4096,
+    corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
   }), (error) => error.code === 'STOP_MAX_TOKENS_TRUNCATED');
   assert.equal(rawExists(dir, plan.d1.sessionId), true, 'raw evidence must be preserved before the STOP fires');
   assert.equal(state.results.length, 0, 'no result may be admitted from a MAX_TOKENS-truncated response');
@@ -262,7 +278,7 @@ await check('Claude\'s lowercase stop_reason "max_tokens" is recognized identica
   await assert.rejects(() => executeDuplicateAuditSession({
     session: { ...plan.d1, roundId: 'DUP-R00' }, store, state, transport,
     credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(),
-    corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, maxOutputTokens: 4096,
+    corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
   }), (error) => error.code === 'STOP_MAX_TOKENS_TRUNCATED');
 });
 
@@ -278,7 +294,7 @@ await check('a schema-invalid response stops after raw evidence is preserved', a
   await assert.rejects(() => executeDuplicateAuditSession({
     session: { ...plan.d1, roundId: 'DUP-R00' }, store, state, transport,
     credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(),
-    corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, maxOutputTokens: 4096,
+    corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
   }), (error) => error.code === 'STOP_SCHEMA_VIOLATION');
   assert.equal(rawExists(dir, plan.d1.sessionId), true);
 });
@@ -295,7 +311,7 @@ await check('a malformed (unparseable) response stops as STOP_MALFORMED_RESPONSE
   await assert.rejects(() => executeDuplicateAuditSession({
     session: { ...plan.d1, roundId: 'DUP-R00' }, store, state, transport,
     credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(),
-    corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, maxOutputTokens: 4096,
+    corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
   }), (error) => error.code === 'STOP_MALFORMED_RESPONSE');
 });
 
@@ -312,7 +328,7 @@ await check('duplicate/ambiguous reservation blocks redispatch of the same sessi
   await assert.rejects(() => executeDuplicateAuditSession({
     session: { ...plan.d1, roundId: 'DUP-R00' }, store, state, transport,
     credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(),
-    corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, maxOutputTokens: 4096,
+    corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
   }), (error) => error.code === 'STOP_AMBIGUOUS_OR_CONSUMED_RESERVATION');
 });
 
@@ -327,7 +343,7 @@ await check('missing required credential blocks dispatch before any transport ca
   await assert.rejects(() => executeDuplicateAuditSession({
     session: { ...plan.d1, roundId: 'DUP-R00' }, store, state, transport,
     credentials: { claude: '', gemini: 'y' }, revalidate: async () => makeSnapshot(),
-    corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, maxOutputTokens: 4096,
+    corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
   }), (error) => error.code === 'STOP_CREDENTIAL_MISSING');
   assert.equal(calls.length, 0);
 });
@@ -362,7 +378,7 @@ const d1d2Result = await runD1D2Stage({
   transport: d1d2Transport.transport,
   credentials: { claude: 'x', gemini: 'y' },
   revalidate: async () => makeSnapshot(),
-  maxOutputTokens: 4096,
+  envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
 });
 
 await check('runD1D2Stage dispatches exactly D1 then D2 and derives the correct outcome', () => {
@@ -386,7 +402,7 @@ const d3Result = await runD3Stage({
   transport: d3Transport.transport,
   credentials: { claude: 'x', gemini: 'y' },
   revalidate: async () => makeSnapshot(),
-  maxOutputTokens: 4096,
+  envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
 });
 
 await check('runD3Stage materializes a complete D3_ROUTE_MANIFEST.json and dispatches exactly the disagreement-set size', () => {
@@ -427,7 +443,7 @@ async function runFreshD1D2NoDisagreement(label) {
   const { transport } = makeTransport((call) => fakeResponse(call, { duplicatePairs: [] }));
   await runD1D2Stage({
     authorizedBaseSha: AUTHORIZED_BASE, roundId: 'DUP-R00', corpusTasks: tasks, auditScopeIds: ids,
-    artifactDir: dir, transport, credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), maxOutputTokens: 4096,
+    artifactDir: dir, transport, credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
   });
   return { dir, tasks, ids };
 }
@@ -443,7 +459,7 @@ async function runFreshD1D2WithDisagreement(label) {
   });
   await runD1D2Stage({
     authorizedBaseSha: AUTHORIZED_BASE, roundId: 'DUP-R00', corpusTasks: tasks, auditScopeIds: ids,
-    artifactDir: dir, transport, credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), maxOutputTokens: 4096,
+    artifactDir: dir, transport, credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
   });
   return { dir, tasks, ids, disputedPair };
 }
@@ -453,7 +469,7 @@ await check('D3 stage refuses to run when the D1/D2 stage found no disagreement 
   const { transport } = makeTransport();
   await assert.rejects(() => runD3Stage({
     authorizedBaseSha: AUTHORIZED_BASE, roundId: 'DUP-R00', artifactDir: dir, transport,
-    credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), maxOutputTokens: 4096,
+    credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
   }), (error) => error.code === 'STOP_D1D2_STAGE_NOT_READY');
 });
 
@@ -467,7 +483,7 @@ await check('a route-manifest persistence failure stops before any D3 transport 
   const { calls, transport } = makeTransport();
   await assert.rejects(() => runD3Stage({
     authorizedBaseSha: AUTHORIZED_BASE, roundId: 'DUP-R00', artifactDir: dir, transport,
-    credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), store, maxOutputTokens: 4096,
+    credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), store, envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
   }), (error) => error.code === 'STOP_D3_ROUTE_MANIFEST_PERSISTENCE_FAILED');
   assert.equal(calls.length, 0);
   assert.equal(fs.existsSync(path.join(dir, 'D3_ROUTE_MANIFEST.json')), false);
@@ -487,7 +503,7 @@ await check('a reload mismatch after writing the manifest stops before any D3 tr
   const { calls, transport } = makeTransport();
   await assert.rejects(() => runD3Stage({
     authorizedBaseSha: AUTHORIZED_BASE, roundId: 'DUP-R00', artifactDir: dir, transport,
-    credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), store, maxOutputTokens: 4096,
+    credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), store, envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
   }), (error) => error.code === 'STOP_D3_ROUTE_MANIFEST_PERSISTENCE_FAILED');
   assert.equal(calls.length, 0);
 });
@@ -500,7 +516,7 @@ await check('an existing route manifest that mismatches the recomputed plan stop
   const { calls, transport } = makeTransport();
   await assert.rejects(() => runD3Stage({
     authorizedBaseSha: AUTHORIZED_BASE, roundId: 'DUP-R00', artifactDir: dir, transport,
-    credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), maxOutputTokens: 4096,
+    credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
   }), (error) => error.code === 'STOP_D3_ROUTE_MANIFEST_MISMATCH');
   assert.equal(calls.length, 0);
   assert.deepEqual(readJson(dir, 'D3_ROUTE_MANIFEST.json'), forged);
@@ -522,7 +538,7 @@ await check('an existing route manifest that exactly matches the recomputed plan
   const { calls, transport } = makeTransport((call) => fakeResponse(call, { isDuplicate: false, reason: 'no' }));
   const result = await runD3Stage({
     authorizedBaseSha: AUTHORIZED_BASE, roundId: 'DUP-R00', artifactDir: dir, transport,
-    credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), maxOutputTokens: 4096,
+    credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
   });
   assert.equal(calls.length, 1, 'exactly one disputed pair in this fixture');
   assert.equal(result.status, ROUND_STATES.D3_COMPLETE);
@@ -540,7 +556,7 @@ await check('the complete route manifest is durably persisted before the first D
   });
   await runD1D2Stage({
     authorizedBaseSha: AUTHORIZED_BASE, roundId: 'DUP-R00', corpusTasks: tasks, auditScopeIds: ids,
-    artifactDir: dir, transport: d1d2t, credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), maxOutputTokens: 4096,
+    artifactDir: dir, transport: d1d2t, credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
   });
 
   let manifestExistedBeforeFirstCall = null;
@@ -556,7 +572,7 @@ await check('the complete route manifest is durably persisted before the first D
   });
   await runD3Stage({
     authorizedBaseSha: AUTHORIZED_BASE, roundId: 'DUP-R00', artifactDir: dir, transport: d3t,
-    credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), maxOutputTokens: 4096,
+    credentials: { claude: 'x', gemini: 'y' }, revalidate: async () => makeSnapshot(), envelopeForProvider: () => ({ maxOutputTokens: 4096, thinkingLevel: null }),
   });
   assert.equal(manifestExistedBeforeFirstCall, true);
 });

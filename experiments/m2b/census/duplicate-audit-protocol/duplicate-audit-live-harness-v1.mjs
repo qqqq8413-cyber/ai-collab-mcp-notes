@@ -31,6 +31,7 @@ import {
   computeD1D2SessionPlan,
   computeD3RoutePlan,
   buildD3RouteManifest,
+  dupR00EnvelopeFor,
 } from './duplicate-audit-runner.mjs';
 import {
   EXPECTED_LAYER_A_BYTE_COUNT,
@@ -46,7 +47,11 @@ import {
   computeDuplicateD3Selector,
   applyRetention,
 } from './duplicate-audit-decision-v1.mjs';
-import { validateCorpusAndScope, pairKey } from './duplicate-audit-order-v1.mjs';
+import { validateCorpusAndScope, pairKey, computePairUniverse } from './duplicate-audit-order-v1.mjs';
+import {
+  loadCanonicalDupR00Corpus,
+  assertDupR00ScopeInvariant,
+} from './duplicate-audit-corpus-binding-v1.mjs';
 
 export const HARNESS_VERSION = 'CBRP-DUPLICATE-AUDIT-LIVE-HARNESS-1';
 export const MODEL_PIN_VERSION = 'CBRP-SESSION-MODEL-PINS-1';
@@ -65,6 +70,14 @@ const CENSUS_DIR = path.resolve(DIR, '..');
  * than silently run against a stale assumption. The harness/runner modules
  * that consume these are deliberately NOT self-referenced here, matching
  * structural review's own convention.
+ *
+ * CWP-12C extends this beyond protocol/module source to DUP-R00's three
+ * canonical evidence files (§C): the exact authoring population and the
+ * exact Structural Review ROUND_2 outcome LIVE must be bound to. A change
+ * to any of these three -- even one that would otherwise look like a
+ * legitimate later state -- must STOP a DUP-R00 dispatch rather than be
+ * silently picked up, because "which 60 tasks" and "which structural
+ * decisions" are exactly what DUP-R00's corpus binding exists to fix.
  */
 const SOURCE_HASHES = Object.freeze({
   'experiments/m2b/census/CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md': 'cbac540b7214afcf6e6352fb81dd8bda68171707eed0ac5197ac9555e8c64555',
@@ -72,6 +85,9 @@ const SOURCE_HASHES = Object.freeze({
   'experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-order-v1.mjs': 'dd25109b8571e42f5f51d222bd6fec03eeb441dac9b500364c19df923fb52772',
   'experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-extractor-v1.mjs': '78aee59362768e5ee36fe56952184de6eca505ad8e52f7c405f101d84d1a5eeb',
   'experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-decision-v1.mjs': '16fb3e3b2cb3c7888350402675e88de180fa82577693d1db24cb91948b4e6d03',
+  'experiments/m2b/census/authoring-v2p1-round-0/CANDIDATES.json': '05bb612aa85c95fdcc9e4dbf077ebc50b2977e0fe41df8179c127e2d9dc98368',
+  'experiments/m2b/census/structural-review-round-2/FINAL_DECISIONS.json': '1fbd7bab3a64a1750a4d571653b5299ed87242a4b72a5ac53b3c1c3e07878402',
+  'experiments/m2b/census/structural-review-round-2/VALIDATION.json': '5fc03db72f7a67843b6797f80da3cddae56f4fc04b0ba9694eea2ecff35c6f42',
 });
 
 export const EXPECTED_RUNTIME = Object.freeze({
@@ -355,10 +371,21 @@ function persistRunState(store, state) {
  * schema validation. One attempt; every failure is a `DuplicateAuditStop`
  * that preserves whatever evidence had already been durably written.
  *
+ * `envelopeForProvider(provider)` is looked up per session by
+ * `session.provider` -- never a single flat value applied uniformly --
+ * because D1 (claude) and D2 (gemini) legitimately need different
+ * maxOutputTokens/thinkingLevel, mirroring
+ * `generationEnvelopeFor(roundId, provider)` in
+ * structural-review-live-harness-v1.mjs exactly. This is also what makes a
+ * caller-supplied flat override impossible by construction: the value is
+ * always derived from the injected lookup function, never accepted as a
+ * session-level number.
+ *
  * @param {{ session: object, store: object, state: {sessions: object[], results: object[]},
  *           transport: Function, credentials: object, revalidate: Function,
  *           corpusTaskIds?: string[], pairUniverse?: Array<{a:string,b:string}>,
- *           maxOutputTokens: number, thinkingLevel?: string|null, clock?: Function }} input
+ *           envelopeForProvider: (provider: string) => {maxOutputTokens: number, thinkingLevel?: string|null},
+ *           clock?: Function }} input
  */
 export async function executeDuplicateAuditSession({
   session,
@@ -369,16 +396,19 @@ export async function executeDuplicateAuditSession({
   revalidate,
   corpusTaskIds,
   pairUniverse,
-  maxOutputTokens,
-  thinkingLevel = null,
+  envelopeForProvider,
   clock = nowIso,
 }) {
   if (typeof transport !== 'function') throw new TypeError('executeDuplicateAuditSession: injected transport is required');
   if (typeof revalidate !== 'function') throw new TypeError('executeDuplicateAuditSession: revalidate is required');
-  if (!Number.isInteger(maxOutputTokens) || maxOutputTokens <= 0) {
-    throw new TypeError('executeDuplicateAuditSession: maxOutputTokens must be a positive integer');
-  }
+  if (typeof envelopeForProvider !== 'function') throw new TypeError('executeDuplicateAuditSession: envelopeForProvider function is required');
   assertSessionRoute(session);
+  const envelope = envelopeForProvider(session.provider);
+  const maxOutputTokens = envelope?.maxOutputTokens;
+  const thinkingLevel = envelope?.thinkingLevel ?? null;
+  if (!Number.isInteger(maxOutputTokens) || maxOutputTokens <= 0) {
+    throw new TypeError(`executeDuplicateAuditSession: envelopeForProvider(${JSON.stringify(session.provider)}) did not return a positive integer maxOutputTokens`);
+  }
   requireCredential(session.provider, credentials);
   const runtimeProvenance = await revalidate();
   try {
@@ -561,14 +591,16 @@ export async function runD1D2Stage({
   revalidate,
   store: suppliedStore,
   clock,
-  maxOutputTokens,
-  thinkingLevel = null,
+  envelopeForProvider,
 }) {
   if (!ROUND_ID_PATTERN.test(roundId ?? '')) {
     throw stop('STOP_ROUND_INVALID', `unrecognized roundId ${JSON.stringify(roundId)}`);
   }
   if (!/^[0-9a-f]{40}$/.test(authorizedBaseSha ?? '')) {
     throw stop('STOP_AUTHORIZED_BASE_REQUIRED', 'authorizedBaseSha must be an explicit full lowercase commit SHA');
+  }
+  if (typeof envelopeForProvider !== 'function') {
+    throw new TypeError('runD1D2Stage: envelopeForProvider function is required');
   }
   const corpusTaskIds = corpusTasks.map((t) => t.candidateId);
   const scopeValidation = validateCorpusAndScope({ corpusTaskIds, auditScopeIds });
@@ -625,7 +657,7 @@ export async function runD1D2Stage({
     roundId,
   });
 
-  const sessionArgs = { corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, maxOutputTokens, thinkingLevel, clock };
+  const sessionArgs = { corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, envelopeForProvider, clock };
   try {
     await executeDuplicateAuditSession({ session: { ...plan.d1, roundId }, store, state, transport, credentials, revalidate, ...sessionArgs });
     store.writeJson('VALIDATION.json', { harnessVersion: HARNESS_VERSION, protocolVersion: PROTOCOL_VERSION, status: ROUND_STATES.D1_COMPLETE, roundId });
@@ -684,14 +716,16 @@ export async function runD3Stage({
   revalidate,
   store: suppliedStore,
   clock,
-  maxOutputTokens,
-  thinkingLevel = null,
+  envelopeForProvider,
 }) {
   if (!ROUND_ID_PATTERN.test(roundId ?? '')) {
     throw stop('STOP_ROUND_INVALID', `unrecognized roundId ${JSON.stringify(roundId)}`);
   }
   if (!/^[0-9a-f]{40}$/.test(authorizedBaseSha ?? '')) {
     throw stop('STOP_AUTHORIZED_BASE_REQUIRED', 'authorizedBaseSha must be an explicit full lowercase commit SHA');
+  }
+  if (typeof envelopeForProvider !== 'function') {
+    throw new TypeError('runD3Stage: envelopeForProvider function is required');
   }
   const store = suppliedStore ?? createArtifactStore(artifactDir);
   store.initialize();
@@ -732,7 +766,7 @@ export async function runD3Stage({
   }
 
   const state = { sessions: store.exists('SESSIONS.json') ? store.readJson('SESSIONS.json').sessions : [], results: store.exists('RESULTS.json') ? store.readJson('RESULTS.json').results : [] };
-  const sessionArgs = { maxOutputTokens, thinkingLevel, clock };
+  const sessionArgs = { envelopeForProvider, clock };
   try {
     for (const entry of d3RoutePlan) {
       await executeDuplicateAuditSession({
@@ -831,23 +865,64 @@ export function createRealProviderTransport(credentials) {
   };
 }
 
+/** The only round this real LIVE entrypoint is architecturally authorized to understand (§D). */
+export const DUP_R00_ROUND_ID = 'DUP-R00';
+
 /**
- * Explicit real entrypoint. Requires `liveExecution: true` and a valid
- * `authorizedBaseSha`; a caller lacking either gets STOP_LIVE_FLAG_REQUIRED /
- * STOP_AUTHORIZED_BASE_REQUIRED before anything else runs. No CWP has
- * authorized a call to this function yet -- DUP-R00 has not executed, and
- * this offline conformance suite never calls it with `liveExecution: true`.
+ * The complete set of options `dispatchLiveDuplicateAudit` accepts. Anything
+ * else -- most pointedly `corpusTasks`, `auditScopeIds`, `maxOutputTokens`,
+ * `thinkingLevel`, `temperature` -- is rejected outright (§B, §E): DUP-R00's
+ * corpus, scope, and generation envelope are bound internally from the
+ * canonical evidence and the frozen envelope table, never from a caller.
  */
-export async function dispatchLiveDuplicateAudit({
-  liveExecution,
-  authorizedBaseSha,
-  roundId,
-  stage,
-  corpusTasks,
-  auditScopeIds,
-  maxOutputTokens,
-  thinkingLevel = null,
-} = {}) {
+const ALLOWED_DISPATCH_OPTION_KEYS = Object.freeze(['liveExecution', 'authorizedBaseSha', 'roundId', 'stage']);
+
+/**
+ * Explicit real entrypoint, hardened by CWP-12C. Requires `liveExecution:
+ * true` and a valid `authorizedBaseSha`; a caller lacking either gets
+ * STOP_LIVE_FLAG_REQUIRED / STOP_AUTHORIZED_BASE_REQUIRED before anything
+ * else runs. No CWP has authorized a call to this function yet -- DUP-R00
+ * has not executed, and this offline conformance suite never calls it with
+ * `liveExecution: true`.
+ *
+ * Five layers of binding, each fail-closed before any provider transport:
+ *
+ *   1. option allow-list  -- no corpus/scope/envelope override is even
+ *                            reachable; an unexpected key STOPs immediately.
+ *   2. roundId === DUP-R00 -- exactly, not merely DUP-R\d\d (§D); DUP-R01+
+ *                            requires a future, separately GPT-reviewed
+ *                            amendment (replacement rounds have different
+ *                            canonical population/provenance inputs).
+ *   3. stage === D1D2      -- this entrypoint dispatches D1/D2 only; a D3
+ *                            request STOPs rather than running, and D1/D2
+ *                            never auto-chains into D3 (§G). D3 remains a
+ *                            separately authorized future stage, after GPT
+ *                            inspects the D1/D2 results and disagreement set.
+ *   4. canonical corpus     -- `loadCanonicalDupR00Corpus()`'s ten-point
+ *                            mechanical check (§A) against the real
+ *                            committed authoring/structural-review evidence.
+ *   5. scope invariant      -- `assertDupR00ScopeInvariant` re-verifies
+ *                            corpus=60/scope=60/scope==corpus/pairs=1770
+ *                            in depth, even though construction (auditScopeIds
+ *                            := corpusTaskIds) already guarantees it (§B).
+ *
+ * The generation envelope (§E) is looked up per-provider from
+ * `DUP_R00_GENERATION_ENVELOPES` inside `executeDuplicateAuditSession` via
+ * the injected `envelopeForProvider` closure below -- never a value this
+ * function receives from a caller and passes through.
+ */
+export async function dispatchLiveDuplicateAudit(options = {}) {
+  const suppliedKeys = Object.keys(options);
+  const forbiddenKeys = suppliedKeys.filter((key) => !ALLOWED_DISPATCH_OPTION_KEYS.includes(key));
+  if (forbiddenKeys.length > 0) {
+    throw stop(
+      'STOP_UNAUTHORIZED_OVERRIDE',
+      `dispatchLiveDuplicateAudit does not accept operator-supplied ${JSON.stringify(forbiddenKeys)}; ` +
+      'DUP-R00 corpus, scope, and generation envelope are bound internally and cannot be overridden',
+      { forbiddenKeys }
+    );
+  }
+  const { liveExecution, authorizedBaseSha, roundId, stage = D1D2_STAGE } = options;
   if (liveExecution !== true) {
     throw stop('STOP_LIVE_FLAG_REQUIRED', 'LIVE dispatch is not authorized without liveExecution: true');
   }
@@ -857,6 +932,19 @@ export async function dispatchLiveDuplicateAudit({
   if (!ROUND_ID_PATTERN.test(roundId ?? '')) {
     throw stop('STOP_ROUND_INVALID', `roundId must match DUP-R\\d\\d, got ${JSON.stringify(roundId)}`);
   }
+  if (roundId !== DUP_R00_ROUND_ID) {
+    throw stop(
+      'STOP_ROUND_NOT_LIVE_READY',
+      `this LIVE entrypoint is authorized to understand only ${DUP_R00_ROUND_ID}; ${JSON.stringify(roundId)} requires its own future GPT-reviewed amendment (replacement rounds have different canonical population/provenance inputs)`
+    );
+  }
+  if (stage !== D1D2_STAGE) {
+    throw stop(
+      'STOP_STAGE_NOT_LIVE_READY',
+      `this LIVE entrypoint dispatches ${D1D2_STAGE} only for ${DUP_R00_ROUND_ID}; D3 is a separately authorized future stage and is never auto-chained after D1/D2`
+    );
+  }
+
   const credentials = {
     claude: process.env.ANTHROPIC_API_KEY ?? '',
     gemini: process.env.GEMINI_API_KEY ?? '',
@@ -866,11 +954,32 @@ export async function dispatchLiveDuplicateAudit({
   const transport = createRealProviderTransport(credentials);
   const revalidate = createLiveRevalidator({ authorizedBaseSha, roundId });
   const { absolute: artifactDir } = liveArtifactPaths(roundId);
-  if (stage === D1D2_STAGE) {
-    return runD1D2Stage({ authorizedBaseSha, roundId, corpusTasks, auditScopeIds, artifactDir, transport, credentials, revalidate, maxOutputTokens, thinkingLevel });
+
+  let canonicalCorpus;
+  try {
+    canonicalCorpus = loadCanonicalDupR00Corpus();
+  } catch (error) {
+    throw stop(error?.code ?? 'STOP_CORPUS_BINDING_INVALID', String(error?.message ?? error));
   }
-  if (stage === D3_STAGE) {
-    return runD3Stage({ authorizedBaseSha, roundId, artifactDir, transport, credentials, revalidate, maxOutputTokens, thinkingLevel });
+  const auditScopeIds = canonicalCorpus.corpusTaskIds;
+  const pairUniverse = computePairUniverse({ corpusTaskIds: canonicalCorpus.corpusTaskIds, auditScopeIds });
+  try {
+    assertDupR00ScopeInvariant({ corpusTaskIds: canonicalCorpus.corpusTaskIds, auditScopeIds, pairUniverse });
+  } catch (error) {
+    throw stop(error?.code ?? 'STOP_SCOPE_INVALID', String(error?.message ?? error));
   }
-  throw stop('STOP_STAGE_INVALID', `stage must be ${D1D2_STAGE} or ${D3_STAGE}`);
+
+  const envelopeForProvider = (provider) => dupR00EnvelopeFor(provider);
+
+  return runD1D2Stage({
+    authorizedBaseSha,
+    roundId,
+    corpusTasks: canonicalCorpus.corpusTasks,
+    auditScopeIds,
+    artifactDir,
+    transport,
+    credentials,
+    revalidate,
+    envelopeForProvider,
+  });
 }

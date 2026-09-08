@@ -1,0 +1,65 @@
+{
+  "preflightVersion": "CBRP-DUPLICATE-AUDIT-DUP-R00-PRELIVE-MANIFEST-1",
+  "protocolVersion": "CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-1",
+  "harnessVersion": "CBRP-DUPLICATE-AUDIT-LIVE-HARNESS-1",
+  "roundId": "DUP-R00",
+  "canonicalSources": {
+    "authoring": {
+      "path": "experiments/m2b/census/authoring-v2p1-round-0/CANDIDATES.json",
+      "sha256": "05bb612aa85c95fdcc9e4dbf077ebc50b2977e0fe41df8179c127e2d9dc98368"
+    },
+    "structuralFinalDecisions": {
+      "path": "experiments/m2b/census/structural-review-round-2/FINAL_DECISIONS.json",
+      "sha256": "1fbd7bab3a64a1750a4d571653b5299ed87242a4b72a5ac53b3c1c3e07878402"
+    },
+    "structuralValidation": {
+      "path": "experiments/m2b/census/structural-review-round-2/VALIDATION.json",
+      "sha256": "5fc03db72f7a67843b6797f80da3cddae56f4fc04b0ba9694eea2ecff35c6f42"
+    }
+  },
+  "candidateCount": 60,
+  "candidateIdListHash": "dc2a6450be8bd2832e69275f38337f47276215a3ceef893e217a874347731235",
+  "corpusTaskTextBindingHash": "f759ba2be5e4ef21f02c12dbd8027a171ebf1adb3a2c0c261100e42a4864ccdd",
+  "scopeCount": 60,
+  "auditScopeIdsHash": "dc2a6450be8bd2832e69275f38337f47276215a3ceef893e217a874347731235",
+  "pairUniverseCount": 1770,
+  "pairUniverseHash": "194c2192aaa3e9210506be68c94d1badbd8b9de8cde2b1575f5fdb05c0daa3b7",
+  "layerA": {
+    "bytes": 639,
+    "sha256": "57ca27ecf339ad4d5d5e1f45d3361a90a2ca1accf8a6e1433f55c831f613a05d"
+  },
+  "d1d2WrapperVersion": "CBRP-DUPLICATE-AUDIT-D1D2-WRAPPER-1",
+  "d1d2Prompt": {
+    "bytes": 77147,
+    "sha256": "40fc7509387777c010fee9016280b9f9e0120ee5276691540128bc68af725e2d"
+  },
+  "d1": {
+    "provider": "claude",
+    "model": "claude-opus-5"
+  },
+  "d2": {
+    "provider": "gemini",
+    "model": "gemini-3.8-flash"
+  },
+  "generationEnvelopeVersion": "CBRP-DUPLICATE-AUDIT-DUP-R00-GENERATION-ENVELOPE-1",
+  "generationEnvelope": {
+    "claude": {
+      "provider": "claude",
+      "model": "claude-opus-5",
+      "maxOutputTokens": 32768,
+      "thinkingLevel": null,
+      "temperature": null
+    },
+    "gemini": {
+      "provider": "gemini",
+      "model": "gemini-3.8-flash",
+      "maxOutputTokens": 32768,
+      "thinkingLevel": "medium",
+      "temperature": null
+    }
+  },
+  "d3RoutingVersion": "CBRP-D3-v1",
+  "expectedMandatoryInitialCalls": 2,
+  "d3Calls": "UNKNOWN_UNTIL_D1D2_COMPLETE",
+  "providerCallsPerformed": 0
+}

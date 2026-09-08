@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  7f2427b2db467862a190d00489542e083ec0cf34（CWP-12B-R execution base）
+stateVerifiedThrough  9d38810807743ec6eb978dca059f22ec26c78b33（CWP-12C execution base）
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -1520,6 +1520,73 @@ sequencing、raw-first persistence、one-attempt semantics、LIVE authorization
 guard 全數未變動。Structural Review protocol/harness 本次未被觸碰。DUP-R00
 仍未執行，未建立任何 `duplicate-audit-round-*` 證據目錄。
 
+### CWP-12C —— DUP-R00 pre-live corpus binding 與 execution envelope
+
+```
+Duplicate Audit Protocol-1:
+SPECIFICATION CLOSED
+IMPLEMENTATION VERIFIED OFFLINE
+DUP-R00 PRE-LIVE INPUT BINDING VERIFIED
+LIVE NOT AUTHORIZED
+0 DUPLICATE AUDIT ROUNDS
+```
+
+`[FACT]` 新增 `duplicate-audit-corpus-binding-v1.mjs`：DUP-R00 的機械化
+corpus 綁定，十項檢核（authoring runId、60 候選、ID 唯一、taskText 非空、
+taskSha256/taskBytes 相符、與 `structural-review-round-2/FINAL_DECISIONS.json`
+ID 集合完全相等、60 筆皆 `status=FINAL/finalPass=true`、`VALIDATION.json`
+為 `ROUND_2/R3_COMPLETE/60 final/0 pending`），任何一項不符即 STOP，絕不讓
+交集以外的候選進入 DUP-R00。model-visible corpus 只含 `candidateId`／
+`taskText`，字典序排序。純驗證函式與真實檔案讀取分層，故每個失效模式都能
+用合成 fixture 測試，不需修改任何真實 committed evidence。
+
+`[FACT]` 新增 `duplicate-audit-preflight-v1.mjs`：離線 DUP-R00 pre-live
+manifest 產生器（純函式，兩次呼叫位元組相同），涵蓋 protocol/harness
+version、三份 canonical evidence 路徑＋雜湊、60 候選 ID／文字綁定雜湊、
+scope＝60／pair universe＝1770 及其雜湊、Layer A 雜湊、D1/D2 wrapper
+version 與逐位元組 prompt 雜湊、D1/D2 provider/model、generation envelope
+version 與數值、D3 routing version、mandatory initial calls=2、
+`d3Calls=UNKNOWN_UNTIL_D1D2_COMPLETE`、`providerCallsPerformed=0`。已產出
+並提交 `experiments/m2b/census/duplicate-audit-preflight/
+DUP_R00_PRELIVE_MANIFEST.json`——明確與 `duplicate-audit-round-*/`（真正
+round 證據）分開的 PRE-LIVE 證據位置，本次未建立任何 round 證據目錄。
+
+`[FACT]` **DUP-R00 generation envelope 已凍結**（`DUP_R00_GENERATION_ENVELOPES`,
+`duplicate-audit-runner.mjs`）：Claude `maxOutputTokens=32768,
+thinkingLevel=null`；Gemini `maxOutputTokens=32768, thinkingLevel=medium,`
+與 Structural Review ROUND_1/2 已實際 LIVE 驗證過的 Gemini envelope數值相同。
+Claude 的 32768 為本專案首次使用的數值；已機械核實 `@anthropic-ai/sdk`
+0.123.0 的非 beta `messages.create` 端點 `max_tokens` 欄位僅型別為
+`number`，無需切換 beta 端點或額外 header 即可表達此值——是否被 API
+實際接受屬 LIVE-time 問題，由既有 `STOP_PROVIDER_ERROR`／MAX_TOKENS
+fail-closed 路徑處理，不是本次「SDK 是否能表達」的判準所涵蓋範圍。
+
+`[DECISION]` **真正的 LIVE entrypoint（`dispatchLiveDuplicateAudit`）已硬化**：
+不再接受呼叫端提供 `corpusTasks`／`auditScopeIds`／`maxOutputTokens`／
+`thinkingLevel`／`temperature`（任何一個出現即 `STOP_UNAUTHORIZED_OVERRIDE`）；
+`roundId` 必須精確等於 `DUP-R00`（`DUP-R01` 一律 `STOP_ROUND_NOT_LIVE_READY`，
+未來輪次需另一份 GPT review）；`stage` 僅接受 D1D2（顯式要求 D3 一律
+`STOP_STAGE_NOT_LIVE_READY`——D3 從不自動串接在 D1/D2 之後，仍是需另外授權
+的未來 stage）。corpus／scope／envelope 皆從 canonical binding 與 frozen
+table 內部推導，呼叫端無從覆寫。`executeDuplicateAuditSession` 也同步改為
+以 `envelopeForProvider(provider)` 依 session 各自查表（鏡射
+structural review 的 `generationEnvelopeFor`），不再接受單一 flat 值套用
+於 D1/D2 兩者。
+
+```
+新增/更新測試          test-duplicate-audit-corpus-binding.mjs 42/42（新檔）
+                      test-duplicate-audit-live-harness.mjs 37/37（+1）
+                      test-duplicate-audit-protocol.mjs 60/60（不變）
+regression suite       structural review 80/80、49/49；npm test 全綠
+provider calls          0
+duplicate-audit-round-* 目錄  0（全程未建立）
+```
+
+`[DECISION]` 本次為 offline pre-live hardening，0 provider/API calls，
+未執行 DUP-R00。**尚未取得 Final Pre-Live GPT approval**——那屬於下一次
+GPT repository review 的判斷，本檔不代為宣告。Duplicate Audit LIVE 仍需
+另一份明寫 `EXECUTION AUTHORIZATION: GRANTED` 的 GPT packet。
+
 ### 目前的 M2-B 狀態（不得混淆 acquisition 與 effectiveness)
 
 ```
@@ -2016,8 +2083,11 @@ Structural Review ROUND_2  CONSUMED / CLOSED ← 已於 a4c343a (CWP-11G) 完成
 Structural Review ROUND_2 R3  CONSUMED / CLOSED ← 已於 a4c343a (CWP-11G) 執行完畢
 Duplicate Audit           NOT AUTHORIZED ← 規格已於 CWP-12A 封閉、harness 已於
                           CWP-12B 離線實作並驗證、CWP-12B-R 移除越權的 fenced
-                          extractor 行為（96 項測試、0 provider calls），
-                          DUP-R00 LIVE 仍未授權、尚未執行
+                          extractor 行為、CWP-12C 完成 DUP-R00 pre-live corpus
+                          binding 與 execution envelope 硬化（duplicate-audit
+                          離線測試合計 139 項、0 provider calls）。尚未取得
+                          Final Pre-Live GPT
+                          approval；DUP-R00 LIVE 仍未授權、尚未執行
 Gemini A2               NOT AUTHORIZED
 Gate                    NOT AUTHORIZED
 Synthesis               NOT AUTHORIZED
@@ -2220,7 +2290,7 @@ Protocol 與 Structural Review Protocol 均已凍結）。以下為更正後、�
 的收尾狀態：
 
 ```
-STATE ALIGNED THROUGH 7f2427b2db467862a190d00489542e083ec0cf34 (CWP-12B-R execution base) / CWP-11H /
+STATE ALIGNED THROUGH 9d38810807743ec6eb978dca059f22ec26c78b33 (CWP-12C execution base) / CWP-11H /
 P03 CLOSED — 9/9 ATTEMPTED, 0 ADMITTED, 0 ARCHETYPES FILLED /
 F1 FAIL 3/9 ｜ F2 FAIL 7/9 ｜ F3 FAIL 0/9 ｜ ONE SPECIALIST 7/9 /
 A2 = 0 EXECUTIONS ｜ EFFECTIVENESS EXPERIMENT NOT EXECUTED ｜ C vs D₁ UNANSWERED /
@@ -2244,9 +2314,16 @@ STRUCTURAL REVIEW ROUND_2 EXECUTED / R3_COMPLETE / CLOSED (CWP-11G @ a4c343a)
 STRUCTURAL REVIEW ROUND_2 POST-R3 SEAL & STATE RECONCILED (CWP-11H) /
 MAX_TOKENS FAIL-CLOSED RULE FROZEN (applies to every round) /
 CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-1 SPECIFICATION CLOSED (CWP-12A/12A-R) —
-  IMPLEMENTATION VERIFIED OFFLINE (CWP-12B/12B-R, 96 tests, 0 provider calls) /
+  IMPLEMENTATION VERIFIED OFFLINE (CWP-12B/12B-R, 0 provider calls) /
   strict JSON-only extraction restored (CWP-12B-R, unauthorized fenced/
-  orphan-fence acceptance removed) / LIVE NOT AUTHORIZED / 0 AUDIT ROUNDS RUN /
+  orphan-fence acceptance removed) /
+  DUP-R00 PRE-LIVE INPUT BINDING VERIFIED (CWP-12C: canonical 60-task corpus
+  mechanically bound to Structural Review ROUND_2 FINAL_DECISIONS/VALIDATION,
+  scope invariant enforced, generation envelope frozen, real LIVE entrypoint
+  rejects operator overrides and DUP-R01+, D3 never auto-chained, 139
+  duplicate-audit offline tests, 0 provider calls) /
+  Final Pre-Live GPT approval NOT YET GRANTED / LIVE NOT AUTHORIZED /
+  0 AUDIT ROUNDS RUN /
 60/60 structural decisions FINAL ｜ 0 duplicate audit rounds ｜ 0 replacement sessions ｜
 0 pools frozen ｜ 0 Chief Census calls ｜ 0 formal admitted tasks (pending duplicate audit) /
 LIVE = STOPPED / RETURN TO GPT ARCHITECTURE
