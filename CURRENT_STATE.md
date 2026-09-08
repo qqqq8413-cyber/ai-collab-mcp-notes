@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  afcfafd7d56e8a857c8c028c69879d98137be697（CWP-12A execution base）
+stateVerifiedThrough  9ebab0e264424d40b40c38ecda0acaa938c94201（CWP-12B execution base）
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -1436,6 +1436,54 @@ Layer A bytes 的擷取規則、JSON key 順序、LF 組成），實作自此對
 沒有裁量空間。皆為規格層級補完，未變動任何 provider/model pin、duplicate
 定義或既有 research-methodology decision。0 provider calls。
 
+### CWP-12B —— Duplicate Audit Protocol-1 離線 harness 實作與驗證
+
+```
+Duplicate Audit Protocol-1:
+SPECIFICATION CLOSED
+IMPLEMENTATION VERIFIED OFFLINE
+LIVE NOT AUTHORIZED
+0 DUPLICATE AUDIT ROUNDS
+```
+
+`[FACT]` 新增 `experiments/m2b/census/duplicate-audit-protocol/`（6 個實作模組 +
+2 個離線測試檔，共 90 項新測試，0 provider calls）：
+
+```
+duplicate-audit-prompt-v1.mjs      Layer A loader（639 bytes，sha256 57ca27ec…）、
+                                    D1/D2 與 D3 wrapper builder（§7.5/§8.5 逐位元組）
+duplicate-audit-order-v1.mjs       corpus/scope 字典序排序、pair 正規化（a<b）、
+                                    in-scope pair universe 生成（60→1770 已驗證）
+duplicate-audit-extractor-v1.mjs   JSON-object 三種表示法擷取，鏡射
+                                    structural-review-extractor-v1.mjs 文法、獨立版本識別
+duplicate-audit-decision-v1.mjs    D1/D2、D3 schema 嚴格 fail-closed 驗證、§7.3/§7.4
+                                    決策矩陣、CBRP-D3-v1 duplicate 路由（4 項 frozen
+                                    test vector 全數重現）、connected-components +
+                                    retention engine（§11）
+duplicate-audit-runner.mjs         D1/D2 session plan、D3 route plan、
+                                    D3_ROUTE_MANIFEST 建構、ROUND_STATES 列舉（§16）
+duplicate-audit-live-harness-v1.mjs raw-first 證據落盤、one-attempt reservation、
+                                    source/runtime drift revalidator、
+                                    D3_ROUTE_MANIFEST 落盤→reload→exact-verify
+                                    才可 D3 dispatch（§8.4）、guarded LIVE entrypoint
+                                    （`dispatchLiveDuplicateAudit`，本次未曾以
+                                    liveExecution:true 呼叫）
+```
+
+`[FACT]` **意外發現並已修補：** CWP-12A 曾為修正舊檔名參照而編輯
+`CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md`（paste block 之外），但未同步更新
+`structural-review-live-harness-v1.mjs` 內凍結的 `SOURCE_HASHES` 全檔雜湊，
+導致 `test-structural-review-live-harness.mjs` 出現 1 項迴歸失敗
+（48/49）。已機械核實新的全檔雜湊並更正該筆 entry（`ff3c5774…`，取代舊值
+`72bc339e…`）；frozen rubric paste-block 的 `EXPECTED_RUBRIC_BYTE_COUNT` /
+`EXPECTED_RUBRIC_SHA256`（4694 bytes / `2028b998…`）本身完全未變動，測試已
+恢復 49/49。與 CWP-11C 的 `STOP_SOURCE_DRIFT` 是同一類漏同步問題，這次在
+離線測試階段被機械抓到，未曾影響任何 LIVE 執行。
+
+`[DECISION]` DUP-R00 仍未執行，0 provider/API calls。實際對 60 個現行
+Protocol-2.1 candidates 執行 DUP-R00 仍需另一份明寫
+`EXECUTION AUTHORIZATION: GRANTED` 的 GPT packet。
+
 ### 目前的 M2-B 狀態（不得混淆 acquisition 與 effectiveness)
 
 ```
@@ -1930,8 +1978,9 @@ Structural Review ROUND_1  CONSUMED / CLOSED / IMMUTABLE ← CWP-11C 在 0 calls
 Structural Review ROUND_2  CONSUMED / CLOSED ← 已於 a4c343a (CWP-11G) 完成 R3，R3_COMPLETE
                           （122/122 validated，2 R3 dispatched，60/60 FINAL，0 PENDING_R3）
 Structural Review ROUND_2 R3  CONSUMED / CLOSED ← 已於 a4c343a (CWP-11G) 執行完畢
-Duplicate Audit           NOT AUTHORIZED ← 規格已於 CWP-12A 封閉（SPECIFICATION
-                          CLOSED），harness 尚未實作、DUP-R00 尚未執行
+Duplicate Audit           NOT AUTHORIZED ← 規格已於 CWP-12A 封閉、harness 已於
+                          CWP-12B 離線實作並驗證（90 項測試、0 provider calls），
+                          DUP-R00 LIVE 仍未授權、尚未執行
 Gemini A2               NOT AUTHORIZED
 Gate                    NOT AUTHORIZED
 Synthesis               NOT AUTHORIZED
@@ -2134,7 +2183,7 @@ Protocol 與 Structural Review Protocol 均已凍結）。以下為更正後、�
 的收尾狀態：
 
 ```
-STATE ALIGNED THROUGH afcfafd7d56e8a857c8c028c69879d98137be697 (CWP-12A execution base) / CWP-11H /
+STATE ALIGNED THROUGH 9ebab0e264424d40b40c38ecda0acaa938c94201 (CWP-12B execution base) / CWP-11H /
 P03 CLOSED — 9/9 ATTEMPTED, 0 ADMITTED, 0 ARCHETYPES FILLED /
 F1 FAIL 3/9 ｜ F2 FAIL 7/9 ｜ F3 FAIL 0/9 ｜ ONE SPECIALIST 7/9 /
 A2 = 0 EXECUTIONS ｜ EFFECTIVENESS EXPERIMENT NOT EXECUTED ｜ C vs D₁ UNANSWERED /
@@ -2157,8 +2206,9 @@ STRUCTURAL REVIEW ROUND_2 EXECUTED / R3_COMPLETE / CLOSED (CWP-11G @ a4c343a)
   (122/122 validated, 2 R3 dispatched, 60/60 FINAL, 0 PENDING_R3) /
 STRUCTURAL REVIEW ROUND_2 POST-R3 SEAL & STATE RECONCILED (CWP-11H) /
 MAX_TOKENS FAIL-CLOSED RULE FROZEN (applies to every round) /
-CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-1 SPECIFICATION CLOSED (CWP-12A) —
-  IMPLEMENTATION NOT YET VERIFIED / LIVE NOT AUTHORIZED / 0 AUDIT ROUNDS RUN /
+CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-1 SPECIFICATION CLOSED (CWP-12A/12A-R) —
+  IMPLEMENTATION VERIFIED OFFLINE (CWP-12B, 90 tests, 0 provider calls) /
+  LIVE NOT AUTHORIZED / 0 AUDIT ROUNDS RUN /
 60/60 structural decisions FINAL ｜ 0 duplicate audit rounds ｜ 0 replacement sessions ｜
 0 pools frozen ｜ 0 Chief Census calls ｜ 0 formal admitted tasks (pending duplicate audit) /
 LIVE = STOPPED / RETURN TO GPT ARCHITECTURE

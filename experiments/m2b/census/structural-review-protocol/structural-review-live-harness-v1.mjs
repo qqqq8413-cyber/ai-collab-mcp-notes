@@ -91,7 +91,7 @@ function isMaxTokensStopReason(stopReason) {
 const STRATA = Object.freeze(['SC', 'OP', 'BC', 'EI', 'PS', 'FR']);
 const SOURCE_HASHES = Object.freeze({
   'experiments/m2b/census/CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md': '202f018082666b5d52bae486a01e3cd4084f7372e33a8fe55441294ab64e0035',
-  'experiments/m2b/census/CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md': '72bc339e058f05e7cfd74fa9b4b13189f0d86a52323b00713fbf6994a7cb184c',
+  'experiments/m2b/census/CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md': 'ff3c5774cf5d4193ce5c71f6c8f9f1b6553cce0eeed78991813e3719c72235ae',
   'experiments/m2b/census/structural-review-protocol/structural-review-prompt-v1.mjs': 'c84121f9ae847b57e50b697e2cb45125785daebb3f4d5fc715f00a2d37a57542',
   'experiments/m2b/census/structural-review-protocol/structural-review-extractor-v1.mjs': 'a16b61d71cbee8d34ad94f9c2cc00e7640061fe3342d6231e17ec8ec896ade00',
   'experiments/m2b/census/structural-review-protocol/structural-review-decision-v1.mjs': '58e2c6483d46a2a011f1b9e10c05e77ff80efd7c88dd044ccb352ef781f1e1fa',
