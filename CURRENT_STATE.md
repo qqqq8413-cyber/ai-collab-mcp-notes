@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  284375632a0603699d2c374951016cc263d2d9cc（CWP-11F execution base）
+stateVerifiedThrough  a4c343aa0be82fa87573bc4f44cf11a6aae6b643（CWP-11G ROUND_2 R3 完成 / CWP-11H）
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -1333,21 +1333,12 @@ provider calls (CWP-11D)    0
 
 ROUND_0 與 ROUND_1 證據均未修改；ROUND_2 不得在沒有新 GPT LIVE packet 的情況下啟動。
 
-### CWP-11E / CWP-11F —— ROUND_2 INITIAL LIVE 執行與 R3 route-manifest 修補
+### CWP-11E / CWP-11F / CWP-11G / CWP-11H —— ROUND_2 INITIAL LIVE、R3 修補、R3 執行完成與最終封印
 
 `[FACT]` CWP-11E 授權並執行了 ROUND_2 INITIAL LIVE：120/120 sessions 全部
 validated（60 R1 claude-opus-5 + 60 R2 gemini-3.8-flash，envelope 與 ROUND_1
-相同），2 筆 admission disagreement 依 protocol 正確標記為 PENDING_R3，
-R3 未自動派發。
-
-```
-ROUND_2 status              INITIAL_COMPLETE
-provider calls               120（60 R1 + 60 R2）
-disagreements                2（V21-B05-S00-OP-02, V21-B01-S00-OP-01）
-R3 dispatched                0（未授權）
-evidence namespace           structural-review-round-2/
-evidence commit               f0db4479c4388ea53eb19989dfa4a880fada5aa1
-```
+相同），2 筆 admission disagreement（V21-B05-S00-OP-02, V21-B01-S00-OP-01）依 protocol
+正確標記為 PENDING_R3，R3 未自動派發。
 
 `[FACT]` CWP-11F 修補了 protocol §9 已明文要求、但先前實作有缺漏的一環：
 `runR3StructuralReviewStage` 先前只在記憶體中計算 `r3Plan` 就直接開始 dispatch
@@ -1361,15 +1352,35 @@ ROUND_0 / ROUND_1 / ROUND_2 既有證據均未修改，protocol/D3/disagreement
 triggering/majority rule/envelope/model pins/prompts/rubric/blind ID/review
 order/extractor 皆未變動。
 
+`[FACT]` CWP-11G 授權並執行了 ROUND_2 R3 LIVE（base `df1dff0`，evidence commit
+`a4c343aa0be82fa87573bc4f44cf11a6aae6b643`）：依 protocol §9 先落盤 `R3_ROUTE_MANIFEST.json`
+（2 routes: V21-B05-S00-OP-02, V21-B01-S00-OP-01，皆依 CBRP-D3-v1 route 至 `claude/claude-opus-5`），
+對 2 筆分歧派發 R3 provider calls（Claude Opus 5, maxOutputTokens 4096, 0 thinkingLevel）。
+2 筆 R3 review 皆 validated，majority rule (2/3) 判定兩題皆為 finalPass=true。
+`FINAL_DECISIONS.json` 達成 60/60 FINAL，0 PENDING_R3。`VALIDATION.json` 狀態更新為
+`R3_COMPLETE`，總 sessionsRecorded = 122、reviewsValidated = 122、providerDispatches = 122。
+既有 120 筆 R1/R2 sessions 與 reviews 位元組完全不變（純 append），DISAGREEMENTS.json 維持相同 blob。
+Structural Review 階段正式 CLOSED。
+
+`[FACT]` CWP-11H 執行了 POST-R3 FINAL EVIDENCE SEAL 與狀態對齊：將 live harness 測試中過時的
+INITIAL_COMPLETE 斷言更新為 CLOSED 證據不變式，鎖定最終 376 檔案之目錄雜湊
+`acc074ca27aa0addf2529374c676c6c7c21b92830c8aa6597d72530424dacd5b`；0 provider calls，
+structural-review-round-2/ 證據目錄 0 修改。
+
 ```
-新增/更新測試          test-structural-review-live-harness.mjs 49/49（含 7 項 CWP-11F 新測試）
-regression suite       npm test 全綠（0 provider calls）
-provider calls          0
+ROUND_2 status              R3_COMPLETE ｜ CLOSED
+provider calls               122（60 R1 + 60 R2 + 2 R3）
+disagreements                2（V21-B05-S00-OP-02, V21-B01-S00-OP-01）
+R3 dispatched                2（皆 validated, finalPass=true）
+final decisions              60/60 FINAL ｜ 0 PENDING_R3
+evidence namespace           structural-review-round-2/
+evidence commit               a4c343aa0be82fa87573bc4f44cf11a6aae6b643
+final directory seal         376 files ｜ acc074ca27aa0addf2529374c676c6c7c21b92830c8aa6597d72530424dacd5b
 ```
 
-`[DECISION]` **ROUND_2 R3 LIVE 仍未授權。** 本次僅離線修補並驗證了 harness 的
-route-materialization 要求；實際對這 2 筆 disagreement 派發 R3 需要另一份明寫
-`EXECUTION AUTHORIZATION: GRANTED` 的 GPT packet。
+`[DECISION]` **Structural Review 已完全關閉（CLOSED）。** 下一個研究階段為 Duplicate Audit，
+但目前**尚未授權（NOT AUTHORIZED）且尚未執行（UNEXECUTED）**。目前 0 duplicate audit rounds，
+0 pool freeze，0 Chief Census calls，亦無任何 effectiveness 實驗結果。
 
 ### 目前的 M2-B 狀態（不得混淆 acquisition 與 effectiveness)
 
@@ -1862,10 +1873,10 @@ Structural Review ROUND_0  CONSUMED / CLOSED ← 已於 a1f5765 執行並 FAILED
                           （80 dispatched / 79 validated），該授權不延續、不得重跑
 Structural Review ROUND_1  CONSUMED / CLOSED / IMMUTABLE ← CWP-11C 在 0 calls 時
                           STOP_SOURCE_DRIFT，FAILED_CLOSED_PRE_DISPATCH
-Structural Review ROUND_2  CONSUMED / CLOSED ← 已於 f0db447 執行，INITIAL_COMPLETE
-                          （120/120 validated，2 筆 disagreement PENDING_R3），該授權不延續
-Structural Review ROUND_2 R3  NOT AUTHORIZED ← route-manifest durability 需求已由
-                          CWP-11F offline 驗證；LIVE 需另一份明寫 base SHA 的授權
+Structural Review ROUND_2  CONSUMED / CLOSED ← 已於 a4c343a (CWP-11G) 完成 R3，R3_COMPLETE
+                          （122/122 validated，2 R3 dispatched，60/60 FINAL，0 PENDING_R3）
+Structural Review ROUND_2 R3  CONSUMED / CLOSED ← 已於 a4c343a (CWP-11G) 執行完畢
+Duplicate Audit           NOT AUTHORIZED ← 下一個研究階段，尚未執行
 Gemini A2               NOT AUTHORIZED
 Gate                    NOT AUTHORIZED
 Synthesis               NOT AUTHORIZED
@@ -2068,7 +2079,7 @@ Protocol 與 Structural Review Protocol 均已凍結）。以下為更正後、�
 的收尾狀態：
 
 ```
-STATE ALIGNED THROUGH 284375632a0603699d2c374951016cc263d2d9cc (CWP-11F execution base) /
+STATE ALIGNED THROUGH a4c343aa0be82fa87573bc4f44cf11a6aae6b643 (CWP-11G evidence commit) / CWP-11H /
 P03 CLOSED — 9/9 ATTEMPTED, 0 ADMITTED, 0 ARCHETYPES FILLED /
 F1 FAIL 3/9 ｜ F2 FAIL 7/9 ｜ F3 FAIL 0/9 ｜ ONE SPECIALIST 7/9 /
 A2 = 0 EXECUTIONS ｜ EFFECTIVENESS EXPERIMENT NOT EXECUTED ｜ C vs D₁ UNANSWERED /
@@ -2087,12 +2098,11 @@ CBRP-STRUCTURAL-REVIEW-EXECUTION-AMENDMENT-1 (CWP-11B) OFFLINE VERIFIED / NOT EX
   Claude 4096 unchanged, Gemini 32768 + thinkingLevel medium /
 STRUCTURAL REVIEW ROUND_1 FAILED_CLOSED_PRE_DISPATCH / STOP_SOURCE_DRIFT / IMMUTABLE
   (0 provider calls, 0 reservations, 0 raw responses) /
-STRUCTURAL REVIEW ROUND_2 EXECUTED / INITIAL_COMPLETE (CWP-11E)
-  (120/120 validated, 2 disagreements PENDING_R3, R3 not dispatched) /
-STRUCTURAL REVIEW ROUND_2 R3 ROUTE-MANIFEST DURABILITY OFFLINE VERIFIED (CWP-11F)
-  R3 LIVE NOT AUTHORIZED /
+STRUCTURAL REVIEW ROUND_2 EXECUTED / R3_COMPLETE / CLOSED (CWP-11G @ a4c343a)
+  (122/122 validated, 2 R3 dispatched, 60/60 FINAL, 0 PENDING_R3) /
+STRUCTURAL REVIEW ROUND_2 POST-R3 SEAL & STATE RECONCILED (CWP-11H) /
 MAX_TOKENS FAIL-CLOSED RULE FROZEN (applies to every round) /
-0 structural reviews VALIDATED-AND-ADMITTED ｜ 0 duplicate audit rounds ｜ 0 replacement sessions ｜
-0 pools frozen ｜ 0 Chief Census calls ｜ 0 formal admitted tasks /
+60/60 structural decisions FINAL ｜ 0 duplicate audit rounds ｜ 0 replacement sessions ｜
+0 pools frozen ｜ 0 Chief Census calls ｜ 0 formal admitted tasks (pending duplicate audit) /
 LIVE = STOPPED / RETURN TO GPT ARCHITECTURE
 ```

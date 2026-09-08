@@ -51,8 +51,8 @@ const HISTORICAL_ROUND_SEALS = Object.freeze({
     sha256: 'b7dfa9d806b092043194a90d8c73fa69deb89a06c1039530885310ea6073daec',
   }),
   'structural-review-round-2': Object.freeze({
-    fileCount: 369,
-    sha256: 'd657411d87379f55fc20c83c184b56fe67259bbe10cad6388c5f5627f1cdc5fa',
+    fileCount: 376,
+    sha256: 'acc074ca27aa0addf2529374c676c6c7c21b92830c8aa6597d72530424dacd5b',
   }),
 });
 
@@ -843,27 +843,38 @@ await check('structural-review-round-1 preserves the immutable zero-call STOP_SO
   assert.deepEqual(directorySeal('structural-review-round-1'), HISTORICAL_ROUND_SEALS['structural-review-round-1']);
 });
 
-await check('structural-review-round-2 preserves the immutable 120/120 INITIAL_COMPLETE evidence (CWP-11E)', () => {
-  // CWP-11E ran ROUND_2 INITIAL LIVE: 120/120 sessions validated, 2 admission
-  // disagreements (V21-B05-S00-OP-02, V21-B01-S00-OP-01) held PENDING_R3, R3
-  // not dispatched. This suite must never write into this namespace; it only
-  // reads VALIDATION.json/DISAGREEMENTS.json to confirm the immutable baseline
-  // CWP-11F's route-manifest repair is layered on top of, never as a fixture
-  // this file defines.
+await check('structural-review-round-2 preserves the immutable 122/122 R3_COMPLETE final evidence (CWP-11G)', () => {
+  // CWP-11E ran ROUND_2 INITIAL LIVE (120 sessions, 2 disagreements) and CWP-11G
+  // completed protocol-defined R3 LIVE (2 sessions, both resolved to finalPass=true).
+  // This suite must never write into this namespace; it only reads the artifacts to
+  // confirm the immutable final CLOSED evidence baseline.
   const validation = JSON.parse(fs.readFileSync(new URL('../structural-review-round-2/VALIDATION.json', import.meta.url), 'utf8'));
-  assert.equal(validation.status, 'INITIAL_COMPLETE');
+  assert.equal(validation.status, 'R3_COMPLETE');
   assert.equal(validation.roundId, 'ROUND_2');
-  assert.equal(validation.sessionsRecorded, 120);
-  assert.equal(validation.reviewsValidated, 120);
+  assert.equal(validation.sessionsRecorded, 122);
+  assert.equal(validation.reviewsValidated, 122);
+  assert.equal(validation.providerDispatches, 122);
   assert.equal(validation.disagreementCount, 2);
   assert.equal(validation.automaticR3Dispatched, false);
+  assert.equal(validation.r3Expected, 2);
+  assert.equal(validation.r3Dispatched, 2);
+  assert.equal(validation.finalDecisionCount, 60);
+
   const disagreements = JSON.parse(fs.readFileSync(new URL('../structural-review-round-2/DISAGREEMENTS.json', import.meta.url), 'utf8'));
   assert.deepEqual(
     disagreements.disagreements.map((entry) => entry.taskCandidateId),
     ['V21-B05-S00-OP-02', 'V21-B01-S00-OP-01']
   );
-  assert.equal(fs.existsSync(new URL('../structural-review-round-2/R3_ROUTE_MANIFEST.json', import.meta.url)), false,
-    'this offline repair must not materialize a route manifest inside real ROUND_2 evidence');
+
+  assert.equal(fs.existsSync(new URL('../structural-review-round-2/R3_ROUTE_MANIFEST.json', import.meta.url)), true);
+  const r3RouteManifest = JSON.parse(fs.readFileSync(new URL('../structural-review-round-2/R3_ROUTE_MANIFEST.json', import.meta.url), 'utf8'));
+  assert.equal(r3RouteManifest.routeCount, 2);
+
+  const finalDecisions = JSON.parse(fs.readFileSync(new URL('../structural-review-round-2/FINAL_DECISIONS.json', import.meta.url), 'utf8'));
+  assert.equal(finalDecisions.decisions.length, 60);
+  assert.equal(finalDecisions.decisions.every((entry) => entry.status === 'FINAL'), true);
+  assert.equal(finalDecisions.decisions.some((entry) => entry.status === 'PENDING_R3'), false);
+
   assert.deepEqual(directorySeal('structural-review-round-2'), HISTORICAL_ROUND_SEALS['structural-review-round-2']);
 });
 

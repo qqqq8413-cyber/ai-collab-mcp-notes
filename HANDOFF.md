@@ -24,7 +24,7 @@
 > | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
 > | **M2-B P03 Acquisition** | **CLOSED / EXHAUSTED —— 9/9 attempted、0 admitted、0 archetypes filled、0 A2 executions,詳見第二十六節** |
 > | **M-ACQ-01** | **OPEN —— natural eligibility base rate 未知;在此問題被 characterize 之前,不得重新設計或執行 M2-B effectiveness experiment** |
-> | **Chief Natural Collaboration Census** | **DRAFT / NOT PREREGISTERED / AUTHORING v2 INCOMPLETE —— B02 malformed STOP；2 calls、12/60 provisional、0 admitted；awaiting GPT Architecture** |
+> | **Chief Natural Collaboration Census** | **DRAFT / NOT PREREGISTERED —— Protocol 2.1 60/60 acquired; Structural Review ROUND_2 R3_COMPLETE / CLOSED (60/60 FINAL, 0 PENDING_R3 @ a4c343a); Duplicate Audit NOT AUTHORIZED** |
 > | **M2-B Fixture Freeze(synthetic)** | **SUPERSEDED —— GPT Fixture Review 判定 FIXTURE PROVENANCE BLOCKER;`fx-01…04` 改列 PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL,檔案原封保留於 `02cbb5f`** |
 > | **M2-B Pre-Synthesis Boundary** | **ACCEPTED(GPT)—— `runRound1Stage()` 已抽出,offline parity byte-identical** |
 > | **M2-B Real Round1 Capture — Set R1** | **FAILED(保存為失敗證據)—— fxr-01…04 四題全 FAIL F1,證據保留於 `81ac330`,詳見第二十七節** |
@@ -3670,3 +3670,27 @@ candidate status       PROVISIONAL ｜ UNREVIEWED ｜ NOT ADMISSIBLE
 本輪未做任何 semantic judgement、literal scan、structural review、duplicate audit、
 replacement、Chief planning、Census、pool freeze 或 ordering。v1 evidence 未修改，v1
 candidate 未重用。**下一步必須回到 GPT Architecture；不得自行續跑 B03-B05 或修復 B02。**
+
+## 後續進度：CBRP Protocol 2.1 Authoring 與 Structural Review ROUND_2（CWP-10E 至 CWP-11H）
+
+> 詳細各輪次脈絡與 materialized view 見 [`CURRENT_STATE.md`](CURRENT_STATE.md)。
+
+- **Authoring Protocol-2.1（CWP-10E @ `5d7d648`）**：60/60 candidates 採集完成（5 provider calls，B01-B05 全過）。
+- **Structural Review ROUND_0（CWP-10H/11A @ `a1f5765`）**：80 sessions 派發，第 80 筆遇到 Gemini MAX_TOKENS，fail-closed 停止，保留為不可變歷史證據。
+- **Structural Review ROUND_1（CWP-11C @ `af63148`）**：harness pre-dispatch 偵測到 source manifest 與 protocol hash 漂移，0 provider calls 依 frozen guard 正確停止。
+- **Structural Review ROUND_2 INITIAL（CWP-11E @ `f0db447`）**：120/120 sessions validated（60 R1 + 60 R2），2 筆分歧（V21-B05-S00-OP-02, V21-B01-S00-OP-01）依規標記為 PENDING_R3。
+- **R3 Route-Manifest Durability 修補（CWP-11F @ `df1dff0`）**：依 protocol §9 落盤 `R3_ROUTE_MANIFEST.json`，純 offline 修補，0 provider calls。
+- **Structural Review ROUND_2 R3 執行（CWP-11G @ `a4c343aa0be82fa87573bc4f44cf11a6aae6b643`）**：
+  - 派發 2 筆 R3 provider calls（Claude Opus 5，CBRP-D3-v1 路由，maxOutputTokens 4096，0 thinkingLevel）。
+  - 2 筆 R3 review 皆 validated，reasons 合規，majority rule (2/3) 判定兩題皆 finalPass=true。
+  - `FINAL_DECISIONS.json` 達成 60/60 FINAL，0 PENDING_R3。
+  - `VALIDATION.json` 狀態為 `R3_COMPLETE`，總 sessionsRecorded = 122、reviewsValidated = 122、providerDispatches = 122。
+  - 既有 120 筆 R1/R2 sessions 與 reviews 位元組完全不變（純 append），DISAGREEMENTS.json 維持相同 blob。
+  - **Structural Review 階段正式 CLOSED。**
+- **Post-R3 Final Evidence Seal & 狀態對齊（CWP-11H）**：
+  - 更新 live harness 測試中過時的 INITIAL_COMPLETE 斷言為 CLOSED 證據不變式。
+  - 鎖定最終 376 檔案之目錄雜湊 `acc074ca27aa0addf2529374c676c6c7c21b92830c8aa6597d72530424dacd5b`。
+  - 0 provider calls，`structural-review-round-2/` 證據目錄 0 修改。
+- **當前邊界**：
+  - 下一個研究階段為 Duplicate Audit，但目前**尚未授權（NOT AUTHORIZED）且尚未執行（UNEXECUTED）**。
+  - 0 duplicate audit rounds，0 pool freeze，0 Chief Census calls，亦無任何 effectiveness 實驗結果。
