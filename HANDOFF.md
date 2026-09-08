@@ -24,7 +24,7 @@
 > | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
 > | **M2-B P03 Acquisition** | **CLOSED / EXHAUSTED —— 9/9 attempted、0 admitted、0 archetypes filled、0 A2 executions,詳見第二十六節** |
 > | **M-ACQ-01** | **OPEN —— natural eligibility base rate 未知;在此問題被 characterize 之前,不得重新設計或執行 M2-B effectiveness experiment** |
-> | **Chief Natural Collaboration Census** | **DRAFT / NOT PREREGISTERED —— Protocol 2.1 60/60 acquired; Structural Review ROUND_2 R3_COMPLETE / CLOSED (60/60 FINAL, 0 PENDING_R3 @ a4c343a); Duplicate Audit Protocol-1 SPECIFICATION CLOSED / IMPLEMENTATION VERIFIED OFFLINE (CWP-12A/12B), LIVE NOT AUTHORIZED, 0 AUDIT ROUNDS RUN** |
+> | **Chief Natural Collaboration Census** | **DRAFT / NOT PREREGISTERED —— Protocol 2.1 60/60 acquired; Structural Review ROUND_2 R3_COMPLETE / CLOSED (60/60 FINAL, 0 PENDING_R3 @ a4c343a); Duplicate Audit Protocol-1 SPECIFICATION CLOSED / IMPLEMENTATION VERIFIED OFFLINE (CWP-12A/12B/12B-R, strict JSON-only extraction), LIVE NOT AUTHORIZED, 0 AUDIT ROUNDS RUN** |
 > | **M2-B Fixture Freeze(synthetic)** | **SUPERSEDED —— GPT Fixture Review 判定 FIXTURE PROVENANCE BLOCKER;`fx-01…04` 改列 PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL,檔案原封保留於 `02cbb5f`** |
 > | **M2-B Pre-Synthesis Boundary** | **ACCEPTED(GPT)—— `runRound1Stage()` 已抽出,offline parity byte-identical** |
 > | **M2-B Real Round1 Capture — Set R1** | **FAILED(保存為失敗證據)—— fxr-01…04 四題全 FAIL F1,證據保留於 `81ac330`,詳見第二十七節** |
@@ -3728,6 +3728,23 @@ candidate 未重用。**下一步必須回到 GPT Architecture；不得自行續
     問題，這次於離線測試階段機械攔截，未影響任何 LIVE 執行。
   - `Duplicate Audit Protocol-1: SPECIFICATION CLOSED ｜ IMPLEMENTATION
     VERIFIED OFFLINE ｜ LIVE NOT AUTHORIZED ｜ 0 DUPLICATE AUDIT ROUNDS`。
+- **Duplicate Audit extractor 越權修補（CWP-12B-R @ `7f2427b`起）**：
+  - CWP-12B 將 `duplicate-audit-extractor-v1.mjs` 鏡射
+    `structural-review-extractor-v1.mjs` 的三種表示法文法（含 markdown
+    fence 剝除），但 `CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md` §7.2 只
+    凍結「response must be valid JSON」——從未授權 fence 剝除層，是把
+    engineering reference 誤用成 obsolete assumption 的案例。
+  - 已改為直接套用 JSON grammar：整段 raw response 交 `JSON.parse`，不做
+    任何 fence 剝除/前後綴搜尋/多物件挑選/修復；`normalizedJsonBytes` /
+    `representationDetected` 等隱含轉換語意的欄位已移除，`rawSha256` /
+    `rawBytes` 永遠反映未轉換的原始位元組。
+  - 新增 9 項 CWP-12B-R 要求案例測試（accept/reject 逐一驗證），
+    `test-duplicate-audit-protocol.mjs` 60/60，
+    `test-duplicate-audit-live-harness.mjs` 36/36 不變。
+  - 僅更新 `duplicate-audit-extractor-v1.mjs` 一筆 SOURCE_HASHES entry；
+    其餘全數機械核實未變動。0 provider calls；D1/D2/D3 prompt bytes、
+    pair-universe、D3 routing、model pins、decision matrix、retention、
+    route-manifest sequencing、LIVE guard 全數未變動。
 - **當前邊界**：
   - 下一個研究階段為 Duplicate Audit：規格已封閉、harness 已離線實作並驗證，
     但**執行仍尚未授權（LIVE NOT AUTHORIZED）且尚未執行（UNEXECUTED）**。

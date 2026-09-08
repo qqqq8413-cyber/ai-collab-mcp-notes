@@ -24,7 +24,6 @@ import {
 } from './duplicate-audit-order-v1.mjs';
 import {
   EXTRACTOR_VERSION,
-  REPRESENTATIONS,
   extractDuplicateAuditResponse,
 } from './duplicate-audit-extractor-v1.mjs';
 import {
@@ -243,43 +242,77 @@ check('pairUniverseHash is a pure function of the universe content', () => {
   assert.equal(pairUniverseHash(u), pairUniverseHash([...u]));
 });
 
-console.log('\n--- Extractor (mirrors CBRP-STRUCTURAL-REVIEW-EXTRACTOR-1 grammar) ---');
+console.log('\n--- Extractor: strict JSON-only, per protocol §7.2 (CWP-12B-R) ---');
 
-check('plain JSON object extracts cleanly', () => {
+check('1. a plain valid JSON object is accepted', () => {
   const r = extractDuplicateAuditResponse('{"duplicatePairs":[]}');
   assert.equal(r.ok, true);
-  assert.equal(r.representationDetected, REPRESENTATIONS.PLAIN_JSON_OBJECT);
   assert.deepEqual(r.parsed, { duplicatePairs: [] });
 });
 
-check('fenced JSON object extracts cleanly', () => {
+check('2. valid JSON with ordinary JSON whitespace around it is accepted (JSON grammar tolerates ws value ws)', () => {
+  const r = extractDuplicateAuditResponse('  \n\t {"duplicatePairs":[]} \n  ');
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.parsed, { duplicatePairs: [] });
+});
+
+check('3. a complete ```json ... ``` wrapper is REJECTED, not stripped', () => {
   const r = extractDuplicateAuditResponse('```json\n{"isDuplicate":false,"reason":"no"}\n```');
-  assert.equal(r.ok, true);
-  assert.equal(r.representationDetected, REPRESENTATIONS.COMPLETE_OUTER_FENCE);
+  assert.equal(r.ok, false);
+  assert.equal(r.parsed, null);
 });
 
-check('orphan trailing fence extracts cleanly', () => {
+check('4. a complete ``` ... ``` wrapper (no language tag) is REJECTED, not stripped', () => {
+  const r = extractDuplicateAuditResponse('```\n{"isDuplicate":false,"reason":"no"}\n```');
+  assert.equal(r.ok, false);
+});
+
+check('5. an orphan trailing ``` fence is REJECTED, not stripped', () => {
   const r = extractDuplicateAuditResponse('{"isDuplicate":true,"reason":"yes"}\n```');
-  assert.equal(r.ok, true);
-  assert.equal(r.representationDetected, REPRESENTATIONS.ORPHAN_TRAILING_FENCE);
+  assert.equal(r.ok, false);
 });
 
-check('malformed/unrecognized response is rejected, not repaired', () => {
+check('6. a prose prefix before the JSON is REJECTED, never searched past', () => {
+  const r = extractDuplicateAuditResponse('Here is my answer: {"duplicatePairs":[]}');
+  assert.equal(r.ok, false);
+});
+
+check('7. a prose suffix after the JSON is REJECTED, never truncated to the JSON alone', () => {
+  const r = extractDuplicateAuditResponse('{"duplicatePairs":[]} — that is my final answer.');
+  assert.equal(r.ok, false);
+});
+
+check('8. multiple concatenated JSON objects are REJECTED, never resolved by picking the first/last', () => {
+  const r = extractDuplicateAuditResponse('{"duplicatePairs":[]}{"duplicatePairs":[]}');
+  assert.equal(r.ok, false);
+});
+
+check('9. malformed JSON is REJECTED, never repaired', () => {
   const cases = [
     'not json at all',
     '{"duplicatePairs": [}', // broken JSON
-    'prose before {"duplicatePairs":[]}', // no prefix prose allowed
-    '{"a":1} extra trailing prose',
+    '{"duplicatePairs":[',    // truncated
+    "{'duplicatePairs':[]}", // single quotes are not valid JSON
   ];
   for (const raw of cases) {
     const r = extractDuplicateAuditResponse(raw);
-    assert.equal(r.ok, false, `expected MALFORMED for ${JSON.stringify(raw)}`);
+    assert.equal(r.ok, false, `expected REJECT for ${JSON.stringify(raw)}`);
   }
 });
 
-check('extractor never mutates or repairs -- normalizedJsonBytes equals the meaningful substring, not a rewritten one', () => {
-  const r = extractDuplicateAuditResponse('  {"duplicatePairs":[]}  ');
-  assert.equal(r.normalizedJsonBytes, '{"duplicatePairs":[]}');
+check('rawSha256/rawBytes always reflect the untouched input, never a transformed/repaired byte sequence', () => {
+  const raw = '  {"duplicatePairs":[]}  ';
+  const r = extractDuplicateAuditResponse(raw);
+  assert.equal(r.rawSha256, sha256(raw));
+  assert.equal(r.rawBytes, Buffer.byteLength(raw, 'utf8'));
+});
+
+check('a rejected response still reports EXTRACTOR_VERSION and null parsed, with no fabricated normalized form', () => {
+  const r = extractDuplicateAuditResponse('```json\n{}\n```');
+  assert.equal(r.extractorVersion, EXTRACTOR_VERSION);
+  assert.equal(r.parsed, null);
+  assert.equal('normalizedJsonBytes' in r, false);
+  assert.equal('representationDetected' in r, false);
 });
 
 console.log('\n--- D1/D2 response validation (§7.1/§7.2) ---');

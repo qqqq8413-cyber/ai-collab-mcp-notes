@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  9ebab0e264424d40b40c38ecda0acaa938c94201（CWP-12B execution base）
+stateVerifiedThrough  7f2427b2db467862a190d00489542e083ec0cf34（CWP-12B-R execution base）
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -1484,6 +1484,42 @@ duplicate-audit-live-harness-v1.mjs raw-first 證據落盤、one-attempt reserva
 Protocol-2.1 candidates 執行 DUP-R00 仍需另一份明寫
 `EXECUTION AUTHORIZATION: GRANTED` 的 GPT packet。
 
+### CWP-12B-R —— Duplicate Audit extractor 越權修補
+
+`[FACT]` **越權行為已移除：** CWP-12B 將 `duplicate-audit-extractor-v1.mjs`
+實作為鏡射 `structural-review-extractor-v1.mjs` 的三種表示法文法
+（PLAIN_JSON_OBJECT／COMPLETE_OUTER_FENCE／ORPHAN_TRAILING_FENCE），但
+`CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md` §7.2 只凍結了「response must be
+valid JSON」——從未授權 markdown fence 剝除層。這是把 structural review的
+「engineering reference」誤用成「obsolete assumption」的直接案例，CWP-12B
+的執行指示本身就明確警告過這一點。
+
+`[DECISION]` 已修正為直接使用 JSON grammar：整段 raw response 交給
+`JSON.parse` 逐位元組解析，不做任何 fence 剝除、前後綴搜尋、多物件挑選或
+修復；JSON 語法本身容許的僅有前後空白（`ws value ws`），其餘一律 MALFORMED
+STOP。`normalizedJsonBytes` / `representationDetected` 等隱含「有轉換」語意
+的欄位已移除；`rawSha256` / `rawBytes` 永遠反映未經任何轉換的原始位元組。
+
+```
+新增/更新測試          test-duplicate-audit-protocol.mjs 60/60（含 9 項 CWP-12B-R
+                      REQUIRED 案例：plain accept／whitespace accept／
+                      json-fence reject／bare-fence reject／orphan-fence
+                      reject／prose-prefix reject／prose-suffix reject／
+                      multi-object reject／malformed reject）
+                      test-duplicate-audit-live-harness.mjs 36/36（unchanged）
+SOURCE_HASHES 更新     僅 duplicate-audit-extractor-v1.mjs 一筆
+                      （`78aee593…`，取代舊值 `1025b478…`）；其餘 4 筆
+                      （protocol.md／prompt-v1／order-v1／decision-v1）
+                      機械核實未變動，未更新
+provider calls         0
+```
+
+`[DECISION]` D1/D2 prompt bytes、D3 prompt bytes、pair-universe 規則、D3
+routing、model pins、decision matrix、retention rules、D3 route-manifest
+sequencing、raw-first persistence、one-attempt semantics、LIVE authorization
+guard 全數未變動。Structural Review protocol/harness 本次未被觸碰。DUP-R00
+仍未執行，未建立任何 `duplicate-audit-round-*` 證據目錄。
+
 ### 目前的 M2-B 狀態（不得混淆 acquisition 與 effectiveness)
 
 ```
@@ -1979,7 +2015,8 @@ Structural Review ROUND_2  CONSUMED / CLOSED ← 已於 a4c343a (CWP-11G) 完成
                           （122/122 validated，2 R3 dispatched，60/60 FINAL，0 PENDING_R3）
 Structural Review ROUND_2 R3  CONSUMED / CLOSED ← 已於 a4c343a (CWP-11G) 執行完畢
 Duplicate Audit           NOT AUTHORIZED ← 規格已於 CWP-12A 封閉、harness 已於
-                          CWP-12B 離線實作並驗證（90 項測試、0 provider calls），
+                          CWP-12B 離線實作並驗證、CWP-12B-R 移除越權的 fenced
+                          extractor 行為（96 項測試、0 provider calls），
                           DUP-R00 LIVE 仍未授權、尚未執行
 Gemini A2               NOT AUTHORIZED
 Gate                    NOT AUTHORIZED
@@ -2183,7 +2220,7 @@ Protocol 與 Structural Review Protocol 均已凍結）。以下為更正後、�
 的收尾狀態：
 
 ```
-STATE ALIGNED THROUGH 9ebab0e264424d40b40c38ecda0acaa938c94201 (CWP-12B execution base) / CWP-11H /
+STATE ALIGNED THROUGH 7f2427b2db467862a190d00489542e083ec0cf34 (CWP-12B-R execution base) / CWP-11H /
 P03 CLOSED — 9/9 ATTEMPTED, 0 ADMITTED, 0 ARCHETYPES FILLED /
 F1 FAIL 3/9 ｜ F2 FAIL 7/9 ｜ F3 FAIL 0/9 ｜ ONE SPECIALIST 7/9 /
 A2 = 0 EXECUTIONS ｜ EFFECTIVENESS EXPERIMENT NOT EXECUTED ｜ C vs D₁ UNANSWERED /
@@ -2207,8 +2244,9 @@ STRUCTURAL REVIEW ROUND_2 EXECUTED / R3_COMPLETE / CLOSED (CWP-11G @ a4c343a)
 STRUCTURAL REVIEW ROUND_2 POST-R3 SEAL & STATE RECONCILED (CWP-11H) /
 MAX_TOKENS FAIL-CLOSED RULE FROZEN (applies to every round) /
 CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-1 SPECIFICATION CLOSED (CWP-12A/12A-R) —
-  IMPLEMENTATION VERIFIED OFFLINE (CWP-12B, 90 tests, 0 provider calls) /
-  LIVE NOT AUTHORIZED / 0 AUDIT ROUNDS RUN /
+  IMPLEMENTATION VERIFIED OFFLINE (CWP-12B/12B-R, 96 tests, 0 provider calls) /
+  strict JSON-only extraction restored (CWP-12B-R, unauthorized fenced/
+  orphan-fence acceptance removed) / LIVE NOT AUTHORIZED / 0 AUDIT ROUNDS RUN /
 60/60 structural decisions FINAL ｜ 0 duplicate audit rounds ｜ 0 replacement sessions ｜
 0 pools frozen ｜ 0 Chief Census calls ｜ 0 formal admitted tasks (pending duplicate audit) /
 LIVE = STOPPED / RETURN TO GPT ARCHITECTURE

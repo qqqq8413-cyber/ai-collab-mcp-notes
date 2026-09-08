@@ -70,7 +70,7 @@ const SOURCE_HASHES = Object.freeze({
   'experiments/m2b/census/CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md': 'cbac540b7214afcf6e6352fb81dd8bda68171707eed0ac5197ac9555e8c64555',
   'experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-prompt-v1.mjs': 'a5abab6b0e20d0234c44c985224a1b8953473826abd34bf96aa71be0fa88debd',
   'experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-order-v1.mjs': 'dd25109b8571e42f5f51d222bd6fec03eeb441dac9b500364c19df923fb52772',
-  'experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-extractor-v1.mjs': '1025b478b6308dac0639b4bf9268bdf18ce36c1d13445aea9f7f999d0ce366e8',
+  'experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-extractor-v1.mjs': '78aee59362768e5ee36fe56952184de6eca505ad8e52f7c405f101d84d1a5eeb',
   'experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-decision-v1.mjs': '16fb3e3b2cb3c7888350402675e88de180fa82577693d1db24cb91948b4e6d03',
 });
 
@@ -516,8 +516,6 @@ export async function executeDuplicateAuditSession({
   const extraction = extractDuplicateAuditResponse(response.text);
   Object.assign(record, {
     extractorVersion: extraction.extractorVersion,
-    representationDetected: extraction.representationDetected,
-    normalizedJsonSha256: extraction.normalizedJsonSha256,
   });
   if (!extraction.ok) {
     record.outcome = 'STOP_MALFORMED_RESPONSE';
