@@ -1,0 +1,267 @@
+{
+  "sessions": [
+    {
+      "harnessVersion": "CBRP-DUPLICATE-AUDIT-LIVE-HARNESS-1",
+      "protocolVersion": "CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-2",
+      "sessionId": "DUP-P2-R00-D1",
+      "roundId": "DUP-P2-R00",
+      "role": "D1",
+      "providerRequested": "claude",
+      "modelRequested": "claude-opus-5",
+      "reservationTimestamp": "2026-09-08T16:11:41.472Z",
+      "status": "RESERVED_ATTEMPT_CONSUMED_ON_DISPATCH",
+      "modelFamily": "CLAUDE_FAMILY",
+      "modelPinVersion": "CBRP-SESSION-MODEL-PINS-1",
+      "freshContextConfirmed": true,
+      "freshContextBasis": "OPERATOR ATTESTATION — one stateless API request containing only the frozen model-visible prompt; no system prompt, prior turns, conversation id, or continuation. NOT independently verified.",
+      "wrapperVersion": "CBRP-DUPLICATE-AUDIT-D1D2-WRAPPER-1",
+      "layerAVersion": "CBRP-DUPLICATE-AUDIT-LAYER-A-v1",
+      "layerASha256": "57ca27ecf339ad4d5d5e1f45d3361a90a2ca1accf8a6e1433f55c831f613a05d",
+      "promptSha256": "40fc7509387777c010fee9016280b9f9e0120ee5276691540128bc68af725e2d",
+      "promptBytes": 77147,
+      "maxTokensRequested": 32768,
+      "thinkingLevelRequested": null,
+      "temperatureRequested": null,
+      "transportRetryConfiguration": "maxRetries: 0",
+      "d3SelectorInput": null,
+      "d3Selector": null,
+      "a": null,
+      "b": null,
+      "runtimeProvenance": {
+        "capturedAt": "2026-09-08T16:11:41.445Z",
+        "head": "453517e1cbe7ec57420f9caa69ad9aeaf1451345",
+        "nodeVersion": "v24.15.0",
+        "packageLockSha256": "4fde57dc2c3102c081674bd6286dbc77aa9f8ecd128aa43450568edff840c5e1",
+        "anthropicSdkVersion": "0.123.0",
+        "geminiSdkVersion": "0.24.1",
+        "layerABytes": 639,
+        "layerASha256": "57ca27ecf339ad4d5d5e1f45d3361a90a2ca1accf8a6e1433f55c831f613a05d",
+        "sourceHashes": {
+          "experiments/m2b/census/CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_2.md": "0111b1c5a7b701c3c650c97efc835f0b49414897e7681a8340f80fa4d1b5a5f3",
+          "experiments/m2b/census/CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md": "cbac540b7214afcf6e6352fb81dd8bda68171707eed0ac5197ac9555e8c64555",
+          "experiments/m2b/census/CBRP_MODEL_PINS_PREREG_DRAFT.md": "141432c59640e6d69d7a8cfee58a39c9c9817685c4bf5efa26c6a0e7a5ce9bbd",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-prompt-v1.mjs": "a5abab6b0e20d0234c44c985224a1b8953473826abd34bf96aa71be0fa88debd",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-order-v1.mjs": "dd25109b8571e42f5f51d222bd6fec03eeb441dac9b500364c19df923fb52772",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-extractor-v1.mjs": "78aee59362768e5ee36fe56952184de6eca505ad8e52f7c405f101d84d1a5eeb",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-decision-v1.mjs": "16fb3e3b2cb3c7888350402675e88de180fa82577693d1db24cb91948b4e6d03",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-corpus-binding-v1.mjs": "6939f6a07fb5d08f715b97de108cc1c85b39e33581eeb13c5c67a9086827eef5",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-runner.mjs": "e858703c1824e0beacad7bc92708201f8586ab86c5a11274744fbd09ca7c1afa",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-live-harness-v1.mjs": "2fb644d43e791f8a61bb791f3a236f149c354906e88d60dc618effbe040e4d19",
+          "experiments/m2b/census/authoring-v2p1-round-0/CANDIDATES.json": "05bb612aa85c95fdcc9e4dbf077ebc50b2977e0fe41df8179c127e2d9dc98368",
+          "experiments/m2b/census/structural-review-round-2/FINAL_DECISIONS.json": "1fbd7bab3a64a1750a4d571653b5299ed87242a4b72a5ac53b3c1c3e07878402",
+          "experiments/m2b/census/structural-review-round-2/VALIDATION.json": "5fc03db72f7a67843b6797f80da3cddae56f4fc04b0ba9694eea2ecff35c6f42"
+        },
+        "workingTreePaths": [
+          "experiments/m2b/census/duplicate-audit-p2-round-00/CORPUS.json",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/CORPUS_TASKS.json",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/D1D2_PROMPT_MANIFEST.json",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/LAYER_A_SENT.txt",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/PAIR_UNIVERSE.json",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/RESULTS.json",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/SCOPE.json",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/SESSIONS.json",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/VALIDATION.json"
+        ],
+        "unexpectedWorkingTreePaths": []
+      },
+      "startedAt": "2026-09-08T16:11:41.477Z",
+      "settledAt": "2026-09-08T16:15:47.205Z",
+      "providerDispatchCount": 1,
+      "outcome": "SESSION_VALIDATED",
+      "providerResolved": "claude",
+      "modelResolved": "claude-opus-5",
+      "resolvedIdentityObservable": true,
+      "pinStatus": "OBSERVED",
+      "stopReason": "end_turn",
+      "rawResponseSha256": "7309e69ed16571836241821e841412c9b7edb6ba7af3a4194c2558e6df95e683",
+      "rawResponseBytes": 8157,
+      "rawTextPath": "raw/DUP-P2-R00-D1.txt",
+      "rawProviderResponsePath": "raw/DUP-P2-R00-D1.response.json",
+      "extractorVersion": "CBRP-DUPLICATE-AUDIT-EXTRACTOR-1",
+      "mechanicalValidation": {
+        "ok": true
+      },
+      "parsedResponse": {
+        "duplicatePairs": [
+          {
+            "a": "V21-B01-S00-BC-01",
+            "b": "V21-B03-S00-BC-01",
+            "reason": "Both are the inherited decades-old family hardware store whose loyal older trade customers value the unchanged, old-fashioned feel while younger customers find it dated/intimidating, with a single name and no option to run two identities — the identical brand-positioning decision differing only in store age and whether a second site is mentioned."
+          },
+          {
+            "a": "V21-B01-S00-BC-01",
+            "b": "V21-B05-S00-BC-01",
+            "reason": "Both are a long-established neighbourhood retailer keeping its product, premises and prices unchanged and asking only how signage/voice/presentation should evolve to convert a younger incoming demographic into regulars without losing the older loyalists who cite the old-fashioned feel as the reason they trust it. Same decision, hardware swapped for deli."
+          },
+          {
+            "a": "V21-B02-S00-BC-01",
+            "b": "V21-B04-S00-BC-01",
+            "reason": "Both are a decades-old technical/utilitarian apparel maker whose core rugged user base fears dilution while ~40-45% of revenue has shifted to urban professionals who find the technical voice cold or aggressive; both ask for a positioning and tonal framework that bridges heritage credibility with urban lifestyle appeal under one brand. Identical decision, workwear vs alpine wear."
+          },
+          {
+            "a": "V21-B01-S00-EI-01",
+            "b": "V21-B05-S00-EI-01",
+            "reason": "Both present a retention improvement following a new program that is confounded by two co-timed changes — a price/pay increase and a tightening of intake criteria that selects for people who would have stayed anyway — and ask what the data actually attributes to the program before a decision to roll it out organisation-wide. Same causal-attribution decision with school swapped for hospital."
+          },
+          {
+            "a": "V21-B03-S00-EI-02",
+            "b": "V21-B05-S00-EI-02",
+            "reason": "Both compare a policy piloted in a subset of institutions against the non-pilot remainder, where the pilot sites were non-equivalent (co-occurring curriculum/renovation advantages, comparison sites declining), with a board treating the gap as proof and pushing system-wide expansion; both ask what the data really shows about causation. Same decision, four-day week vs late-fee elimination."
+          },
+          {
+            "a": "V21-B03-S00-FR-01",
+            "b": "V21-B05-S00-FR-01",
+            "reason": "Both are an unrestricted one-time bequest from a longtime donor's estate that must be split among exactly three claims — an urgent-but-not-immediate roof repair with a stated deadline, an education/tutoring program facing a funding cliff, and a third institutional need — with no way to fund all three. Same allocation decision, different sum and organisation."
+          },
+          {
+            "a": "V21-B01-S00-FR-01",
+            "b": "V21-B04-S00-FR-01",
+            "reason": "Both are a cultural institution dividing a one-time capital fund that must be committed before a deadline across the same three claim types: an urgent building-fabric failure threatening the collection/closure, a physical expansion serving new audiences, and a digitisation project that unlocks external research/licensing income. Identical allocation trade-off, museum vs library."
+          },
+          {
+            "a": "V21-B02-S00-FR-02",
+            "b": "V21-B04-S00-FR-02",
+            "reason": "Both allocate a fixed, pre-approved block of new engineering-side headcount across department requests that substantially exceed it, with the same competing justifications (revenue/SLA risk, delivery backlog blocking recognised revenue, platform/next-gen work), asking for a distribution and its trade-off rationale. Same headcount-rationing decision."
+          },
+          {
+            "a": "V21-B01-S00-FR-02",
+            "b": "V21-B05-S00-FR-02",
+            "reason": "Both divide a fixed discretionary budget among exactly three departmental requests totalling roughly $35-45k more than available, where one request is replacing equipment that failed twice recently, one promises revenue/efficiency upside, and one addresses an ongoing cost or obligation, with a decision due at an imminent meeting. Same allocation decision, theatre vs plant."
+          },
+          {
+            "a": "V21-B01-S00-OP-02",
+            "b": "V21-B02-S00-OP-01",
+            "reason": "Both take an already-approved healthcare IT system rollout and ask only for the execution sequence across sites, constrained by being able to take/support one site at a time, a limited pool of trainers/staff who cannot all be released at once, and a hard external deadline. Same sequencing problem at different scale."
+          },
+          {
+            "a": "V21-B01-S00-OP-01",
+            "b": "V21-B02-S00-OP-02",
+            "reason": "Both are a bakery with signed new supermarket wholesale contracts (volume fixed, decision final) asking how to schedule mixing/proofing/baking across limited ovens and staff so the new wholesale volume is met alongside existing commitments. Same production-scheduling decision, differing only in the numbers and whether delivery legs are included."
+          },
+          {
+            "a": "V21-B04-S00-OP-02",
+            "b": "V21-B05-S00-OP-02",
+            "reason": "Both are a food/beverage producer committed to a fixed contracted volume delivered in staggered batch shipments, scheduling a multi-stage process (fermentation/setting times, single or dual constrained lines with changeover/sanitation, limited holding capacity with spoilage or storage caps) to hit each milestone without gaps. Same scheduling decision."
+          },
+          {
+            "a": "V21-B02-S00-PS-01",
+            "b": "V21-B04-S00-PS-01",
+            "reason": "Both are a multi-site workspace operator with hybrid-driven peak/trough occupancy designing a corporate membership product for distributed teams, asked to define tiers, credit/entitlement mechanics, meeting-room booking rules and admin/access controls while smoothing utilisation and protecting existing occupants. Same product-design decision, co-working chain vs office-tower landlord."
+          },
+          {
+            "a": "V21-B02-S00-PS-02",
+            "b": "V21-B04-S00-PS-02",
+            "reason": "Both are a multi-location dental group designing an in-house membership plan for uninsured patients to replace fee-for-service, asked to specify tiers, included preventive care, discount mechanics on restorative work, frequency limits and membership terms without eroding margin. Same design decision, adult general practice vs pediatric."
+          },
+          {
+            "a": "V21-B01-S00-PS-01",
+            "b": "V21-B02-S00-PS-02",
+            "reason": "Both are a clinical practice that has decided to replace unpredictable pay-per-visit billing with a subscription/membership for routine care and now must define what it covers, how many tiers, and how to cap exposure on unpredictable higher-cost treatment given fixed clinical capacity. Same offer-design decision, veterinary vs dental."
+          },
+          {
+            "a": "V21-B03-S00-SC-01",
+            "b": "V21-B05-S00-SC-01",
+            "reason": "Both are the same 14-person structural engineering firm, eight years subcontracting to two general contractors, weighing the same $600k offer for a 40% stake (board seat, exclusivity tying them to that contractor's pipeline) against a debt-funded independent growth move, with both offers expiring at month-end and an explicit clause preventing doing both."
+          },
+          {
+            "a": "V21-B02-S00-SC-02",
+            "b": "V21-B04-S00-SC-01",
+            "reason": "Both are a regional cold-chain logistics operator with capital capacity for only one move, choosing between staying with the established, labour-heavy legacy facility/asset and committing the full capital to build a new automated cold-storage hub whose automation cuts labour costs but yields no revenue during a long build and disrupts staff. Same either/or capital decision."
+          },
+          {
+            "a": "V21-B04-S00-SC-02",
+            "b": "V21-B05-S00-SC-02",
+            "reason": "Both are a founder team at the end of runway choosing irreversibly between handing the business/technology to a larger incumbent for immediate cash and certainty while surrendering control and scale-back of the team, versus taking a fresh investor round to build out their own manufacturing/delivery and commercialise independently at higher execution risk, with a board/investor deadline days away."
+          },
+          {
+            "a": "V21-B01-S00-SC-01",
+            "b": "V21-B02-S00-SC-01",
+            "reason": "Both are a specialist services/manufacturing firm forced to commit by a near deadline to one of two mutually exclusive paths: a guaranteed multi-year anchor contract with an exclusivity clause that locks out a whole client segment and dedicates core capacity, versus a lower-certainty, diversified path that preserves independence and a broader customer base. Same strategic trade-off."
+          }
+        ]
+      }
+    },
+    {
+      "harnessVersion": "CBRP-DUPLICATE-AUDIT-LIVE-HARNESS-1",
+      "protocolVersion": "CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-2",
+      "sessionId": "DUP-P2-R00-D2",
+      "roundId": "DUP-P2-R00",
+      "role": "D2",
+      "providerRequested": "gemini",
+      "modelRequested": "gemini-3.8-flash",
+      "reservationTimestamp": "2026-09-08T16:15:47.319Z",
+      "status": "RESERVED_ATTEMPT_CONSUMED_ON_DISPATCH",
+      "modelFamily": "GEMINI_FAMILY",
+      "modelPinVersion": "CBRP-SESSION-MODEL-PINS-1",
+      "freshContextConfirmed": true,
+      "freshContextBasis": "OPERATOR ATTESTATION — one stateless API request containing only the frozen model-visible prompt; no system prompt, prior turns, conversation id, or continuation. NOT independently verified.",
+      "wrapperVersion": "CBRP-DUPLICATE-AUDIT-D1D2-WRAPPER-1",
+      "layerAVersion": "CBRP-DUPLICATE-AUDIT-LAYER-A-v1",
+      "layerASha256": "57ca27ecf339ad4d5d5e1f45d3361a90a2ca1accf8a6e1433f55c831f613a05d",
+      "promptSha256": "40fc7509387777c010fee9016280b9f9e0120ee5276691540128bc68af725e2d",
+      "promptBytes": 77147,
+      "maxTokensRequested": 32768,
+      "thinkingLevelRequested": "medium",
+      "temperatureRequested": null,
+      "transportRetryConfiguration": "SDK 0.24.1 single generateContent request; no retry/fallback layer",
+      "d3SelectorInput": null,
+      "d3Selector": null,
+      "a": null,
+      "b": null,
+      "runtimeProvenance": {
+        "capturedAt": "2026-09-08T16:15:47.289Z",
+        "head": "453517e1cbe7ec57420f9caa69ad9aeaf1451345",
+        "nodeVersion": "v24.15.0",
+        "packageLockSha256": "4fde57dc2c3102c081674bd6286dbc77aa9f8ecd128aa43450568edff840c5e1",
+        "anthropicSdkVersion": "0.123.0",
+        "geminiSdkVersion": "0.24.1",
+        "layerABytes": 639,
+        "layerASha256": "57ca27ecf339ad4d5d5e1f45d3361a90a2ca1accf8a6e1433f55c831f613a05d",
+        "sourceHashes": {
+          "experiments/m2b/census/CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_2.md": "0111b1c5a7b701c3c650c97efc835f0b49414897e7681a8340f80fa4d1b5a5f3",
+          "experiments/m2b/census/CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md": "cbac540b7214afcf6e6352fb81dd8bda68171707eed0ac5197ac9555e8c64555",
+          "experiments/m2b/census/CBRP_MODEL_PINS_PREREG_DRAFT.md": "141432c59640e6d69d7a8cfee58a39c9c9817685c4bf5efa26c6a0e7a5ce9bbd",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-prompt-v1.mjs": "a5abab6b0e20d0234c44c985224a1b8953473826abd34bf96aa71be0fa88debd",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-order-v1.mjs": "dd25109b8571e42f5f51d222bd6fec03eeb441dac9b500364c19df923fb52772",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-extractor-v1.mjs": "78aee59362768e5ee36fe56952184de6eca505ad8e52f7c405f101d84d1a5eeb",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-decision-v1.mjs": "16fb3e3b2cb3c7888350402675e88de180fa82577693d1db24cb91948b4e6d03",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-corpus-binding-v1.mjs": "6939f6a07fb5d08f715b97de108cc1c85b39e33581eeb13c5c67a9086827eef5",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-runner.mjs": "e858703c1824e0beacad7bc92708201f8586ab86c5a11274744fbd09ca7c1afa",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-live-harness-v1.mjs": "2fb644d43e791f8a61bb791f3a236f149c354906e88d60dc618effbe040e4d19",
+          "experiments/m2b/census/authoring-v2p1-round-0/CANDIDATES.json": "05bb612aa85c95fdcc9e4dbf077ebc50b2977e0fe41df8179c127e2d9dc98368",
+          "experiments/m2b/census/structural-review-round-2/FINAL_DECISIONS.json": "1fbd7bab3a64a1750a4d571653b5299ed87242a4b72a5ac53b3c1c3e07878402",
+          "experiments/m2b/census/structural-review-round-2/VALIDATION.json": "5fc03db72f7a67843b6797f80da3cddae56f4fc04b0ba9694eea2ecff35c6f42"
+        },
+        "workingTreePaths": [
+          "experiments/m2b/census/duplicate-audit-p2-round-00/CORPUS.json",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/CORPUS_TASKS.json",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/D1D2_PROMPT_MANIFEST.json",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/LAYER_A_SENT.txt",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/PAIR_UNIVERSE.json",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/RESULTS.json",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/SCOPE.json",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/SESSIONS.json",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/VALIDATION.json",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/raw/DUP-P2-R00-D1.response.json",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/raw/DUP-P2-R00-D1.txt",
+          "experiments/m2b/census/duplicate-audit-p2-round-00/reservations/DUP-P2-R00-D1.json"
+        ],
+        "unexpectedWorkingTreePaths": []
+      },
+      "startedAt": "2026-09-08T16:15:47.323Z",
+      "settledAt": "2026-09-08T16:16:54.809Z",
+      "providerDispatchCount": 1,
+      "outcome": "STOP_MALFORMED_RESPONSE",
+      "providerResolved": "gemini",
+      "modelResolved": "gemini-3.8-flash",
+      "resolvedIdentityObservable": true,
+      "pinStatus": "OBSERVED",
+      "stopReason": "STOP",
+      "rawResponseSha256": "81e0ba5f810a1ac643948a275af35ac20a62335b047b636df3ec86edeeb7cbe5",
+      "rawResponseBytes": 33,
+      "rawTextPath": "raw/DUP-P2-R00-D2.txt",
+      "rawProviderResponsePath": "raw/DUP-P2-R00-D2.response.json",
+      "extractorVersion": "CBRP-DUPLICATE-AUDIT-EXTRACTOR-1"
+    }
+  ]
+}

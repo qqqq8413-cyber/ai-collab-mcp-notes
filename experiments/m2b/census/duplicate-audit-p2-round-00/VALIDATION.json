@@ -1,0 +1,9 @@
+{
+  "harnessVersion": "CBRP-DUPLICATE-AUDIT-LIVE-HARNESS-1",
+  "protocolVersion": "CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-2",
+  "status": "FAILED_CLOSED",
+  "roundId": "DUP-P2-R00",
+  "stopCode": "STOP_MALFORMED_RESPONSE",
+  "stopMessage": "STOP_MALFORMED_RESPONSE: duplicate-audit extractor rejected response",
+  "sessionsRecorded": 2
+}

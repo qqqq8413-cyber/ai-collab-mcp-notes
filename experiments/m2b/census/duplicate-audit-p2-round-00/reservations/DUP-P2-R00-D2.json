@@ -1,0 +1,11 @@
+{
+  "harnessVersion": "CBRP-DUPLICATE-AUDIT-LIVE-HARNESS-1",
+  "protocolVersion": "CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-2",
+  "sessionId": "DUP-P2-R00-D2",
+  "roundId": "DUP-P2-R00",
+  "role": "D2",
+  "providerRequested": "gemini",
+  "modelRequested": "gemini-3.8-flash",
+  "reservationTimestamp": "2026-09-08T16:15:47.319Z",
+  "status": "RESERVED_ATTEMPT_CONSUMED_ON_DISPATCH"
+}
