@@ -186,7 +186,7 @@ respective wrapper.
 
 ### 4.2 Layer B — the D1/D2 corpus audit wrapper
 
-Layer A, plus:
+Exact byte-for-byte construction: §7.5. Layer A, plus:
 
 ```
 receives         the sixty current task IDs
@@ -238,7 +238,7 @@ is named rather than denied.
 
 ### 4.3 Layer C — the D3 pair adjudication wrapper
 
-Layer A, plus:
+Exact byte-for-byte construction: §8.5. Layer A, plus:
 
 ```
 receives          candidate a ID + task text
@@ -408,6 +408,79 @@ mention."
 If you find no duplicates, return an empty list. That is a normal outcome, and is
 persisted as one (§13).
 
+### 7.5 Exact model-visible construction — CBRP-DUPLICATE-AUDIT-D1D2-WRAPPER-1
+
+`[ARCHITECTURE-DECIDED]` Deterministic, byte-exact construction. After this repair, a
+reference implementation has zero discretion over prompt wording — every byte is either
+one of the frozen text blocks below or mechanically derived from `corpusTaskIds` and
+`auditScopeIds` by the ordering rules in §5.
+
+```
+<D1D2_FRAMING_BYTES>
+\n\n                         (two LF bytes)
+<LAYER_A_BYTES>              (§6, extracted byte-for-byte — see note below)
+\n\n
+<D1D2_SCOPE_INSTRUCTION_BYTES>
+\n\n
+<D1D2_RETURN_INSTRUCTION_BYTES>
+\n\n
+AUDIT INPUT JSON:
+\n                            (one LF)
+<audit input JSON, one line, no pretty-printing>
+```
+
+`LAYER_A_BYTES` is extracted from §6's paste block using the same convention as
+`CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md` §4/§16 and `CBRP_REPLACEMENT_PROTOCOL_1.md`: all
+leading newlines stripped, exactly one trailing newline stripped, the pasted content's own
+natural trailing newline otherwise preserved. Never re-typed, never re-derived by hand —
+extracted mechanically from the same bytes every time.
+
+The frozen text blocks, verbatim:
+
+```
+D1D2_FRAMING_BYTES =
+"You are auditing a corpus of sixty decision scenarios written for a research pool.
+Your only job is to find duplicate pairs among them."
+
+D1D2_SCOPE_INSTRUCTION_BYTES =
+"You are given a list, auditScopeIds, inside AUDIT INPUT JSON below. Report a pair
+only if at least one of its two scenarios is in that list. Pairs where neither is in
+the list are outside your task; do not report them, and do not comment on them."
+
+D1D2_RETURN_INSTRUCTION_BYTES =
+"Return candidate duplicate pairs, and nothing else. Do not rank the scenarios, do
+not judge their quality, do not suggest replacements, and do not comment on the pool
+as a whole. If you find no duplicates, return an empty list. That is a normal
+outcome. Return exactly this JSON shape, and nothing else:
+
+{\"duplicatePairs\":[{\"a\":\"<candidate-id>\",\"b\":\"<candidate-id>\",\"reason\":\"<non-empty explanation>\"}]}"
+```
+
+The audit input JSON is `JSON.stringify` output, one line, no pretty-printing, in exactly
+this key order:
+
+```
+{
+  "auditScopeIds": [ ... ],   ascending lexicographic candidate ID order (§5)
+  "corpusTasks":   [ ... ]    ascending lexicographic candidateId order (§5);
+                              each element {"candidateId": "...", "taskText": "..."},
+                              candidateId key before taskText key, no other keys
+}
+```
+
+No `auditorId`, no session identity, no stratum label, no round number, no wording
+implying this is anything other than round `j`'s current scope and current corpus — the
+model-visible bytes carry no more than what §4.2's "must NOT receive" list already
+permits. The prompt ends exactly at the final byte of the audit input JSON: no trailing
+newline beyond what `JSON.stringify` produces, no closing remark, nothing appended after
+it.
+
+Reference implementation (future engineering work, not part of this specification
+closure): a pure function analogous to `buildStructuralReviewPrompt` in
+[`structural-review-protocol/structural-review-prompt-v1.mjs`](structural-review-protocol/structural-review-prompt-v1.mjs) —
+takes `corpusTasks` and `auditScopeIds` as explicit arguments, reads Layer A bytes from a
+loader function rather than a hardcoded string, and has no hidden filesystem dependency.
+
 ---
 
 ## 8. D3 pair adjudication wrapper
@@ -522,6 +595,60 @@ This durability requirement is deliberately the duplicate-audit analogue of
 CWP-11F) — the same failure mode (a route computed in memory and dispatched from before
 ever touching disk) is closed here before any duplicate-audit harness is built, rather
 than after a LIVE STOP discovers it.
+
+### 8.5 Exact model-visible construction — CBRP-DUPLICATE-AUDIT-D3-WRAPPER-1
+
+`[ARCHITECTURE-DECIDED]` Deterministic, byte-exact construction, symmetric with §7.5 and
+subject to the same "zero implementation discretion" rule.
+
+```
+<D3_FRAMING_BYTES>
+\n\n                         (two LF bytes)
+<LAYER_A_BYTES>              (§6 — byte-identical to the copy §7.5 uses; see §7.5's
+                              extraction note)
+\n\n
+<D3_RETURN_INSTRUCTION_BYTES>
+\n\n
+PAIR JSON:
+\n                            (one LF)
+<pair JSON, one line, no pretty-printing>
+```
+
+The frozen text blocks, verbatim:
+
+```
+D3_FRAMING_BYTES =
+"You are comparing exactly two decision scenarios, candidate A and candidate B.
+Your only job is to judge whether they are duplicates."
+
+D3_RETURN_INSTRUCTION_BYTES =
+"Return your judgment using exactly this JSON shape, and nothing else:
+
+{\"isDuplicate\":true,\"reason\":\"<non-empty explanation>\"}
+
+isDuplicate must be strictly boolean true or false."
+```
+
+The pair JSON is `JSON.stringify` output, one line, no pretty-printing, in exactly this
+key order:
+
+```
+{
+  "a": { "candidateId": "...", "taskText": "..." },   lexicographically SMALLER id (§5)
+  "b": { "candidateId": "...", "taskText": "..." }    lexicographically LARGER  id (§5)
+}
+```
+
+`a` before `b`, `candidateId` before `taskText` in each, no other keys. No `auditScopeIds`,
+no other candidate's ID or text, no mention that this pair was disputed or that any other
+auditor exists — the model-visible bytes carry no more than §4.3's "must NOT receive" list
+permits. The prompt ends exactly at the final byte of the pair JSON: no trailing newline
+beyond what `JSON.stringify` produces, no closing remark, nothing appended after it.
+
+Reference implementation (future engineering work, not part of this specification
+closure): a pure function taking `a` and `b` (each `{candidateId, taskText}`, already
+canonically ordered per §5) as explicit arguments, reading the same Layer A loader §7.5's
+implementation uses, with no hidden filesystem dependency.
 
 ---
 

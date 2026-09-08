@@ -5,7 +5,10 @@ PIN VERSION:  CBRP-SESSION-MODEL-PINS-1
 D3 ROUTING:   CBRP-D3-v1
 STATUS:       FROZEN as a decision ｜ study NOT PREREGISTERED
 SESSIONS RUN: authoring 12 total（v1 5 + Protocol-2 2 + Protocol-2.1 5）
-              ｜ structural review 0 ｜ duplicate audit 0
+              ｜ structural review 202 dispatched / 201 validated
+                (ROUND_0 80/79, ROUND_1 0/0, ROUND_2 122/122 — evidence:
+                experiments/m2b/census/structural-review-round-{0,1,2}/VALIDATION.json)
+              ｜ duplicate audit 0
 ```
 
 > **The canonical table.** Every exact provider/model string used to decide CBRP pool
@@ -299,7 +302,10 @@ pins frozen as a decision
 authoring sessions run   12   v1 5 FAILED CLOSED ｜ Protocol-2 2 INCOMPLETE at B02
                               ｜ Protocol-2.1 5 COMPLETE (CWP-10E, 60/60 acquired)
 tasks admitted           0
-reviews 0 ｜ duplicate audit rounds 0 ｜ pools frozen 0 ｜ D3 adjudications 0
+structural review sessions   202 dispatched / 201 validated
+                              (ROUND_0 80/79 ｜ ROUND_1 0/0 ｜ ROUND_2 122/122)
+structural D3 adjudications  2 (both ROUND_2, both routed to claude-opus-5)
+duplicate audit rounds 0 ｜ pools frozen 0 ｜ duplicate D3 adjudications 0
 ```
 
 `[FACT]` **CWP-10G-R update:** this section's counters were last reconciled after
@@ -323,3 +329,14 @@ all five sessions with no STOP. None of the three stops/completions was a pin
 mismatch. `CBRP-STRUCTURAL-REVIEW-PROTOCOL-1` (CWP-10G) has frozen the execution path
 a structural reviewer will run under, but no structural reviewer or duplicate auditor
 has been called — reviews and audit rounds both remain 0.
+
+`[FACT]` **CWP-12A-R update:** the paragraph above was true at CWP-10G-R time and is
+preserved as the historical record of that point, but structural review has since run.
+`claude-opus-5` and `gemini-3.8-flash` have both been dispatched: 202 structural-review
+provider sessions across ROUND_0 (80 dispatched / 79 validated, FAILED_CLOSED on a
+Gemini MAX_TOKENS truncation), ROUND_1 (0 dispatched, STOP_SOURCE_DRIFT pre-dispatch),
+and ROUND_2 (122 dispatched / 122 validated, R3_COMPLETE, including 2 structural D3
+adjudications, both routed to `claude-opus-5`) — 201 validated total. Duplicate audit
+remains genuinely 0: no duplicate auditor of either pin has ever been called. See §10
+and `CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md` §14 for current status. No pin, routing
+rule, or canonical model string on this page changed.

@@ -1425,6 +1425,17 @@ DUP-R00，未建立任何 duplicate-audit harness/test 程式碼。DUP-R00 input
 = 通過 Structural Review ROUND_2 的現行 60 個 Protocol-2.1 candidates（見上）。
 Duplicate Audit LIVE 仍需另一份明寫 `EXECUTION AUTHORIZATION: GRANTED` 的 GPT packet。
 
+`[FACT]` **CWP-12A-R 修補：** 補上兩項封閉遺留的缺口。(1)
+`CBRP_MODEL_PINS_PREREG_DRAFT.md` 先前仍記載「structural review 0」，與
+ROUND_0/1/2 的真實派發歷史矛盾；已依 repo 內 `structural-review-round-{0,1,2}/
+VALIDATION.json` 機械核實並更正為 202 dispatched / 201 validated（ROUND_0
+80/79、ROUND_1 0/0、ROUND_2 122/122），duplicate audit 仍確實為 0，pin 本身
+未變動。(2) `CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md` 新增 §7.5 / §8.5，
+凍結 D1/D2 與 D3 wrapper 的逐位元組模型可見輸入構造（frozen 文字區塊、
+Layer A bytes 的擷取規則、JSON key 順序、LF 組成），實作自此對 prompt 文字
+沒有裁量空間。皆為規格層級補完，未變動任何 provider/model pin、duplicate
+定義或既有 research-methodology decision。0 provider calls。
+
 ### 目前的 M2-B 狀態（不得混淆 acquisition 與 effectiveness)
 
 ```
