@@ -236,10 +236,12 @@ replacement/execution authorization exactly as Protocol-1 rounds are.
 ```
 duplicate-audit-round-0/     immutable historical Protocol-1 DUP-R00 failure evidence
                               (CWP-12D-2F) — never written to again, by any protocol
-duplicate-audit-round-00/     Protocol-1's never-reached intended namespace — reserved
-                              for Protocol-1 alone (should a future GPT decision ever
-                              authorize resuming Protocol-1 itself, which this document
-                              does not do), never used by Protocol-2
+duplicate-audit-round-00/     Protocol-1's permanently unused / retired intended
+                              namespace — Protocol-1 DUP-R00 is FAILED CLOSED /
+                              TERMINAL (§2) and is never resumed, so this namespace
+                              is never used by Protocol-1 after terminal closure,
+                              never used by Protocol-2, and never used by any future
+                              recovery protocol
 ```
 
 A future Protocol-2 reference implementation must derive `duplicate-audit-p2-round-NN/`
