@@ -153,14 +153,30 @@ function workingTreePaths() {
   return paths;
 }
 
-const ROUND_ID_PATTERN = /^DUP-R\d{2}$/;
+const ROUND_ID_PATTERN = /^DUP-R(\d{2})$/;
 
-/** `DUP-R00` -> `experiments/m2b/census/duplicate-audit-round-00/`. */
-function liveArtifactPaths(roundId) {
-  if (!ROUND_ID_PATTERN.test(roundId ?? '')) {
+/**
+ * Pure, testable extraction of a round ID's two-digit suffix, via the same
+ * capture group `ROUND_ID_PATTERN` already uses to validate the ID -- never
+ * a hardcoded string index. `roundId.slice(6)` (CWP-12B..12D-2) silently
+ * dropped the leading digit of the suffix (`DUP-R00` -> `0`, not `00`)
+ * because `'DUP-R'` is 5 characters, not 6; a real LIVE dispatch (CWP-12D-2)
+ * wrote genuine evidence to `duplicate-audit-round-0/` instead of the
+ * intended `duplicate-audit-round-00/` before this was caught. Deriving the
+ * suffix from the validation regex's own capture group makes the two
+ * mechanically incapable of disagreeing.
+ */
+export function dupRoundSuffix(roundId) {
+  const match = ROUND_ID_PATTERN.exec(roundId ?? '');
+  if (!match) {
     throw stop('STOP_ROUND_INVALID', `unrecognized roundId ${JSON.stringify(roundId)}`);
   }
-  const dirName = `duplicate-audit-round-${roundId.slice(6)}`;
+  return match[1];
+}
+
+/** `DUP-R00` -> `experiments/m2b/census/duplicate-audit-round-00/`. */
+export function liveArtifactPaths(roundId) {
+  const dirName = `duplicate-audit-round-${dupRoundSuffix(roundId)}`;
   const absolute = path.join(CENSUS_DIR, dirName);
   return { absolute, relative: path.relative(REPO_ROOT, absolute) + '/' };
 }
@@ -838,10 +854,40 @@ export function finalizeRound({ artifactDir, store: suppliedStore, incumbents, f
   return { status: ROUND_STATES.ROUND_COMPLETE, retention };
 }
 
+/**
+ * CWP-12D-2R: mirrors the installed `@anthropic-ai/sdk` (0.123.0)'s own
+ * `Client#calculateNonstreamingTimeout` formula
+ * (`node_modules/@anthropic-ai/sdk/src/client.ts`), which
+ * `Messages#create()` calls -- and lets throw
+ * `"Streaming is required for operations that may take longer than 10
+ * minutes"` (observed in CWP-12D-2) -- ONLY when the caller has not already
+ * supplied an explicit `timeout` (`messages.ts`: `if (!body.stream &&
+ * timeout == null) { ... }`). Supplying a non-null `timeout` here makes
+ * `create()` skip calling that guard entirely; it changes nothing about
+ * provider, model, prompt, or generation semantics, only how long this one
+ * stateless non-streaming request is allowed to run. Clamped to the SDK's
+ * own bounds: never below its 10-minute default, never above the 60-minute
+ * ceiling its formula treats as the outer limit for a non-streaming
+ * request.
+ */
+export function computeClaudeNonstreamingTimeoutMillis(maxOutputTokens) {
+  const MIN_TIMEOUT_MILLIS = 10 * 60 * 1000;
+  const MAX_TIMEOUT_MILLIS = 60 * 60 * 1000;
+  if (!Number.isInteger(maxOutputTokens) || maxOutputTokens <= 0) {
+    throw new TypeError('computeClaudeNonstreamingTimeoutMillis: maxOutputTokens must be a positive integer');
+  }
+  const expectedMillis = Math.ceil((MAX_TIMEOUT_MILLIS * maxOutputTokens) / 128_000);
+  return Math.min(MAX_TIMEOUT_MILLIS, Math.max(MIN_TIMEOUT_MILLIS, expectedMillis));
+}
+
 export function createRealProviderTransport(credentials) {
   return async ({ provider, model, prompt, maxOutputTokens, thinkingLevel }) => {
     if (provider === 'claude') {
-      const client = new Anthropic({ apiKey: credentials.claude, maxRetries: 0 });
+      const client = new Anthropic({
+        apiKey: credentials.claude,
+        maxRetries: 0,
+        timeout: computeClaudeNonstreamingTimeoutMillis(maxOutputTokens),
+      });
       const response = await client.messages.create({
         model,
         max_tokens: maxOutputTokens,
@@ -879,6 +925,66 @@ export function createRealProviderTransport(credentials) {
 export const DUP_R00_ROUND_ID = 'DUP-R00';
 
 /**
+ * CWP-12D-2R: a closed, frozen list of provider-transport attempts already
+ * consumed under Protocol-1's one-attempt rule whose durable reservation/
+ * session evidence lives at a path a correctly-namespaced future dispatch
+ * would never look at. Specifically: CWP-12D-2's real DUP-R00-D1 attempt
+ * entered `transport()` and was rejected by the Anthropic SDK
+ * (STOP_PROVIDER_ERROR) while `liveArtifactPaths()` still had the off-by-one
+ * bug fixed above, so its reservation/session records were durably written
+ * under the OLD `duplicate-audit-round-0/` path (preserved as historical
+ * evidence, CWP-12D-2F) rather than the now-correct
+ * `duplicate-audit-round-00/`. Fixing the namespace bug alone would make
+ * DUP-R00-D1 look never-attempted to any code that only ever reads
+ * `duplicate-audit-round-00/`, silently defeating the one-attempt rule.
+ * This list exists to prevent exactly that -- it is not a general recovery
+ * mechanism, and it is not something a future round or session can add
+ * itself to; extending it requires its own GPT-reviewed packet.
+ */
+export const HISTORICAL_CONSUMED_SESSIONS = Object.freeze([
+  Object.freeze({
+    sessionId: 'DUP-R00-D1',
+    roundId: 'DUP-R00',
+    role: 'D1',
+    evidenceRelativePath: 'experiments/m2b/census/duplicate-audit-round-0/reservations/DUP-R00-D1.json',
+    consumedBy: 'CWP-12D-2',
+    stopCode: 'STOP_PROVIDER_ERROR',
+  }),
+]);
+
+/**
+ * Fail-closed guard for the real LIVE entrypoint only (§ below) -- not
+ * wired into `executeDuplicateAuditSession`/`runD1D2Stage`/`runD3Stage`
+ * themselves, so the offline conformance suite's synthetic sessions (which
+ * legitimately reuse names like `DUP-R00-D1` against fake artifact
+ * directories and a fake transport) remain independently testable and
+ * unaffected. Throws `STOP_HISTORICAL_ATTEMPT_CONSUMED` if `sessionId` is a
+ * historically consumed real attempt; throws
+ * `STOP_HISTORICAL_EVIDENCE_MISSING` if the guard's own depended-upon
+ * evidence file is absent (fail closed rather than silently treating an
+ * unverifiable historical attempt as if it never happened).
+ */
+export function assertNoHistoricalAttemptConflict({ roundId, sessionId }) {
+  const match = HISTORICAL_CONSUMED_SESSIONS.find(
+    (entry) => entry.roundId === roundId && entry.sessionId === sessionId
+  );
+  if (!match) return;
+  const evidenceAbsolute = path.join(REPO_ROOT, match.evidenceRelativePath);
+  if (!fs.existsSync(evidenceAbsolute)) {
+    throw stop(
+      'STOP_HISTORICAL_EVIDENCE_MISSING',
+      `expected historical evidence at ${match.evidenceRelativePath} for ${sessionId} is missing; refusing to proceed without independent confirmation that the ${sessionId} attempt was never made`,
+      { sessionId, roundId, evidenceRelativePath: match.evidenceRelativePath }
+    );
+  }
+  throw stop(
+    'STOP_HISTORICAL_ATTEMPT_CONSUMED',
+    `${sessionId} (${match.roundId} ${match.role}) already consumed its one provider-transport attempt under ${match.consumedBy} (${match.stopCode}); historical evidence preserved at ${match.evidenceRelativePath}. A future GPT-reviewed recovery protocol must define a separate execution identity rather than redispatching this session.`,
+    { sessionId, roundId, evidenceRelativePath: match.evidenceRelativePath, consumedBy: match.consumedBy, priorStopCode: match.stopCode }
+  );
+}
+
+/**
  * The complete set of options `dispatchLiveDuplicateAudit` accepts. Anything
  * else -- most pointedly `corpusTasks`, `auditScopeIds`, `maxOutputTokens`,
  * `thinkingLevel`, `temperature` -- is rejected outright (§B, §E): DUP-R00's
@@ -891,12 +997,19 @@ const ALLOWED_DISPATCH_OPTION_KEYS = Object.freeze(['liveExecution', 'authorized
  * Explicit real entrypoint, hardened by CWP-12C. Requires `liveExecution:
  * true` and a valid `authorizedBaseSha`; a caller lacking either gets
  * STOP_LIVE_FLAG_REQUIRED / STOP_AUTHORIZED_BASE_REQUIRED before anything
- * else runs. No CWP has authorized a call to this function yet -- DUP-R00
- * has not executed, and this offline conformance suite never calls it with
- * `liveExecution: true`.
+ * else runs. CWP-12D-2 called this function once, real, with `stage:
+ * 'D1D2'`: D1 reserved, entered transport, and STOPped
+ * (STOP_PROVIDER_ERROR) before any provider response; D2 was never
+ * attempted. DUP-R00 remains INCOMPLETE / FAILED CLOSED (0/1770 pair
+ * judgments) -- this offline conformance suite still never calls this
+ * function with `liveExecution: true`.
  *
- * Five layers of binding, each fail-closed before any provider transport:
+ * Six layers of binding, each fail-closed before any provider transport:
  *
+ *   0. historical-attempt guard -- `assertNoHistoricalAttemptConflict`
+ *                            (CWP-12D-2R) STOPs before D1 if the session
+ *                            about to be dispatched already consumed its
+ *                            one attempt under prior historical evidence.
  *   1. option allow-list  -- no corpus/scope/envelope override is even
  *                            reachable; an unexpected key STOPs immediately.
  *   2. roundId === DUP-R00 -- exactly, not merely DUP-R\d\d (§D); DUP-R01+
@@ -954,6 +1067,7 @@ export async function dispatchLiveDuplicateAudit(options = {}) {
       `this LIVE entrypoint dispatches ${D1D2_STAGE} only for ${DUP_R00_ROUND_ID}; D3 is a separately authorized future stage and is never auto-chained after D1/D2`
     );
   }
+  assertNoHistoricalAttemptConflict({ roundId, sessionId: `${roundId}-D1` });
 
   const credentials = {
     claude: process.env.ANTHROPIC_API_KEY ?? '',

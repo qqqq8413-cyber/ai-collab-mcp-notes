@@ -24,7 +24,7 @@
 > | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
 > | **M2-B P03 Acquisition** | **CLOSED / EXHAUSTED —— 9/9 attempted、0 admitted、0 archetypes filled、0 A2 executions,詳見第二十六節** |
 > | **M-ACQ-01** | **OPEN —— natural eligibility base rate 未知;在此問題被 characterize 之前,不得重新設計或執行 M2-B effectiveness experiment** |
-> | **Chief Natural Collaboration Census** | **DRAFT / NOT PREREGISTERED —— Protocol 2.1 60/60 acquired; Structural Review ROUND_2 R3_COMPLETE / CLOSED (60/60 FINAL, 0 PENDING_R3 @ a4c343a); Duplicate Audit Protocol-1 SPECIFICATION CLOSED / IMPLEMENTATION VERIFIED OFFLINE / DUP-R00 PRE-LIVE INPUT BINDING VERIFIED (CWP-12A..12C, strict JSON-only extraction, canonical corpus binding, frozen execution envelope); DUP-R00 D1/D2 LIVE first attempt FAILED CLOSED PRE-DISPATCH (CWP-12D @ 84157f9a: STOP_CREDENTIAL_MISSING, 0 provider calls, D1/D2 not consumed); credential bootstrap repaired offline (CWP-12D-R), Final Pre-Live GPT approval NOT YET GRANTED, LIVE NOT AUTHORIZED, 0 AUDIT ROUNDS RUN** |
+> | **Chief Natural Collaboration Census** | **DRAFT / NOT PREREGISTERED —— Protocol 2.1 60/60 acquired; Structural Review ROUND_2 R3_COMPLETE / CLOSED (60/60 FINAL, 0 PENDING_R3 @ a4c343a); Duplicate Audit Protocol-1 SPECIFICATION CLOSED / IMPLEMENTATION VERIFIED OFFLINE / DUP-R00 PRE-LIVE INPUT BINDING VERIFIED (CWP-12A..12C); DUP-R00 D1/D2 LIVE first attempt FAILED CLOSED PRE-DISPATCH (CWP-12D: STOP_CREDENTIAL_MISSING, 0 provider calls) / credential bootstrap repaired (CWP-12D-R) / DUP-R00 first REAL LIVE dispatch FAILED CLOSED (CWP-12D-2 @ 161379ad: D1 ATTEMPT CONSUMED — STOP_PROVIDER_ERROR, 0 network bytes reached the provider; D2 NOT ATTEMPTED; DUP-R00 = INCOMPLETE / FAILED CLOSED, 0/1770 pair judgments; also exposed a real liveArtifactPaths() namespace off-by-one — evidence landed in duplicate-audit-round-0/ not round-00/) / historical evidence preserved as-is (CWP-12D-2F) / namespace bug + Claude non-streaming transport repaired offline, D1 structurally protected from redispatch via STOP_HISTORICAL_ATTEMPT_CONSUMED (CWP-12D-2R), Final Pre-Live GPT approval NOT YET GRANTED, LIVE NOT AUTHORIZED, D1 recovery approach NOT YET DECIDED BY GPT, 0 AUDIT ROUNDS RUN** |
 > | **M2-B Fixture Freeze(synthetic)** | **SUPERSEDED —— GPT Fixture Review 判定 FIXTURE PROVENANCE BLOCKER;`fx-01…04` 改列 PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL,檔案原封保留於 `02cbb5f`** |
 > | **M2-B Pre-Synthesis Boundary** | **ACCEPTED(GPT)—— `runRound1Stage()` 已抽出,offline parity byte-identical** |
 > | **M2-B Real Round1 Capture — Set R1** | **FAILED(保存為失敗證據)—— fxr-01…04 四題全 FAIL F1,證據保留於 `81ac330`,詳見第二十七節** |
@@ -3816,12 +3816,83 @@ candidate 未重用。**下一步必須回到 GPT Architecture；不得自行續
     retention、attempt、raw-first 語意全數未變動。**DUP-R00 仍未執行、
     Duplicate Audit LIVE 仍需另一份明寫 `EXECUTION AUTHORIZATION: GRANTED`
     的 GPT packet。**
+- **DUP-R00 D1/D2 第一次真正 LIVE dispatch：FAILED CLOSED（CWP-12D-2 @
+  `161379ad07b038de90d1fbf49a5f8c8f7515026c`）**：
+  - 以憑證修補後的 `dispatchLiveDuplicateAudit()` 真正嘗試 DUP-R00 D1/D2
+    dispatch。D1 已通過憑證／runtime／raw-readiness 檢核、已寫入 durable
+    reservation、`providerDispatchCount=1`，進入 `transport()` 後被
+    Anthropic SDK 於任何網路封包送出之前以 client-side guard 拒絕：
+    `STOP_PROVIDER_ERROR: "Streaming is required for operations that may
+    take longer than 10 minutes"`（總耗時 220ms，`raw/` 為空，證實 0 bytes
+    實際送達 Anthropic API）。**依 Protocol-1「一次 attempt／transport
+    failure = STOP／禁止 retry」規則，D1 的一次性 attempt 視為已消耗**，
+    網路未真正送出不追溯性地使其「未消耗」。D2（Gemini）從未被嘗試。
+  - **本次同時發現一個此前從未被任何測試捕捉到的真正缺陷**：
+    `liveArtifactPaths()` 的 `roundId.slice(6)` 為 off-by-one（`'DUP-R'`
+    為 5 字元非 6），導致 `DUP-R00` 被誤映射為 `duplicate-audit-round-0/`
+    而非授權的 `duplicate-audit-round-00/`。所有 offline 測試皆以合成
+    `artifactDir` 直接注入，從未經由真正的 `dispatchLiveDuplicateAudit()`
+    呼叫 `liveArtifactPaths`，故此缺陷從未被捕捉；drift-detection guard
+    也因比對對象正是 `liveArtifactPaths` 自身算出的（有 bug 的）路徑而
+    自我一致地視而不見。
+  - CWP-12D-2F 已將此歷史 LIVE 失敗證據原封不動保存於其實際路徑
+    `duplicate-audit-round-0/`（10 個檔案，已核實不含憑證/secret，不重新
+    命名、不搬移、不修補、不複製進 round-00，已 commit/push）。
+  - **DUP-R00 = INCOMPLETE / FAILED CLOSED，0/1770 pair 判定完成。**
+- **DUP-R00 namespace 修補 ／ Claude 長請求 transport 修補（CWP-12D-2R，
+  offline）**：
+  - **namespace bug 已修補**：`liveArtifactPaths()` 改為透過
+    `ROUND_ID_PATTERN`（`/^DUP-R(\d{2})$/`）自身的 capture group 純函式
+    擷取（新增已 export 的 `dupRoundSuffix()`），不再以任何硬編碼字串
+    index 切片；`DUP-R00`→`duplicate-audit-round-00/`、
+    `DUP-R01`→`duplicate-audit-round-01/`、`DUP-R09`/`DUP-R10` 皆已驗證
+    正確。working-tree drift allow-list 與真正的 artifact writer 共用同一
+    `liveArtifactPaths()`，已新增 regression 證明修補後
+    `duplicate-audit-round-0/`（舊 bug 路徑）會被正確判定為非預期 drift。
+  - **已消耗的 D1 attempt 已結構性保護**：新增凍結清單
+    `HISTORICAL_CONSUMED_SESSIONS`（目前僅一筆：`DUP-R00-D1`／
+    `CWP-12D-2`／`STOP_PROVIDER_ERROR`／證據路徑）與
+    `assertNoHistoricalAttemptConflict()`，僅接在真正 LIVE entrypoint的
+    stage gate 之後、憑證解析之前呼叫——任何未來呼叫都會在任何 transport
+    之前以 `STOP_HISTORICAL_ATTEMPT_CONSUMED` 擋下 DUP-R00-D1 重新
+    dispatch；DUP-R00-D2 仍正確判定為未消耗。此 guard 未注入
+    `executeDuplicateAuditSession`／`runD1D2Stage`／`runD3Stage` 本身，故
+    offline 合成測試（沿用 `DUP-R00-D1` 等名稱對假 artifactDir 測試）不受
+    影響。此清單非通用復原機制，擴充需另一份 GPT-reviewed packet。
+  - **Claude 長請求 transport 缺陷已診斷並修補**：檢視實際安裝的
+    `@anthropic-ai/sdk@0.123.0` 原始碼確認根因——`messages.create()` 僅在
+    呼叫端未提供明確 `timeout` 時才呼叫會拋出例外的
+    `calculateNonstreamingTimeout()`；maxOutputTokens=32768 必然觸發此
+    例外，與 provider/model 無關。修補為在建構 `Anthropic` client 時明確
+    提供 `timeout`（新增 `computeClaudeNonstreamingTimeoutMillis()`，鏡射
+    SDK 自身公式、限制在 SDK 自身 10–60 分鐘邊界內，32768 對應
+    921600ms≈15.36 分鐘），使 `messages.create()` 直接跳過該會拋例外的
+    呼叫，完全未變更 provider／model／prompt bytes／temperature／
+    one-stateless-request／no-retry 語意，未切換為 streaming。已以真實
+    安裝的 SDK（0 network I/O）證明根因與修補條件成立；**此修補是否使
+    Anthropic 伺服器端實際在時限內完成回應，只有下一次真正 LIVE dispatch
+    才能證實**。
+  - `test-duplicate-audit-live-harness.mjs` 51/51（+13）；
+    `test-duplicate-audit-corpus-binding.mjs` 42/42（1 項既有測試因新
+    guard 提前攔截而更新其預期 STOP code，非新增缺陷）；
+    `test-duplicate-audit-protocol.mjs` 60/60 不變；duplicate-audit 離線
+    測試合計 153 項，0 provider calls；Structural Review 迴歸 49/49；
+    `npm test` 全綠。
+  - Layer A、D1/D2/D3 prompt bytes、provider/model pins、generation
+    envelope、CBRP-D3-v1、retention semantics、duplicate definition 全數
+    未變動。**本檔不代表授權任何復原執行**——下一次真正 D1/D2（或針對 D1
+    的復原）LIVE dispatch 仍需另一份明寫
+    `EXECUTION AUTHORIZATION: GRANTED` 的 GPT packet，且必須先由 GPT 決定
+    D1 的復原方式（是否定義獨立的 execution identity）。
 - **當前邊界**：
   - 下一個研究階段為 Duplicate Audit：規格已封閉、harness 已離線實作並驗證、
     DUP-R00 pre-live input binding 已驗證、LIVE 憑證 bootstrap 缺口已於
-    CWP-12D-R 修補，但**執行仍尚未授權（LIVE NOT AUTHORIZED）且尚未執行
-    （UNEXECUTED）**，Final Pre-Live GPT approval 尚未取得,D1/D2 attempts
-    尚未被消耗。
+    CWP-12D-R 修補、namespace bug 與 Claude 長請求 transport 缺陷已於
+    CWP-12D-2R 修補，但**執行仍尚未授權（LIVE NOT AUTHORIZED）**，Final
+    Pre-Live GPT approval 尚未取得。**DUP-R00 = INCOMPLETE / FAILED
+    CLOSED（0/1770 判定完成）：D1 attempt 已消耗（STOP_PROVIDER_ERROR），
+    D2 尚未消耗。** 復原方式（是否需要獨立 execution identity）待 GPT
+    決定，不得逕行重新 dispatch DUP-R00-D1。
   - DUP-R00 input population = 通過 Structural Review ROUND_2 的現行 60 個
     Protocol-2.1 candidates，並已機械綁定（CWP-12C）。
   - 0 duplicate audit rounds，0 pool freeze，0 Chief Census calls，亦無任何 effectiveness 實驗結果。

@@ -7,6 +7,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import Anthropic from '@anthropic-ai/sdk';
 
 import {
   HARNESS_VERSION,
@@ -21,9 +22,14 @@ import {
   runD3Stage,
   finalizeRound,
   dispatchLiveDuplicateAudit,
+  dupRoundSuffix,
+  liveArtifactPaths,
+  HISTORICAL_CONSUMED_SESSIONS,
+  assertNoHistoricalAttemptConflict,
+  computeClaudeNonstreamingTimeoutMillis,
 } from './duplicate-audit-live-harness-v1.mjs';
 import { loadFrozenLayerABytes, EXPECTED_LAYER_A_BYTE_COUNT, EXPECTED_LAYER_A_SHA256 } from './duplicate-audit-prompt-v1.mjs';
-import { computeD1D2SessionPlan, ROUND_STATES } from './duplicate-audit-runner.mjs';
+import { computeD1D2SessionPlan, ROUND_STATES, DUP_R00_GENERATION_ENVELOPES } from './duplicate-audit-runner.mjs';
 import { computeDuplicateD3Selector } from './duplicate-audit-decision-v1.mjs';
 
 const SCRATCH = mkdtempSync(path.join(tmpdir(), 'cbrp-duplicate-audit-harness-'));
@@ -627,6 +633,124 @@ await check('importing the LIVE harness in a fresh child process bootstraps repo
   const result = JSON.parse(stdout.trim());
   assert.equal(result.claudeOk, true);
   assert.equal(result.geminiOk, true);
+});
+
+console.log('\n--- Round namespace mapping (CWP-12D-2R) ---');
+
+await check('DUP-R00 maps to duplicate-audit-round-00, not the CWP-12D-2 off-by-one duplicate-audit-round-0', () => {
+  assert.equal(dupRoundSuffix('DUP-R00'), '00');
+  const { relative } = liveArtifactPaths('DUP-R00');
+  assert.equal(relative, 'experiments/m2b/census/duplicate-audit-round-00/');
+  assert.notEqual(relative, 'experiments/m2b/census/duplicate-audit-round-0/');
+});
+
+await check('DUP-R01 maps to duplicate-audit-round-01 (two-digit suffix preserved, not lossy integer conversion)', () => {
+  assert.equal(dupRoundSuffix('DUP-R01'), '01');
+  const { relative } = liveArtifactPaths('DUP-R01');
+  assert.equal(relative, 'experiments/m2b/census/duplicate-audit-round-01/');
+});
+
+await check('DUP-R09 and DUP-R10 both map correctly (no leading-zero loss, no boundary error around the tens digit)', () => {
+  assert.equal(liveArtifactPaths('DUP-R09').relative, 'experiments/m2b/census/duplicate-audit-round-09/');
+  assert.equal(liveArtifactPaths('DUP-R10').relative, 'experiments/m2b/census/duplicate-audit-round-10/');
+});
+
+await check('the working-tree drift allow-list (captureRuntimeSnapshot) and the artifact writer (runD1D2Stage) share one source of truth: a path under the CWP-12D-2 buggy round-0 directory is correctly treated as unexpected drift for DUP-R00, only the round-00 directory is treated as expected', () => {
+  const { relative } = liveArtifactPaths('DUP-R00');
+  const buggyPath = 'experiments/m2b/census/duplicate-audit-round-0/SESSIONS.json';
+  const correctPath = 'experiments/m2b/census/duplicate-audit-round-00/SESSIONS.json';
+  assert.equal(buggyPath.startsWith(relative), false);
+  assert.equal(correctPath.startsWith(relative), true);
+});
+
+console.log('\n--- Historical consumed-attempt guard (CWP-12D-2R) ---');
+
+await check('DUP-R00-D1 is registered as historically consumed by CWP-12D-2, with its preserved evidence path', () => {
+  const entry = HISTORICAL_CONSUMED_SESSIONS.find((e) => e.sessionId === 'DUP-R00-D1');
+  assert.ok(entry, 'DUP-R00-D1 must be a registered historical attempt');
+  assert.equal(entry.roundId, 'DUP-R00');
+  assert.equal(entry.role, 'D1');
+  assert.equal(entry.consumedBy, 'CWP-12D-2');
+  assert.equal(entry.stopCode, 'STOP_PROVIDER_ERROR');
+  assert.equal(
+    fs.existsSync(path.join(REPO_ROOT, entry.evidenceRelativePath)),
+    true,
+    'the preserved CWP-12D-2F evidence this guard depends on must actually exist on disk'
+  );
+});
+
+await check('assertNoHistoricalAttemptConflict STOPs on DUP-R00-D1 with STOP_HISTORICAL_ATTEMPT_CONSUMED', () => {
+  assert.throws(
+    () => assertNoHistoricalAttemptConflict({ roundId: 'DUP-R00', sessionId: 'DUP-R00-D1' }),
+    (error) => error.code === 'STOP_HISTORICAL_ATTEMPT_CONSUMED'
+  );
+});
+
+await check('assertNoHistoricalAttemptConflict does not block DUP-R00-D2 -- D2 was never attempted and remains unconsumed', () => {
+  assert.doesNotThrow(() => assertNoHistoricalAttemptConflict({ roundId: 'DUP-R00', sessionId: 'DUP-R00-D2' }));
+});
+
+await check('assertNoHistoricalAttemptConflict does not block an unrelated round/session', () => {
+  assert.doesNotThrow(() => assertNoHistoricalAttemptConflict({ roundId: 'DUP-R01', sessionId: 'DUP-R01-D1' }));
+});
+
+await check('dispatchLiveDuplicateAudit blocks on the historical DUP-R00-D1 attempt before credentials, corpus binding, or any provider transport', async () => {
+  const savedClaude = process.env.ANTHROPIC_API_KEY;
+  const savedGemini = process.env.GEMINI_API_KEY;
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  try {
+    await assert.rejects(
+      () => dispatchLiveDuplicateAudit({ liveExecution: true, authorizedBaseSha: AUTHORIZED_BASE, roundId: 'DUP-R00', stage: 'D1D2' }),
+      (error) => error.code === 'STOP_HISTORICAL_ATTEMPT_CONSUMED'
+    );
+  } finally {
+    if (savedClaude !== undefined) process.env.ANTHROPIC_API_KEY = savedClaude;
+    if (savedGemini !== undefined) process.env.GEMINI_API_KEY = savedGemini;
+  }
+  assert.equal(fs.existsSync(new URL('../duplicate-audit-round-00/', import.meta.url)), false);
+});
+
+console.log('\n--- Claude long-request non-streaming transport (CWP-12D-2R) ---');
+
+await check("the installed @anthropic-ai/sdk's own guard really does reject the frozen 32768-max-token request when no explicit timeout is supplied (root-cause proof, zero network I/O -- calculateNonstreamingTimeout is pure arithmetic)", () => {
+  const client = new Anthropic({ apiKey: 'test-key-not-real', maxRetries: 0 });
+  assert.throws(
+    () => client.calculateNonstreamingTimeout(DUP_R00_GENERATION_ENVELOPES.claude.maxOutputTokens, undefined),
+    (error) => /Streaming is required/.test(error.message)
+  );
+});
+
+await check('computeClaudeNonstreamingTimeoutMillis(32768) returns a value within the SDK\'s own 10-60 minute non-streaming bounds', () => {
+  const millis = computeClaudeNonstreamingTimeoutMillis(32768);
+  assert.equal(Number.isInteger(millis), true);
+  assert.ok(millis >= 10 * 60 * 1000);
+  assert.ok(millis <= 60 * 60 * 1000);
+  assert.equal(millis, 921600);
+});
+
+await check('a client constructed the way createRealProviderTransport constructs it (explicit non-null timeout) makes messages.create() structurally skip the throwing guard -- zero network I/O, no request is ever issued', () => {
+  const timeoutMillis = computeClaudeNonstreamingTimeoutMillis(DUP_R00_GENERATION_ENVELOPES.claude.maxOutputTokens);
+  const client = new Anthropic({ apiKey: 'test-key-not-real', maxRetries: 0, timeout: timeoutMillis });
+  // Mirrors messages.ts's own gate: `options?.timeout ?? this._client._options.timeout`.
+  // With no per-call options, this resolves straight to the client's own
+  // configured timeout; a non-null value here is exactly what makes
+  // `create()` skip calling `calculateNonstreamingTimeout` (and therefore
+  // never throw "Streaming is required") -- no request is constructed or
+  // sent by reading this field.
+  const resolvedTimeout = undefined ?? client._options.timeout;
+  assert.equal(resolvedTimeout, timeoutMillis);
+  assert.notEqual(resolvedTimeout, null);
+  assert.notEqual(resolvedTimeout, undefined);
+});
+
+await check('the transport repair changes nothing about frozen provider/model/maxOutputTokens/prompt semantics', () => {
+  assert.equal(DUP_R00_GENERATION_ENVELOPES.claude.provider, 'claude');
+  assert.equal(DUP_R00_GENERATION_ENVELOPES.claude.model, 'claude-opus-5');
+  assert.equal(DUP_R00_GENERATION_ENVELOPES.claude.maxOutputTokens, 32768);
+  assert.equal(DUP_R00_GENERATION_ENVELOPES.claude.thinkingLevel, null);
+  assert.equal(DUP_R00_GENERATION_ENVELOPES.claude.temperature, null);
+  assert.equal(EXPECTED_RUNTIME.anthropicSdkVersion, '0.123.0');
 });
 
 console.log('\n--- Real-data blindness and namespace guard ---');

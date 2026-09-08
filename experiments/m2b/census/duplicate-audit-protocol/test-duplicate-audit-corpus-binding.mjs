@@ -389,9 +389,15 @@ await check('the default stage (D1D2) and an explicit D1D2 stage both pass the s
       { liveExecution: true, authorizedBaseSha: VALID_FORMAT_BASE, roundId: DUP_R00_ROUND_ID },
       { liveExecution: true, authorizedBaseSha: VALID_FORMAT_BASE, roundId: DUP_R00_ROUND_ID, stage: D1D2_STAGE },
     ]) {
+      // Post CWP-12D-2R: for DUP-R00-D1 specifically, the historical
+      // consumed-attempt guard (CWP-12D-2's real STOP_PROVIDER_ERROR
+      // attempt) now fires immediately after the stage gate, before
+      // credential resolution -- so this is the later gate now reached,
+      // not STOP_CREDENTIAL_MISSING. Either way the stage gate itself did
+      // not STOP, which is what this test verifies.
       await assert.rejects(
         () => dispatchLiveDuplicateAudit(options),
-        (error) => error instanceof DuplicateAuditStop && error.code === 'STOP_CREDENTIAL_MISSING'
+        (error) => error instanceof DuplicateAuditStop && error.code === 'STOP_HISTORICAL_ATTEMPT_CONSUMED'
       );
     }
   } finally {
