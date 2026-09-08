@@ -17,11 +17,10 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  dc38d4518639ba99796dbfd266faad9009a82e0d（CWP-12E authorized
-                      base，即 CWP-12D-2R 完成後的 HEAD；CWP-12E 為 offline
-                      methodology/protocol finalization，0 provider calls，正式關閉
-                      Protocol-1 DUP-R00 為 FAILED CLOSED／TERMINAL 並凍結 Protocol-2
-                      recovery specification）
+stateVerifiedThrough  1500df8c65dc444020b9caaa736b170ab6f381f7（CWP-12F authorized
+                      base，即 CWP-12E-R 完成後的 HEAD；CWP-12F 為 offline
+                      Protocol-2 harness 實作與離線驗證，0 provider calls，
+                      重用（非複製）Protocol-1 的執行引擎與 corpus binding）
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -1833,6 +1832,127 @@ Protocol-1 呈現為另一個可用的 active 執行協定。**唯一 active 的
 執行協定為 Protocol-2；DUP-R00 LIVE（無論 Protocol-1 或 Protocol-2）仍需另一份
 明寫 `EXECUTION AUTHORIZATION: GRANTED` 的 GPT packet。**
 
+### CWP-12F —— CBRP Duplicate Audit Protocol-2 Harness 實作與離線驗證
+
+```
+Protocol-1:
+SPECIFICATION CLOSED
+DUP-R00 FAILED CLOSED / TERMINAL
+HISTORICAL EVIDENCE IMMUTABLE
+NO FUTURE EXECUTION
+
+Protocol-2:
+SPECIFICATION CLOSED
+IMPLEMENTATION VERIFIED OFFLINE
+PRE-LIVE MANIFEST GENERATED
+LIVE NOT AUTHORIZED
+0 P2 AUDIT ROUNDS
+0 P2 PROVIDER CALLS
+0 SUBSTANTIVE DUPLICATE JUDGMENTS
+```
+
+`[DECISION]` **工程實作採組合、非複製貼上**：新增
+[`duplicate-audit-live-harness-p2-v1.mjs`](experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-live-harness-p2-v1.mjs)
+不重新實作 session 執行引擎、artifact store、真實 provider transport 或 Claude
+長請求 timeout 修補——直接 import 並重用
+`duplicate-audit-live-harness-v1.mjs` 的 `createArtifactStore`／
+`executeDuplicateAuditSession`／`runD1D2Stage`／`createRealProviderTransport`；
+直接重用 `duplicate-audit-runner.mjs` 的 `computeD1D2SessionPlan`／
+`dupR00EnvelopeFor`（兩者本就以 `roundId`／`provider` 為參數，天生與協定無關，
+換成 `DUP-P2-R00` 後自動產生正確的 `DUP-P2-R00-D1`/`DUP-P2-R00-D2` session
+ID，完全不需修改）；直接重用
+`duplicate-audit-corpus-binding-v1.mjs` 的 `loadCanonicalDupR00Corpus`／
+`assertDupR00ScopeInvariant`（未改一行——Protocol-2 corpus 依 CWP-12F §E
+要求必須與 Protocol-1 canonical DUP-R00 corpus 完全相同，重用同一函式即是
+最直接的保證）。
+
+`[FACT]` **`executeDuplicateAuditSession`／`runD1D2Stage` 新增最小、向後相容的
+`protocolVersion`／`roundIdPattern` 參數**（預設值＝Protocol-1 原本的硬編碼
+常數，故所有既有 Protocol-1 呼叫點行為完全不變，已由 51/51 迴歸測試原地
+驗證）。這是唯一對既有檔案的修改動機：原本這兩個函式會把 Protocol-1 的
+`PROTOCOL_VERSION` 字串寫進任何呼叫者的 evidence（含 Protocol-2 的），
+若不修補，Protocol-2 的 SESSIONS.json/VALIDATION.json 會錯誤宣稱自己是
+Protocol-1。同時將 `git`／`workingTreePaths`／`readPackageVersion` 由私有
+改為 `export`，讓 P2 harness 能重用同一組 runtime-snapshot 原語，不必重新
+shell out。**`dispatchLiveDuplicateAudit`（Protocol-1 真正入口）與
+`STOP_HISTORICAL_ATTEMPT_CONSUMED` guard 完全未觸碰**——Protocol-1 DUP-R00
+仍是 FAILED CLOSED／TERMINAL，永不可重新執行。
+
+`[FACT]` **Protocol-2 自有的識別與 namespace 機制**：`PROTOCOL_2_VERSION`、
+`DUP_P2_R00_ROUND_ID='DUP-P2-R00'`、`P2_ROUND_ID_PATTERN=/^DUP-P2-R(\d{2})$/`、
+`dupP2RoundSuffix()`／`liveArtifactPathsP2()`（鏡射 CWP-12D-2R 修補後的
+`dupRoundSuffix` 手法，經 capture group 取得後綴，不會遺失前導零）。
+`DUP-P2-R00`→`duplicate-audit-p2-round-00/`、`DUP-P2-R01`→`-01/`、
+`DUP-P2-R09`→`-09/`、`DUP-P2-R10`→`-10/`，皆已測試核實；因字首固定為
+`duplicate-audit-p2-round-`，結構上不可能產出 Protocol-1 的
+`duplicate-audit-round-0/`（歷史失敗證據）或 `duplicate-audit-round-00/`
+（Protocol-1 已永久停用的原定 namespace）。
+
+`[FACT]` **真正的 Protocol-2 LIVE entrypoint `dispatchLiveDuplicateAuditP2()`
+已硬化**：僅接受 `liveExecution`／`authorizedBaseSha`／`roundId`／`stage`
+四個公開參數，任何其他 key（含 `corpusTasks`/`auditScopeIds`/
+`maxOutputTokens`/`thinkingLevel`/`temperature`/`provider`/`model`/
+`artifactDir`）一律 `STOP_UNAUTHORIZED_OVERRIDE`；`roundId` 必須精確等於
+`DUP-P2-R00`（`DUP-R00` 因不符 `P2_ROUND_ID_PATTERN` 直接 `STOP_ROUND_INVALID`；
+`DUP-P2-R01+` 符合 pattern 但 `STOP_ROUND_NOT_LIVE_READY`，需另一份未來
+GPT-reviewed 修訂）；`stage` 僅接受 D1D2（D3 一律
+`STOP_STAGE_NOT_LIVE_READY`，D3 是未來另外授權的 stage，從不自動串接）。
+
+`[FACT]` **Model-visible byte identity 已由 direct byte-comparison regression
+證實**：以真實 canonical corpus，分別以 `roundId='DUP-R00'` 與
+`roundId='DUP-P2-R00'` 呼叫同一個 `computeD1D2SessionPlan`，兩者
+`modelVisiblePrompt` 逐位元組相同（77147 bytes /
+`40fc7509...`）——這是既有構造演算法從不吃 `roundId`/session identity 的
+必然結果，不只是「符合要求」，而是「結構上不可能不同」。另有測試掃描
+prompt 內容，確認不含 `Protocol-2`／`DUP-P2`／`STOP_PROVIDER_ERROR`／
+`CWP-12`／任何 session ID。
+
+`[FACT]` **Source-drift manifest（CWP-12F §K）已擴大綁定範圍**：除
+Protocol-2 自身文件、Protocol-1 baseline、四個共用純函式模組（prompt/
+order/extractor/decision）、三份 canonical evidence 外，另綁定
+`duplicate-audit-corpus-binding-v1.mjs`／`duplicate-audit-runner.mjs`／
+`duplicate-audit-live-harness-v1.mjs`（Protocol-2 重用作執行引擎的三個
+Protocol-1 實作模組）與 `CBRP_MODEL_PINS_PREREG_DRAFT.md`（model-pin
+prereg source）——任何一個變更且未同步更新雜湊，Protocol-2 LIVE 一律
+`STOP_SOURCE_DRIFT`，不會靜默沿用已變更的程式碼。
+
+`[FACT]` **Attempt boundary（`CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_2.md` §8）
+已由離線測試逐一驗證**：transport 呼叫前的失敗（如憑證缺失）不建立
+reservation 檔、不視為已消耗；reservation 已存在時視為已消耗/ambiguous、
+fail closed；transport 一旦被呼叫，即使被 SDK client-side 拒絕、0 network
+bytes 送出，attempt 仍視為已消耗，同一 session 之後任何重試一律
+`STOP_AMBIGUOUS_OR_CONSUMED_RESERVATION`；D1 STOP 後 D2 絕不被派送；D1/D2
+stage 完成後不產生任何 D3 artifact。
+
+`[FACT]` 新增
+[`duplicate-audit-p2-preflight/P2_R00_PRELIVE_MANIFEST.json`](experiments/m2b/census/duplicate-audit-p2-preflight/P2_R00_PRELIVE_MANIFEST.json)：
+純函式 `buildP2R00PreflightManifest()`（`duplicate-audit-preflight-p2-v1.mjs`，
+鏡射 `duplicate-audit-preflight-v1.mjs` 的形狀）產出，兩次呼叫位元組相同；
+`candidateIdListHash`／`corpusTaskTextBindingHash`／`pairUniverseHash`／
+Layer A／D1D2 prompt bytes/hash 皆與 Protocol-1 凍結值完全相同；
+`providerCallsPerformed=0`。明確與 `duplicate-audit-p2-round-*/`（真正
+round 證據）分開，本次未建立任何 round 證據目錄。
+
+```
+新增/更新測試          test-duplicate-audit-live-harness-p2.mjs 36/36（新檔）
+                      test-duplicate-audit-live-harness.mjs 51/51（不變，
+                      向後相容性已驗證）
+                      test-duplicate-audit-corpus-binding.mjs 42/42（不變）
+                      test-duplicate-audit-protocol.mjs 60/60（不變）
+duplicate-audit 離線測試合計  189 項、0 provider calls
+regression suite       structural review 49/49；npm test 全綠
+provider calls          0
+duplicate-audit-p2-round-00 目錄  0（全程未建立）
+Protocol-1/Protocol-2 文件  完全未變動
+duplicate-audit-round-0/  完全未變動
+src/**                完全未變動
+```
+
+`[DECISION]` 本次僅為 offline 實作與驗證，**未取得 Final Pre-Live GPT
+approval**，Protocol-2 LIVE 仍未授權、仍未執行。Layer A、D1/D2/D3 prompt、
+provider/model pins、generation envelope、CBRP-D3-v1、decision matrix、
+retention、replacement semantics、termination semantics 全數未變動。
+
 ### 目前的 M2-B 狀態（不得混淆 acquisition 與 effectiveness)
 
 ```
@@ -2348,9 +2468,20 @@ Duplicate Audit           NOT AUTHORIZED ← Protocol-1 規格已於 CWP-12A 封
                           bytes/pins/envelope/D3 routing/retention，新執行
                           識別碼 `DUP-P2-R00-*`、新證據 namespace
                           `duplicate-audit-p2-round-00/`、明文化的
-                          attempt/failure 邊界。** 尚未取得 Final Pre-Live GPT
-                          approval；DUP-R00（Protocol-1 或 Protocol-2）LIVE
-                          仍未授權、Protocol-2 harness 尚未實作
+                          attempt/failure 邊界。**CWP-12F：Protocol-2 harness
+                          已離線實作並驗證**——重用（非複製）Protocol-1 的
+                          session 執行引擎/artifact store/provider
+                          transport/corpus binding，僅新增向後相容的
+                          `protocolVersion`/`roundIdPattern` 參數；真正
+                          entrypoint `dispatchLiveDuplicateAuditP2()` 已硬化
+                          （四參數白名單、僅接受 `DUP-P2-R00`/D1D2
+                          stage）；model-visible byte identity 已由 direct
+                          byte-comparison regression 證實與 Protocol-1
+                          完全相同；P2 pre-live manifest 已產出並提交
+                          （duplicate-audit 離線測試合計 189 項、0 provider
+                          calls）。尚未取得 Final Pre-Live GPT approval；
+                          DUP-R00（Protocol-1 或 Protocol-2）LIVE 仍未授權、
+                          仍未執行
 Gemini A2               NOT AUTHORIZED
 Gate                    NOT AUTHORIZED
 Synthesis               NOT AUTHORIZED
@@ -2553,7 +2684,7 @@ Protocol 與 Structural Review Protocol 均已凍結）。以下為更正後、�
 的收尾狀態：
 
 ```
-STATE ALIGNED THROUGH dc38d4518639ba99796dbfd266faad9009a82e0d (CWP-12E authorized base) / CWP-11H /
+STATE ALIGNED THROUGH 1500df8c65dc444020b9caaa736b170ab6f381f7 (CWP-12F authorized base) / CWP-11H /
 P03 CLOSED — 9/9 ATTEMPTED, 0 ADMITTED, 0 ARCHETYPES FILLED /
 F1 FAIL 3/9 ｜ F2 FAIL 7/9 ｜ F3 FAIL 0/9 ｜ ONE SPECIALIST 7/9 /
 A2 = 0 EXECUTIONS ｜ EFFECTIVENESS EXPERIMENT NOT EXECUTED ｜ C vs D₁ UNANSWERED /
@@ -2636,8 +2767,25 @@ CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-1 SPECIFICATION CLOSED (CWP-12A/12A-R) —
   boundary; independent advisory methodology review preserved verbatim at
   methodology-review/CBRP_DUPLICATE_PROTOCOL2_RECOVERY_GEMINI_REVIEW.md,
   labeled ADVISORY EVIDENCE, reviewing model UNKNOWN/NOT REPO-VERIFIED) /
-  Protocol-2 IMPLEMENTATION NOT YET VERIFIED / LIVE NOT AUTHORIZED / 0
-  Protocol-2 provider calls / 0 substantive duplicate judgments observed /
+  PROTOCOL-2 IMPLEMENTATION VERIFIED OFFLINE (CWP-12F @
+  1500df8c65dc444020b9caaa736b170ab6f381f7: `duplicate-audit-live-harness-p2-v1.mjs`
+  reuses, not forks, Protocol-1's session-execution engine, artifact
+  store, real provider transport, corpus binding, and D1/D2 session-plan
+  builder -- the only existing-file change is a minimal, backward-compatible
+  `protocolVersion`/`roundIdPattern` parameter on
+  `executeDuplicateAuditSession`/`runD1D2Stage` (defaults preserve every
+  Protocol-1 call site exactly, 51/51 unchanged); real entrypoint
+  `dispatchLiveDuplicateAuditP2()` hardened to a 4-key allow-list, accepts
+  only DUP-P2-R00/D1D2 stage; namespace mapping
+  `duplicate-audit-p2-round-NN/` structurally distinct from both Protocol-1
+  namespaces; source-drift manifest additionally binds every reused
+  Protocol-1 implementation module and the model-pins prereg source; D1/D2
+  model-visible prompt bytes proven byte-identical to Protocol-1's by a
+  direct byte-comparison regression (77147B/`40fc7509...`), not merely by
+  requirement; P2_R00_PRELIVE_MANIFEST.json generated and committed;
+  attempt boundary (pre-dispatch/reserved-ambiguous/transport-invoked)
+  verified offline; 189 duplicate-audit offline tests total, 0 provider
+  calls) /
   Final Pre-Live GPT approval NOT YET GRANTED / LIVE NOT AUTHORIZED /
   0 AUDIT ROUNDS RUN /
 60/60 structural decisions FINAL ｜ 0 duplicate audit rounds ｜ 0 replacement sessions ｜

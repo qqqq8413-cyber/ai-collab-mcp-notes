@@ -125,15 +125,18 @@ function stop(code, message, details) {
   return new DuplicateAuditStop(code, message, details);
 }
 
-function readPackageVersion(packagePath) {
+/** Exported (CWP-12F) for the same reason as `git` above. */
+export function readPackageVersion(packagePath) {
   return JSON.parse(fs.readFileSync(packagePath, 'utf8')).version;
 }
 
-function git(...args) {
+/** Exported (CWP-12F) so a sibling protocol harness can build its own runtime snapshot from the same primitive instead of re-shelling out independently. */
+export function git(...args) {
   return execFileSync('git', args, { cwd: REPO_ROOT, encoding: 'utf8' }).trim();
 }
 
-function workingTreePaths() {
+/** Exported (CWP-12F) for the same reason as `git` above. */
+export function workingTreePaths() {
   const raw = execFileSync(
     'git',
     ['status', '--porcelain=v1', '-z', '--untracked-files=all'],
@@ -407,11 +410,18 @@ function persistRunState(store, state) {
  * always derived from the injected lookup function, never accepted as a
  * session-level number.
  *
+ * `protocolVersion` (CWP-12F) defaults to this module's own frozen
+ * `PROTOCOL_VERSION` (Protocol-1) so every existing call site's persisted
+ * evidence is byte-for-byte unchanged; a sibling protocol harness (e.g.
+ * Protocol-2's `duplicate-audit-live-harness-p2-v1.mjs`) passes its own
+ * protocol identifier explicitly so its evidence self-identifies correctly
+ * instead of silently claiming Protocol-1.
+ *
  * @param {{ session: object, store: object, state: {sessions: object[], results: object[]},
  *           transport: Function, credentials: object, revalidate: Function,
  *           corpusTaskIds?: string[], pairUniverse?: Array<{a:string,b:string}>,
  *           envelopeForProvider: (provider: string) => {maxOutputTokens: number, thinkingLevel?: string|null},
- *           clock?: Function }} input
+ *           clock?: Function, protocolVersion?: string }} input
  */
 export async function executeDuplicateAuditSession({
   session,
@@ -424,6 +434,7 @@ export async function executeDuplicateAuditSession({
   pairUniverse,
   envelopeForProvider,
   clock = nowIso,
+  protocolVersion = PROTOCOL_VERSION,
 }) {
   if (typeof transport !== 'function') throw new TypeError('executeDuplicateAuditSession: injected transport is required');
   if (typeof revalidate !== 'function') throw new TypeError('executeDuplicateAuditSession: revalidate is required');
@@ -446,7 +457,7 @@ export async function executeDuplicateAuditSession({
   const reservationTimestamp = clock();
   const reservation = {
     harnessVersion: HARNESS_VERSION,
-    protocolVersion: PROTOCOL_VERSION,
+    protocolVersion,
     sessionId: session.sessionId,
     roundId: session.roundId,
     role: session.role,
@@ -605,6 +616,15 @@ export async function executeDuplicateAuditSession({
  * D2 -- §8.4 steps 1-4), then derives the §7.3/§7.4 outcome and disagreement
  * set. Refuses to redispatch if a reservation already exists (no
  * initial-stage restart after a partial run).
+ *
+ * `protocolVersion`/`roundIdPattern` (CWP-12F) default to Protocol-1's own
+ * frozen values, so every existing Protocol-1 call site is unaffected. A
+ * sibling protocol harness supplies its own protocol identifier and
+ * round-ID pattern so this same, otherwise-unmodified function can be
+ * reused by composition instead of being forked -- exactly the
+ * `computeD1D2SessionPlan`/`computeD3RoutePlan` pattern in
+ * `duplicate-audit-runner.mjs`, which already took `roundId` as a plain
+ * parameter and needed no change at all.
  */
 export async function runD1D2Stage({
   authorizedBaseSha,
@@ -618,8 +638,10 @@ export async function runD1D2Stage({
   store: suppliedStore,
   clock,
   envelopeForProvider,
+  protocolVersion = PROTOCOL_VERSION,
+  roundIdPattern = ROUND_ID_PATTERN,
 }) {
-  if (!ROUND_ID_PATTERN.test(roundId ?? '')) {
+  if (!roundIdPattern.test(roundId ?? '')) {
     throw stop('STOP_ROUND_INVALID', `unrecognized roundId ${JSON.stringify(roundId)}`);
   }
   if (!/^[0-9a-f]{40}$/.test(authorizedBaseSha ?? '')) {
@@ -678,20 +700,20 @@ export async function runD1D2Stage({
   persistRunState(store, state);
   store.writeJson('VALIDATION.json', {
     harnessVersion: HARNESS_VERSION,
-    protocolVersion: PROTOCOL_VERSION,
+    protocolVersion,
     status: ROUND_STATES.PRE_DISPATCH,
     roundId,
   });
 
-  const sessionArgs = { corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, envelopeForProvider, clock };
+  const sessionArgs = { corpusTaskIds: plan.corpusTaskIds, pairUniverse: plan.pairUniverse, envelopeForProvider, clock, protocolVersion };
   try {
     await executeDuplicateAuditSession({ session: { ...plan.d1, roundId }, store, state, transport, credentials, revalidate, ...sessionArgs });
-    store.writeJson('VALIDATION.json', { harnessVersion: HARNESS_VERSION, protocolVersion: PROTOCOL_VERSION, status: ROUND_STATES.D1_COMPLETE, roundId });
+    store.writeJson('VALIDATION.json', { harnessVersion: HARNESS_VERSION, protocolVersion, status: ROUND_STATES.D1_COMPLETE, roundId });
     await executeDuplicateAuditSession({ session: { ...plan.d2, roundId }, store, state, transport, credentials, revalidate, ...sessionArgs });
   } catch (error) {
     store.writeJson('VALIDATION.json', {
       harnessVersion: HARNESS_VERSION,
-      protocolVersion: PROTOCOL_VERSION,
+      protocolVersion,
       status: ROUND_STATES.FAILED_CLOSED,
       roundId,
       stopCode: error?.code ?? 'STOP_UNEXPECTED_ERROR',
@@ -712,7 +734,7 @@ export async function runD1D2Stage({
   const finalStatus = outcome.disagreementSet.length > 0 ? ROUND_STATES.D3_REQUIRED : ROUND_STATES.D3_COMPLETE;
   store.writeJson('VALIDATION.json', {
     harnessVersion: HARNESS_VERSION,
-    protocolVersion: PROTOCOL_VERSION,
+    protocolVersion,
     status: finalStatus,
     roundId,
     pairUniverseCount: plan.pairUniverse.length,
