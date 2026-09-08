@@ -51,7 +51,8 @@ export const CALL_BUDGET = Object.freeze({
  * ROUND_0 is historical and immutable: its envelope is recorded here exactly as
  * it was actually run (uniform 4096, no explicit thinkingLevel -- i.e. whatever
  * the SDK's implicit default was), so a round id is never ambiguous about what
- * request shape produced its evidence. ROUND_1 has not run; its envelope is
+ * request shape produced its evidence. ROUND_1 stopped before dispatch on source
+ * drift. ROUND_2 carries the identical Amendment-1 envelope and remains
  * offline-prepared and LIVE-unauthorized until a separate GPT packet grants it.
  *
  * Keyed by provider, not by R1/R2/R3 role label, because R3's role is always
@@ -66,6 +67,12 @@ export const GENERATION_ENVELOPES = Object.freeze({
   }),
   ROUND_1: Object.freeze({
     roundId: 'ROUND_1',
+    amendmentVersion: 'CBRP-STRUCTURAL-REVIEW-EXECUTION-AMENDMENT-1',
+    claude: Object.freeze({ maxOutputTokens: 4096 }),
+    gemini: Object.freeze({ maxOutputTokens: 32768, thinkingLevel: 'medium' }),
+  }),
+  ROUND_2: Object.freeze({
+    roundId: 'ROUND_2',
     amendmentVersion: 'CBRP-STRUCTURAL-REVIEW-EXECUTION-AMENDMENT-1',
     claude: Object.freeze({ maxOutputTokens: 4096 }),
     gemini: Object.freeze({ maxOutputTokens: 32768, thinkingLevel: 'medium' }),

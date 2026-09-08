@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  a1f5765024c0b646b887d1ade7dc0b997a542d79（CWP-11B execution base）
+stateVerifiedThrough  af631485aaaed827e7ad1e413af155da38c7f8ce（CWP-11D execution base）
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -1298,6 +1298,41 @@ provider calls        0
 fail-closed 規則;實際執行 ROUND_1(或 ROUND_0 任何形式的重跑)都需要另一份
 明寫 `EXECUTION AUTHORIZATION: GRANTED` 的 GPT packet。
 
+### CWP-11C / CWP-11D —— ROUND_1 pre-dispatch STOP 與 ROUND_2 conformance repair
+
+`[FACT]` CWP-11C 曾授權 ROUND_1 LIVE，但 harness 在第一個 reservation 與 provider
+dispatch 之前依 frozen guard 正確停止：CWP-11B 修改了 protocol 文件，卻沒有同步更新
+`SOURCE_HASHES` 中對應的 expected hash。
+
+```
+ROUND_1 status             FAILED_CLOSED_PRE_DISPATCH / INITIAL_INCOMPLETE
+stopCode                   STOP_SOURCE_DRIFT
+provider calls             0
+sessions / reservations    0 / 0
+raw provider responses     0
+evidence namespace         structural-review-round-1/（CONSUMED / CLOSED / IMMUTABLE）
+```
+
+`[FACT]` CWP-11D 只修補 source-manifest 與 future-round execution conformance：完成
+protocol 的最終內容後才機械計算其 SHA-256，並只更新該 `SOURCE_HASHES` entry；其他
+manifest targets 仍維持原 expected values。新增回歸會逐一讀取所有 manifest target 的
+實際 bytes 並重算 hash，防止未來再出現同類漏同步。
+
+```
+ROUND_2                     next prospective execution attempt
+generation envelope         identical to ROUND_1 Amendment-1
+Claude                      maxOutputTokens 4096
+Gemini                      maxOutputTokens 32768 / thinkingLevel medium
+synthetic INITIAL sessions  120
+protocol/source entry       202f018082666b5d52bae486a01e3cd4084f7372e33a8fe55441294ab64e0035
+source-manifest regression  PASS（live harness 42/42）
+real namespace              NOT CREATED
+LIVE                         NOT AUTHORIZED
+provider calls (CWP-11D)    0
+```
+
+ROUND_0 與 ROUND_1 證據均未修改；ROUND_2 不得在沒有新 GPT LIVE packet 的情況下啟動。
+
 ### 目前的 M2-B 狀態（不得混淆 acquisition 與 effectiveness)
 
 ```
@@ -1787,8 +1822,10 @@ Census（新研究）          CWP-10B（Protocol 2）CONSUMED/STOPPED；CWP-10E
                           CONSUMED / COMPLETE（60/60 acquired）；後續 NOT AUTHORIZED
 Structural Review ROUND_0  CONSUMED / CLOSED ← 已於 a1f5765 執行並 FAILED_CLOSED
                           （80 dispatched / 79 validated），該授權不延續、不得重跑
-Structural Review ROUND_1  NOT AUTHORIZED ← envelope 修訂已離線凍結（CWP-11B），
-                          LIVE 執行需另一份明寫 base SHA 的授權
+Structural Review ROUND_1  CONSUMED / CLOSED / IMMUTABLE ← CWP-11C 在 0 calls 時
+                          STOP_SOURCE_DRIFT，FAILED_CLOSED_PRE_DISPATCH
+Structural Review ROUND_2  NOT AUTHORIZED ← 與 ROUND_1 相同 Amendment-1 envelope，
+                          已離線準備；LIVE 需另一份明寫 base SHA 的授權
 Gemini A2               NOT AUTHORIZED
 Gate                    NOT AUTHORIZED
 Synthesis               NOT AUTHORIZED
@@ -1991,7 +2028,7 @@ Protocol 與 Structural Review Protocol 均已凍結）。以下為更正後、�
 的收尾狀態：
 
 ```
-STATE ALIGNED THROUGH a1f5765024c0b646b887d1ade7dc0b997a542d79 (CWP-11B execution base) /
+STATE ALIGNED THROUGH af631485aaaed827e7ad1e413af155da38c7f8ce (CWP-11D execution base) /
 P03 CLOSED — 9/9 ATTEMPTED, 0 ADMITTED, 0 ARCHETYPES FILLED /
 F1 FAIL 3/9 ｜ F2 FAIL 7/9 ｜ F3 FAIL 0/9 ｜ ONE SPECIALIST 7/9 /
 A2 = 0 EXECUTIONS ｜ EFFECTIVENESS EXPERIMENT NOT EXECUTED ｜ C vs D₁ UNANSWERED /
@@ -2007,7 +2044,11 @@ CBRP-STRUCTURAL-REVIEW-LIVE-HARNESS-1 IMPLEMENTED / OFFLINE VERIFIED (CWP-10H) /
 STRUCTURAL REVIEW ROUND_0 EXECUTED / FAILED_CLOSED / INITIAL_INCOMPLETE / IMMUTABLE
   (80 dispatched, 79 validated, V21-B01-S00-EI-02-R2 MAX_TOKENS, NO_SALVAGE) /
 CBRP-STRUCTURAL-REVIEW-EXECUTION-AMENDMENT-1 (CWP-11B) OFFLINE VERIFIED / NOT EXECUTED —
-  ROUND_1: Claude 4096 unchanged, Gemini 32768 + thinkingLevel medium /
+  Claude 4096 unchanged, Gemini 32768 + thinkingLevel medium /
+STRUCTURAL REVIEW ROUND_1 FAILED_CLOSED_PRE_DISPATCH / STOP_SOURCE_DRIFT / IMMUTABLE
+  (0 provider calls, 0 reservations, 0 raw responses) /
+STRUCTURAL REVIEW ROUND_2 OFFLINE PREPARED / NOT EXECUTED / LIVE NOT AUTHORIZED
+  (same Amendment-1 envelope; source-manifest conformance repaired by CWP-11D) /
 MAX_TOKENS FAIL-CLOSED RULE FROZEN (applies to every round) /
 0 structural reviews VALIDATED-AND-ADMITTED ｜ 0 duplicate audit rounds ｜ 0 replacement sessions ｜
 0 pools frozen ｜ 0 Chief Census calls ｜ 0 formal admitted tasks /

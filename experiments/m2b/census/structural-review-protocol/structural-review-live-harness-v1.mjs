@@ -58,13 +58,14 @@ const CANDIDATE_PATH = path.join(CENSUS_DIR, 'authoring-v2p1-round-0', 'CANDIDAT
 
 /**
  * CWP-11B: the artifact namespace is a function of the round, not a single
- * hardcoded constant -- ROUND_0's is real, immutable, FAILED_CLOSED evidence;
- * ROUND_1's is reserved (CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md §14) and MUST NOT
- * be created by anything except a future authorized LIVE dispatch.
+ * hardcoded constant -- ROUND_0 and ROUND_1 are immutable historical evidence;
+ * ROUND_2 is reserved and MUST NOT be created by anything except a future
+ * authorized LIVE dispatch.
  */
-const ROUND_ARTIFACT_DIR_NAMES = Object.freeze({
+export const ROUND_ARTIFACT_DIR_NAMES = Object.freeze({
   ROUND_0: 'structural-review-round-0',
   ROUND_1: 'structural-review-round-1',
+  ROUND_2: 'structural-review-round-2',
 });
 
 function liveArtifactPaths(roundId) {
@@ -89,7 +90,7 @@ function isMaxTokensStopReason(stopReason) {
 
 const STRATA = Object.freeze(['SC', 'OP', 'BC', 'EI', 'PS', 'FR']);
 const SOURCE_HASHES = Object.freeze({
-  'experiments/m2b/census/CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md': '21a8e979f9c8793fb3a95f6aa0006aed8583d92a6f68773d81fae9a12d5528e0',
+  'experiments/m2b/census/CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md': '202f018082666b5d52bae486a01e3cd4084f7372e33a8fe55441294ab64e0035',
   'experiments/m2b/census/CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md': '72bc339e058f05e7cfd74fa9b4b13189f0d86a52323b00713fbf6994a7cb184c',
   'experiments/m2b/census/structural-review-protocol/structural-review-prompt-v1.mjs': 'c84121f9ae847b57e50b697e2cb45125785daebb3f4d5fc715f00a2d37a57542',
   'experiments/m2b/census/structural-review-protocol/structural-review-extractor-v1.mjs': 'a16b61d71cbee8d34ad94f9c2cc00e7640061fe3342d6231e17ec8ec896ade00',

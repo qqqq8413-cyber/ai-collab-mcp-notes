@@ -11,6 +11,7 @@ import {
   HARNESS_VERSION,
   MAX_OUTPUT_TOKENS,
   EXPECTED_RUNTIME,
+  ROUND_ARTIFACT_DIR_NAMES,
   StructuralReviewStop,
   assertRuntimeSnapshot,
   validateCandidatePool,
@@ -34,9 +35,21 @@ import {
 import { BOOLEAN_CHECK_KEYS, computeStructuralD3Selector } from './structural-review-decision-v1.mjs';
 
 const SCRATCH = mkdtempSync(path.join(tmpdir(), 'cbrp-structural-harness-'));
+const DIR = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(DIR, '../../../..');
 const AUTHORIZED_BASE = 'a'.repeat(40);
 const RUBRIC = loadFrozenRubricPasteBytes();
 const sha256 = (value) => crypto.createHash('sha256').update(value, 'utf8').digest('hex');
+const HISTORICAL_ROUND_SEALS = Object.freeze({
+  'structural-review-round-0': Object.freeze({
+    fileCount: 247,
+    sha256: '98471ecc1ba395ce36297b4da78f5a93364ed1fcd59adb237acfbcbf69853157',
+  }),
+  'structural-review-round-1': Object.freeze({
+    fileCount: 7,
+    sha256: 'b7dfa9d806b092043194a90d8c73fa69deb89a06c1039530885310ea6073daec',
+  }),
+});
 
 let passed = 0;
 let failed = 0;
@@ -128,6 +141,24 @@ function rawExists(dir, reviewSessionId) {
     && fs.existsSync(path.join(dir, 'raw', `${reviewSessionId}.response.json`));
 }
 
+function directorySeal(dirName) {
+  const root = path.join(REPO_ROOT, 'experiments', 'm2b', 'census', dirName);
+  const files = [];
+  const walk = (directory) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const absolute = path.join(directory, entry.name);
+      if (entry.isDirectory()) walk(absolute);
+      else files.push(absolute);
+    }
+  };
+  walk(root);
+  files.sort();
+  const manifest = files
+    .map((absolute) => `${path.relative(root, absolute)}\t${sha256(fs.readFileSync(absolute))}`)
+    .join('\n') + '\n';
+  return { fileCount: files.length, sha256: sha256(manifest) };
+}
+
 async function expectInitialStop(label, options, expectedCode) {
   const calls = options.calls ?? [];
   await assert.rejects(
@@ -152,6 +183,13 @@ console.log('\n--- Frozen identities and mechanical pool validation ---');
 await check('harness and max-output-token values are fixed', () => {
   assert.equal(HARNESS_VERSION, 'CBRP-STRUCTURAL-REVIEW-LIVE-HARNESS-1');
   assert.equal(MAX_OUTPUT_TOKENS, 4096);
+});
+
+await check('every SOURCE_HASHES repository file matches its frozen expected hash', () => {
+  for (const [relative, expected] of Object.entries(EXPECTED_RUNTIME.sourceHashes)) {
+    const actual = sha256(fs.readFileSync(path.join(REPO_ROOT, relative)));
+    assert.equal(actual, expected, `${relative} source-manifest drift`);
+  }
 });
 
 await check('synthetic 60-task pool passes count, id, hash, byte and stratum checks', () => {
@@ -468,7 +506,7 @@ await check('R3 requires a completed initial-stage artifact set', async () => {
   }), /INITIAL_COMPLETE|ENOENT/);
 });
 
-console.log('\n--- CWP-11B: ROUND_1 generation envelope amendment ---');
+console.log('\n--- CWP-11B/CWP-11D: round generation envelopes ---');
 
 await check('GENERATION_ENVELOPES.ROUND_0 matches the historical MAX_OUTPUT_TOKENS constant exactly', () => {
   assert.equal(GENERATION_ENVELOPES.ROUND_0.claude.maxOutputTokens, MAX_OUTPUT_TOKENS);
@@ -477,10 +515,13 @@ await check('GENERATION_ENVELOPES.ROUND_0 matches the historical MAX_OUTPUT_TOKE
   assert.equal(GENERATION_ENVELOPES.ROUND_0.gemini.thinkingLevel, undefined);
 });
 
-await check('ROUND_1 envelope: Claude stays at 4096, Gemini raised to 32768 with explicit thinkingLevel medium', () => {
+await check('ROUND_1 and ROUND_2 share the exact Amendment-1 provider envelopes', () => {
   assert.equal(GENERATION_ENVELOPES.ROUND_1.claude.maxOutputTokens, 4096);
   assert.equal(GENERATION_ENVELOPES.ROUND_1.gemini.maxOutputTokens, 32768);
   assert.equal(GENERATION_ENVELOPES.ROUND_1.gemini.thinkingLevel, 'medium');
+  assert.equal(GENERATION_ENVELOPES.ROUND_2.amendmentVersion, GENERATION_ENVELOPES.ROUND_1.amendmentVersion);
+  assert.deepEqual(GENERATION_ENVELOPES.ROUND_2.claude, GENERATION_ENVELOPES.ROUND_1.claude);
+  assert.deepEqual(GENERATION_ENVELOPES.ROUND_2.gemini, GENERATION_ENVELOPES.ROUND_1.gemini);
 });
 
 await check('ROUND_1 dispatch: Claude (R1) call receives maxOutputTokens 4096, no thinkingLevel', async () => {
@@ -543,6 +584,33 @@ await check('ROUND_1 initial plan contains exactly 120 sessions (60 R1 + 60 R2),
   assert.equal(readJson(dir, 'VALIDATION.json').roundId, 'ROUND_1');
 });
 
+await check('ROUND_2 dispatch is recognized with 120 sessions and the unchanged ROUND_1 envelope', async () => {
+  const dir = artifactDir('round2-cardinality-envelope');
+  const { calls, transport } = makeTransport();
+  const result = await runInitialStructuralReviewStage({
+    authorizedBaseSha: AUTHORIZED_BASE,
+    pool: makePool(),
+    rubricPasteBytes: RUBRIC,
+    artifactDir: dir,
+    transport,
+    credentials: { claude: 'x', gemini: 'y' },
+    revalidate: async () => makeSnapshot(),
+    roundId: 'ROUND_2',
+  });
+  assert.equal(ROUND_ARTIFACT_DIR_NAMES.ROUND_2, 'structural-review-round-2');
+  assert.equal(calls.length, 120);
+  assert.equal(result.calls, 120);
+  assert.equal(readJson(dir, 'VALIDATION.json').roundId, 'ROUND_2');
+  for (const call of calls.filter((entry) => entry.reviewRole === 'R1')) {
+    assert.equal(call.maxOutputTokens, 4096);
+    assert.equal(call.thinkingLevel, null);
+  }
+  for (const call of calls.filter((entry) => entry.reviewRole === 'R2')) {
+    assert.equal(call.maxOutputTokens, 32768);
+    assert.equal(call.thinkingLevel, 'medium');
+  }
+});
+
 await check('an unrecognized roundId is refused before any transport dispatch', async () => {
   const { calls, transport } = makeTransport();
   await assert.rejects(() => runInitialStructuralReviewStage({
@@ -553,7 +621,7 @@ await check('an unrecognized roundId is refused before any transport dispatch', 
     transport,
     credentials: { claude: 'x', gemini: 'y' },
     revalidate: async () => makeSnapshot(),
-    roundId: 'ROUND_2',
+    roundId: 'ROUND_3',
   }), (error) => error.code === 'STOP_ROUND_INVALID');
   assert.equal(calls.length, 0);
 });
@@ -625,10 +693,19 @@ await check('structural-review-round-0 namespace is real, immutable ROUND_0 evid
   assert.equal(validation.status, 'INITIAL_INCOMPLETE');
   assert.equal(validation.sessionsRecorded, 80);
   assert.equal(validation.reviewsValidated, 79);
+  assert.deepEqual(directorySeal('structural-review-round-0'), HISTORICAL_ROUND_SEALS['structural-review-round-0']);
 });
 
-await check('no real structural-review-round-1 namespace was created', () => {
-  assert.equal(fs.existsSync(new URL('../structural-review-round-1/', import.meta.url)), false);
+await check('structural-review-round-1 preserves the immutable zero-call STOP_SOURCE_DRIFT evidence', () => {
+  const validation = JSON.parse(fs.readFileSync(new URL('../structural-review-round-1/VALIDATION.json', import.meta.url), 'utf8'));
+  assert.equal(validation.status, 'INITIAL_INCOMPLETE');
+  assert.equal(validation.stopCode, 'STOP_SOURCE_DRIFT');
+  assert.equal(validation.providerDispatches, 0);
+  assert.deepEqual(directorySeal('structural-review-round-1'), HISTORICAL_ROUND_SEALS['structural-review-round-1']);
+});
+
+await check('no real structural-review-round-2 namespace was created', () => {
+  assert.equal(fs.existsSync(new URL('../structural-review-round-2/', import.meta.url)), false);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -11,11 +11,12 @@ D3 ROUTING:    CBRP-D3-v1        (unchanged — CBRP_MODEL_PINS_PREREG_DRAFT.md 
 REVIEWER PINS: R1 claude/claude-opus-5, R2 gemini/gemini-3.8-flash
                (unchanged — CBRP_MODEL_PINS_PREREG_DRAFT.md §3)
 AMENDMENT:     CBRP-STRUCTURAL-REVIEW-EXECUTION-AMENDMENT-1 (§18, CWP-11B)
-               ROUND_1 generation envelope — offline prepared, not executed
+               ROUND_1/ROUND_2 generation envelope — unchanged between attempts
 
 STATUS:  METHODOLOGY FROZEN ｜ OFFLINE VERIFIED
 ROUND_0: LIVE / FAILED_CLOSED / INITIAL_INCOMPLETE / IMMUTABLE (80 dispatched, 79 validated)
-ROUND_1: LIVE NOT AUTHORIZED
+ROUND_1: FAILED_CLOSED_PRE_DISPATCH / STOP_SOURCE_DRIFT / IMMUTABLE (0 provider calls)
+ROUND_2: OFFLINE PREPARED / NOT EXECUTED / LIVE NOT AUTHORIZED
 ```
 
 > **Content-blind by construction, like `CBRP_REPLACEMENT_PROTOCOL_1.md`.** This
@@ -425,11 +426,11 @@ tests     experiments/m2b/census/structural-review-protocol/test-structural-revi
             anti-contamination provenance check:    1/1 passing (separately reported)
             frozen rubric provenance check:          3/3 passing (separately reported)
           experiments/m2b/census/structural-review-protocol/test-structural-review-live-harness.mjs
-            39/39 passing (CWP-10H's 29 offline harness tests + CWP-11B's 10:
+            42/42 passing (CWP-10H's 29 offline harness tests + later conformance tests:
             ROUND_0/ROUND_1 envelope values, Claude/Gemini per-call token and
-            thinkingLevel routing, ROUND_1 cardinality, an unrecognized roundId
-            refused pre-dispatch, three MAX_TOKENS fail-closed cases, and the
-            ROUND_0/ROUND_1 namespace-reality guards)
+            thinkingLevel routing, ROUND_1/ROUND_2 cardinality, an unrecognized
+            roundId refused pre-dispatch, three MAX_TOKENS fail-closed cases,
+            SOURCE_HASHES conformance, and ROUND_0/ROUND_1/ROUND_2 namespace guards)
 ```
 
 Covered: blind-id determinism and one-wayness; R1/R2/R3 prompt-byte identity for one
@@ -460,8 +461,10 @@ bytes were frozen against it.
 ```
 CBRP-STRUCTURAL-REVIEW-PROTOCOL-1     FROZEN, OFFLINE VERIFIED
 ROUND_0 (LIVE, CWP-10E-era envelope)   EXECUTED / FAILED_CLOSED / INITIAL_INCOMPLETE / IMMUTABLE
-ROUND_1 (amended envelope, CWP-11B)    OFFLINE PREPARED / NOT EXECUTED / LIVE NOT AUTHORIZED
+ROUND_1 (amended envelope, CWP-11C)    FAILED_CLOSED_PRE_DISPATCH / STOP_SOURCE_DRIFT / IMMUTABLE
+ROUND_2 (same amended envelope)         OFFLINE PREPARED / NOT EXECUTED / LIVE NOT AUTHORIZED
 sessions dispatched (ROUND_0)          80          reviews validated (ROUND_0)   79
+provider calls (ROUND_1)                0
 formal admitted tasks                  0
 duplicate audit rounds                 0
 pool frozen                            NO
@@ -478,17 +481,19 @@ generation-envelope amendment (`CBRP-STRUCTURAL-REVIEW-EXECUTION-AMENDMENT-1`,
 CWP-11B) this outcome produced.
 
 No structural review has completed on any of the 60 `CBRP-AUTHORING-V2P1-ROUND-0`
-candidates, and none may run again under ROUND_0's exact envelope or namespace —
-that attempt is closed. A ROUND_1 attempt requires a separate future GPT packet
-carrying explicit `EXECUTION AUTHORIZATION: GRANTED` for structural review LIVE
-execution.
+candidates. ROUND_0 and ROUND_1 are both closed and immutable: ROUND_0 stopped after
+80 provider calls, while ROUND_1 stopped before dispatch because its source-manifest
+entry no longer matched this protocol's post-CWP-11B bytes. ROUND_2 is the next
+prospective attempt and requires a separate future GPT packet carrying explicit
+`EXECUTION AUTHORIZATION: GRANTED` for structural review LIVE execution.
 
 ---
 
-## 18. CBRP-STRUCTURAL-REVIEW-EXECUTION-AMENDMENT-1 — ROUND_1 generation envelope (CWP-11B)
+## 18. CBRP-STRUCTURAL-REVIEW-EXECUTION-AMENDMENT-1 — ROUND_1/ROUND_2 generation envelope
 
 `[ARCHITECTURE-DECIDED]` A **prospective, envelope-only** amendment, frozen after
-ROUND_0's real LIVE failure and before any ROUND_1 call. Nothing in §1–§9 changes:
+ROUND_0's real LIVE failure and before any ROUND_1 call, then carried forward
+unchanged to ROUND_2 after ROUND_1 stopped before dispatch. Nothing in §1–§9 changes:
 same 60 candidates, same rubric, same prompt bytes, same blind ids, same review
 order, same R1/R2 exact model pins, same R1-then-R2 ordering, same one-attempt/
 no-retry/no-fallback/no-substitution rule, same extractor/schema/admission
@@ -496,7 +501,7 @@ semantics. Only the per-provider generation ceiling changes, and only for a
 **new** round:
 
 ```
-                ROUND_0 (historical, immutable)   ROUND_1 (amended, not yet run)
+                ROUND_0 (historical, immutable)   ROUND_1 and ROUND_2 (Amendment-1)
 R1 / claude     maxOutputTokens 4096              maxOutputTokens 4096  (UNCHANGED)
 R2 / gemini     maxOutputTokens 4096              maxOutputTokens 32768, thinkingLevel "medium"
 ```
@@ -582,9 +587,10 @@ closed, not JSON-validity fail-closed.
 ### 18.4 Round-scoped artifact namespace
 
 `[ARCHITECTURE-DECIDED]` `ROUND_ARTIFACT_DIR_NAMES` maps `ROUND_0 →
-structural-review-round-0/` (real, immutable) and `ROUND_1 →
-structural-review-round-1/` (reserved, per §14 — **not created by this
-amendment**). `dispatchStructuralReviewLive` requires an explicit `roundId` with
+structural-review-round-0/` (real, immutable), `ROUND_1 →
+structural-review-round-1/` (real pre-dispatch STOP evidence, immutable), and
+`ROUND_2 → structural-review-round-2/` (reserved; **not created by CWP-11D**).
+`dispatchStructuralReviewLive` requires an explicit `roundId` with
 no default; a live entrypoint silently assuming a round is exactly the implicit
 behavior this amendment exists to eliminate. `runInitialStructuralReviewStage`
 and `runR3StructuralReviewStage` default `roundId` to `'ROUND_0'` only for
@@ -595,10 +601,20 @@ round-awareness and never intended to select anything else.
 
 ```
 CBRP-STRUCTURAL-REVIEW-EXECUTION-AMENDMENT-1   OFFLINE VERIFIED, NOT EXECUTED
-ROUND_1 real sessions                           0
-ROUND_1 real artifact namespace                 NOT CREATED
-provider calls (this amendment)                 0
+ROUND_1                                         FAILED_CLOSED_PRE_DISPATCH / STOP_SOURCE_DRIFT
+ROUND_1 provider calls                          0
+ROUND_1 artifact namespace                      IMMUTABLE
+ROUND_2                                         OFFLINE PREPARED / NOT EXECUTED / LIVE NOT AUTHORIZED
+ROUND_2 generation envelope                     byte-for-byte semantically identical to ROUND_1
+ROUND_2 real artifact namespace                 NOT CREATED
+provider calls (CWP-11D)                        0
 ```
 
-`EXECUTION AUTHORIZATION: GRANTED` for CWP-11B covers offline engineering only.
-Starting ROUND_1 LIVE requires a separate future GPT packet.
+`[FACT]` CWP-11B changed this protocol document after the harness source manifest
+had been frozen, but did not update that manifest entry. CWP-11C therefore correctly
+stopped ROUND_1 before the first reservation or provider dispatch with
+`STOP_SOURCE_DRIFT`. Its seven evidence files remain immutable under
+`structural-review-round-1/`; no review output exists to salvage.
+
+`EXECUTION AUTHORIZATION: GRANTED` for CWP-11D covers offline conformance repair
+only. Starting ROUND_2 LIVE requires a separate future GPT packet.
