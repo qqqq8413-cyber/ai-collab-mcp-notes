@@ -1,7 +1,7 @@
 {
   "harnessVersion": "CBRP-STRUCTURAL-REVIEW-LIVE-HARNESS-1",
   "protocolVersion": "CBRP-STRUCTURAL-REVIEW-PROTOCOL-1",
-  "status": "INITIAL_COMPLETE",
+  "status": "R3_COMPLETE",
   "roundId": "ROUND_2",
   "poolValidation": {
     "candidateCount": 60,
@@ -16,9 +16,12 @@
     }
   },
   "initialReviewSessionsExpected": 120,
-  "sessionsRecorded": 120,
-  "reviewsValidated": 120,
-  "providerDispatches": 120,
+  "sessionsRecorded": 122,
+  "reviewsValidated": 122,
+  "providerDispatches": 122,
   "disagreementCount": 2,
-  "automaticR3Dispatched": false
+  "automaticR3Dispatched": false,
+  "r3Expected": 2,
+  "r3Dispatched": 2,
+  "finalDecisionCount": 60
 }

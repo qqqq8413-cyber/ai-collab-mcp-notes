@@ -2040,6 +2040,40 @@
         "overallPass": true,
         "reasons": "The scenario clearly asks how to allocate a fixed $180,000 bequest among competing needs, which matches Finance / Resource Allocation. It is realistic, self-contained, and free of steering or experiment leakage."
       }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-OP-02",
+      "blindTaskId": "SR-132ba995c02f17e07e7669a11431932012cb3ef00480950a69827b7b86114ac2",
+      "reviewSessionId": "V21-B05-S00-OP-02-R3",
+      "reviewRole": "R3",
+      "review": {
+        "taskId": "SR-132ba995c02f17e07e7669a11431932012cb3ef00480950a69827b7b86114ac2",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The direction (tripling production under a signed contract) is settled and the single final request is a fermentation/bottling/shipment schedule, which is an execution artifact fitting Operations. Constraints (line rate, changeover, tanks, cellar hold, shifts, notice period, volumes, delivery window) are all supplied in the text, and there is no steering or leakage."
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-OP-01",
+      "blindTaskId": "SR-8b08e2c8fa6799f0964a9f62bf0fc4ebd096971292f7358e544a8be60ab4705a",
+      "reviewSessionId": "V21-B01-S00-OP-01-R3",
+      "reviewRole": "R3",
+      "review": {
+        "taskId": "SR-8b08e2c8fa6799f0964a9f62bf0fc4ebd096971292f7358e544a8be60ab4705a",
+        "stratumCorrect": true,
+        "primaryOutputClear": true,
+        "selfContained": true,
+        "realistic": true,
+        "noExperimentLeakage": true,
+        "noSpecialistSteering": true,
+        "overallPass": true,
+        "reasons": "The direction is settled and the single final request is a baking and delivery sequencing schedule, which is squarely Operations; capacities, timings, distances and staffing are all supplied in-text, and there is no leakage or instruction on how the answer should be produced."
+      }
     }
   ]
 }

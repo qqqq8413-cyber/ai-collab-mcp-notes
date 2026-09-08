@@ -1,0 +1,35 @@
+{
+  "model": "claude-opus-5",
+  "id": "msg_011CeqT8ECYvBidXAxEQJhi8",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "",
+      "signature": "CAIS8gYKjgEIERgCKkAMElKnaXen1OBiS9e80z9ntMfjo9rM5QwSD9Il5nTPhrbHV1BdP9Vdrm372exnKOz5hkNnrjMD4dN/FPMWSxyKMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiRjZTQ2Y2IxNy00NjE2LTQ3ZGMtYjM0Yi0yNjRiMTk1ZWFkMGKoAYnF/tQGEgxmFNqP2HE6xCHhAI4aDFWLi210BBSWHgc6ICIwH7gF7ShZL3OeIqRrmMNyDNccCW1oGfuBORRwqaWYRZG/2mUN7R0GIkQKsrwG29UxKpAFZ4wCzARaxjh4simDd4G80C1mHv8a72EnllhN7M8TNsskDXOGf0yjFuWPUkrQcd+JQK2aCnhkPyfsToePq6pJKnexJs6RiYKlHrslTeH5CG4h8ibKqRk2+ny51KeQ2oB3pcXGiSqnOJSPL5P7ohQ1I6ezJZnru6B+4jqxeU0TMCucyeOfIE6QzWuDiptp8aRUU0jqPYvb4iv95Crkhud8nQqV2JsGVVbCryw09iYMT9kwVeblk17MG4rdDSirKAusXmB1Zwryb1+7Zp9htfUPD93U+ixrGSKhROYmP3E99Ron7s7NyMotRMc88H1Qjw8tWSCjTouSTlDPA3T+dBc/8S8lhbGdop0TS1jbnphJ3O3WimghfR2KPvIjLNq6AjNIxAjhRTgoZyMytCucuNmzDEhoakt028PouE2NTjS4bybzoNWhq+/ycdsJC/Ib+MX6R0rP7CuI9Pju8rFzcU/Tpg6leDhEJofqZ6WD906FepJph4ekyxtX7icv+0rVG/V5KWotyF0MI6BoAcRBR2U37saimMAeyRiEbw3amqHzVa5OiQgVZp7HNRiPLw80CCQoA/1GIRq/zP11eaQ1rxWeM4+rEOGKp8S7QBCYUPNlgO2e99AyrjGxY+gjeBjO686+MyqP+BP7E+TzVAF1eHMaoUM/v/V4hXCjNuYReG9ul+T9Tml7t4h87//wTuuH3t7/Ey+/CGWjp0QAyToSEYYwMg7dvBXRF1lriAG57Yjjr55tzCUsm4DprJQgtzxzda/2f6Ztw4Pdswql5qczH4ZkBYBp8+Qs07eWEH3EiT58irwhjrpncNdMPHoj12QO+azEd9qs5uR9WrON8LHQNpbTWQF0iRghAoQxGsa3QXTBk2EYAQ=="
+    },
+    {
+      "type": "text",
+      "text": "```json\n{\n  \"taskId\": \"SR-8b08e2c8fa6799f0964a9f62bf0fc4ebd096971292f7358e544a8be60ab4705a\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The direction is settled and the single final request is a baking and delivery sequencing schedule, which is squarely Operations; capacities, timings, distances and staffing are all supplied in-text, and there is no leakage or instruction on how the answer should be produced.\"\n}\n```"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+    "input_tokens": 1915,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 464,
+    "output_tokens_details": {
+      "thinking_tokens": 225
+    },
+    "service_tier": "standard",
+    "inference_geo": "global"
+  }
+}

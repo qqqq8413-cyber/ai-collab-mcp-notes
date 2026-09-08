@@ -194,7 +194,17 @@
     },
     {
       "taskCandidateId": "V21-B05-S00-OP-02",
-      "status": "PENDING_R3"
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": true,
+        "r3Required": true,
+        "checkLevelDisagreement": [
+          "selfContained"
+        ]
+      }
     },
     {
       "taskCandidateId": "V21-B02-S00-OP-02",
@@ -474,7 +484,17 @@
     },
     {
       "taskCandidateId": "V21-B01-S00-OP-01",
-      "status": "PENDING_R3"
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": true,
+        "r3Required": true,
+        "checkLevelDisagreement": [
+          "selfContained"
+        ]
+      }
     },
     {
       "taskCandidateId": "V21-B03-S00-OP-02",

@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-8b08e2c8fa6799f0964a9f62bf0fc4ebd096971292f7358e544a8be60ab4705a",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The direction is settled and the single final request is a baking and delivery sequencing schedule, which is squarely Operations; capacities, timings, distances and staffing are all supplied in-text, and there is no leakage or instruction on how the answer should be produced."
+}
+```

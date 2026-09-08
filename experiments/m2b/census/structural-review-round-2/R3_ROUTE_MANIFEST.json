@@ -1,0 +1,35 @@
+{
+  "harnessVersion": "CBRP-STRUCTURAL-REVIEW-LIVE-HARNESS-1",
+  "protocolVersion": "CBRP-STRUCTURAL-REVIEW-PROTOCOL-1",
+  "d3Version": "CBRP-D3-v1",
+  "roundId": "ROUND_2",
+  "routeCount": 2,
+  "routes": [
+    {
+      "taskCandidateId": "V21-B05-S00-OP-02",
+      "blindTaskId": "SR-132ba995c02f17e07e7669a11431932012cb3ef00480950a69827b7b86114ac2",
+      "reviewOrderKey": "6529a5234042c96cee615c39b54e978db834f0aa4d3b1bc54ba102172541e882",
+      "reviewSessionId": "V21-B05-S00-OP-02-R3",
+      "reviewRole": "R3",
+      "provider": "claude",
+      "model": "claude-opus-5",
+      "modelFamily": "CLAUDE_FAMILY",
+      "d3SelectorInput": "CBRP-D3-v1\nSTRUCTURAL\nV21-B05-S00-OP-02",
+      "d3Selector": "31f9ecd13496908906673572b77d8cdae46341727d9e8e0a496e745bbf385f51",
+      "promptSha256": "6992f73886da7a636fabfd818751aef3275d84fbfd815871def230e112cf5a17"
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-OP-01",
+      "blindTaskId": "SR-8b08e2c8fa6799f0964a9f62bf0fc4ebd096971292f7358e544a8be60ab4705a",
+      "reviewOrderKey": "b3c59f219535ff669b3c30196ed8bc8a7836d194f68290e1183424ce369e789b",
+      "reviewSessionId": "V21-B01-S00-OP-01-R3",
+      "reviewRole": "R3",
+      "provider": "claude",
+      "model": "claude-opus-5",
+      "modelFamily": "CLAUDE_FAMILY",
+      "d3SelectorInput": "CBRP-D3-v1\nSTRUCTURAL\nV21-B01-S00-OP-01",
+      "d3Selector": "21b4ddd69e5ec6b7122cf6bbeb98f1643b9bfb5ad38ca31f5016a0651b58d196",
+      "promptSha256": "9a8504ac4e8fffbbd2eb88b3a3f91e58b2ca80623b6a3380fa8b4c1f57bccb2b"
+    }
+  ]
+}
