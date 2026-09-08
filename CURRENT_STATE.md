@@ -17,7 +17,7 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  a4c343aa0be82fa87573bc4f44cf11a6aae6b643（CWP-11G ROUND_2 R3 完成 / CWP-11H）
+stateVerifiedThrough  afcfafd7d56e8a857c8c028c69879d98137be697（CWP-12A execution base）
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -365,7 +365,7 @@ experiments/m2b/census/CBRP_AUTHORING_BRIEF_V2_PREREG_DRAFT.md       **現行**�
 experiments/m2b/census/CBRP_AUTHORING_PROTOCOL_2.md                  Authoring v2 協定（STOP 範圍、gate 歸屬）
 experiments/m2b/census/CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md          出題 brief v1 —— CLOSED / FAILED，僅歷史
 experiments/m2b/census/CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md        逐題結構審查 rubric
-experiments/m2b/census/CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md          全 corpus 重複稽核（分輪）
+experiments/m2b/census/CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md          全 corpus 重複稽核（分輪）
 experiments/m2b/census/CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md       出題／審查／稽核 session provenance
 experiments/m2b/census/CBRP_MODEL_PINS_PREREG_DRAFT.md               **唯一** exact model pin 表 ＋ CBRP-D3-v1
 experiments/m2b/census/CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md            pool manifest 與 CBRP-ORDER-v1
@@ -587,7 +587,7 @@ gate 2        全 corpus 重複稽核，**分輪進行**，在 gate 1 全過之�
               DUP-R01+（INCREMENTAL）：只審「至少一端屬於該輪 replacement」的配對
               **old-old 配對永不重審（forbidden）**
               每輪兩位 fresh 盲審稽核者，爭議配對交第三位 fresh 盲審
-              CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md
+              CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md
 diversity     僅產出描述性報告，**不是入池關卡**、無硬性配額
               只有結構審查失敗或確認重複才會造成凍結前替換
 invalid task  凍結前：丟棄並在同 block 內以 fresh replacement session 補題，
@@ -1382,6 +1382,49 @@ final directory seal         376 files ｜ acc074ca27aa0addf2529374c676c6c7c21b9
 但目前**尚未授權（NOT AUTHORIZED）且尚未執行（UNEXECUTED）**。目前 0 duplicate audit rounds，
 0 pool freeze，0 Chief Census calls，亦無任何 effectiveness 實驗結果。
 
+### CWP-12A —— Duplicate Audit Protocol 規格封閉
+
+`[FACT]` `CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md` 已 git rename 並改寫為單一 canonical
+文件 [`CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md`](experiments/m2b/census/CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md)。
+不再存在兩份 active 的 Duplicate Audit 規格；repo 內所有指向舊檔名的 active 參照已更新
+指向新檔名（`CBRP_MODEL_PINS_PREREG_DRAFT.md`、`CBRP_AUTHORING_AND_REVIEW_DRAFT.md`、
+`CBRP_PREREGISTRATION_CHECKLIST_DRAFT.md`、`CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md`、
+`CBRP_POOL_MANIFEST_SCHEMA_DRAFT.md`、`CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md`、
+`CBRP_AUTHORING_BRIEF_PREREG_DRAFT.md`、`CBRP_AUTHORING_BRIEF_V2_PREREG_DRAFT.md` 皆已更新）。
+
+```
+PROTOCOL             CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-1
+STATUS               SPECIFICATION CLOSED ｜ IMPLEMENTATION NOT YET VERIFIED ｜
+                      LIVE NOT AUTHORIZED
+AUDIT ROUNDS RUN      0
+```
+
+此次封閉補齊了先前草稿的三項實作缺口（皆為規格層級補完，非改動任何既有
+research-methodology decision）：
+
+```
+分層              三層工具架構明文化：A. common duplicate definition（byte-identical，
+                  §6）／B. D1/D2 corpus wrapper（§7）／C. D3 pair wrapper（§8）；
+                  舊草稿的單一 rubric 在 D3 也讀到的文字裡混入了「sixty scenarios」
+                  corpus-scale 措辭與 scope 語意，現已移出 Layer A
+D1/D2 schema      移除 model-visible `auditorId` 欄位（§7.1），符合 §6 凍結決定；
+                  補上嚴格 fail-closed validation 清單（§7.2）
+D3 schema         舊草稿完全未定義 D3 的 JSON output schema，現補上
+                  { isDuplicate, reason }（§8.1）
+deterministic     新增 §5：corpus/auditScopeIds 排序、pair 正規化（a<b）、
+serialization     in-scope pair universe 的可重現生成規則、DUP-R00 = 1770 對
+D3 route manifest 新增 §8.4：D1 完成→落盤、D2 完成→落盤、推導完整 disagreement
+durability        set、推導每個 D3 route、**完整** D3_ROUTE_MANIFEST 落盤、reload
+                  驗證、才可發出第一個 D3 call——與 CWP-11F 為 Structural Review
+                  R3 補上的 R3_ROUTE_MANIFEST.json 要求同一設計，這次在任何
+                  duplicate-audit harness 動工前就先寫進規格
+```
+
+`[DECISION]` 本次為 offline 規格封閉，0 provider/API research calls，未執行
+DUP-R00，未建立任何 duplicate-audit harness/test 程式碼。DUP-R00 input population
+= 通過 Structural Review ROUND_2 的現行 60 個 Protocol-2.1 candidates（見上）。
+Duplicate Audit LIVE 仍需另一份明寫 `EXECUTION AUTHORIZATION: GRANTED` 的 GPT packet。
+
 ### 目前的 M2-B 狀態（不得混淆 acquisition 與 effectiveness)
 
 ```
@@ -1876,7 +1919,8 @@ Structural Review ROUND_1  CONSUMED / CLOSED / IMMUTABLE ← CWP-11C 在 0 calls
 Structural Review ROUND_2  CONSUMED / CLOSED ← 已於 a4c343a (CWP-11G) 完成 R3，R3_COMPLETE
                           （122/122 validated，2 R3 dispatched，60/60 FINAL，0 PENDING_R3）
 Structural Review ROUND_2 R3  CONSUMED / CLOSED ← 已於 a4c343a (CWP-11G) 執行完畢
-Duplicate Audit           NOT AUTHORIZED ← 下一個研究階段，尚未執行
+Duplicate Audit           NOT AUTHORIZED ← 規格已於 CWP-12A 封閉（SPECIFICATION
+                          CLOSED），harness 尚未實作、DUP-R00 尚未執行
 Gemini A2               NOT AUTHORIZED
 Gate                    NOT AUTHORIZED
 Synthesis               NOT AUTHORIZED
@@ -2079,7 +2123,7 @@ Protocol 與 Structural Review Protocol 均已凍結）。以下為更正後、�
 的收尾狀態：
 
 ```
-STATE ALIGNED THROUGH a4c343aa0be82fa87573bc4f44cf11a6aae6b643 (CWP-11G evidence commit) / CWP-11H /
+STATE ALIGNED THROUGH afcfafd7d56e8a857c8c028c69879d98137be697 (CWP-12A execution base) / CWP-11H /
 P03 CLOSED — 9/9 ATTEMPTED, 0 ADMITTED, 0 ARCHETYPES FILLED /
 F1 FAIL 3/9 ｜ F2 FAIL 7/9 ｜ F3 FAIL 0/9 ｜ ONE SPECIALIST 7/9 /
 A2 = 0 EXECUTIONS ｜ EFFECTIVENESS EXPERIMENT NOT EXECUTED ｜ C vs D₁ UNANSWERED /
@@ -2102,6 +2146,8 @@ STRUCTURAL REVIEW ROUND_2 EXECUTED / R3_COMPLETE / CLOSED (CWP-11G @ a4c343a)
   (122/122 validated, 2 R3 dispatched, 60/60 FINAL, 0 PENDING_R3) /
 STRUCTURAL REVIEW ROUND_2 POST-R3 SEAL & STATE RECONCILED (CWP-11H) /
 MAX_TOKENS FAIL-CLOSED RULE FROZEN (applies to every round) /
+CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-1 SPECIFICATION CLOSED (CWP-12A) —
+  IMPLEMENTATION NOT YET VERIFIED / LIVE NOT AUTHORIZED / 0 AUDIT ROUNDS RUN /
 60/60 structural decisions FINAL ｜ 0 duplicate audit rounds ｜ 0 replacement sessions ｜
 0 pools frozen ｜ 0 Chief Census calls ｜ 0 formal admitted tasks (pending duplicate audit) /
 LIVE = STOPPED / RETURN TO GPT ARCHITECTURE

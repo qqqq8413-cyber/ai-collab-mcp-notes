@@ -10,7 +10,7 @@ STATUS:  DRAFT
 > preregistered study. Companions:
 > [`CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md`](CHIEF_NATURAL_COLLABORATION_CENSUS_DRAFT.md),
 > [`CBRP_AUTHORING_AND_REVIEW_DRAFT.md`](CBRP_AUTHORING_AND_REVIEW_DRAFT.md),
-> [`CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`](CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md),
+> [`CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md`](CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md),
 > [`CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md`](CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md),
 > [`CBRP_MODEL_PINS_PREREG_DRAFT.md`](CBRP_MODEL_PINS_PREREG_DRAFT.md),
 > [`CBRP_REPLACEMENT_PROTOCOL_1.md`](CBRP_REPLACEMENT_PROTOCOL_1.md),
@@ -98,7 +98,7 @@ STATUS:  DRAFT
 | D-5 | Reviewer must not score likelihood of the event | **ARCHITECTURE-DECIDED** | Authoring §5.4 |
 | D-6 | "Fresh session" and author model rule | **ARCHITECTURE-DECIDED** | Fresh = fresh model context, not necessarily a different model. `openai/gpt-5` **forbidden** as an author. ≥ 2 non-Chief model families across the five blocks. Reduces coupling; does **not** eliminate shared-prior bias |
 | D-7 | Blinding described as reduction, never elimination | **ARCHITECTURE-DECIDED** | Must appear in any result. Extends to author independence: fresh contexts reduce conversational contamination, they do **not** make outputs statistically independent |
-| D-8 | Corpus duplicate audit procedure | **ARCHITECTURE-DECIDED** | `CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`; runs after all 60 pass per-task review, before freeze; stratum labels withheld; two fresh blinded auditors per round, third on a disputed pair |
+| D-8 | Corpus duplicate audit procedure | **ARCHITECTURE-DECIDED** | `CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md`; runs after all 60 pass per-task review, before freeze; stratum labels withheld; two fresh blinded auditors per round, third on a disputed pair |
 | D-9 | Duplicate retention rule | **ARCHITECTURE-DECIDED** | One rule, every round: a component containing incumbents keeps all of them and rejects every replacement in it; a component of replacements only keeps the lexicographically smallest candidate ID. Round 0 has no incumbents, so it reduces to the lexicographic rule. Outcome-blind and deterministic |
 | D-10 | Replacement provenance truthfulness | **ARCHITECTURE-DECIDED** | `authorBlockId` separated from `actualAuthorSessionId`; a replacement is never recorded as the original session |
 | D-30 | Replacement slot-selection mechanism | **ARCHITECTURE-DECIDED / FROZEN** | `CBRP-REPLACEMENT-PROTOCOL-1`, `CBRP-REPLACEMENT-SELECTION-v1`. Closes a real gap: the brief demands 12 scenarios per session, never one, so "targets only the vacant slot" needed an operator-side rule. Author sees nothing about the vacancy; the operator admits only the first response-order candidate declaring the vacant stratum — no semantic comparison, fails closed on any mechanical irregularity |

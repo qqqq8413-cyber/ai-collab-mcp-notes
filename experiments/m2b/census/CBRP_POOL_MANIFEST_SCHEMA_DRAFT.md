@@ -83,7 +83,7 @@ lexicographically rather than by which auditor flagged it, so the identifier doe
 record who dissented.
 
 Full procedure:
-[`CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`](CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md).
+[`CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md`](CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md).
 Session records:
 [`CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md`](CBRP_SESSION_PROVENANCE_SCHEMA_DRAFT.md).
 

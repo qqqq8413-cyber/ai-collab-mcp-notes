@@ -24,7 +24,7 @@
 > | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
 > | **M2-B P03 Acquisition** | **CLOSED / EXHAUSTED —— 9/9 attempted、0 admitted、0 archetypes filled、0 A2 executions,詳見第二十六節** |
 > | **M-ACQ-01** | **OPEN —— natural eligibility base rate 未知;在此問題被 characterize 之前,不得重新設計或執行 M2-B effectiveness experiment** |
-> | **Chief Natural Collaboration Census** | **DRAFT / NOT PREREGISTERED —— Protocol 2.1 60/60 acquired; Structural Review ROUND_2 R3_COMPLETE / CLOSED (60/60 FINAL, 0 PENDING_R3 @ a4c343a); Duplicate Audit NOT AUTHORIZED** |
+> | **Chief Natural Collaboration Census** | **DRAFT / NOT PREREGISTERED —— Protocol 2.1 60/60 acquired; Structural Review ROUND_2 R3_COMPLETE / CLOSED (60/60 FINAL, 0 PENDING_R3 @ a4c343a); Duplicate Audit Protocol-1 SPECIFICATION CLOSED (CWP-12A), LIVE NOT AUTHORIZED, 0 AUDIT ROUNDS RUN** |
 > | **M2-B Fixture Freeze(synthetic)** | **SUPERSEDED —— GPT Fixture Review 判定 FIXTURE PROVENANCE BLOCKER;`fx-01…04` 改列 PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL,檔案原封保留於 `02cbb5f`** |
 > | **M2-B Pre-Synthesis Boundary** | **ACCEPTED(GPT)—— `runRound1Stage()` 已抽出,offline parity byte-identical** |
 > | **M2-B Real Round1 Capture — Set R1** | **FAILED(保存為失敗證據)—— fxr-01…04 四題全 FAIL F1,證據保留於 `81ac330`,詳見第二十七節** |
@@ -3691,6 +3691,24 @@ candidate 未重用。**下一步必須回到 GPT Architecture；不得自行續
   - 更新 live harness 測試中過時的 INITIAL_COMPLETE 斷言為 CLOSED 證據不變式。
   - 鎖定最終 376 檔案之目錄雜湊 `acc074ca27aa0addf2529374c676c6c7c21b92830c8aa6597d72530424dacd5b`。
   - 0 provider calls，`structural-review-round-2/` 證據目錄 0 修改。
+- **Duplicate Audit Protocol 規格封閉（CWP-12A @ `afcfafd`起）**：
+  - `CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md` git rename 為 canonical
+    [`CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md`](experiments/m2b/census/CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md)，
+    repo 內所有 active 檔名參照已更新，不留兩份 active 規格。
+  - 補齊三項實作缺口：三層工具架構明文化（A. common definition byte-identical／
+    B. D1/D2 wrapper／C. D3 wrapper，避免舊草稿把 corpus-scale 措辭混進 D3 也讀到的
+    rubric）；D1/D2 schema 移除 model-visible `auditorId` 並補上嚴格 fail-closed
+    validation；D3 output schema（`{isDuplicate, reason}`）從無到有補齊；新增
+    deterministic serialization 章節（corpus/scope 排序、pair 正規化、in-scope pair
+    universe 生成規則、DUP-R00=1770 對）；新增 D3 route-manifest durability 章節，
+    要求完整 D3_ROUTE_MANIFEST 落盤才可發出第一個 D3 call —— 與 CWP-11F 為
+    Structural Review R3 補上的 `R3_ROUTE_MANIFEST.json` 要求同一設計。
+  - `STATUS: SPECIFICATION CLOSED ｜ IMPLEMENTATION NOT YET VERIFIED ｜ LIVE NOT AUTHORIZED`，
+    `AUDIT ROUNDS RUN: 0`。0 provider/API research calls，未執行 DUP-R00，未建立任何
+    duplicate-audit harness/test 程式碼。
 - **當前邊界**：
-  - 下一個研究階段為 Duplicate Audit，但目前**尚未授權（NOT AUTHORIZED）且尚未執行（UNEXECUTED）**。
+  - 下一個研究階段為 Duplicate Audit：規格已封閉，但**執行仍尚未授權（LIVE NOT AUTHORIZED）
+    且尚未執行（UNEXECUTED）**；harness 尚待另一份 GPT packet 實作。
+  - DUP-R00 input population = 通過 Structural Review ROUND_2 的現行 60 個
+    Protocol-2.1 candidates。
   - 0 duplicate audit rounds，0 pool freeze，0 Chief Census calls，亦無任何 effectiveness 實驗結果。

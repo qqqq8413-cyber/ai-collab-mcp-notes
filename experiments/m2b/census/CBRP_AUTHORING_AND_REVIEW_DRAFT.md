@@ -320,7 +320,7 @@ actually looks like, without giving anyone a lever to reshape it after the fact.
 ```
 per-task structural review     one task, six structural checks
 corpus duplicate audit         all sixty texts at once, after all sixty pass review
-                               CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md
+                               CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md
 ```
 
 `notDuplicate` was removed from the per-task rubric in CWP-8B: a reviewer who sees one
@@ -524,7 +524,7 @@ pairs of two incumbents are never re-audited. Incumbents are never displaced by 
 replacement.
 
 Full rule, the invariant that justifies it, and the retention procedure:
-[`CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`](CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md) §2 and §7.
+[`CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md`](CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md) §2 and §11.
 
 Recorded provenance, truthfully:
 

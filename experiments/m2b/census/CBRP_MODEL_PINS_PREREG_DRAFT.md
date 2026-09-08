@@ -85,7 +85,7 @@ D2    gemini   gemini-3.8-flash   GEMINI_FAMILY
 ```
 
 Fresh context every round, and no round receives an earlier round's history — see
-[`CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`](CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md) §6.1.
+[`CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md`](CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md) §8.3.
 
 ---
 

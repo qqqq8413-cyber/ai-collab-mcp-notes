@@ -571,7 +571,7 @@ gate 2        corpus duplicate audit, in rounds, after gate 1 passes
               lexicographically smallest candidate ID survives — no discretion
               no round cap; if no valid replacement can be obtained, STOP to GPT,
               and the rubric is never weakened to make the process terminate
-              CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md
+              CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md
 diversity     descriptive report only; NOT an admission gate, no quotas
 invalid task  pre-freeze: discard and replace, truthful session lineage preserved
               post-freeze pre-call: whole-pool re-freeze only, never a one-task patch

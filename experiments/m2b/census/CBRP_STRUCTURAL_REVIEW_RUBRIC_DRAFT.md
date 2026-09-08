@@ -36,7 +36,7 @@ outcome-aware decision about pool membership, however carefully made. GPT audits
 one task, so a `notDuplicate` field asked for a judgement nobody was positioned to make
 and would have recorded a guess as a check. Corpus duplication is audited separately, over
 all sixty texts at once: see
-[`CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`](CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md).
+[`CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md`](CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md).
 
 `[DESIGN]` The inter-reviewer disagreement rate should be reported as a property of the
 routing rubric. The rubric's central claim is that two readers can usually agree from the

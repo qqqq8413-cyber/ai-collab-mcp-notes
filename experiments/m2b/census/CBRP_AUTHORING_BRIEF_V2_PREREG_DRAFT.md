@@ -296,7 +296,7 @@ Two outcome-blind gates, in order:
 1. **Per-task structural review** — two independent blinded reviewers, a third on
    disagreement. `CBRP_STRUCTURAL_REVIEW_RUBRIC_DRAFT.md`.
 2. **Corpus duplicate audit** — after all sixty pass review, two blinded auditors read all
-   sixty texts at once. `CBRP_CORPUS_DUPLICATE_AUDIT_DRAFT.md`. Duplication is a property
+   sixty texts at once. `CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md`. Duplication is a property
    of the corpus, so a per-task reviewer is not asked about it.
 
 A scenario rejected by either gate is discarded before the freeze and replaced from a fresh

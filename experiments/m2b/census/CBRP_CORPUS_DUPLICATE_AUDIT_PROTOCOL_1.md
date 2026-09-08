@@ -1,9 +1,22 @@
-# CBRP Corpus Duplicate Audit — DRAFT
+# CBRP Corpus Duplicate Audit — SPECIFICATION CLOSED
 
 ```
-STATUS:  DRAFT ｜ NOT ACCEPTED ｜ NOT PREREGISTERED ｜ NOT AUTHORIZED
+PROTOCOL:      CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-1
+D1/D2 PINS:    D1 claude/claude-opus-5, D2 gemini/gemini-3.8-flash
+               (unchanged — CBRP_MODEL_PINS_PREREG_DRAFT.md §4)
+D3 ROUTING:    CBRP-D3-v1        (unchanged — CBRP_MODEL_PINS_PREREG_DRAFT.md §7.2)
+
+STATUS:  SPECIFICATION CLOSED | IMPLEMENTATION NOT YET VERIFIED | LIVE NOT AUTHORIZED
 AUDIT ROUNDS RUN:  0     AUDITORS ASSIGNED:  0     CONFIRMED DUPLICATES:  0
 ```
+
+> This document closes the *specification* (CWP-12A): every deterministic mechanism,
+> schema, sequencing rule and evidence requirement below is normative. No reference
+> implementation (harness/tests) exists yet — that is separate, future engineering work
+> and requires its own `EXECUTION AUTHORIZATION: GRANTED` packet, exactly as
+> `CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md` did before its harness was built. DUP-R00 has
+> not run. This document does not preregister the overall CBRP study; it closes one
+> instrument inside it.
 
 ---
 
@@ -48,7 +61,8 @@ DUP-R02 …   ROUND 2, 3, …  INCREMENTAL  same rule, until the pool closes
 ### 2.1 Round 0 — full
 
 Input: all 60 provisional tasks that passed per-task structural review.
-Scope: **every unordered pair** — 1770 of them.
+Scope: **every unordered pair** — 1770 of them (see §5 for how that number is derived
+and verified).
 
 ### 2.2 Round j ≥ 1 — incremental
 
@@ -109,7 +123,7 @@ every disputed pair adjudicated, every retention decision applied, every vacancy
 a structurally-passing task.
 
 This is what makes §2.3 hold unconditionally rather than conditionally. The incumbent rule
-in §7 keeps incumbents because their mutual pairs are already cleared; if a round could
+in §11 keeps incumbents because their mutual pairs are already cleared; if a round could
 start on top of an unfinished one, that would stop being true and the rule would have no
 defined behaviour.
 
@@ -134,11 +148,11 @@ defined behaviour.
 9  round j+1 runs
 ```
 
-`[DESIGN]` **Step 7 is a closure requirement, not a detail.** §4 gives every auditor all
-sixty texts; there are only sixty texts to give once every vacancy is filled. Structural
-review of a replacement batch must therefore run to completion — including replacing the
-replacements that fail it — *before* the next duplicate round can begin. A replacement
-rejected by structural review never reaches a duplicate auditor.
+`[DESIGN]` **Step 7 is a closure requirement, not a detail.** §4 gives every D1/D2
+auditor all sixty texts; there are only sixty texts to give once every vacancy is filled.
+Structural review of a replacement batch must therefore run to completion — including
+replacing the replacements that fail it — *before* the next duplicate round can begin. A
+replacement rejected by structural review never reaches a duplicate auditor.
 
 `[DESIGN]` Vacancies are batched (step 4) rather than filled one at a time so that a batch
 of replacements is screened against each other in a single round. Filling them
@@ -147,47 +161,74 @@ changing what gets screened.
 
 ---
 
-## 4. What an auditor receives
+## 4. Instrument architecture — three layers
 
-**Receives:**
-
-```
-the sixty current task IDs
-the sixty current task texts
-auditScopeIds        the ID list defining which pairs are in scope
-this rubric          byte-identical in every round
-```
-
-**Must NOT receive:**
+`[ARCHITECTURE-DECIDED]` The instrument is not one rubric. It is three layers, and every
+implementation must keep them separable:
 
 ```
-that auditScopeIds are replacements ｜ why those IDs are scoped
-any earlier round's findings ｜ any earlier round's outcomes
-any other auditor's findings ｜ any expected result
-any Chief output ｜ any complexity result ｜ any assigned specialist count
-the measured event definition ｜ theta ｜ the P03 outcome
+A.  COMMON DUPLICATE DEFINITION    what a duplicate IS — byte-identical wherever used
+B.  D1/D2 CORPUS AUDIT WRAPPER     A + corpus-scale framing + auditScopeIds + schema
+C.  D3 PAIR ADJUDICATION WRAPPER   A + two-candidate framing + schema — nothing else
 ```
+
+Layer A never varies. Layers B and C each add exactly what their auditor needs and
+nothing an earlier draft happened to include for convenience. The earlier draft of this
+document put corpus-scale framing ("you are reading sixty decision scenarios…") directly
+inside the one rubric D3 also read from — naming the corpus size and implying a scope list
+D3 must never see. §8 exists specifically to keep that framing out of what D3 reads.
+
+### 4.1 Layer A — the common duplicate definition
+
+The semantic standard for what counts as a duplicate. Frozen text, given in full in §6.
+Both D1/D2 and D3 read these exact bytes, unmodified, as the semantic core of their
+respective wrapper.
+
+### 4.2 Layer B — the D1/D2 corpus audit wrapper
+
+Layer A, plus:
+
+```
+receives         the sixty current task IDs
+                  the sixty current task texts
+                  auditScopeIds        the ID list defining which pairs are in scope
+                  D1/D2 output schema (§7.1)
+
+must NOT receive  auditor identity
+                  stratum labels
+                  replacement history
+                  why auditScopeIds are scoped
+                  prior-round findings
+                  prior-round outcomes
+                  the other auditor's output
+                  expected result
+                  Chief output ｜ Chief complexity ｜ assigned specialist count
+                  the measured event definition ｜ theta ｜ the P03 outcome
+```
+
+Auditor/session identity belongs in harness metadata, never in the model-visible prompt —
+see §7.1: no model-visible `auditorId` field.
 
 `[DESIGN]` **Stratum labels are withheld.** They are not needed — duplication is about the
 decision underneath, not the category assigned to it — and supplying them would invite an
 auditor to look for duplicates *within* categories and skip the cross-category pairs,
 which are exactly the ones a per-task reviewer could never have caught.
 
-### 4.1 One rubric, scope supplied as data
+#### 4.2.1 One rubric, scope supplied as data
 
-`[DECISION]` The scope is a **data field**, never a change to the rubric text.
+`[DECISION]` The scope is a **data field**, never a change to Layer A's text.
 
 ```
 round 0        auditScopeIds = all sixty IDs        → the scope clause is vacuous
-round j >= 1   auditScopeIds = focusSet_j           → the scope clause binds
+round j >= 1   auditScopeIds = focusSet_j            → the scope clause binds
 ```
 
-So `duplicateAuditRubricSha256` is **the same hash in every round**, and the pool
-manifest's requirement that one rubric hash covers the whole study survives an arbitrary
-number of incremental rounds. A rubric edited per round would be a different instrument
-each time, and "the auditors all used the same rubric" would stop being checkable.
+So Layer A's hash is **the same in every round**, and the pool manifest's requirement
+that one rubric hash covers the whole study survives an arbitrary number of incremental
+rounds. A rubric edited per round would be a different instrument each time, and "the
+auditors all used the same rubric" would stop being checkable.
 
-### 4.2 What an auditor can infer, and cannot be prevented from inferring
+#### 4.2.2 What an auditor can infer, and cannot be prevented from inferring
 
 `[DESIGN]` An auditor given a scope list can reasonably guess those IDs are somehow
 special. That cannot be removed — the scoped question needs the scope. What is withheld is
@@ -195,16 +236,76 @@ everything that would make the guess useful: not that they are replacements, not
 replaced what, not any earlier finding, and nothing about the measured event. The residual
 is named rather than denied.
 
+### 4.3 Layer C — the D3 pair adjudication wrapper
+
+Layer A, plus:
+
+```
+receives          candidate a ID + task text
+                   candidate b ID + task text, with a and b in canonical
+                     lexicographic order (§5)
+                   D3 output schema (§9)
+
+must NOT receive   auditScopeIds
+                   D1 output ｜ D2 output
+                   which auditor flagged the pair
+                   the fact that a disagreement occurred
+                   prior audit-round findings/outcomes
+                   expected result
+                   Chief output ｜ the measured event definition ｜ theta ｜ P03
+```
+
+Full wrapper text and D3's exact response schema: §8.
+
 ---
 
-## 5. The rubric
+## 5. Deterministic serialization
+
+`[ARCHITECTURE-DECIDED]` Every ordering used anywhere in this instrument is fixed by
+rule, never by discovery order, response order, provider, or operator choice.
+
+```
+corpus task ordering        ascending lexicographic immutable candidate ID
+auditScopeIds ordering      ascending lexicographic immutable candidate ID
+
+pair canonicalization       a = lexicographically smaller immutable candidate ID
+                             b = lexicographically larger  immutable candidate ID
+                             require a < b
+```
+
+Pair orientation must never depend on which auditor found it, response order, provider,
+or operator choice — the same rule §6.1 of `CBRP_MODEL_PINS_PREREG_DRAFT.md` already
+applies to D3 routing, restated here as the general rule for every pair this instrument
+handles.
+
+### 5.1 The in-scope pair universe
+
+The complete in-scope pair universe for a round is deterministically generated from
+`corpusTaskIds` and `auditScopeIds` alone:
+
+```
+pairUniverse(corpusTaskIds, auditScopeIds) =
+  { canonicalize(x, y)  for every unordered pair {x, y} ⊆ corpusTaskIds
+                          such that x ∈ auditScopeIds OR y ∈ auditScopeIds }
+```
+
+For DUP-R00, `auditScopeIds = corpusTaskIds` (all sixty), so every pair qualifies and the
+universe is every unordered pair of the 60 — its cardinality must be **exactly 1770**
+( = C(60, 2) ). For an incremental round, `auditScopeIds = focusSet_j` and the universe is
+exactly the in-scope set defined in §2.2.
+
+This universe, not the union of an auditor's positive reports, is the denominator against
+which D1/D2 completeness and D1/D2 disagreement are computed — see §7.3–§7.4.
+
+---
+
+## 6. Layer A — the common duplicate definition (frozen text)
+
+The following is Layer A's complete, frozen semantic content. It is pasted byte-identical
+into the D1/D2 wrapper (§7) and the D3 wrapper (§8) — never edited per round, never edited
+per pair, never told the corpus size.
 
 > ### Paste from here.
-
-You are reading sixty decision scenarios written for a research pool. Your only job is to
-find **duplicates**.
-
-### 5.1 What counts as a duplicate
 
 Two scenarios are duplicates when they instantiate **substantially the same underlying
 decision structure** and differ only in superficial substitution:
@@ -215,8 +316,6 @@ industry ｜ organisation name ｜ the numbers ｜ the setting ｜ cosmetic word
 
 Ask: *strip the surface detail — is the decision being made the same decision?*
 
-### 5.2 What does NOT count
-
 **Similarity is not duplication.** Two scenarios may freely share any of:
 
 ```
@@ -226,64 +325,146 @@ the same format or length
 the same style of request
 ```
 
-and not be duplicates. A pool of sixty realistic decisions will contain many resemblances;
-that is what a realistic pool looks like. Only report a pair when the decision itself is
-the same decision wearing different clothes.
-
-### 5.3 Scope
-
-You are given a list, `auditScopeIds`. **Report a pair only if at least one of its two
-scenarios is in that list.** Pairs where neither is in the list are outside your task; do
-not report them, and do not comment on them.
-
-### 5.4 What to return
-
-Candidate duplicate **pairs**, and nothing else. Do not rank the scenarios, do not judge
-their quality, do not suggest replacements, and do not comment on the pool as a whole.
-
-If you find no duplicates, return an empty list. That is a normal outcome.
-
-```json
-{
-  "auditorId": "…",
-  "duplicatePairs": [
-    { "a": "…", "b": "…", "reason": "One or two sentences: the shared decision structure, and what differs only superficially." }
-  ]
-}
-```
+and not be duplicates. Only judge a pair as a duplicate when the decision itself is the
+same decision wearing different clothes.
 
 > ### Paste to here.
 
 ---
 
-## 6. Decision procedure
+## 7. D1 / D2 corpus audit wrapper
 
-Two auditors, **D1** and **D2**, work independently and never see each other's findings.
+D1 and D2 each receive an independent fresh context (§4.2, §10.1). Their model-visible
+input bytes must be identical to each other, differing only in `auditScopeIds` being the
+same list supplied to both — never in wording.
+
+The full model-visible prompt is Layer A (§6, verbatim) preceded by corpus-scale framing
+and followed by the sixty task texts, `auditScopeIds`, and the return-schema instructions
+below — composed the same way `structural-review-prompt-v1.mjs` composes the structural
+review's rubric with its per-task `REVIEW INPUT JSON` (frozen rubric bytes first, then a
+data block, never the reverse).
+
+### 7.1 Response schema
+
+Exact semantic schema:
+
+```json
+{
+  "duplicatePairs": [
+    { "a": "<candidate-id>", "b": "<candidate-id>", "reason": "<non-empty explanation>" }
+  ]
+}
+```
+
+No model-visible `auditorId` field. An auditor's identity is harness metadata (§13),
+never part of the schema it is asked to fill in.
+
+### 7.2 Fail-closed validation
+
+Strict, in this order; the first violation STOPs:
 
 ```
-both report the same pair             → CONFIRMED DUPLICATE
-neither reports it                    → not a duplicate
-exactly one reports it                → that pair alone goes to D3
+response must be valid JSON
+required top-level shape must match (duplicatePairs: array of {a, b, reason})
+only known candidate IDs allowed (both a and b ∈ corpusTaskIds)
+a != b
+require canonical a < b (§5)
+duplicate canonical pair entries forbidden (the same {a,b} reported twice)
+every reported pair must be inside the deterministic in-scope pair universe (§5.1)
+reason must be a non-empty string
 ```
 
-**D3** is a third fresh blinded auditor who receives **only the two texts of that pair**
-and this rubric, and is **not told that a disagreement occurred**, nor that the pair was
-flagged by anyone, nor which auditor flagged it. Told there was a split, an adjudicator
-answers a much easier and quite different question. Majority of the three decides that
-pair.
+```
+schema-invalid output   = STOP
+malformed output        = STOP
+unknown ID               = STOP
+scope violation           = STOP
+duplicate entry           = STOP
+```
 
-`[ARCHITECTURE-DECIDED]` **D3's model is derived, never chosen** — `CBRP-D3-v1`, a SHA-256
-over `"CBRP-D3-v1\nDUPLICATE\n" + a + "\n" + b` with the pair sorted ascending, first hex
-character `0-7` → the Claude auditor, `8-f` → the Gemini auditor. Sorting the pair is what
-makes the route a property of the pair rather than of who reported it first. Spec and test
-vectors: [`CBRP_MODEL_PINS_PREREG_DRAFT.md`](CBRP_MODEL_PINS_PREREG_DRAFT.md) §7.2.
+No silent normalization of a reversed pair, no semantic salvage, no prompt-based repair,
+no second attempt (§10).
 
-`[DECISION]` **GPT does not adjudicate task-level duplicate disputes**, for the same
-reason it does not adjudicate structural ones: it knows the measured event, θ and the P03
-history, and a tie-break from that position is an outcome-aware decision about pool
+### 7.3 Decision matrix
+
+For every in-scope canonical pair:
+
+```
+D1=true  + D2=true    → CONFIRMED DUPLICATE
+D1=false + D2=false   → NOT DUPLICATE
+D1 != D2               → D3 REQUIRED
+```
+
+### 7.4 Omission is a vote
+
+`[ARCHITECTURE-DECIDED]` **An auditor omitting a valid in-scope pair from
+`duplicatePairs` means that auditor votes NOT DUPLICATE for that pair.** The full pair
+universe (§5.1) is the denominator, never merely the union of the two auditors' positive
+reports — so a pair neither auditor mentions is a `D1=false + D2=false` case under §7.3,
+resolved without invoking D3, and an auditor's `duplicatePairs` list is read as "every pair
+in scope this auditor calls a duplicate," not "the pairs this auditor bothered to
+mention."
+
+If you find no duplicates, return an empty list. That is a normal outcome, and is
+persisted as one (§13).
+
+---
+
+## 8. D3 pair adjudication wrapper
+
+D3 receives a new fresh blinded context for each disputed pair (§10.1). D3 must NOT
+receive the sixty-task corpus wrapper — only Layer A and the one pair in dispute.
+
+The full model-visible prompt is Layer A (§6, verbatim) preceded by two-candidate framing
+and followed by candidate a's ID and text, candidate b's ID and text (in canonical order,
+§5), and the return-schema instructions below. Corpus-specific instructions — the sixty
+task texts, `auditScopeIds`, any wording implying a corpus of any particular size — belong
+only in §7's wrapper and must never appear in Layer A or in D3's wrapper.
+
+D3 is not told a disagreement occurred, nor which auditor flagged the pair, nor that the
+pair was flagged by anyone. Told there was a split, an adjudicator answers a much easier
+and quite different question than "is this pair a duplicate."
+
+### 8.1 Response schema
+
+Exact semantic schema:
+
+```json
+{ "isDuplicate": true, "reason": "<non-empty explanation>" }
+```
+
+`isDuplicate` is strictly boolean `true`/`false`. Strict fail-closed validation, same
+posture as §7.2: schema-invalid, malformed, or missing/non-boolean `isDuplicate` = STOP.
+No additional adjudication semantics — D3 answers exactly the same question D1 and D2
+answered, on exactly the same two texts, under exactly the same Layer A definition.
+
+D3's vote combines with D1/D2 by ordinary majority: two of {D1, D2, D3} agreeing decides
+the pair. `[DECISION]` **GPT does not adjudicate task-level duplicate disputes**, for the
+same reason it does not adjudicate structural ones: it knows the measured event, θ and the
+P03 history, and a tie-break from that position is an outcome-aware decision about pool
 membership.
 
-### 6.1 Fresh auditor sessions, per round
+### 8.2 D3 routing — CBRP-D3-v1
+
+`[ARCHITECTURE-DECIDED]` **D3's model is derived, never chosen.**
+
+```
+a = lexicographically smaller immutable candidate ID
+b = lexicographically larger  immutable candidate ID
+
+selectorInput = "CBRP-D3-v1\nDUPLICATE\n" + a + "\n" + b
+selector      = SHA256(selectorInput)      lowercase hexadecimal
+
+first hex character   0-7   →  claude   claude-opus-5
+first hex character   8-f   →  gemini   gemini-3.8-flash
+```
+
+Sorting the pair (§5) is what makes the route a property of the pair rather than of who
+reported it first. No discretionary routing, no model substitution, existing frozen model
+pins unchanged. Full spec and test vectors, including the same pair supplied both ways:
+[`CBRP_MODEL_PINS_PREREG_DRAFT.md`](CBRP_MODEL_PINS_PREREG_DRAFT.md) §7.2.
+
+### 8.3 Fresh auditor sessions, per round
 
 `[ARCHITECTURE-DECIDED]` **Every round uses new fresh auditor contexts.** An auditor
 context is never carried from one duplicate round to the next.
@@ -296,13 +477,13 @@ DUP-R02-D1   DUP-R02-D2
 ```
 
 A reused context would arrive at round j already knowing what it found in round j−1 and
-which of its findings were acted on — which is an earlier round's outcome, and §4 forbids
-supplying that.
+which of its findings were acted on — which is an earlier round's outcome, and §4.2
+forbids supplying that.
 
-**D3 IDs** identify the round and the disputed pair, and encode no outcome:
+**D3 session IDs** identify the round and the disputed pair, and encode no outcome:
 
 ```
-DUP-R00-D3-<idA>__<idB>        idA and idB in ascending lexicographic order
+DUP-R00-D3-<a>__<b>        a and b in ascending lexicographic order (§5)
 ```
 
 `[DESIGN]` The two task IDs are ordered **lexicographically, never by who flagged the
@@ -310,9 +491,101 @@ pair**. Ordering by flagger would put "which auditor dissented" into the identif
 the identifier is preserved in the evidence a later reader sees. The ID says which pair was
 adjudicated. It does not say what was decided.
 
+### 8.4 D3 sequencing and durability
+
+`[ARCHITECTURE-DECIDED]` For one duplicate-audit round, in this exact order:
+
+```
+1  finish D1
+2  validate and persist D1
+3  finish D2
+4  validate and persist D2
+5  derive the COMPLETE disagreement set
+6  deterministically derive every D3 route (§8.2)
+7  materialize the COMPLETE D3_ROUTE_MANIFEST durably — every disputed pair's route,
+   written once, before any D3 provider call, never one route persisted immediately
+   before its own call
+8  reload/verify the persisted manifest
+9  only then may the FIRST D3 provider dispatch occur
+```
+
+D3 is never launched immediately after the first disagreement is found while D1/D2 are
+still finishing the round. The disagreement set and the complete route manifest must exist
+before any D3 transport call. If an existing `D3_ROUTE_MANIFEST.json` is encountered for a
+round already in progress, it is mechanically compared to the freshly recomputed frozen
+plan — a mismatch STOPs, and the manifest is never overwritten or repaired; persistence
+failure STOPs before any D3 provider call.
+
+This durability requirement is deliberately the duplicate-audit analogue of
+`CBRP-STRUCTURAL-REVIEW-PROTOCOL-1` §9's R3 route-manifest requirement
+(`R3_ROUTE_MANIFEST.json`, implemented and offline-verified for structural review by
+CWP-11F) — the same failure mode (a route computed in memory and dispatched from before
+ever touching disk) is closed here before any duplicate-audit harness is built, rather
+than after a LIVE STOP discovers it.
+
 ---
 
-## 7. Retention — which member of a confirmed group is kept
+## 9. Provider / model pins
+
+```
+D1   claude / claude-opus-5      every round, without exception
+D2   gemini / gemini-3.8-flash   every round, without exception
+D3   CBRP-D3-v1 derived route    §8.2 — never chosen, never fixed to one provider
+```
+
+Fresh D1/D2 contexts every round (§8.3). Fresh D3 context every disputed pair (§8.3). No
+fallback, no aliases, no automatic upgrade, no same-family substitution — a session that
+cannot dispatch to its pinned provider/model STOPs (§10), it does not retarget to a
+same-family sibling. Canonical source: [`CBRP_MODEL_PINS_PREREG_DRAFT.md`](CBRP_MODEL_PINS_PREREG_DRAFT.md)
+§4 (D1/D2) and §7.2 (D3 routing and test vectors) — this document does not restate the
+pins as a second source of truth, only as a summary; the pins file is authoritative.
+
+---
+
+## 10. Attempts and STOP policy
+
+`[ARCHITECTURE-DECIDED]` One attempt per required provider session. Forbidden,
+unconditionally:
+
+```
+retry
+fallback
+provider substitution
+model substitution
+prompt mutation after dispatch
+response repair
+semantic salvage
+rubric weakening
+```
+
+The following are fail-closed STOP conditions — evidence already produced is preserved,
+and the run does not continue past the first one encountered:
+
+```
+transport failure
+provider/model unavailable
+MAX_TOKENS                         (even if the visible truncated text is valid JSON —
+                                     the structural review MAX_TOKENS rule applies
+                                     identically here, provider-agnostic)
+malformed response
+schema violation                   (§7.2, §8.1)
+source drift
+prompt/hash drift
+persistence failure
+manifest mismatch                  (§8.4)
+unexpected candidate/scope mismatch
+attempt reservation violation
+```
+
+### 10.1 Fresh contexts, restated
+
+Every D1/D2 session (§8.3) and every D3 session (§8.3) is a single stateless request
+containing only its frozen wrapper prompt — no system prompt, no prior turns, no
+conversation ID, no continuation from a previous round or a previous pair.
+
+---
+
+## 11. Retention — which member of a confirmed group is kept
 
 `[ARCHITECTURE-DECIDED]` No discretionary choice, ever. One rule covers every round.
 
@@ -346,7 +619,7 @@ round-0 component of three         I=∅        → keep the smallest, reject th
 
 `[DECISION]` **No incumbent is ever displaced by a later replacement.**
 
-### 7.1 Why incumbency wins, rather than lexicographic order
+### 11.1 Why incumbency wins, rather than lexicographic order
 
 Because the alternative is an outcome-shaped lever. If a later replacement could evict an
 incumbent by duplicating it with a smaller ID, then the pool's membership would be
@@ -360,7 +633,7 @@ so every displacement adds a round without reducing the number of open slots.
 Both properties are outcome-blind: incumbency is fixed by arrival, arrival is fixed before
 the audit runs, and no Chief output exists at any point in this stage.
 
-### 7.2 Components are transitive for rejection, never for incumbent removal
+### 11.2 Components are transitive for rejection, never for incumbent removal
 
 `[DESIGN]` A named asymmetry, deliberate:
 
@@ -383,7 +656,7 @@ incremental round has at least one endpoint in `focusSet`.
 
 ---
 
-## 8. Termination
+## 12. Termination
 
 ```
 continue rounds until   exactly 60 tasks
@@ -411,21 +684,36 @@ frozen.
 
 ---
 
-## 9. Evidence preserved, per round
+## 13. Evidence preserved, per round
 
 ```
-roundId                        DUP-R00, DUP-R01, …
-auditScopeIds                  the exact ID list supplied
-corpusTaskIds + taskSha256     the corpus as it stood when the round ran
-duplicateRubricSha256          identical in every round
-auditorSessionIds              D1, D2, and each D3
-D1 returned pairs              verbatim, including an empty list
-D2 returned pairs              verbatim, including an empty list
-each D3 returned result        verbatim, per adjudicated pair
-confirmedPairs                 after majority
-components                     and the I / R split applied to each
-retained ｜ rejected            with the rule shown, not just the outcome
-vacanciesCreated               and which batch filled them
+roundId
+corpusTaskIds + corpus task hashes
+auditScopeIds + scope hash
+full deterministic in-scope pair universe, pair count, pair-universe hash    (§5.1)
+commonDuplicateDefinition (Layer A) bytes + hash                              (§6)
+D1/D2 wrapper bytes + hash                                                     (§7)
+exact model-visible prompt bytes + hash, per session
+provider/model pins                                                            (§9)
+session metadata (auditor/session identity — never model-visible, §4.2)
+attempt reservation, per session
+raw response persisted BEFORE parsing, per session
+parsed response, per session
+D1 positive pair set                    verbatim, including an empty list
+D2 positive pair set                    verbatim, including an empty list
+complete disagreement set
+complete D3 route manifest                                                     (§8.4)
+D3 prompt hashes
+D3 raw responses
+D3 parsed responses
+final pair decisions, per adjudicated pair                                    verbatim
+confirmedPairs
+connected components, and the I / R split applied to each                     (§11)
+incumbent / focusSet classification
+retained ｜ rejected                     with the rule shown, not just the outcome
+vacanciesCreated, and which batch filled them
+round completion state
+STOP state, where applicable
 ```
 
 An empty result is evidence and is stored as one. A round that found nothing is not a
@@ -437,16 +725,31 @@ different procedure from the one that produced it.
 
 ---
 
-## 10. Status
+## 14. Status
 
 ```
-audit rounds run 0 ｜ auditors assigned 0 ｜ pairs confirmed 0 ｜ tasks replaced 0
+PROTOCOL:          CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-1
+STATUS:            SPECIFICATION CLOSED | IMPLEMENTATION NOT YET VERIFIED |
+                    LIVE NOT AUTHORIZED
+AUDIT ROUNDS RUN:  0
+auditors assigned  0 ｜ pairs confirmed 0 ｜ tasks replaced 0
 ```
 
-No auditable task exists. Sixty candidates were produced by `CBRP-AUTHORING-ROUND-0` and
-are **barred from admission** by the CWP-9B verdict, so they are not audit input and never
-will be. Auditor provider/model IDs are **frozen** —
+**Current DUP-R00 input population: the 60 `CBRP-AUTHORING-V2P1-ROUND-0` candidates that
+passed per-task structural review** — `CBRP-STRUCTURAL-REVIEW-PROTOCOL-1` ROUND_2 is
+R3_COMPLETE, all 60 structural decisions FINAL, 0 remaining `PENDING_R3`
+(`CBRP_STRUCTURAL_REVIEW_PROTOCOL_1.md` §17; evidence:
+`experiments/m2b/census/structural-review-round-2/FINAL_DECISIONS.json`). This is a
+genuine, current, auditable 60-task population — distinct from the CWP-9B-barred
+`CBRP-AUTHORING-ROUND-0` v1 candidates, which remain permanently ineligible and are not
+and never will be audit input.
+
+DUP-R00 has not been executed. 0 duplicate-audit rounds have run, 0 pools are frozen, 0
+Chief Census calls have been made. Auditor provider/model IDs are **frozen** —
 [`CBRP_MODEL_PINS_PREREG_DRAFT.md`](CBRP_MODEL_PINS_PREREG_DRAFT.md) §4 for D1 and D2, §7.2
 for the derived D3 route, and
 [`CBRP_AUTHORING_AND_REVIEW_DRAFT.md`](CBRP_AUTHORING_AND_REVIEW_DRAFT.md) §6.2 for why the
 Chief model is excluded from all of them.
+
+This document does not claim the overall CBRP study is preregistered; it closes one
+instrument's specification within it.
