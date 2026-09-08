@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-387a726a1a6a17f8104f5fe3485f765994aaa3a7bc158e51e513903c6d27d071\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for the scope and structure of a new paid membership tier, which correctly matches Product / Service Design. All other checks pass without issues.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1345,
+    "candidatesTokenCount": 178,
+    "totalTokenCount": 1896,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1345
+      }
+    ],
+    "thoughtsTokenCount": 373,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "IYufas6AI7ax1e8PjpDkkQo"
+}

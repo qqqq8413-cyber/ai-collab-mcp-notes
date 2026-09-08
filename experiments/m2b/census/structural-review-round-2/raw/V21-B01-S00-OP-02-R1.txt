@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-f13e81a4d51a9fc8ec2018c530036f098e5f2a7b665a963f653955be66767cb5",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The direction (move to PACS) is settled and the final request is a rollout and training sequence under stated constraints, which is Operations / Execution. All figures needed (scan volume, downtime, training days, staffing limits, deadline) are supplied in the text, and no steering or leakage is present."
+}
+```

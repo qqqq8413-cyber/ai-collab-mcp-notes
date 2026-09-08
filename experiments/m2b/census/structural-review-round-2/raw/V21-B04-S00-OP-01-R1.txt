@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-c757afa713112547ed2f9f185ec05190da4805d65272bf70c31b57cd4eb27c1d",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The direction (full meter replacement) is already board-approved and the final request is a crew sequencing and staging plan, which is squarely Operations / Execution. All figures needed (meter counts, install times, shift rules, crew numbers, failure rate) are supplied in the text, and there is no steering about how or by whom the answer should be produced."
+}
+```

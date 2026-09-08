@@ -1,0 +1,35 @@
+{
+  "model": "claude-opus-5",
+  "id": "msg_011CeqKkWxC2eK8x7iuiNLaG",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "",
+      "signature": "CAISmAIKjgEIERgCKkA7uFaYwsfEoazsdB2bGZzi76/hn89+oM3hawU498HhtilmSPDpgCFAh4ahQIL7/GROJNcucYq1JT2IlXQX8wsoMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiRjZTQ2Y2IxNy00NjE2LTQ3ZGMtYjM0Yi0yNjRiMTk1ZWFkMGKoAdyX/tQGEgz7FPEG0ZRf9sWfRqMaDDKecs1wGm/7I0i7TyIwkppotF4lnp6BHVi3wDna0nb5w+1tucR0Vj6cb/e1FLIXYgDA0HFYTjMcDz7h/cYhKje3pqaGdzSduLYgK/QWdJGDz2dMBAXrUv8SKuTAVpyzAViBvkF904INxShNOUmMswHIQ5j2hAFaGAE="
+    },
+    {
+      "type": "text",
+      "text": "```json\n{\n  \"taskId\": \"SR-da59990728e8ca300bfc708f429a069b5d670cba5bc3963abdbf0b686de75509\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The final request asks which of two mutually exclusive, hard-to-reverse commercial models to commit to, matching Strategy / Commitment; terms of both options are supplied in-text and no guidance is given on how or by whom the answer should be produced.\"\n}\n```"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+    "input_tokens": 2180,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 249,
+    "output_tokens_details": {
+      "thinking_tokens": 17
+    },
+    "service_tier": "standard",
+    "inference_geo": "global"
+  }
+}

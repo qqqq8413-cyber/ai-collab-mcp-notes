@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-28f4bbcda46276c5f20edcbf9ff4a62f6065d22963a466377f1f48ae17d9e178",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for brand positioning and voice direction, matching the Brand / Creative category. It is realistic, self-contained, and free of steering or leakage."
+}
+```

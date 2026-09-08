@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-24cd11285fe70ea6e9739bd03192a6b08557a642e1e6f22f59521abd8d322c4a",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks what voice and identity the firm should adopt, which is a brand/creative artifact matching the assigned category. It is a single clear request, answerable from the supplied context, plausibly real, and free of leakage or instructions about how the answer should be produced."
+}
+```

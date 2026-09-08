@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-d69a4049bb6795a84fe6248923908a2d55330c83e41c975aea4e8c825a840086",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks for the structure of a new membership offering (pricing model, allowances, access rules, admin controls), which is a single coherent product/service design artifact. All context needed — current pricing, space types, utilization figures, buyer objections — is supplied in the text, and there is no steering or leakage."
+}
+```

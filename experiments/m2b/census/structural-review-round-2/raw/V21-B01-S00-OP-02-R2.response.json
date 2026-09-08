@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-f13e81a4d51a9fc8ec2018c530036f098e5f2a7b665a963f653955be66767cb5\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario correctly targets Operations / Execution by asking for a sequencing plan and rollout schedule for an already decided implementation, with clear operational constraints and no steering or leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1339,
+    "candidatesTokenCount": 179,
+    "totalTokenCount": 2098,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1339
+      }
+    ],
+    "thoughtsTokenCount": 580,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "KoqfavajAd7Y1e8P_5eL-Qw"
+}

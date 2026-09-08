@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-1df1938c8a418f5097ecc5b73e28debd7683da4b130d586a240db51f9d7bde92",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks how to divide a fixed $2.4M capital pot among competing proposals, fitting Finance / Resource Allocation. It is realistic, self-contained, and free of steering or leakage."
+}
+```

@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-985cea48924de74cc7817c56e5c591bc872ed7cce4bd48dcdd418dba00714d76",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks how to interpret supplied trial data, which matches Evidence Interpretation; it is a single interpretive output, all figures are included in the text, and there is no meta-commentary or instruction on how or by whom the answer should be produced."
+}
+```

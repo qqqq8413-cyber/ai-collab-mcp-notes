@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-ee81c3732c127bfcdfb051fdd3de122b6af418101469fb2b8963dc447ee42c0d",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks how the deli should present its identity and voice across signage, packaging and public messaging, which is a brand/creative direction artifact matching the assigned category. It is a single clear request, answerable from the supplied context, plausibly real, and free of leakage or instructions about how the answer should be produced."
+}
+```

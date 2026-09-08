@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-00717eaec5aa622ec8bd505ebce7b59f75b1fad04d5d3ab26f93815f5b2bbafb",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks how to present the brand going forward — an identity/positioning artifact, matching Brand / Creative. It is a single clear ask, answerable from the supplied context, plausibly real, and free of leakage or instructions about how the answer should be produced."
+}
+```

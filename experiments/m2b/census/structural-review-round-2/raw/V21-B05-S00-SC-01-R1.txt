@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-2ee9476c771fb2b2319b80e5b5471ca3b2b22738d3a91d62228b99d0dc9162be",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks which of two mutually exclusive, hard-to-reverse paths to commit to, matching Strategy / Commitment; all terms, figures and constraints are supplied in the text and no steering or leakage is present."
+}
+```

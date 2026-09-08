@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-7f2a2d3375beb39070a7f73ae440653eb23bdbc3fa2c384a69cf4429a403514a\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for the design and benefit structure of a loyalty membership offering, matching Product / Service Design. It is realistic, self-contained, and free of steering or experiment leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1332,
+    "candidatesTokenCount": 181,
+    "totalTokenCount": 2063,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1332
+      }
+    ],
+    "thoughtsTokenCount": 550,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "aYufasO8KvK_vr0P9p3F6Qo"
+}

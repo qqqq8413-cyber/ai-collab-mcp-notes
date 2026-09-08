@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-613fa6d42b8bd781a832500cd0eae68c60fc925fa15f2c00ec676e10e8c31b12",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks how to divide a fixed $420,000 pot among three claimants, which matches Finance / Resource Allocation; all costs, constraints and deadlines needed are supplied in the text, and mentions of conservators and researchers describe the situation rather than dictating how the answer should be produced."
+}
+```

@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-269f4b5ce61e793d615de33ed08948db1bd2acdfd7063bf3fe1f0d3356bad1e7",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for an interpretation of conflicting experimental data regarding customer satisfaction versus churn drivers, matching Evidence Interpretation. It is self-contained, realistic, and free of steering or leakage."
+}
+```

@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-18ed118ecb237fa07e9fb2fa5d462dd52c529714c623fed51ac133fb6383557a\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks how to divide a fixed $500,000 discretionary pool across three competing claims, matching the Finance / Resource Allocation category. It is self-contained, realistic, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "EusHCugHARFNMg9/tZEpI0udSg4gSTYDJk7D/R8c9X3pqp5C3ZuryDRMlYrLp2Dq+MlFOHED0KgFIcleJbEhbhXlNwI8I6hZB/pwQpcvSXMo2iUA0gV0ogD0SN4IJEKS3HXQnGu54HfTIFbgIxQUNYpvg/UiqCMukfvoLjR3FQqZknKR/1M+s2svaxqIfWJlwiw7aCPbz3wYOOL/qTR3051zz4pbf+6izz5VgxkcSD2dXhbv+POcJvxdfmLAwA1X8Pkxue/IvKy5UXsAeI/256A842lBecR6UgvNbPvJaebkOFIMceJyVkeUT+4dsip+WrbEQ5bvcmAfzwJuqtCTfGEbL5IZJRGmrcPx/XebFJv97VRWOB4JC4806sLTcbWrIuqveCsAQmN76wd8SQML9WZ8ptlS8ENGqpNjvj+fJBJ6N1EeJbjjS0ReSVXpshARfwwy6yHEzZW9QW1TTdwKJX7GwDWqHTwlNDfg03uu5gWnLURdQblVqfXlBuzg/hCZRc4MERhiwbM4CkXnsJ8NMqK45szVlYtUvLIr7CeJBOfFPHW1dJJ27sXq+YhP8WeX9WNQE+Kn8ydzWuJZ5BDVvYJxoY5+Kj+yZh3mZ1tEw7R9OkPm3dFwUXuERgmCUJXVoB5IaIXuJgYoXcHhB8IGcGjIwFOCMM/aVTdcQ+7jL/Ohobak4j+FS7srYogg+1Gb6K3ai1D0/7qBr2Wpk/XdZTQod3y/g7ikyXCyjgAO9lhAKvhbLQ+USsdGo822zhuKNJFXS0ovu/qX1wfrYLFFgkDV73XTJwsevIO9A7qITsaOpuSuSMe6uvJ6bUFIDUNH3CWcnYxoQLene3axKRHi/JM37E0BYsEJp48LfZAYvnHOI9+FiJK279gcVD8IMJqKkhKWioNom9bXJBmgbr458v50Iq3aeq8y2DTvy0U8uksTMyrD2ohfl2YW3FPZRlN5u4s7cDscp1+tKtvcK+ugyBNAfwfHr8zKs4npjukXM0sVVSxSGncBSM8UCo2uLvNOqc9TUVWh98jCyYQ2nO1vUzj8ktllLafbR/8wFNLI0eOKyMhkm/OX8hp+zPGoy8l2q3851vbmZCRxC6s5IExOQaGyQ1Gj0ECJLzvbof+Rl5NKPwRe35VLmw2hWsqZJPlLzFuZbrX7cxKndLsgLQWKabvF2UH1dGZ7581k++XePmBfJ15nU7MPV2Q4rrvr9t1+lqQmTm1RF3vCNzxQWjVuM6zyOVf9AILKmlAybOp97+EM3JUW7FF2BnZIFHoT2obUqW4kT5Uq6Ql36+JxBB5H3qDqYSTs0OmoycjeZuwkabZ5zsKg4wbI5K2W6URiLw=="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1377,
+    "candidatesTokenCount": 188,
+    "totalTokenCount": 1781,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1377
+      }
+    ],
+    "thoughtsTokenCount": 216,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "ooqfaqmnLPu9vr0PjNbFyAo"
+}

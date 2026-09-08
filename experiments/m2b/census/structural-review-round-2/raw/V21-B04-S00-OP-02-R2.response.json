@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-d8c6fa55ccfab6bce155759e4b4053aa453d1d63c6a46b3a0c8c918f5a3c3ee3\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for an operational sequencing and scheduling plan to execute an already committed production target, matching Operations / Execution. All constraints and data are provided and all checks pass.\"\n}\n```",
+            "thoughtSignature": "EvcICvQIARFNMg8MEeoB2RJuUEKGJLCjyj+6zXs7sfeVenUjEsLLy4ArgAUruKzMiTy3AxxzJUT9TqC7d7cN/IwgfoHAaY2o1p6aXk/WkPpTYCUDV9BdFe80h0QVPgEgo3fZiaSzo6+4n4USRH/5/R6ZO2TPp8DKr49kAIAc3L7RTXWa96PH8tytRDfEF5ywTOpLvm34EHSKVbeYhDtqs3hrFSuT7fiK1/X89ltm8sAWbD51wlstleuDXCORilfGqzCiS6of8YOUkL0vmkwIkNflXHBTh/+JvcV5i2oYnJayHc4dWCJ8XbbqmCaYlGTLizVPzxJKpIe4BYaKqRMHxRJucwOV1ismnjIeWg2znmC6ajz/VhgENjlehFGOGeA2Cnd/8UAs8bT/F1T24wy624o8Y457ylpK6dmWJQAJ+RQNh1LdB6w6XskDt3x5XvXjInIW91Ampwmht7hatn8u7n4z5TtjZFaimqTyEHS3t5i/CS01fZ5Mu+iqDd5W6N7IQDjPKPiijAP9U3ficZuL5Iqsl90XitIsCpSnmQ7lj/SsmyY5KnHbAbW95H6d3hZtZlbDwtE9QgNIkYpZLmP5I5Otja7tlrZicet5VFIZadfHaQuiiilITr8ysAC7wMN1qQXyBGbAtCQGqXM2/rpfx10nlsvSCfCrtnd4Vsdc085XHTi08nHgg/o2kB+xmyHHqkDjkdHEMh5tKC4oacLChLrzDVQ+jQhFHi/Usji68vwN3foIRSpYFd01FWNpjE1FkM3AWX4gB5x1stl1faCStvCRvOzBXmrVxnl9RMyrRG5rL64itEbtAM/DwPwh++VddWnj6XHmcfEpk6+Qu9WFHUn3Iz9oIbRNZEthM/bqrYiB7TmnYdnZjHjkhz1fSQen+OmMriQq6Mt6auqUN5nAHfGF0ky6sIOLPwkBaQio+pbvBcwqbnIvA/3rmRvSusN+mmvgBHgJ64nCOwxz9QFJKeZgW5czJyub1wND9qHyftVOp/muTyNoXNAcQOatpP/XWVqN4Uw57vw6LCyiXxTCgLR7iIXMJd6hM35/ccp8MrfXZNxVc7MetW9UJm+nbMDqpuUE2gE01vLziNkXP0reLfIILRPViQlbKdyIGJby8O8nEdlKbh7UleSvfSemCHbmHF1xISWGo74OHELO12tV5Ww9PpNbDBNs1TaVEHBwFOyMgDV2RQdCwfcpeb+oXOOwPwxfGk/SWvbZTuK0n5wJHNROGignouDZKSSH6a4wfm3KSmdfVb5j00djFHCb8HnakXaLN7mTd9d3yP86Of+rjoccy9Fe/I0TQCLoTL4fUAoE+cFDLto5vsTlOFkrgUaYsPEXG/mC2H8/+PEdIzZXQAy7Y4LxHGa/wXUA0FJsNO9EqP4CgEj6MMKminxGqMGxdIQf007c2q5zJVXThNGDCvOnL8sgzzXxb+0wyIC66xxnxhogjM3SDaZ2gBa8rLdUHMaVWkbhJassdGQCyQHMhnaS2RJEloBLM699i+gwT1kbfV+Q3r4ZYMDh"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1555,
+    "candidatesTokenCount": 179,
+    "totalTokenCount": 1972,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1555
+      }
+    ],
+    "thoughtsTokenCount": 238,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "vIufaouuA5P_1e8P-qCj-Qw"
+}

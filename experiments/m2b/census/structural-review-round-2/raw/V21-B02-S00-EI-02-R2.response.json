@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-985cea48924de74cc7817c56e5c591bc872ed7cce4bd48dcdd418dba00714d76\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario asks how to interpret trial data across three specific dimensions, matching Evidence Interpretation. All necessary trial data is provided, and all criteria pass.\"\n}\n```",
+            "thoughtSignature": "Er4HCrsHARFNMg8TVDMEPtIDgkoDgEZqz31ld4kjt3haVg4VycHFACKpnSdnSWCwIVRcXW4H6lShZgV06AO0K2zs7Pn3uP9XwYPiRMmpRZo1LhpOmDBbeHlSWLaCkkt5X9YCTh3hosAxOjH8ndyqINEhOuCvaHSfc9sZqF7w/4c5EGzpLQUV0JZM7duIZRqIf/IF409j5ZfEGtEBf0D1/4uFXAPbdsk8FCANKEasETTuU3HGSbF6+NI6LT+WoKbo12MxhNE5COjhpsGwRXCrjCGu8gjD9/QjxCDyep0GAUDBKCraebWYB+dOAey4aXlOieBp/MjZeTuxW6b7ar/fOD/MDVLQqamkHQ1FT6+bO4gPDKx6cftNyFvp1cEP8eqTQW47lqIYhX66JsCoMpz+tGy9vIlabFbrqPFQA/aqDQctwcgE84+oKN/cd+80oYQP1alDh8/e1JstW6/Xw54GlTwdlGkppB3f41U0Ubm/CGEeLxiYtAnH6q40SZOOQHqGFlal/F6tO63VoHTdurniY+pQTf4Ek4OTomBsaf0+IkWl8x/NLB0iMGWJ3CpoFJWYM6oVYDNqtPKlP05WqYGl59I4Dd8Ir/Klzn2jQakK0yq5Xx2Kq4+2W2OypiXT+eYDQ6rsA0OAfQLDdRsvAEm+PNvXSyesz7w9CKReXPFqoHThhghkeONmqYpWSRY64ajZpjGmOC/nIbuKBE+SId7zIMW+1wlTIQz/i2TnRNi/kGt/QaVzTHwTGCUBbaAruPG38QvqiMy9u0YXBG+Iy32B6J/RCXVvAxdMqb1hTgmb99C7jtdgZmFuo5zFbAMsIt2Q2TGzwsPOHWJ/zpjjuYU6PGtcsUVgHM2fgKXKIVt5IHCDq0xnKGGZLvs4TDz4KmEMRcHuxdT/2VmWWCC6BjqUiWnvVRjq/m1m/LbED0XCOQU61f5mSCWDefq6AwvMIzheZG37R5542EDrJhCutLnjiKWtIj7YmnzZlnamsgZWWgvFwPdibVYjONBGktd/re73MkBkn+D6+TiCuYdmvuDyi+KbClIHjnXqdaztN4IkVt3P4okPzoY07be9qxRkgangeZPmd+fq+mTy8TOIiiQ9Y01hSk2OodAskaPdxKHdcK9Y5K7oWv0zpq8oqRpXJQUTBbR8R7HHVWP0oHqf4bIbqzxBToePojBuYbEMRUZa08UVbvsaaHvy7QXI5T8LoOsTVF6Os5efT3aIBSAxkpFibnigLbZHBY0K/BExuFnqzHpZIq1m0VdFBIkSbUPVCWipHg=="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1522,
+    "candidatesTokenCount": 168,
+    "totalTokenCount": 1866,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1522
+      }
+    ],
+    "thoughtsTokenCount": 176,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "QYyfapvCOIeN1e8PtPCDiQo"
+}

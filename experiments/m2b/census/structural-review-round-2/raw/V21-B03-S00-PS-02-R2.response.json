@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-d5a0a4f4c167e262ce4391aa7d4f1b5672c1f977bfa28d38397b3320bd3c50bb\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for the scope and tiering structure of a subscription service, which matches Product / Service Design, and meets all other criteria.\"\n}\n```",
+            "thoughtSignature": "EtISCs8SARFNMg9ealZi3aEn8+VZ6QB0JDgAr8sGsA43X+Kj1KW5dW/Bz6RKQLN0w8j6fhJlzd1D2Rz1z41/akE3Acuf9QGYYe1tyycCqYYDgyIa2f7GKh9rXFgzXys96RXKUEKXpIQ6MCNoUDNmDpxajXiQdATiGqL49gDXKt2bPjV4n/3EjZ92OEfcsMCAwN+QacCCZnJ0HcLmUqWQ0lK/HdaxNCCBZUqqVGfaV+g7ZiZJ33tw8S/4P2vo3Dl/Fgj9rXR5f8IaODlN8/YleikIwjjWfvIBAO92/6lyB1c7xgJCFcq7Vbet566VTILh9Y5tqmzxHdIzAl8KArNq2Tx6nlgJqSCxTQiEp4KEiaC5/5t/sw+ijj3UD2/N9U67T1EvSRT82otzlu0/FyyPdOEZ+5dYuhOga6ujmSrD4YRHLa6C9eTqeD49t14ngVxLoboVNDf+OrjaKUN3bRcN2UCsw/FR5qZENayXYAGNUns60F/1/ujFFd5aanKE4i6plNtrG7NOj3S4a0RPZRlvxsxInPCUTTePCbwxNfAxSBLItBO/N46EtyuXAlTMebBHi2lnPS9mBJBZuRjlPFCf1+NBmipDMu5BOXdS6H+nA0e1gFuyAkBk5qFt1Ii9kSWaN1u1IKT2I1MKnUwi6BdwfvDKLvNmGeNlykAOf/R5wIv+nddjzcgHJxgKU5qdNz1jQOjTR5j+pw5jjDyz2pEXfiOGrh9ba0CktbJAkL7zx+szJlQOWxzgk5duediVhDQzxlp8gPekRCzfR4dZo8Kvctw0luq18TtyL3PYZP8zZgS1NOeIgsJ3LAtrLKCYL42KPrQ+OLl3u/losS64MdIgY+tcfsxgQ96emsYxFEZQN4gQtNTTKWvRkIE61Q2vw8mlICxxeC/fuTyBBV0zKzGkIsL0hWQR1gQA4niR5jytxubOe817/ATjB9dmiNkUZmAyFIv8MgYEs7dhSgwNNgzJLjBzscgHmVoBvuUhUGrUwm+1cKLPdVY9MiFK6G8PXjOPY0aeAwUAdb2C5UIXv2j9eNPeVr96iu0+40FIJpYs61e4vxLpq8LsNnCZdQSEzijRR7Fs3XAYGioihR//Z3D3QO2MLGtBmWGx4HtLWLA8kwevieb1XPE3utKmMSICvkBjJMiP4KR7EIaO3WODyFdkKMi/s0taHJCE/GdfCnAKE5oMl5tyWpL/bW6hic6BMQMIM+DOndKceVdsbq28V2T597H4Vm7c5eGJVENF0GBcVj4Oq8DshUnuhZKYOrcUBfNWyvUJJriN0w7JqlyvDu1Fks4M+1Si9Gws277G2BWOBy2jlEDGetCW6OBDL3mZOaa1coKKUO/+lT9PxQRvcllc70IqLXx4MVZzzSUFmPXsnd/F+j+GF5wFadzyv2uja5sP2QjjahmfETaNIk3VD1d77Auw/6W/zISFLd01IkqgYGkP6044TUnRtcips9KsII4/jP2+gU7/syxBtMxFBFYtOLWR9unkpJzMWc7bDohlUdBBKkqpsul5DeU0m5OIx9/PO5HbL9KhraJubg8BGVVC9EEa8zSmPvMhvmd1oms92K0+sEAtWjYHICdZ6CohKrFxEHjU78n40MttRUcZH0MYFKKgy/elpfh3U9+7y1aUYge0I4F/9KklAZKzxXT6p7yK0nCS54lO/00ljCDEh2nsUhI64BWRKk76RY3bmSUdIKOk6PERx+JpbVCrtNnOjAR5CAqEtmUFhqS95XAcCVVhRapl7hzPzKipRJnvo38oHveTsJR00GMAvD4lCkgE/TQ/zylWr8ibmf1tXIbfgBz6zJLm5xs5L0mnEXQkKuYDC0hpwMYQgIbHEiCuV8mPA4m31GO1XWW56De02O2dicF5R/h0aPjnfBI/kMezNisbusCDZtbbm8iKIsNo7/QN7E6XjJMaeXLesdtlIr8MRFxqN2DxirvdgZy4KFMQk8sQKXS13ImFSXTFNjB95pXWbw+rAazwjohtAYgqmEjkN2MB4O6NZhBzXwSQvpuMv3dj/lHFTjPdsEs/GIFNHDRL1vDhaH/Uq8xyCUSAG2Tq36KG1bcbMGpsGbY/XEeqE2yJaKdX0flSh/qhfxS8ECrVTzzPpa2/ZoIMFu2e3pBb9Xkq52Jq3n/wmXRBAB1wZC97m3sph6bV6mbyeiUBVpRHpUHBgv3VMM0BH7nTsbw2i6qd9w8nHs4JlHkR0ccw9rq3Kt31PqIrwnJJRieRcBkM+OD20rB2Sw4eSS/j0/J2EH7HqkIXNIxkUIkngW8KSNYLtNdaW62ZHlF+xshOYNoAXnYXqLBCpGG1JTH1tJPvY6d5ZplYrWoCLZ5K/KWNN7JyHFB62Lyn67hMSqEI6NsW+znMvIvC+0waWLmk9CKBwgxJU4E9TUyvNfkbsKBP1+L9H5oHy9d0hueLKHohtyyXJ6dBIFa5+DwksgdC6BrWR0RVTlEWZrzvNCkR7RNOlur/Ah1xbZkjRpERi9ZEM1FPQI+PPkfCZE7afq9C1LSDB76SNUweNQMWXnNY8sBkEiB2t/rFOaru2im7Gd7Bq/E2v8Ac54ON7kA1fgCKFEvejBEbIsSrSKHxpi7iHQaYsrPFT/bxLf3Ijz3qwUJqCSxUdBxVrD1+9+b9dRLFMhc1hGWtt6eoOsEy/VHWuwcXleeAxnAsD0DSwEKwTdQ+jNJpxIUpHgSZUgK1kbDpnzDv06J0P7OulokK0kFIwzuuKgp/phxBepfUWhPKu8Uyjw2x96GXVkLnPiskxYge80Gbp/nAoJ8dt58jR9OxEFaBNB7yqVxpnQ5Pr30N48hP3vP+pwD9WXyBLsucjWhhf5MfzBKhedLgGso8jhgbBnNhvFGx504Rl7jREOjPl2nRKhnb+dE8Ac72Wex6NLh5TmFbm7Muuv/PKRz7Hhhq+mYOYGAeO66p8t/d8FBLGdFyTAiIUURx8T+aIaTKd02c0OYfbiZMkQKV1M8hzufuEpYOwjWA/HXUqBqgAwhklpqDG/0R2yi8upuOLuLJqTDoX1keXIQ3/7ZoRTMpUm4EWc6e2ohddEWvMo3BxdDWA9ie983cMBQ7FCej+9OQw1vo0GXRB2m0BALXcwaJ6G3DLn4UPhgIWvCdOMRd/6hhWS2KibCvwDNYKWXaeaoG/C4HaOwOX2HVrKVI2z9CBolobklIvZHVkXgXMI7q2g=="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1333,
+    "candidatesTokenCount": 175,
+    "totalTokenCount": 2038,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1333
+      }
+    ],
+    "thoughtsTokenCount": 530,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "eoufavvzMrH_vr0PpuXJ6Aw"
+}

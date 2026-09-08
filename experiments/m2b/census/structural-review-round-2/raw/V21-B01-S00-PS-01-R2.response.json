@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-2a22127bca07940281dcdbaae3906e17a1b2db13e1b4d8f0e98453b5530d1135\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario is self-contained, realistic, and correctly categorized as Product / Service Design, with a clear request regarding the scope and tiers of a veterinary wellness subscription.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1346,
+    "candidatesTokenCount": 179,
+    "totalTokenCount": 2051,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1346
+      }
+    ],
+    "thoughtsTokenCount": 526,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "AIufarOtMp-v9tMPkoHgkA4"
+}

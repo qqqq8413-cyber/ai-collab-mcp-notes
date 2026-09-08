@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-6715f92cfbdb92a64418570bbe501772b47b55fea4632d6118e1fcce87f67318\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for the scope and structure of a new service offering, which matches Product / Service Design. It is realistic, self-contained, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1313,
+    "candidatesTokenCount": 179,
+    "totalTokenCount": 1879,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1313
+      }
+    ],
+    "thoughtsTokenCount": 387,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "LYyfaoPYFLSNvr0PrfnDmA0"
+}

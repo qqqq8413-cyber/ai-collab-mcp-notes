@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-282b164402b604483485d681cec0d8c17c4234238d68b9f14157d607dcf97d06",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks how the membership offering should be designed (tiers, covered benefits, discount structures, terms), which is a Product/Service Design artifact. It is a single clear request, supplied with its own cost and fee figures, reads as a genuine practice-owner enquiry, and contains no leakage or instructions about how or by whom the answer should be produced."
+}
+```

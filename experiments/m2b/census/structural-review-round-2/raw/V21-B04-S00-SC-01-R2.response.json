@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-ec917958e7a71c40b546ac9ef3e2755d7fa6f780df9c83db6bc65d0ec56ee4ec\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for a choice between two mutually exclusive strategic investments, matching the Strategy / Commitment category. It is self-contained, realistic, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "EuIKCt8KARFNMg8f0pg3KFxfTH6mLFpbah9rSTodBetD8YOv1LZ68aQey0eT8tDaMWy/kRHyLKU7P956KJGzmeYYJii4qDoX9MpjLJnFz/FSLlol4Y86M2dmt35dumPqgawN5SRhLLA10xAmcS4qSqgeNDHEaYFql3B+ofiR050Wh37h1iUJg0p2Dwzll0EjWpyB7i6APGaPo+k6uByWoQA3NC0JbgmQzeNZacwHSKMyWEEkKH2bNiNbfJdJMfJ5lZsVlxueFtLLRCWxy9n6fNPxa+SmOyswMKCuiP9cCPtL3w8d7Jel0phQOJ0TLtHm9uHfcYBseDt4jWLwGWhy8M3zDAoHbxV/cIak1uvwvd5TAyroJoq9eB8sqpeO+WYxo602Rsyigwshrhz1LQBCNVBycmbrQpIKTQTR5hs19pOvMPfJcQGAoChp75UiXy4CVgmfKil2IDGPOQmC2NEKVbdLyIwRGqHdy3RdWRVaSmJVT3Ptow8MemzEvv521NJnaWmpOo5A6uoSuFl8dUi5pdFijHiJR9uaQ1/4cJaAbwEZZ3KxbTIxuzbquNrMAx1W2MNebQ877UQhTwWTadJht8TgOQ65Fcw9mHw+PSsE7AVyRsk1BP6WIBhS0G30ThC/dydw0Blda+4935toIw+Y9zajACzHe3ZQq+uAUkBg3cthOuLovQ+Hz94cB82+WX6B/prEJdVCPLriAJQ03cC4dLV5SMG2U95wntpd0x3is4lai1NefCzokfM3CDKZ4exOUihbTFaM7BATpkGAyiQT+iPPRZYtOf9KOt3JY0Gy4ITeJo7E7vRvpX5HlE9Owmw6rjUItOiyT1ljhpaflA9sByXMiatMUS+g5AlZ7rZ5qX+VSekD0ME0BwOWvdCTPPVKfoYpCGkt5Y7n8Usgy/ltBdR23h9G8Fdr5QYrZdp3bHQCjnZ0UZ6L5xG39ehV+36mRz5+WcIYUZYdfRKu7mNpUUEYBkBoUeH+RKcIkgWdqxcD87i9eko3x/YRbwriNIC7ea60LnIN74zOuNXdkhGWAW12iAKjLNfj5qsoyLcv3i7Qr8bC4A3TuXAaxAAdqgI1wrAqOmtXIWwZfzSgkVhzjCCIjFCFHznVtwUvarTBlHx3p9r2aGUTIKgDmu45uA2AVBd9GAn72lCHnpVHxKVCCDv3e2GT25hFp3SCS/iEuEatppcOGQPNFbxWlS5Zp1lUOwZsqhR9oiC8ny/HxpcezD365TSuW4ti7zms5OI2XbuWrhbIGV5aYFkF7A2xXyE/BXAv+cwsHgdcZl0T6nMEqVevkYO1wx27bfwrkX/mrHoM7tR+OM28p1qvF4KNnDWD9+SSEKWocaYORCrs23VXSus1PlXmn9pIcU7ZSlMxp84vkQUwjcgjSM950sg0WLvSS7XHaIwmbBCnO/S6XhzsGKxuG+ZhB0KEBe5qmso00GD+U7GOMCkrNTy1RJ03ED0FZnDOGZInCcmhGJhG0RQNphV45sFln/Qi6d78oIjQy++4vpITo7VGdoiAN/HVYK+JWMCWFIRDAbq//bW5GOxB2cyLZo+edImZ+JyxToPZdKJPrZaG7If4KHt5yXonJysckTaINv2z7ltW1LXaHq80DAmwBGiKqU7a+TmN3crgrGJXDVIr8d9VuWyv+d4JxyRLjSSSxbWVIBuF342FJOGyzTdsKiBy48X6kF7XezgahFn7NU/x9T45vntv+CaD4hHdii57yq4EQFbPWcDgnX1AeTIJ3TCYs4IWfmcI5BRaooTJA3LuBSG/em2BTEWbP1KTFbfv2svQb2Tkn/qmytyjPRq4mGnoF3f+xEju7PnQymyduSoI7w=="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1486,
+    "candidatesTokenCount": 177,
+    "totalTokenCount": 1994,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1486
+      }
+    ],
+    "thoughtsTokenCount": 331,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "OIqfaq2SM5qj9tMP0pD2iAo"
+}

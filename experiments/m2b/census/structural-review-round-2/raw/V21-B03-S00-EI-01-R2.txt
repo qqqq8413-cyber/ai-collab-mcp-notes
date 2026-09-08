@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-313da55b0a74c36f4621fde466e36270739c7b391babe88d44e8f23a74d3ca5f",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for an interpretation of conflicting operational data and confounding variables regarding software attribution, matching Evidence Interpretation. All structural and rubric criteria are met."
+}
+```

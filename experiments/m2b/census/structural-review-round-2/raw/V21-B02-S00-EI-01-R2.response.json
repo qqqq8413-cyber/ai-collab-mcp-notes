@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-269f4b5ce61e793d615de33ed08948db1bd2acdfd7063bf3fe1f0d3356bad1e7\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for an interpretation of conflicting experimental data regarding customer satisfaction versus churn drivers, matching Evidence Interpretation. It is self-contained, realistic, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1525,
+    "candidatesTokenCount": 177,
+    "totalTokenCount": 2047,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1525
+      }
+    ],
+    "thoughtsTokenCount": 345,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "CoyfatLSE7H_vr0PpuXJ6Aw"
+}

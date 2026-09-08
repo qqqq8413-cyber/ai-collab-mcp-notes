@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-d5a0a4f4c167e262ce4391aa7d4f1b5672c1f977bfa28d38397b3320bd3c50bb",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for the scope and tiering structure of a subscription service, which matches Product / Service Design, and meets all other criteria."
+}
+```

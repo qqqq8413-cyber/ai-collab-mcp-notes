@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-24350faf18d46ff7b564008662357f8eb756db9ea5de4cca1b5785b66f90e7b3",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks what the described evidence shows about causation, which is an interpretation of supplied findings, matching Evidence Interpretation. The rates, the three concurrent changes and their relative timing are all stated in the text, so it can be reasoned about from its own content; mentions of a QA lead and legal describe the situation rather than instructing how to answer."
+}
+```

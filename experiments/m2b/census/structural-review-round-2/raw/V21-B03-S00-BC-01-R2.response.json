@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-2c91ae0bd4513c9654ffa5fd316642855bca7fd9103e9647e0e44f0624d79bb9\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for brand positioning and presentation direction for a dual-location hardware store, which directly aligns with Brand / Creative. All criteria are met without experiment leakage or specialist steering.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1343,
+    "candidatesTokenCount": 180,
+    "totalTokenCount": 2023,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1343
+      }
+    ],
+    "thoughtsTokenCount": 500,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "94qfapzFKY6i9tMP9LK1uQo"
+}

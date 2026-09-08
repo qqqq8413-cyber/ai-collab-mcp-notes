@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-b77361c6e2d06343e9c494a1fa123ac4a9e812478029928d8567125a6321ffa0\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for the design, scope, and structure of a new corporate wellness offering, which matches Product / Service Design. All rubric criteria are satisfied.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1330,
+    "candidatesTokenCount": 178,
+    "totalTokenCount": 1985,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1330
+      }
+    ],
+    "thoughtsTokenCount": 477,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "JYyfav_dAtix9tMPhZWzkQs"
+}

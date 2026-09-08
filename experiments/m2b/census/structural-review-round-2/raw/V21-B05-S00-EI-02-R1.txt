@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-17d7699e65ec66190ab6377cf9c9a462a19a1575ef8d6e4b4e206176efead8a5",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks what the supplied circulation figures mean given the described confounds, which is an interpretation of evidence; the key figures (19% rise, branch counts, selection basis) are all in the text, so the mention of holding additional monthly data does not create an external dependency."
+}
+```

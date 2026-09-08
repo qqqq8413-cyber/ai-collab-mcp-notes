@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-6715f92cfbdb92a64418570bbe501772b47b55fea4632d6118e1fcce87f67318",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for the scope and structure of a new service offering, which matches Product / Service Design. It is realistic, self-contained, and free of steering or leakage."
+}
+```

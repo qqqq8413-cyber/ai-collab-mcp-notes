@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-2ccf53c28e922ab380382e1c92eca14a5a19c3888f2e5f98e11424f0cecdc387\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario asks for an operational rollout sequencing and scheduling plan for a settled expansion decision, with all necessary constraints and context provided.\"\n}\n```",
+            "thoughtSignature": "EtcICtQIARFNMg9MXx/TJedNpIJo642wIpcLPJfA8m97k6cJAklDQTIw3WeoYK0zHpNByE5IYhLOIzD5anDEH+ONNrcB1WfPgKbks+Bn8+Fb+3fPxSbSg5ftVPUNM87CEaP5dzTFRUS6h9XUSwt5PLhNT9dUrTjr7m4kucbAvEjhCE7y8e22BCpNEwaZWLljOlYUyoLZXAWIZ0XG8byxKxtZf0hjStVsqnISGBl6mL4kndFexY20hVF+arlTikQcJdIktHTcGmygM0G4sYPbh1/1wD4kwkAXMC6pVFFzU30XMxhbi/ZWaaTvM4yj5EMthrtnCG9b6kqd3mVNShNDXQv7ktpcKx8tdZVT4uHE9GoHayUn8FeiwfyvBwiVmTm7ahUxAjCQ/8qvNmRx/lFJTgxQPQJzMCHxjVXJmqzk/5N2icTbN5waa9kWbgXGJ27BhJR0NkEjiUUzV5Ez7WNeJz+lS4GtVULKyZKiTCKRrdr3Y0o1hhZjwzqCD3XPsEED/TcngwkZW1fET1FtNPXDIRAsvFdwOTqpp8LJeJ8ulaW1oasG4PkZ3jOb1kkakph34HsSkjjWs+sDH4stA5EgdbjZ0XCtJVPIaXjJNMnvTtEdXxJAsSjyI6ZAV5WvgWi1hzoT3N5ZBfGrpRqZfTLDskPDeOmo2Be+Odp5O3Zf9nlIMd7zVYEaHavwmXJ4ykuENaC+A7KrB5j244F6ofshHV0AO34qDE9ryNCje/dxgk4+51eO6MBJVe5lwnoCtbIVJtnMUanGpOTsnQ/k2cP+K5NYBNNa4CMh2AOEqZbt0EW/dETn5+5AbnR6xfFxdAWCDgoa/m1oi7x9XSiPz8Oup8cdQ28bMESXmSXp6a/DPWDClM7n7Fz4aJSux/3gjxZz6HiyJ8UXV4aqPw2YMy0g8tFfHvBMxl92Eo1zFpu4KmjNTj6N+XkH0SJsGE1ptqID2phNuhFvX72EJxgNRKrlnr1gAPnHV67QEmBSAMlfxt6lV6E018fm4LqiJZUtB6D281Jzb25A81ir+1XjciGEaqb9XfGXxYFoKMLDnle3FedJWPhyNdxKW9rM+Mope1LMYY3DRXwMnHRaoJuTDGBVM+lxj27pmbdXlqnxeu2sVDvOJJrXmVjArtFM5poS1qIomXUY4MtnwwEx7d432IaXvhFXYt7kaM4nl/g/I+yXyDkiZWEmzQCo51PpDucsFdbdynw4tD50YhGmUTxdChwsYY/ODgPFI9wAwfYytMZ5f4hyF5IotJUq18RrkcnimRtWnX40Ndro8ELLszxnvwAx/XCc4x9LN3niOzofgb82QqaKc0Nhk253dkBtyt8Ds7W3HAFubNhGo8LwnKT2gwBnr9sCSsy+JRbdaoDOaH7sVJY0PuGSWWI/2Omhf1lF8cgwZs558kJoy5WR1AaxuEI9e+s84xFOA3ZmqqYaG7dW7PhE5z7LYBKAlerhwA4Abr++x/L0vB+QDPBkCw=="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1328,
+    "candidatesTokenCount": 169,
+    "totalTokenCount": 1724,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1328
+      }
+    ],
+    "thoughtsTokenCount": 227,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "n4ufapmbAvK_vr0P9p3F6Qo"
+}

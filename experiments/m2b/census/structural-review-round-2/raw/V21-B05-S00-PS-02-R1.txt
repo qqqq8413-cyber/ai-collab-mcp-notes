@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-7f2a2d3375beb39070a7f73ae440653eb23bdbc3fa2c384a69cf4429a403514a",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The direction (launch a loyalty program) is settled and the final request asks what the membership structure and benefits should be — an offering design, matching Product / Service Design; the budget merely constrains that design. Single clear request, self-contained context, plausible framing, no leakage or steering."
+}
+```

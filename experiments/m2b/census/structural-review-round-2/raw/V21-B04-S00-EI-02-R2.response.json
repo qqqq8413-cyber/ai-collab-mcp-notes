@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-07d0cd584dd3ca73f7341b5ace7536362470a3cf7ae0d432f6eb3b6764b114dd\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for an interpretation of provided study data, aligning with Evidence Interpretation. It is self-contained, realistic, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1675,
+    "candidatesTokenCount": 174,
+    "totalTokenCount": 2264,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1675
+      }
+    ],
+    "thoughtsTokenCount": 415,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "8IqfapKCCe2cvr0P6vXEmQo"
+}

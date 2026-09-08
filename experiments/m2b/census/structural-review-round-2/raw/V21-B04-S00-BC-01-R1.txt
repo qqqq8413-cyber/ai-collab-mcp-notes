@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-ecb1b8af6b1ede4f997f0ae754bddfab3d324bbdabc2c9186c37278560eea343",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks for brand architecture, naming, positioning and tonal direction for a new line, which is a single coherent creative/identity artifact matching Brand / Creative. All context needed (revenue shift, existing naming conventions, both audience tensions, the three architecture options) is supplied in the text, and there is no leakage or instruction about how or by whom the answer should be produced."
+}
+```

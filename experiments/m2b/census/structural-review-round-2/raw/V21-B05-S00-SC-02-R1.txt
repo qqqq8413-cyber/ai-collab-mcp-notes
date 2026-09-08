@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-ef4dc61f0c7d6c6781b49e2a97a82aa035c425919f5aa277c6109e5b07c364dc",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks which of two mutually exclusive, irreversible directions (sell vs. raise and expand) to take, matching Strategy / Commitment; the scenario supplies all figures it relies on, reads as a genuine founder's question, and contains no leakage or steering."
+}
+```

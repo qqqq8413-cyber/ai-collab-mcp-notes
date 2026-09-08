@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-b77361c6e2d06343e9c494a1fa123ac4a9e812478029928d8567125a6321ffa0",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for the design, scope, and structure of a new corporate wellness offering, which matches Product / Service Design. All rubric criteria are satisfied."
+}
+```

@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-2c91ae0bd4513c9654ffa5fd316642855bca7fd9103e9647e0e44f0624d79bb9",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for brand positioning and presentation direction for a dual-location hardware store, which directly aligns with Brand / Creative. All criteria are met without experiment leakage or specialist steering."
+}
+```

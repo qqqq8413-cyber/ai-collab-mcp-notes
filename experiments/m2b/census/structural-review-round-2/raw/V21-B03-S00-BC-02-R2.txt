@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-24cd11285fe70ea6e9739bd03192a6b08557a642e1e6f22f59521abd8d322c4a",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for brand voice and identity guidance, matching the Brand / Creative category, and meets all realism and structural criteria."
+}
+```

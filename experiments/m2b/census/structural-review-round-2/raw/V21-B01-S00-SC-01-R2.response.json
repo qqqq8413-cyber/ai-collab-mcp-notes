@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-dbe89b0ec4d22b5fe233eba213dae1e710dc14c0a3e3e705c05b06efd86cdb40\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for a choice between two mutually exclusive strategic directions, matching the Strategy / Commitment category. It is self-contained, realistic, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1320,
+    "candidatesTokenCount": 178,
+    "totalTokenCount": 1941,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1320
+      }
+    ],
+    "thoughtsTokenCount": 443,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "h4qfasbGNaGzvr0P9LvsgQ0"
+}

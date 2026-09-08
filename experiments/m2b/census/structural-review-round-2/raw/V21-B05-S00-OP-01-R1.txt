@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-5a7238f523724b5bc0df5092766e0806b5d362772e9c142495ad4c1aaf2eaa6a",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The direction (consolidation) is settled and the final request is a sequencing plan for closures, hiring freeze and migration — an execution artifact matching Operations. All figures needed (headcount, attrition, lease dates, training throughput, peak timing) are supplied, and no steering or leakage appears."
+}
+```

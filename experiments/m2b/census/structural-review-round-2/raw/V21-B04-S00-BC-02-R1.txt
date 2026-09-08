@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-9b5e97bceb847b2d4d81b2d4e6561d39e13983196029139e304519e0648dff03",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks for creative direction, tonal voice, and brand positioning framework — a single identity/positioning artifact, matching Brand / Creative. The text supplies all needed context, reads as a genuine managing director's query, and contains no leakage or instructions on how or by whom the answer should be produced."
+}
+```

@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-da59990728e8ca300bfc708f429a069b5d670cba5bc3963abdbf0b686de75509",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks which of two mutually exclusive, hard-to-reverse commercial models to commit to, matching Strategy / Commitment; terms of both options are supplied in-text and no guidance is given on how or by whom the answer should be produced."
+}
+```

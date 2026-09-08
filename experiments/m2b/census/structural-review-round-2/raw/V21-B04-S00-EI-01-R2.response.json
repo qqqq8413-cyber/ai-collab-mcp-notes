@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-6369435c1be337343b8a6dda57455165549f826b779c704340001887aa8213ef\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario correctly targets Evidence Interpretation by asking what the supplied cohort metrics indicate about the onboarding redesign versus marketing channel shifts. It is self-contained, realistic, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "EpwICpkIARFNMg+0NIIclg3BcsYvP1ptqlh3ZnbGhJY1KD3GjvwltUUqsfKJ46Y5/s0E0mmEu3ubtGT8u7gjxSRJ82recw6v6iryxdiJSA11TgoSYTgT6hxZOAoBtOdbuuB/jqo9WZjSCfmaaPidLjor8eT5FLceoYRSDni+H5LQ9ALEq1Gee6Ii4vpTmYSyC+FuhJHX0hssaJt3rZ+VuEAumGM6NKqy64/bpEmwcTn244UPNV6Fz5IQN1XQsfELRhd6MMGluvccQ8/16SIdeeVoEh8xrZwyvf6MdocJdHI+5VfmiPhxEIoEvCdiygc9pshejJwF1I0NdjmYKtBxFU6uBuEbLJUy2ZM8xSfFF40SmqxdDRDuETHGOWiU8dKNW0NJBhtKECG/VDItd9JqudKuJ4Htm4BVFGoiPUM7Fx41xCxSSPeetMrmJZ7jrkWUHo6UetG4JmtsPbP+5bQlPsvvQw401b63u9jqMBvSifrTMRhgmUDSn516hKMT4vhpK4n4+Z5GFTcD33K1zIa3V9X5/nFGV35Shw1YnHndgLdUTah9VVlcu9VAIKKM85S5Tp9RRnqC9GU3t3Q1/XOeuC2pkCd+HIN10HSvg8PG8suk8hgSDA/eMk2Db6pEJImoeMZxkgIqukbKa5YMPnqWE9ekaFlkf2X1gkkRTo2o3ABXgQ/Nc2PjYdHgLQBBdDvBFREjF67fvo0/JifrkkOKEixRRju0oY49+66gURPtuhigJzMg4B3dgt14HNcmplXpKPwpmSmcYwtpFmQ8elcGfwdnOixc9eYoUCmTmQkL2wxvm1kKOiq5HG10rKZhu91Ue30oBEVJ2cT/cVoSMH70oCKdhL21dCW2CvjNWdBIzEtkOvaooe+YzDkN8xiS/MoWX0WJiWtcgt1O1vsmFMEnEkSeO1fcLBJwvRo726AIME/QLdjYjjQqKbEuz0f/qxdNZEzhqCOxhueW2pe9ApVVpPaLyl+KieYyftkDINTjdv6CwClMW79Vnwlnt4qTc8yYodndKCLug5sTYpVG87ysJzf4VwCsfoMtO86/BzryyIKq3eq1WcK7UsR7/3sZLEASGS9aFJMMOltl1BcieHNXczbSP1ZTZCed+lLuU9lSH6bhCPh3lsOujiNtq92XFyfrKQnWSACtgH5HCSUwRqzL7kN1PWQyUM0IZkDZA5gIXiBtw0u5k0+LjSQdNT+VUD18fmykI05tCiDqYBWAWFPuk7mQZ2gQte9CFZv9oVq7XVs93rPxIrLjrGhBomulcZFqjx4stNU7Cd+Kznre1/USX/TZyJ0IJ40PSMW6XibLZP5qdClg0o9kSqbBfRHyZbBcb0xjbuLAV0I3d6Gh9tuLho9kms67mF+DRy/QQ8lKMfKyg4HBFhA3253Ps/RqJy0="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1591,
+    "candidatesTokenCount": 184,
+    "totalTokenCount": 1967,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1591
+      }
+    ],
+    "thoughtsTokenCount": 192,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "OoyfatO5KqTi1e8Pp7a98Qw"
+}

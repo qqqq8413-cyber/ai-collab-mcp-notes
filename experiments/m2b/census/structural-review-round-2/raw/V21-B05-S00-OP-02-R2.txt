@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-132ba995c02f17e07e7669a11431932012cb3ef00480950a69827b7b86114ac2",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": false,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": false,
+  "reasons": "selfContained is false because the scenario omits critical figures the scheduling request depends on, including fermentation tank capacity (cases per batch) and the specific delivery breakdown across the four SKUs and monthly shipments."
+}
+```

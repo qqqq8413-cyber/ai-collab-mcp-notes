@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-7f2a2d3375beb39070a7f73ae440653eb23bdbc3fa2c384a69cf4429a403514a",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for the design and benefit structure of a loyalty membership offering, matching Product / Service Design. It is realistic, self-contained, and free of steering or experiment leakage."
+}
+```

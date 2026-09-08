@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-6369435c1be337343b8a6dda57455165549f826b779c704340001887aa8213ef",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks what the supplied cohort metrics indicate about the redesign versus acquisition-mix shifts, which is an interpretation of provided data, matching Evidence Interpretation. All figures needed are included, the framing is a plausible internal analytics dispute, and no steering or leakage appears."
+}
+```

@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-d8c6fa55ccfab6bce155759e4b4053aa453d1d63c6a46b3a0c8c918f5a3c3ee3",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The direction is settled (orders committed) and the request is for a production sequencing, line-utilisation and packaging schedule, which is an Operations/Execution artifact. All capacities, volumes, and milestone dates are supplied in the text, the framing is a plausible manufacturing message, and there is no leakage or instruction on how the answer should be produced."
+}
+```

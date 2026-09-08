@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-fe1ab1d9f9db884a288e6cc2dafb61a28bd630d652a4c9c9cc962a51abaddd03",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks for the structure of the Sovereign Pass offering — tiers, entitlements, booking rules, access controls — which is a service design artifact, matching Product / Service Design. Occupancy, inventory and audience details are all supplied in the text, the ask is a single coherent design deliverable, and there is no meta-commentary or instruction on how the answer should be produced."
+}
+```

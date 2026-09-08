@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-282b164402b604483485d681cec0d8c17c4234238d68b9f14157d607dcf97d06\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for the design of an in-house dental membership plan, which accurately aligns with the Product / Service Design category. It is self-contained, realistic, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1401,
+    "candidatesTokenCount": 190,
+    "totalTokenCount": 2246,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1401
+      }
+    ],
+    "thoughtsTokenCount": 655,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "7YufauObNLGi9tMPveq3mA0"
+}

@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-dbe89b0ec4d22b5fe233eba213dae1e710dc14c0a3e3e705c05b06efd86cdb40",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks which of two mutually exclusive, hard-to-reverse directions to commit to, matching Strategy / Commitment; the text supplies all relevant figures, reads as a plausible firm owner's message, and contains no leakage or instructions about how the answer should be produced."
+}
+```

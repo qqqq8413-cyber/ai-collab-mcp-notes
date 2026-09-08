@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-ebfc5ae29787372e19600e34fe4b91fae932e353677ce4030e446b5baffef38d\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario focuses on operational rollout sequencing and shift scheduling for a settled business decision. It is clear, self-contained, realistic, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1318,
+    "candidatesTokenCount": 175,
+    "totalTokenCount": 2044,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1318
+      }
+    ],
+    "thoughtsTokenCount": 551,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "SoufatGLHfHZ1e8Pk8DS0Qo"
+}

@@ -1,0 +1,25 @@
+{
+  "count": 2,
+  "disagreements": [
+    {
+      "taskCandidateId": "V21-B05-S00-OP-02",
+      "blindTaskId": "SR-132ba995c02f17e07e7669a11431932012cb3ef00480950a69827b7b86114ac2",
+      "reviewOrderKey": "6529a5234042c96cee615c39b54e978db834f0aa4d3b1bc54ba102172541e882",
+      "r1OverallPass": true,
+      "r2OverallPass": false,
+      "checkLevelDisagreement": [
+        "selfContained"
+      ]
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-OP-01",
+      "blindTaskId": "SR-8b08e2c8fa6799f0964a9f62bf0fc4ebd096971292f7358e544a8be60ab4705a",
+      "reviewOrderKey": "b3c59f219535ff669b3c30196ed8bc8a7836d194f68290e1183424ce369e789b",
+      "r1OverallPass": true,
+      "r2OverallPass": false,
+      "checkLevelDisagreement": [
+        "selfContained"
+      ]
+    }
+  ]
+}

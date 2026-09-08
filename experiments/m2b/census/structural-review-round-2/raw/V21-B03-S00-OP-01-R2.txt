@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-ebfc5ae29787372e19600e34fe4b91fae932e353677ce4030e446b5baffef38d",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario focuses on operational rollout sequencing and shift scheduling for a settled business decision. It is clear, self-contained, realistic, and free of steering or leakage."
+}
+```

@@ -1,0 +1,35 @@
+{
+  "model": "claude-opus-5",
+  "id": "msg_011CeqKQYMy2xi5Z2YLoZgUE",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "",
+      "signature": "CAIStQMKjgEIERgCKkCqVCDNdL4InU2d064b96bvxFWd/ZdU9myElv5q/oUyynph+SFt8ZR8gvRjLYP/3V3wyRXqpR3AgURUTJ6OlxDQMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiRjZTQ2Y2IxNy00NjE2LTQ3ZGMtYjM0Yi0yNjRiMTk1ZWFkMGKoAcyV/tQGEgxgdwYMtOtWM+6piPIaDGc5cxIDqG0lGwqHUyIwsh4qUlTvSRdjndlzbvrRG8QSt2oPni9OxThwkUm2VJcnGMfsKCwXxMoiptzRpv4GKtMBpXzawZwZQKaDuqFaK6IAwxEcN092D5KHAIWPrCRV4DlUYn/L4cAvwaF3lHNea4SsMGdHWZbkZufVU1PCIKyqYi8srtQrrshUyV3oTobvoWlu7CpJB5TgFdCkPTIWiz2m4/gr0BjKnIabtGeG5WqU3dOtid92J8NMVIWyD1D0BsEryZ1RVzJSwOS5kmXPuTK265ioX7i8eCeGdtzY+1N8LtCzhqGiP5kRRrMB1oV/u2uUO9jv1XWzcBQRFXhtLzWRlTM6a1lSvdqYOgzDjEmTTFQ4gBgB"
+    },
+    {
+      "type": "text",
+      "text": "```json\n{\n  \"taskId\": \"SR-d05cc219915e058bc71efebd6f109cc8710b659ab31aa8edf6c59636d1378bb5\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The final request is a distribution of a fixed pool of 14 headcount across three claimant units, which is squarely resource allocation; all figures needed (requests, current headcount, penalties, revenue at stake) are supplied in the text, and there is no leakage or instruction on how the answer should be produced.\"\n}\n```"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+    "input_tokens": 2253,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 315,
+    "output_tokens_details": {
+      "thinking_tokens": 64
+    },
+    "service_tier": "standard",
+    "inference_geo": "global"
+  }
+}

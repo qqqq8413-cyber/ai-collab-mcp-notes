@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-8b08e2c8fa6799f0964a9f62bf0fc4ebd096971292f7358e544a8be60ab4705a",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": false,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": false,
+  "reasons": "The scenario fails selfContained because it asks for a baking and delivery schedule to meet depot delivery windows, but completely omits the required volume/number of loaves ordered by each supermarket depot."
+}
+```

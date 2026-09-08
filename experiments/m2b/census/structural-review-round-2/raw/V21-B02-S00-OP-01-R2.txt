@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-b8161b26303cbaa3afe993881e8c34c62883c3ee415004e795a2b8470fb15425",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for an operational rollout schedule for an already approved EHR deployment, perfectly matching Operations / Execution. It provides all necessary constraints and context without steering the advisor."
+}
+```

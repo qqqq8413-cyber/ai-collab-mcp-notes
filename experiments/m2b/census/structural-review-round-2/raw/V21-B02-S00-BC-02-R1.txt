@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-40e861d12c279a25fc2ed92a7b93d88a61e2ba2e792dff698fa30ac22c2da5e9",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks for a creative concept, core narrative and brand identity direction — an identity/positioning artifact matching Brand / Creative. It is a single clear request, answerable from the supplied context, plausibly real, and free of leakage or instructions about how or by whom the answer should be produced."
+}
+```

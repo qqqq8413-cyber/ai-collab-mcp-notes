@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-a756b44ece005bf651e99c88e92632d4603cad1b315bd362d44d72d1d957537b\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks how to allocate a finite $150,000 fund across competing claimants, matching Finance / Resource Allocation. It is realistic, self-contained, and free of steering or experimental leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1364,
+    "candidatesTokenCount": 189,
+    "totalTokenCount": 1939,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1364
+      }
+    ],
+    "thoughtsTokenCount": 386,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "Xoqfaqb9J52w1e8PuYuciQo"
+}

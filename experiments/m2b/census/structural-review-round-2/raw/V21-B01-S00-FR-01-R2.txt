@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-613fa6d42b8bd781a832500cd0eae68c60fc925fa15f2c00ec676e10e8c31b12",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks how to allocate a fixed $420,000 capital grant among three competing projects, perfectly matching Finance / Resource Allocation. It is fully self-contained, realistic, and free of steering or leakage."
+}
+```

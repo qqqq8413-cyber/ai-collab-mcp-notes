@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-14b851e6759c43e2f60d6d89039c146341a7deac39ffa9cc1d81e4535ee2bb3f\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks how to allocate a fixed $180,000 capital equipment budget among three competing departmental requests, matching the Finance / Resource Allocation category. It is realistic, self-contained, and free of steering or experiment leakage.\"\n}\n```",
+            "thoughtSignature": "EvAICu0IARFNMg/e95XgWYSZ9VOj/l4rc6SEn8VeJyEyh7T3LfW+Nc8dqo8ufsTVGan5chpyuNKdzmajb53hH8Ag9wa/71LbC5bmiUMadvU0VIm9xxHopfI3FIB4sZEzngZw9wD+8uimFAATPti7PZCVi7W7TLqvvFFfaECJdADo/+3cbrCuFdlf8bTu0+j45gOqoJasmJbp/tG5Z4auyoMR3RFEpFZrU31gQSGHWl5ovcqSPkZ7sSGjGJ4DECGNTaxq+DEf/kG03alc9fhO5Pm0USX4Ag9BMSaYe5BDIQOUOGhDewqmZdyNcHWeLHNnULls2M8p5356w3JVEuux3J5ccOCSg3U17kH/9BgHIuHpJj48bRjN+QVCVXIT5CjbycfLscXhtKmqJk4ncOnLMwgc95N/xa3mk9m/Gn3sDiq8Fj+Lz1fgueuYH6WS98KdB047FpJla2Phap3kPy6KgLKDcoq7/wbrKxB4pR7wr8h36n9PUULbex/zv5dSFxTtSAI0OGkfR5ZVV5wBBqHMDQjmnBs04+kBK73CwTnjZ1AbXfR/S6Ym2kIyim3VWJ4jK7AtnHqwy6ag1cPcfY8DKFoNlAsHrv02YdKcx/kBgjg8+tBkKjmOCDtL3v+pf2K0UUR5WM6P8zI38UX+YO3bloy9FG4KrbU9e6q/FNW5ajarg7GQgMqbsJ9LG/fi2r3rPd0ZIxYCWj5u8/fsptmWrr+6PF0ZW1bBYXsKSm+Vs1/7B2pBXuZoVovEKBFCwdzBuCenMpYTC3wP9gydd2zVJOxUxO2msCeKXU43QTXcjOjQflopMUqjnbqbk4nG5p5+MqBVX03UsBANG9zdFolQeVm27leCAwJ0l2Yy9Xwp3mjh+eymB+d2jGgwWLJvNUOw1T64HhfJ3giDwnkiZo0Vt8Z29ZOdO+cju/pmy6L1tOV0rpsTMCGUYlCQSyHAadT5cvSPhbujVOYagX2caDPBGW9W+/zSP6nrJx8KZFFqS/PGRgOtwg1D6qavxQ8r6EJDIBKeH7jJuJnyDulyFAbVjMgW1WX+FepdT/VV0bTXupENv+2WfFe4E6hvC8Dq6rOcuX2tGG4Mp2Um4mdkkNN0t8GB25xpvpvmNT7IPus/LsOMhusydKm91RUwxuc7OxYCcusqvK36iuXkxMsbr1yE3Qhf0k1uEYBQBqfSB4Cs8wR5M6LdrKjkPxUmfKc682pus5Ziy9C9QCCrABkYjRGqht0/SwJ76+l2ev/IWRT1kI8LtXWlRN+fixommiYqlS3YY4D/aFv+NDVW99ms/guCOmowCnxfOEJmGuZW/5j3rVjYJcPCmy43B7P6uv5NeOB4qjpjOhzXsEewvH1Rc4WV7F2zH8eQZ7DpmEOvvku0bgUVftp98KS4otIML+qJJVZs4vhLzMvPSxXGjTAML2XLp9h4bc5h49eLH5yzFHFT288INzGv01dbLcPvGkv6MG0P/+yESoaR8V7ua61FnQg3vJ6tewRnszWJoKWk1ZR7QhY5IgE="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1387,
+    "candidatesTokenCount": 194,
+    "totalTokenCount": 1849,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1387
+      }
+    ],
+    "thoughtsTokenCount": 268,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "cIufav6nL_uXosUP5dfL2Qo"
+}

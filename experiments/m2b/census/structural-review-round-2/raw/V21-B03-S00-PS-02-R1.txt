@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-d5a0a4f4c167e262ce4391aa7d4f1b5672c1f977bfa28d38397b3320bd3c50bb",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The direction (launch a subscription box) is settled and the final request asks what the offering should contain and how it should be tiered, which is a service scope/tier artifact matching Product / Service Design. The single request is clear, all relevant constraints (authors, space, staffer, survey findings, positioning) are supplied in the text, and there is no leakage or instruction about how or by whom the answer should be produced."
+}
+```

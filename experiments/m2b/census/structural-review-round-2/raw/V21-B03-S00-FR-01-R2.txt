@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-a1316ab24668afc9daebd964846c752a877376e0cd5fc8ed36e96881e9fc4e13",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks how to allocate a fixed $180,000 bequest among competing needs, which matches Finance / Resource Allocation. It is realistic, self-contained, and free of steering or experiment leakage."
+}
+```

@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-2a22127bca07940281dcdbaae3906e17a1b2db13e1b4d8f0e98453b5530d1135",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks what the subscription should include and how many tiers — an offering scope/tier definition, matching Product / Service Design; the direction (launching a subscription) is already settled, and all figures needed (per-visit spend, capacity, sick-visit cost range) are supplied in the text."
+}
+```

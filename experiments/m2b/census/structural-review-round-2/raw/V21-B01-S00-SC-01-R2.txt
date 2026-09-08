@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-dbe89b0ec4d22b5fe233eba213dae1e710dc14c0a3e3e705c05b06efd86cdb40",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for a choice between two mutually exclusive strategic directions, matching the Strategy / Commitment category. It is self-contained, realistic, and free of steering or leakage."
+}
+```

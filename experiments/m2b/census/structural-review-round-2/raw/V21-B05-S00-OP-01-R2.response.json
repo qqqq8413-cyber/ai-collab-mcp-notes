@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-5a7238f523724b5bc0df5092766e0806b5d362772e9c142495ad4c1aaf2eaa6a\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks how to sequence the execution of an already-settled consolidation decision, which perfectly matches Operations / Execution. All constraints are provided and all rubric criteria pass.\"\n}\n```",
+            "thoughtSignature": "ErMJCrAJARFNMg+lPDDinH+LDxg40OOlo1Acr/yoajyvJvrRB7lMJsW4p4oxIylp/yfu99y2V65uqDW9yY4vigDDCi6Gzzm5smP/eqyeEncWpXb14A/4Tvr/QljEigVqYteKV2Hv2of84ZRf82EHj7YEaC47cyAe/ZDdZePSbLf3+m7mX4qrnheeJjBzT/ZIP/f4la30fJh9U7dQRwiPiNtaX8PQ8yIxq3PaPWYwSJplzH8ZDjViiktKXVMKUFFz1eQ098RSXbyt4vW0neZ84MaYyKwrF2buW+E/D5menCfkT0sV71OBOGeTwZMmGHxpnzcVkl8DycZM954j+p23fKvFv/qzetVmoUE79ACW/3Iq0EXiM2XS8Me0O9Lpwk0GySM04gCpXaWj0SJQN2qTXdsS98vkTDrKvJeWqcEdxC+qHk/huynLXqz+q+jpT+k8DSzPrRJ7LTya3j5oTOXTn7klqUuNBEy4YqeKfv/oCX4yXu17jRFXqUhsgPachKp0KHEMw60jsDbyJl5c/bxGT+bAOOGdjqMNYkdeEOi/G6ILYzjcjjRd6bF3qs+c9I78PYK6NcxY9WBTgLXA3lY2BQbTbaBAIbIj3B7X9qMEimeCTZbQ6Bne7VG0NTC9jCZLYMGyd4Sa18/Za2jSNPfFBwCyZYewbidOPtD1nw8zTZCX25RkW1vJJdujSxigLzi2bU2aJBn8oC2aXqu/SiT1H50CIjWWcLP+ZkTkzaCEHcN7mJodoMSQkEqBzsJv9ta0W4GzPaXe7eR8U6xE8r8caaHqnJIeHNw/MRULbk6ZU4/DkWLRA27oLM0z1LWaugWbE3y7huOeziYzw8iinm79zw8WviclFj57b82NZi1f9Qge2lbhYPg4ZiT3QcPbHvU0cK1N7679xP1p6+uJS7nOfSa63plESxKzhFHvN2xQNn5saa6IwYRONrGpTtmaGhTR8Swa0PbiP+0tQEIygJMN+uq4n6N9j8KtLsYi1mfmLnFRiN5XelbIQ14s64OTpfMUZpI/qFFIRhjC5sV7D/rcygAk+CGKfWf2Xy7GXikS11AxBqvn3bttQuQQ9wAAZ888USMy00YiaYIlHcQnqw5TsEhgth9XGUj7nIH5TL+1xr+/2YZZ3rYeny7pxIBTlO+ZkwKyMROykVlcRbJWQXIceoec46LH+QxnoaP/YDNT3Ie5ho3ccbLgoSsjZ9VRXGu/Iyez6TBg+LQUYgi0O4HwK0PlnIwLJS47T/miEsTtADwCRm5W6ZEvkYOeJsE4Ocz/EEzhlRJk5EmdhblMqBSE7GvAkBVLLtxvaXP2CKlNK1MNclIC1H2eXA0AUa4VZgQNyIt9/AMOlKG4uWsFUoYkGgcfRl6dB2Gvh/2lAU5rgFm8yQUNUpfY0rbYwrYIyFOZ0f6Qiu5WcL8Tozhu9pzeRbhKnxtXRowkldf9XbqiR2YKcNbigqYyXkRw7wFMxSjLaAje6v2GT30ajA8s5jLIk0R3UW02w/4b8Xtv87t48xfQ1A5PAiMgKDyNCh8p56MhoPj8GuoEdjc8zkR59UEvERu1Li+wk0A4FniRDkEYMnf++zXAJpoG9zI/ZjmuIz5u+vnlfkba"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1365,
+    "candidatesTokenCount": 179,
+    "totalTokenCount": 1806,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1365
+      }
+    ],
+    "thoughtsTokenCount": 262,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "UYqfavCIFNSM1e8Prc-tmQo"
+}

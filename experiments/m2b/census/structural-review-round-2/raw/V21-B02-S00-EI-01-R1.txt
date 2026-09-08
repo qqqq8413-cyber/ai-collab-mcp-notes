@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-269f4b5ce61e793d615de33ed08948db1bd2acdfd7063bf3fe1f0d3356bad1e7",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks what the supplied split-test data indicates about satisfaction drivers versus churn mechanics, which is an interpretation of provided evidence, matching Evidence Interpretation. All figures needed are included, the framing is a plausible business email, and there is no steering or leakage (the internal split test is described as business context, not as a study of the advisor)."
+}
+```

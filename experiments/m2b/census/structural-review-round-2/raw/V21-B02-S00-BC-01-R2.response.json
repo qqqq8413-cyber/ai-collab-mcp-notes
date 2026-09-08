@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-537383ff2537ae97d5001557f43d0391f619a86f31ce32f9b637df06c9f511e4\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for a brand positioning and creative voice framework, correctly matching the Brand / Creative stratum, and meets all criteria.\"\n}\n```",
+            "thoughtSignature": "EtUKCtIKARFNMg8t5wBfSXZYzfUJrdmTBKqBvdThL4ETk09o3X0CxhWNHqdr7v+5Jq2+Snzze6uI0S676FlXUxilw4vnq3xjxCVziiqv2k7ThOSs7g2QH3zdLJ2r1FuZoulGKP1dyXl1Akx0PTpdp0oM8nO8V+1QU2/oYrQxmEK7NOs2aKGRqBIM4D04GpkoPUDqB2pb7Q19Mk33lD1+GAuvxkGmbZO1XuhfuNjXvvL5cDP4RgLmBp/BpuLkQgMJwsuyDfMX8fS7ivIvu0IaAuS3/G9BFbIV1yg65x64BA6KNnhpWEzTaGaiqTRcV3PGzbdOoxMbzpxpCh2s8W3JUCPkf4vTxa46cgiW7A0f5Avx+9z5Y+iT/4QsugkvbiUiPqjFxAPyzypPxLcBa4f8whXgGKoOZiEV9BH1VS3uIXzGX8SgGrVAx0BeBdBi1iFRETyM9eVJ+fD9BL/8KHeDv5hzR9ErAt+w+b92DP9yhQIDt0cEITuVSi7GPLuLyXGsFLb1Lc79KnncoZ6cYpktphLf5eo9PhxxZCyYHYZO2zeIpV0Br6TDlVv18qY3x3rIsx9Dx2JA0S2buOEG0dFZTv9A/kSCbNAv+/dV3qAe0G6x67Vl9rUU0jWKFthyYlYLq5NTu58un2A/AlOgwq+SUV8o/Wlzl5f/Rj7DBGPRd5RqeLaZc+m80OqWe9kgTesAnkUBRPJEx4Bgno36yJv/FwlAR4Mzv9WIPG9+hWnvUN8WkHQ+PZe0aPZUQ+DonoauALgNi9VhtbSMJ4mTB8F/AqHXupgXNIiX44vy2A3JWOU8VF/oAiv+fFG0oiWqDrVzyP1+G+WaoRBOA9rrjaxcscs/3J+Jsnrus1y8k569p2RKoAqVB89/Pwh/CXrnxKCoVM0pFrkz/KD3V5JOVlWc8Mw3a3v9IEcZR7a1NrHAR4IVqrdHNyil5K7ylkSZXRKYNQiMqz9rJ0j0y9HkD5M6lGju6vvKL7DnYV72k7xIsPjcac53CLBj+tDtWInoTEaNDNg+VUZRFbjWloFl51rXI28ma0MZWbyaKVfGPMY0LbkvMcjuR78crsBGf72AUPUuSY6WYe/iG69uvUBKEKkXPrabsa1j8IYbiQZdpw6IXe18CTh4WCvaK0hmfEL1UgzRLPE1RZ4hKWJmMwlHF+K+QsAH86/PoRL89iv587QsoxYtEDHDBtvb8RzSOrVB0Lh3yczZkwEUs+kxvXuhzHzPJ419mIyNDyx6VVXPtKscni880pQsoNH2wXphR2irESnFjg2J7BuP4kBCfB5zUI4Bd5BOoQYkZHgtmab4BRKAeGs2hQdiNVugBcOFjjZ1xul+4dRSOdKz2aJemZPm4psYt8QS71Ou6PW4h6qUtdZL1BlO1AliLts8KH1gj66OZb9NGqTcmDGVjcSLZTWqHS95mtyMFmiZAC2n6HJizTVLjpsoOM/o/8P9OhRGgQ53Y+J3CnvHzk7EFIDwc06RoTIUdgAvnPiKrYSJ4RkSwwKpRKQQ239jRKzdP+/1/rpfxUXJpi3Mdeso+eW3EMt4xQg3N/815zqYfUFPYb5RgFJnleHPagGnRJNwq36nG3EjBoIBlWLjWpXibd6nqjnzrBwD7dpyMTA3wiTqQj4+u3tcSx/zXn0TdCP9Y4BKmJyMaY2kPbCBLHeCmyGWb89zW5YeFamFAaWMDSf4IzBl1fvK0Yu+1CZJBnpDZrC+DRygmjUPmvhK3cZG2r1W+8QdpclzZBQx+EJtoKwQ7yocSFvDBwIYV6n9CpHEJKLZZrKCpmU5exb8gssgZoedotsIIv8ktuH01KHn0RdQ"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1399,
+    "candidatesTokenCount": 173,
+    "totalTokenCount": 1926,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1399
+      }
+    ],
+    "thoughtsTokenCount": 354,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "nIqfao-7K7WEvr0PuL_vgA0"
+}

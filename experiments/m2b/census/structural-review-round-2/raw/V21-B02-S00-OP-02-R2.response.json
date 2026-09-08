@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-08067e88360aab32fc440943217456d9a03c746d03ac12c02ca9fea0c9bc1bc8\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly requests a detailed daily operational schedule to execute a known production target, which matches Operations / Execution. All necessary constraints and parameters are provided without steering or leakage.\"\n}\n```",
+            "thoughtSignature": "EsIKCr8KARFNMg8ct86pf69V3gCTufokwiqACVumnzWLaNifyvAqrunuBDPdjNuF7K06DBkZS5/QaiR3owzcNxWqeA/76drjNnPFyvZc6BvWpQQUitgppgJmdBya5fxf1Pj1ucMQb0AkUx3rn4pJU8D7LHNlmzjlN4wwJST5kCQ7bfbmT9+9ILgexP5e65t7Tsc0v9Ookd9A5v7M9dA4qJYqpDjkUikU6na/C/zq/FWBLNmyyuAB9EihicgSZKd4TZpXsBoDhghZCdd2nEW2uX1RQ63jVGmDvm0Wvvi+L0NQYIxJbDUmydpwUIlRQZqiggZxcz0TbTsD2b/aSbswVdbw/KxTKAhRan9+wWErU9puQpFlZNQHj02OhquB2Bv6yn7f/xE6HyreDs80MTjLFiQ/ZMZYG5zvLN+BpcQzPa19XoFnkfwSjJAfOGI4u09Bv3BwVPVsAciuGHS9kqP1LcxbWRNltFJe0Tpq1l8GilzM6O5iJa5lmtRCFcuQiXmnwd/l4FVsJNOa6pMG56qIMlIwpAvGny2FoLSO30oTlj/dv8OQf9Oxnd8ewbdabb7Iyb9ieKBnjqucw/BLtxhoGQtYd5g8gMVUuQxqlpdymlrgfED8eCtSex0xBI1ZFj3wfgmZhtyH8fExEnF7iKRQm3aB/FzPJ7GymEKhnM5Nw2KTI27QGpcQds7f51nhxX7sRu1d3Qn7fK02alId2wkxngxN0K9brUPFjyHFiSO/EdKF/TIhdj+6kusPBtLScQTuqQrtxvxoLTHNbMPWBPJFKoupMVoJRNVdO3V2SH0rGFmhta5bqqaEl/9S8u42dNB0gZ8M6i5NE6ssF1lls1gMlbz7le+SBUkEFFigOz9Tony89C40zw7O0HoXjXfraSc0JdcqIbbeizBGhuwt8BUtaNdVX1UTFCIi9wAYTCKj0w5NgvcGdDj/lbAhgI9DXs7Pep6yV5mixOT8sYqs0xaTNwIccxNqInQq3zjC40tvI2ziAfJo2XlLAiqSzqTnZGGzZrXRYWM3DGIRG6S1TLjTSZTCCEb6kFOvfAGPuF0/ZLcAHL6suj3pWoWFLFgSXKkaIf/Sazw0cJKAXfBjECCGmcxoh/lWqjm2o+FlsrC2zqygZNbvLADnHPQObevpZGFYDvYphXRO9xVhkGW7ezrrbUzWBWj2vz0SqmgrIRfEurG9WN2U631+JehSn3hzJdVzxbAVzhB0cUpW3fiDNIzv4/GRdks56G7/MX2XLJR8p9y1wMlGEvl6Qw46/IqGidacyyuaOpvgQO6vhWda6G/KMA9dkOSG5XW2xGwTCynY+7WlLXgT7cyksI2cAceeXmdAH4sfFKqgXX80hSuNcWJTSoBJLRqLd9rLEHz8FXkJ5IwgM5cXWHabrIPxVlAeXcMU0D+Zrhe+FBo+Yb5zKQdpQSqXSkkrxWD539GaAkYgmlE/5MKBQSm/VQaRFgTqZOXqmK5d0eg2DdDvRwHptfzuLY6HQHCj9o4t+UnSPDGnaVvPre9WkmxwkJ6eY1jllLfBOLz6pwN8EPIxPqw0oJDvinIBzoiTOsQzwrGSdyrT2g5NCTpJrKxfbTqRbBMa0RSKcGh3S57Hmcn2NLDsI1xidk8Be/op2fotX6214aRmk4BLiesyQahXW0idp8RVCl2CB0a1C7tRpXc8ifkoVFEHUZHBoq1K+vcLpuy5R8D3wQx3/FpOCPlMx8uOBYCHnq0SrA5mxqBfgO8u7eEQD62949dPTwMg/KxqQ9Fo/wNk/om71pdf03gWCH8SGvgvxYmBwL3K250="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1459,
+    "candidatesTokenCount": 177,
+    "totalTokenCount": 1960,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1459
+      }
+    ],
+    "thoughtsTokenCount": 324,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "t4qfapCwJJqj9tMP0pD2iAo"
+}

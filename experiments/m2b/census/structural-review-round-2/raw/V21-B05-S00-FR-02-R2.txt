@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-14b851e6759c43e2f60d6d89039c146341a7deac39ffa9cc1d81e4535ee2bb3f",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks how to allocate a fixed $180,000 capital equipment budget among three competing departmental requests, matching the Finance / Resource Allocation category. It is realistic, self-contained, and free of steering or experiment leakage."
+}
+```

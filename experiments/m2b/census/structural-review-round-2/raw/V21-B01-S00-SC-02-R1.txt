@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-bb7314846add9af70b9d67bd85aee56566cd741c8705177388bb60d6fc02025c",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks which of two mutually exclusive 18-month directions to commit to, matching Strategy / Commitment; all needed figures (MRR, runway, timeline) are supplied, and the mention of a growth advisor describes the situation rather than directing how the answer should be produced."
+}
+```

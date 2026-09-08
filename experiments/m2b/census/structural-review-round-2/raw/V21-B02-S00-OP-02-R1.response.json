@@ -1,0 +1,35 @@
+{
+  "model": "claude-opus-5",
+  "id": "msg_011CeqKNddfHsmA66pCTaQa6",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "",
+      "signature": "CAISigQKjgEIERgCKkDbGy3QupQjABcRS6oEhh5cd37h43mPj0Cd73kc+rz5KnDAI7LrvJ4AaS2TMEiXDuyGNrUMwRzIvueglwUmEdmoMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiRjZTQ2Y2IxNy00NjE2LTQ3ZGMtYjM0Yi0yNjRiMTk1ZWFkMGKoAbSV/tQGEgzc7uu1Vk+FE+j5HawaDH2Q46x3UIhvZ4WS/CIw70pDvWSXYj2tk8xE5kIJMp6r03qt4ZV5KJBwq7sF1sgBYeTJVM6LznRdLcLEXwu/KqgC3zv5zKkk3rP4s6vfNJeGp8RhDy+EY6FMGQ/znvdystib6SabZP1HcA1d2LIVUIp9fYR+mR9EgPoFExZCJT4u5AtYj4IWcS+nBLVObS4R9njtV+a2mJgBcpDjWyNZH/w8fvuXPCCWAaYyXoRhDcowwJV4VMoDh++rZOGEUHbcOn3ZOJDApm8gplNdjk3n4rqg83FCL9eZBKc7KnXm7qms7FOMu+ui75fQyb/RQ3Tu0Y6k/xpgeSaoJpPSniMb2UiW8ACndS9aHLiHvTeEvd4NwY93nUsSNdT3t2zxPjFe3HY1GlVv1HTDuFvfEyRfnRAxSi0anwzqiPJZpFGc6dhj+CmQkZoapvm8isCEWIkEfDTKlP7+FpEPoO1tG/dtcV/h1qlM3CYptsEYAQ=="
+    },
+    {
+      "type": "text",
+      "text": "```json\n{\n  \"taskId\": \"SR-08067e88360aab32fc440943217456d9a03c746d03ac12c02ca9fea0c9bc1bc8\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The direction (scale to 11,000 loaves/day) is settled and the single final request is a daily production/proofing/baking/packaging schedule, which is an execution artifact fitting Operations. All equipment, timing and capacity figures needed are supplied in the text, it reads as a genuine plant-manager request, and it contains no meta-commentary or instructions about how or by whom the answer should be produced.\"\n}\n```"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+    "input_tokens": 2143,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 392,
+    "output_tokens_details": {
+      "thinking_tokens": 107
+    },
+    "service_tier": "standard",
+    "inference_geo": "global"
+  }
+}

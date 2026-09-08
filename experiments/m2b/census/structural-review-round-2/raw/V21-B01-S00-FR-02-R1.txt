@@ -1,0 +1,11 @@
+{
+  "taskId": "SR-a756b44ece005bf651e99c88e92632d4603cad1b315bd362d44d72d1d957537b",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks how a fixed $150,000 pot should be divided among three claimants, which is squarely Finance / Resource Allocation; all figures and context needed are supplied, and the text contains no leakage or steering about how the answer should be produced."
+}

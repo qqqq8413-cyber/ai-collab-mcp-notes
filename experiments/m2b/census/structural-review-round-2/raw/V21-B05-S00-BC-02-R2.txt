@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-792ac607bc18f51afc68b9aabde034d697141bb29a134a977d69ffe7169adb8c",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario asks for guidance on brand naming and creative identity as the business expands, which directly matches the Brand / Creative category and satisfies all structural criteria."
+}
+```

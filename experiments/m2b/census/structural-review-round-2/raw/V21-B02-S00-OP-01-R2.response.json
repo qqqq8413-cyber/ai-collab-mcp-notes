@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-b8161b26303cbaa3afe993881e8c34c62883c3ee415004e795a2b8470fb15425\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for an operational rollout schedule for an already approved EHR deployment, perfectly matching Operations / Execution. It provides all necessary constraints and context without steering the advisor.\"\n}\n```",
+            "thoughtSignature": "Es0ICsoIARFNMg+Y5jdQ+33B1h3uz9NW/5nDVHUFy/ZfZwuclwRb77wPG/4M4jb71VvQfXDsOvuunnQzU9zod0BB9PBXGampx4Ej6hNF155X1TqpH5mgt/KqVEWIR76feT0chqnlQJIAsLec8XIcVbvWTybO1Qgw1WxJvx3WEWRuKLqJKc5o5txmFbpcxsZ/Xr7g03Pl9XxUbi8en1+dT+lRZyhOcx134gfoPBWhmTDnn9nogqxMQ9yY8EH0Tt/49NMs598m2uQXeuc26Ok20O2tPWgEEyvTx5bKHr3d5+E/RGeDpUkIuABgHmKUqC7zIjRFcnjHd1ZaceZnyB9VQHMY9ba6O5fSD4ElGQ+RdrmVADOiy8rLsGxIIHtMCiXpZQ69zcyda4qOOiSpKJiehY7k2dySx6KDHBADYkNBTZ5L7n7z2cW2xt7u6m3O9h6+Ty00L099LL3f1tqV3YTjrAAq4DBco5FG3xWkBExxX2UsJRr33Jk9PeN6PXHENG3LhsR7F1T/zMUnWOenHo6dqIWqwfxUXwO6uHYpFvexEM/l05utdlMsf3zGTtf5qV5LJOJW2jkXas6YcLhiRyHcV6drc3RpwyjbDEi/o4O3r50XA/ER1TgVHxMVyMZ8y5Ny9pLJctZBNlwMp1k/tidHEyMU2ol7tnNutjAX9gWBlaAMl0OX9zBcxZUgkZXVp3GOy9iw6xRhw7Q56E9a6ssPqZBE8TSsj0kgFSccS1COsV8FMFpVXvD+VuvEJ5qCT2TAosWK5zY62z8Cd8KjLt05eopMwkTByHAbtKGuCeOIXgdQuetAJPC2d56vyFYn0P6SBHFUXTzhqVoF0Og7Oyl6pQxVXYLtwQbVw2M86SmVf7iYglgHFtsbR5Ez/XKdlHRD1TziTfEprl/gYBtUBgi72R9uZy1/AJ3Z9hDnsLdk7t+1vRml5tcKMWxkkSXt5T19rY4jwBtpxqnUw+nC9jD7hQ77YRqpXWh1AwTsFVL6qI6J01xVyW7xY8vi/6+SIS4P0KnXOz0bHQfwLM/7hgKpClEJDV3JxzWzfFqI+7teqRFrMBzZLxHkI7n5tXKdEe6dZiavf7gDlrpmV+4hKJCTGYSrTal/9ADd2RnnE+c8QsoImYaVNcQ1rIugU108xq5E2qEZxwOSh7peWcK/ou3zmaxVCX+w01uo8kYeIfmx9SPX9IlrCcw5r0gmEH6wzsX1+IVtVdACDFFY/jWhnIWDpYLKMJiID0PLaSZit2vM7ooN/AlYaUxWbsMpTsfF2SN4ijPp+25UPpxgp3hHsI92kOBz+BStNDJTwxHqzYaNJ+qOlVmuWu5XjDpGWl137vye9ni/l94cCORKOnvbH6X+45wD08xKIUzELBwOansEnW7iXy4dDBcc6XdWEp2wx7ZW1bWLQPYDDI1xfMv09uaxNSe5CxvisjczTdZh+cgxgXsOTP3/Ny9ygMVQmNR1SPtf"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1451,
+    "candidatesTokenCount": 179,
+    "totalTokenCount": 1833,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1451
+      }
+    ],
+    "thoughtsTokenCount": 203,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "yIqfar3UFKfdvr0P967O8A8"
+}

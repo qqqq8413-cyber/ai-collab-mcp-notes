@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-ef4dc61f0c7d6c6781b49e2a97a82aa035c425919f5aa277c6109e5b07c364dc\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for a choice between two mutually exclusive strategic commitments, matching Strategy / Commitment. All criteria are met.\"\n}\n```",
+            "thoughtSignature": "EvQICvEIARFNMg+1t2nut9BCp2aQ1+ne/jlAfA3KN4iR1XCeFWAoBJRewkt09bfuu7QcBguQFaJ/f6dyjHd62Mva8dyrOAqfZQZvB+tPEaFdBrbmcqXi6dq5jcIAUjPIRoao1aLQU0YM0VcEPSpBApqP659RlWCoGWYN2zjz6MnT9YpABUQGddboML5Cvj2XLA7egsd7Kc3UudTgc05k8xk1ai79YKeWXALdag2D2EXdvUjNl5DrPcht0lZ8SPfW+Nnj5vf+XL5di9mCzM02MvcNCpqFk6dtxKJlgPNQXTLoQ7GTv0UtCs5zhaJOwgcsz2uZBFg0S60zXQUnupelVdrTm0dl0Xadq5tgmMwQJ9dGVrcBxA4WiYBPsIfpMRh/y13ZT6twbfluTa9fpNWa0nKUJdOaVmW1ZH0Z8ZG2MO91kYub6SMD+/XtHMWhJjU8+Xw3i3OYp6I3zYM4Pj95nGpsgvYluHl5g0CUM4M632DK5gTLw3Le9eMkdV0/trxBT2X/s+NlEJqxu+sAMqx+81774jq0RC33zVQHfvINMkoerS+VqeuY+tHIZGNnDE8hBrl3q2eZNPpsMW0500YFaTHYLPviQ9qKHxc/DdClrhcUafzMf4bTIYBngIDa8/VuFKr6zsd4Q57PFBlJ7hYCxeiRsvxDQTcVt+bWk+GPa9e1vRxaCHVmZGAPGw/hMOSKZlsJkQLk4BusDv9ji8EMtjgme5upfLN2knBNWY+oDh7RxzCRK5Urvo9EvJPCuif0ufToTp7lgpDHIf0faDMbfo1zjOBiZOVFYXCSRBR78Tn1JK5M9mNYpUtvPCu5s4HDC1YNXuxKlcFc29xnKZ9CkS03eHlY9juwagYGTctfcOenp/3zcPaMFeQk6HUm4ERjlDaE7edQcG2711leVRuNiIzy80cgWPsheSGjQGcDiQ36P2Ll09rd3Fq2F1azQ+cVph392Aa4wovtWTRhuW19BtN/9Olo7XdE7nn1KnmZDae1Il1N51+TClYjtueYW+6sAbKO1cUdAAxHvhlAGqjxVlXmqZ9Ofyp7PABWEiCTIdjRemL76Xe4Ii/H+RE1MXJjMZHXT4xuvZ2B4wOIlis7f87oCA5Lk2nhrYgfbkLgvZbFsvWx5RECXatM3qHwwpsAlJdz85rDK9j+Nf5aXNBf+UaXnocogwalpp4pzlRL83epTR2cq/kj6LWPSthDUEEIzolvqBASAe7e8Lr7Neh6l5HVZajxNnk8N9yNQc//FPyz3WsMQzHQ/3pfROT11avKpfN4NjaM3iRksJeJNfit+c8OqW6sPlGFcHej5qbgFbOBg722s0Wp71bJzAHGxTf5Diiq/TEAyFU24/VMFen3IJMlCpKoKRmPu+DnOHwtFeO0LYlwobhwV+2MeAjZHzEAx8E7I61+tLvKZszx99aTimSpTHqPigmjQhYVLbyD7rrMrFzk5alrV2DVv8AuynWcfgMNqYzQlxBh62+/6Qo+q5dunfyTweC4vXW/7daMtk6gkN8Q5Ipk"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1335,
+    "candidatesTokenCount": 170,
+    "totalTokenCount": 1735,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1335
+      }
+    ],
+    "thoughtsTokenCount": 230,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "wYufavO0MbSNvr0PrfnDmA0"
+}

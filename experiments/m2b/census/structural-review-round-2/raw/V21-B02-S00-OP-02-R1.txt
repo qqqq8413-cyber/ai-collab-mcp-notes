@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-08067e88360aab32fc440943217456d9a03c746d03ac12c02ca9fea0c9bc1bc8",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The direction (scale to 11,000 loaves/day) is settled and the single final request is a daily production/proofing/baking/packaging schedule, which is an execution artifact fitting Operations. All equipment, timing and capacity figures needed are supplied in the text, it reads as a genuine plant-manager request, and it contains no meta-commentary or instructions about how or by whom the answer should be produced."
+}
+```

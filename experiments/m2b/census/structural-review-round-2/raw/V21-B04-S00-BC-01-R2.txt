@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-ecb1b8af6b1ede4f997f0ae754bddfab3d324bbdabc2c9186c37278560eea343",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly requests brand architecture, naming, positioning, and tonal direction, which directly matches the Brand / Creative category. It is self-contained, realistic, and free of steering or experiment leakage."
+}
+```

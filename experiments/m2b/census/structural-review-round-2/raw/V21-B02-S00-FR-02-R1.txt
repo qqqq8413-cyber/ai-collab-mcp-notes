@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-edbddefab175ad7cc52aa4e38e51a510bf6a3162a94084b78ba6a7eb7f589976",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request is how to split a fixed pot of 16 approved headcount among four competing departmental claimants, which matches Finance / Resource Allocation. It is a single clear request, all figures needed are supplied in the text, it reads as a genuine internal planning question, and it contains no leakage or instructions about how the answer should be produced."
+}
+```

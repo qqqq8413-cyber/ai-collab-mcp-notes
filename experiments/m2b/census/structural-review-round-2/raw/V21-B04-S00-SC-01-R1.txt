@@ -1,0 +1,11 @@
+{
+  "taskId": "SR-ec917958e7a71c40b546ac9ef3e2755d7fa6f780df9c83db6bc65d0ec56ee4ec",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks for a commitment between two mutually exclusive, irreversible capital paths, matching Strategy / Commitment; all figures needed are supplied in the text and no steering or leakage is present."
+}

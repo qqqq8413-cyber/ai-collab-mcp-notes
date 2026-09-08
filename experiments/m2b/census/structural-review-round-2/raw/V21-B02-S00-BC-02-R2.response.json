@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-40e861d12c279a25fc2ed92a7b93d88a61e2ba2e792dff698fa30ac22c2da5e9\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly requests a brand identity direction and creative concept, which matches Brand / Creative, and it meets all operational criteria.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1347,
+    "candidatesTokenCount": 169,
+    "totalTokenCount": 1871,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1347
+      }
+    ],
+    "thoughtsTokenCount": 355,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "_4ufarelGqfdvr0P967O8A8"
+}

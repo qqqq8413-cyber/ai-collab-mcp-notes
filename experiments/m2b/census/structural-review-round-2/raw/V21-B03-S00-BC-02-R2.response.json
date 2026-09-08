@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-24cd11285fe70ea6e9739bd03192a6b08557a642e1e6f22f59521abd8d322c4a\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for brand voice and identity guidance, matching the Brand / Creative category, and meets all realism and structural criteria.\"\n}\n```",
+            "thoughtSignature": "EpIFCo8FARFNMg9K6jAQbaYAMaFFbYHeoXumW4YJV8NGYNDmq44PHX3wnN6kN6loAlUKcPgpzbisY2oeDE2dzoabrY6jTsO0rpqBcf/EByei/iog8wxNYQ/mwXKoBUmlAd4DsjT2rD41WmMh7af8gCwENBKNjbI8XwCmQesa1+CLkuxLi3ZzfklHQ+9yQohxnf8TTlIguc6FaySGglP4R7rst6SfiLmW0t3nUNfDU3PSIqzptVdqtL9nnTX5U+CbXNtzLyZgGVp0gRXSXR1kRG0MdSd/jzm3jWMCWWcs6Cy3/Vo4Nb8c66L39L2j8G9baEVjdIi7KzP871NsAPIVQ/LtjWQ1cOzOlrlgJubeuEZt7gkEHu7wtOuQDx54LIQq1to6ySx7eo3IDrqGg3IG89A2rAWsgUlC2wvyBJfL2DNiGSqoF3MX7Ie64+bjXTfRgRamSQguZM+sluu+ktBFvCj7bkfwB9Y1EO0dsAUz+hZ4+oRlcQFBRuVK2rrUaKg80+DbSdUQkCqpUwnzaf86oExwwlNwYoTeMQWbAyGkjM6eui5KT+iamYzxlXkqYVI6CoRrFTRppdTMwzn35OVvB+cZiQ+KTpr7emyBCWWxZ58EwOK3Ye39P1vwAuTf1HEZH4UnWT8fMCNPW+3S4PuWPDqnhWPqnUInMLyP0As0YNUnwhIZ2CFDxNEeo/0+4YRTwiPMlG1vdcvYhXu6cUpYD8QFjAXDPfEXD7Zzd6o5BO0YPbWZWNb+g1nRtIAVMYCTdDTLha3ronfgHoSYnMgIss8w+kVqoNvUcF+OL6o4uBzkdZVmSrjbKzZCSKOmQ9CdMvz1fINphHe3FIl2JNQtvdonJrdHo2DHMPlT7wu+KDT/O75oSQ=="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1352,
+    "candidatesTokenCount": 170,
+    "totalTokenCount": 1647,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1352
+      }
+    ],
+    "thoughtsTokenCount": 125,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "f4qfatu5MPeM1e8P9ZyI0Qw"
+}

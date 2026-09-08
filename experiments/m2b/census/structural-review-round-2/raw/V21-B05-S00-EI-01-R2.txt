@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-a9acb2b2bf16942b8ce3937a907e94c75bd18153151d802c23565e82247309f1",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks what the supplied confounding data can and cannot prove regarding program impact, perfectly matching Evidence Interpretation. It is self-contained, realistic, and free of steering or leakage."
+}
+```

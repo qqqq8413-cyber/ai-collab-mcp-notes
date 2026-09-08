@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-00717eaec5aa622ec8bd505ebce7b59f75b1fad04d5d3ab26f93815f5b2bbafb",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for brand positioning guidance, matching the Brand / Creative stratum, and meets all realism, self-containment, and structural criteria without steering."
+}
+```

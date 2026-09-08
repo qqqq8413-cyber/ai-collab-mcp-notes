@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-ad463f5beadf3f6c157fe780edfb534252b08c8cc95f0a1b63f220d0dc8565a1\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for a choice between two mutually exclusive, irreversible strategic paths. It is realistic, self-contained, and free of leakage or specialist steering.\"\n}\n```",
+            "thoughtSignature": "EtoFCtcFARFNMg989h5JWknQ9JjKc3HLnB2g1ymHaB+4KQA8+mpDT6CO1pK8m6dBs06ENOppbnGZPty3iR2DrpdUmiaI/6qrerlB5q5sFfqRH2a5EqhKrPMk43nrcnEaxB7mXVWYpjA9sTQzBaPwvzmDyYMU/+hulKMRj4wDEqYYQpKC9rmDmpTLNhUB8OeBT9zscMRbkfHReMb8y48vxCAzKbkJ8Gl8Vga115l+4ZRBKXroWR+4dMNBvYYGoJ3kjvat/Sua8NZjA1y08AcFvQrfRtt696f2qQIJa2Wly4+ZFu0yvuVyOQ/Ickh+0S8pXS3+jgPPMINOSESZlZIZSiJaxhUSni8o1+evFbP2ybuGb28NZ0cTlBNN8T74AsgNAboX1UliIGh9tWbMiGgDg0LaNsPYL4T9LIU66xuw6Pv6EbPMb+WxoN3ucADjUty1P12m/5B7s/CkKfb9sIURJvXwhfYZn1vfGHn8Rzk8KJqAs1r32kE8ziwunhUwYFGB3xW3QCfk2sXGkfsWXygub7ZTK/QVf7buWfEDFSFe9mhs+96Ft1/EcpsUA6TJwR+tP4fg6QQv6esi194KnsXMrzkjzwWTcY6t13+uxKDR5nBmvXSh1LCXnPFI5bK4/IfcOTAazJGr9IJTRJ9PEtKDde4gqsWALV1lFLXz+uhgfMPvggBM9ZPHvCV4K2di9Tt5eL5OTEAtqflX27khm/TaKsLVr2C4ic8iRS2jetwVt4Kf77+kCZjdbw5PnBRxXjrxWlg6pXoToWIgDnzwPCN/ab6Xgt/bIwZfBs6KGz4pSSr7EnZN4ZZt/ZYEGbK3lqN6eTMjBOSdU99G4TztUtHfUbn3U1A60rqE2W5ItsQPsQV/YDfQFTx9jduUYA3PhpY/U8cjWg27V7Hd4GnknYs/NsytzliIfnxKBpOW3LM0jbKxbu1KfRMS1OWoecD4gDnsA+pP9qwW1pdgOSeQFA=="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1345,
+    "candidatesTokenCount": 174,
+    "totalTokenCount": 1650,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1345
+      }
+    ],
+    "thoughtsTokenCount": 131,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "UYufaui0OO_dvr0PlvPKoQo"
+}

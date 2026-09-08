@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-40e861d12c279a25fc2ed92a7b93d88a61e2ba2e792dff698fa30ac22c2da5e9",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly requests a brand identity direction and creative concept, which matches Brand / Creative, and it meets all operational criteria."
+}
+```

@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-132ba995c02f17e07e7669a11431932012cb3ef00480950a69827b7b86114ac2",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The direction (tripling production under a signed contract) is settled and the single final request is a production/shipment schedule, which is Operations/Execution. All constraints are stated in the text, it reads as a genuine winery planning question, and there is no leakage or instruction about how or by whom the answer should be produced."
+}
+```

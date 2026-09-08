@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-792ac607bc18f51afc68b9aabde034d697141bb29a134a977d69ffe7169adb8c\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario asks for guidance on brand naming and creative identity as the business expands, which directly matches the Brand / Creative category and satisfies all structural criteria.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1350,
+    "candidatesTokenCount": 171,
+    "totalTokenCount": 2163,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1350
+      }
+    ],
+    "thoughtsTokenCount": 642,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "5Yufaur0Aruj9tMPkLKDyQ4"
+}

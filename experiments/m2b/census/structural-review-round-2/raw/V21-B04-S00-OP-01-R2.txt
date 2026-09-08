@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-c757afa713112547ed2f9f185ec05190da4805d65272bf70c31b57cd4eb27c1d",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario requests an operational staging and crew sequencing plan to execute an already-approved rollout, correctly fitting Operations / Execution. All constraints and data are self-contained and realistic."
+}
+```

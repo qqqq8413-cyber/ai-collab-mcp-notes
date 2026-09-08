@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-edbddefab175ad7cc52aa4e38e51a510bf6a3162a94084b78ba6a7eb7f589976",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks how to allocate a fixed headcount budget across competing departments, fitting Finance / Resource Allocation cleanly without leakage or steering."
+}
+```

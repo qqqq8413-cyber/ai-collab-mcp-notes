@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-214712513f8c9ed866f854ceb6ee38f6865edfc1e9751363759055c87a7ddd66\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks for a decision between two mutually exclusive, costly-to-reverse paths, aligning perfectly with Strategy / Commitment without any steering or leakage.\"\n}\n```",
+            "thoughtSignature": "Et4NCtsNARFNMg/QcnxqgKPc4YsQpp0/Y1RQaWhJUg1N4zOYGqv2rvNwDVTWtFaznJfVlaOdZ5+UU5gL8X9C/quFePFe/gh7MYmwIHB/pHJy714DfNyUGj4ZJPOIddIpiBSCBmgWvREmjHrc3DlwMeHbFqHevz1pF/PIQ7LEAOVMeOYj8p/s5UbrJvYlauLvtLcGdvQ06XENvp0Dn3Xo7vSADDyFhEw5l1SDOUbhvVKBMBbrRmk/HqT8bEgpcB0/R2sdLkW36kvGfkOVzUwxE8JCdy8KMHQmDaEDWiSd1JaPFnNW6oaGxrVpxXRLuWI1HmKlTFA75UEC6Y+aPrh9cnIQ+5JhW63kNyx4dzoQS1CwOm2/Mu8BFSjTSypWX8fSk7g3OveCcS7vI5KhvgvwZFpujcqqaWsvQx67KWx/SFEuBzJd3an23/r1ZFT6Rtd2GpFxYJIpzoSTDlDvT4UE8mI6CuYhvvKBFMKCHmpTO4e2fIythf6WP+WW4yjnDk/RAYgadvszZDAEF+6FLeZNFwF7/XlRlGyKQzcnIqH02LosbD2ZqywRAuvl4wdgAhPgB62T281noiYvazTG4T1y1HG0ky1SyX4O3EAKYZgwk24lzgPYHk61eeUKQ/J7yPpu3l2ee7kpsP5dSP8fTc/njASahQbauTjNh/3hJuJSCOijBbkCTIlgPg+DYSEk8UU3FAPWD68lRKGkDfq3x8Z83XO5t5XVXDbM75qu1JWbos0n4xUhNfv6p2A3Nsd9GrvUIy6zePcyl00UYOTngnZOIj0iZGO5lPI+DU+i2WSXi7wVgzJxPZIJhtcTNr5LaeaWy/AYDT17xiNIhyY+55BjsKdZr/bE3BbOrFmOUy2iPHEDxKz/+GySRlDNu3Eo/kbDm4LV5rUPLieL8mlWE41JsWoWgC9uwbx8ySMR7Qa1E+AEgM8DcT9RmeB3UDti6zm4KXs9DRMWeLnmojG6cf2tTHJAS1YDj0Y/FAqyfQlOX6hT9/bMoULo8bbAzHkNmNW+s45IKatL4XEvfuWVABZDWvYbnGr71imlWdiQ5NZsdNPC0tfab6joLUzkHL3+1UGo5WLD69jrStJylSSSWXMYtQqTM1TxB42bfBNqvLEa/ih947ArKjUFPCJkz43RZzFBdzGjXSjjQYBq+uFWVo9unxuWfuGufu8YSB/9gyqlCtCnhIeyWM+L0YYHZIuQKQWYN0DeNiHzndKAnBZ5LKV4dAePOJLSujVhOYOgBbNrL+JNC5BVYdXWsWrJUTdGlb1lqy8Rf1+nM0trbW8F41JwJ6imhORn8kypGJarWA353etPwCT3MWy2CmSdFla6yhA267vpYS6SGM6jmMWZw995WJXPD3iCa5myEPCn1QH3o0LZoLMFdjDk2OODnSBMfXeqoVfSRO+XmQ43pTIl6prkmN5UG37jilqN6n72R2LDEYm35KQ7Qk0Xt4P25E5u7J0LaVohzTnaStveuXJuwor8eTZscUJ8/1NvbfSSWnJRKf+2UiWsYMk/IlqWJk2WV3C4fPJHP3hqlLnqDTI0srU0rLwieF1z1GK9/iE14nh3MtmM7trULVlxTr30LZdc+JiTvXn3a0CmOprxSaCF4pRk6q2iUX2YuGYqEX2IJMFxmVFS+00Bl+Hfie4fDXqQ3hf8rgBCFJiEtme1jB8cKpqD3HtkUpaKJgDjW931pMz+FiwpJC+R39nnMEWzx2xqI0srNOReGucSjoubcFIr0ZH9HBcyJo7eM4BKD98zRBLfVvVS4DLsvFQ7sKHs1P/nUXBojUrZ6X9MohszX0LuAGUOdUGlW5wDM3eb+BTsP6QMva3jBtApR9xMvNr6Njs0KJAtmyenpO1/UoJ1f424Caez/M2eJdc6+fufB/Slw9IXohZze0Dewbe/b7dVTYnNxPKcpmhsLGchrw70ENlZZ/H0HqeniosnWPUA9aQbjXWjE5dcumMo27rHQ7vB+Idwxsno/fqxVmnNNYfz1LpCIko3NK7P9NOxAhRalhnx++fSqJi/f5RKi6+VxYHiXErIbwb3anBPXn1QLeyquPw5Tfhs8YjGHJUfL79pURggVwjNxjxqxFynUom1egL7miy00q6oVnCWbXuJZaI0VZKidxmO+bWVVUuSSv25hZ/WgbrgjyakrFdw65ZvonlMfJ7TSGkqkq1jsDqnOiEq6ku1aQFGTwVtJhHR1VQpJMi6l2651NYTqjypcY7RHlEs8vvuoULSxK4pwof/sD8/ED6S785/hF23ZbCPKf8Tj8mPgnE6eh/H890WShHYtkH2J4EIpVQVKXNwrVWtazUhN5VIM6dgv38sf/kfygx04blX9gQO59VE"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1454,
+    "candidatesTokenCount": 175,
+    "totalTokenCount": 2024,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1454
+      }
+    ],
+    "thoughtsTokenCount": 395,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "ZYqfapS8AvbX1e8Prc-umA0"
+}

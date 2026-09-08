@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-6369435c1be337343b8a6dda57455165549f826b779c704340001887aa8213ef",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario correctly targets Evidence Interpretation by asking what the supplied cohort metrics indicate about the onboarding redesign versus marketing channel shifts. It is self-contained, realistic, and free of steering or leakage."
+}
+```

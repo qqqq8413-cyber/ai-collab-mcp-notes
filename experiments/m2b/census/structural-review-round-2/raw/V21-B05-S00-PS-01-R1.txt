@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-6715f92cfbdb92a64418570bbe501772b47b55fea4632d6118e1fcce87f67318",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The direction (offer advisory services) is settled and the final request asks what the offering should include, how it should be tiered, and how the engagement model should work — a service design artifact, matching the assigned category. It is self-contained, plausibly worded, free of leakage, and gives no instruction on how or by whom the answer should be produced."
+}
+```

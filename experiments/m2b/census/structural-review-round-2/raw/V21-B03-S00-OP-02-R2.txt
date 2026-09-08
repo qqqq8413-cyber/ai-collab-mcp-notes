@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-2ccf53c28e922ab380382e1c92eca14a5a19c3888f2e5f98e11424f0cecdc387",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario asks for an operational rollout sequencing and scheduling plan for a settled expansion decision, with all necessary constraints and context provided."
+}
+```

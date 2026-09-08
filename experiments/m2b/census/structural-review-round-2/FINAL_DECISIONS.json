@@ -1,0 +1,708 @@
+{
+  "decisions": [
+    {
+      "taskCandidateId": "V21-B01-S00-OP-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-FR-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-SC-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-BC-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-BC-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-OP-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-SC-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-FR-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-SC-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-BC-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-EI-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-BC-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-SC-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-EI-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-BC-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-FR-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-OP-02",
+      "status": "PENDING_R3"
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-OP-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-PS-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-OP-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-FR-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-FR-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-FR-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-FR-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-EI-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-BC-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-PS-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-BC-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-PS-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-FR-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-SC-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-EI-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-OP-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-SC-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-PS-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-PS-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-PS-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-FR-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-PS-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-EI-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-OP-01",
+      "status": "PENDING_R3"
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-OP-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-OP-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-SC-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-OP-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-SC-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-EI-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B01-S00-SC-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-SC-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-BC-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-PS-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-BC-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-EI-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-BC-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-PS-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-PS-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B05-S00-EI-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B04-S00-EI-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B02-S00-EI-02",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    },
+    {
+      "taskCandidateId": "V21-B03-S00-FR-01",
+      "status": "FINAL",
+      "finalPass": true,
+      "decision": {
+        "ok": true,
+        "finalPass": true,
+        "disagreement": false,
+        "r3Required": false,
+        "checkLevelDisagreement": []
+      }
+    }
+  ]
+}

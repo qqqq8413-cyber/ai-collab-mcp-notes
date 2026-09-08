@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-3f4bd81bff5dc116301a71c2411fa423bf2b4423933a0bb165fbd2c76457418b",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks for the structure, tiers, inclusions, pricing mechanics and terms of a membership offering — an offering-design artifact, matching Product / Service Design. It is a single clear request, answerable from the supplied context, plausibly sent by a practice owner, and contains no leakage or instructions about how the answer should be produced."
+}
+```

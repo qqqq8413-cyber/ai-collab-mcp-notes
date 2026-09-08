@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-1df1938c8a418f5097ecc5b73e28debd7683da4b130d586a240db51f9d7bde92\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks how to divide a fixed $2.4M capital pot among competing proposals, fitting Finance / Resource Allocation. It is realistic, self-contained, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "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"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1558,
+    "candidatesTokenCount": 184,
+    "totalTokenCount": 2190,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1558
+      }
+    ],
+    "thoughtsTokenCount": 448,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "1oqfauTDEeet9tMPve3Q-Qw"
+}

@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-7986115efa78ad9cb1af99e04bef31124c1f0470c456fd1e251ff35aa288a20f",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for an interpretation of confounded retention data, matching Evidence Interpretation. It is self-contained, realistic, and free of steering or leakage."
+}
+```

@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-c757afa713112547ed2f9f185ec05190da4805d65272bf70c31b57cd4eb27c1d\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario requests an operational staging and crew sequencing plan to execute an already-approved rollout, correctly fitting Operations / Execution. All constraints and data are self-contained and realistic.\"\n}\n```",
+            "thoughtSignature": "EpsJCpgJARFNMg/g+BdsWZ7daLcNCgpmkPaNMVFcb6A42F8suvyQrp7gg0p9z5yWeufLZ/mFjOKSIpLdVt62Y4UzKcetLaj6U/dg3G8c+ce+o19gTmoqyw/0S0FMghurU5+FSZhCjllH3XYT3BT4FenOQbE4Tdy1YP2oZUxRwgzEafwwRBdwKi0qztPQaBJ6zGDNlTIbBMU5LM4eThf/5fUQuJLRznTfQxxnzLfn4dPVua89Q4gHHDQ39ID+NE+1wN6bWhqa+PJTVFuV+j68m3bR1JKLr8e8dM1BZse0L7YEGOU/j7EOnHC5rGV2FLKEz+GdqcctC9xIbaNBCcxUEaQYQX1GNiiCcYhTuO8/bBGEh+fARpyRU4Zm5L2zl6SnlMgDwasiWewoPg3PbHQXqXUtJ/EabTN8U20Ou0iwXPXCH+PgyaPx/uLxWWchYxxcuKuUEt60OfQO86kRZ4A6r/alyG7/Z3YcZ3VYeiX2bMt3vlJjcd3gNAeEVjSrIYqa83YsZ7qEy0SnqYuWYcMMkZeanXENfUTXBpS/tCv9jlA/8nM8qn882ye23niTQWrFAgGu15tDM+mMzr/aN2iDcPLgfKq4IOSoir8aGdZFRrg/HdoKO0J690Ynb+kpzGM9USr+ZVccyMtdx3JduNumCuH7ZuI6XvI6FEGKNIWbxpyfe9mIKyn3b+4/Xszrl6PMC6KeCR/dIAGlQ9yl4L+TfRiKpCOs0YqtPrI8Nfn/NwXcRPGeBWO4fQ5xv0/4jyLwcttPHJsNZp9RoXB0gF/JPmyrGcWaovvTbyDpYcjGhBS2TnGLMtteupSdRvhpQ7JBJj39szuX3VKY2NzuTVaJXSxuadRHsCZT4cJWeC3o8pF/chYRUO5qEf3P5PsNrjTpBEzJL8g8pk5vtMpnLiEO0Ud8DVYPLOZu8dRr8HjCD3x8mRGt0A+a10FX90lxlDb4GvmE6xrzKtG7kl2rvHI7Y5NUcvdFZW3hbF8Vj7vbSSyMGjaRP8a+1GuLYOpk8Bsa+0J5QUTBKIhyyYn0L2o2SVtozL43PGMrusPOexvUjWE+Eg6kW6Ii9Qoq02OxCZzR9ckS3hjwP1uY/sCYYbtedZJi/oskzQHGRRoNfTQ2s29CrOw7Wd92kaYZjIw/CFG9Reknujg0JGBTjc4GhGZXmUuUQ/odZ7LeUdbvpAqft9BguYUqEY6YYpB/gcU/Q6PB3rTRKDvtefnbU2IlPoz/+IdE8qZYcEewpjfqi8F8Gq/Zq0gWi2ajwNYT3h1PBF8Tfmx8QjUEg63lWjWX0VsMht+cllmaKSfpcpyJD6dE7gx5MgdOvq8X79GQCRcO/IZE3HKV13kuZyupuqLrmCSL2KNwJE7QDGseVZz+r73YdDm4rTSt5S/rFNrqvvYdLjXJrPZ/kWGxBLOUM0EUqZIvK1jj4Bm40/wghYObIietzukbBwtevIUD9sWSYf44UZRQzfSfHRXHuhm1vaqJl28yPLtEbaabWdhlLLeiIxFb8Ug1HTdDlkPQQHq0aISO7m8hXj/cPqaymmiTC3voQ5of1P/Lb0NNaZCrs4MW2KBP"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1572,
+    "candidatesTokenCount": 178,
+    "totalTokenCount": 1967,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1572
+      }
+    ],
+    "thoughtsTokenCount": 217,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "q4ufarLyDt-n1e8P0ombgA0"
+}

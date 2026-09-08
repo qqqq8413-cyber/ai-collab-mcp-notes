@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-d69a4049bb6795a84fe6248923908a2d55330c83e41c975aea4e8c825a840086",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for the product structure and service design of a new B2B membership tier, matching the assigned stratum. It is realistic, self-contained, and free of steering or leakage."
+}
+```

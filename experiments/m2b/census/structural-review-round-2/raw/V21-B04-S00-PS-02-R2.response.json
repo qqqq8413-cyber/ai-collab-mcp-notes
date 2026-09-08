@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-3f4bd81bff5dc116301a71c2411fa423bf2b4423933a0bb165fbd2c76457418b\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario cleanly matches Product / Service Design by requesting the tier structure, clinical scope, and terms of an in-house dental membership plan. It is realistic, self-contained, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "Er8bCrwbARFNMg+fwNufZndu9r0E6x9CRIF+ZsbJvYyFN99sNzSQXQukjbStHFON/vVDXn/wX5Rp+KQM3+fiL8npJ0GYKf0Fassiasa7ARiJBSR9KXXKIEmtgQVoqFnBqf3KNLNIrURjsd2Hc+ypoZk0OH3oVrJHKUSSkSlziCScd+IDmy+v+drF/y6tnFd5iGQAHIYMH+NcOhZP6jXSeG37S0r9ug8hWIUNVTpsca514x6MJHezds9kbMTmscET6FVjSDqAvAGsM8Mnf05KiJYoOXjFUSDFqKuRsx0fxt00u4Hd3s8sIpoh6rMOU77GlRDgA49Y8L0fLcLSsMCdaqHCxKUfEUtOjCD88vPmJ+YRwcrXKHYItsVtdL6sYS5UC2Ag8/sJu2PKM1s3wrJFRroAJxvolVN5KJDH+B87xhGEB2QtW69o/NV9r+eMTd3ADi2r1l2olDhYSoKMg93cgKqPt2aFDDeBDOrUbO+Xi3ddIsLvVIv0x8XtJs5MfaxlHFmHAA1HXtlmyssywUdPbpbqzQ1K5PQ0q8ykshJ0kHzF3k6Kr8RCYFIVsIvRVHxERLP6u6fVlR0f5THOUmMKjT5CTXuvm0Z4mywVji39uQAxj5rnbxlc9w4L8QMrBK8GpFPfClTIGiffxo908C7X/mmUXNol99J+voK9yO6kPrr3iatK/o0jk8uTHSHtEs8BUqPXKpf+59owIhyXkbz5Wy33isuZ2cfCjT1Uc/WQX2+FuF97S6PsETdmvOoNJ4eX7oJmCrImBUYrYSyK7/6swISJbJ9VjeJgH+miLmePono5SUnGmuRUfLOwPBsMdP3kl20LIDxvh8/ZYTTwLdcs+8LDJp2jeLSJ2lRhjQJhApTYOFw1jWKphRk37M39eBQOyv4a1EHDpDvL2HKly1t0f2c36C9KiiZl1zG9/K9RJAcZyf7EVImdALIXbFZVSWKelf2QiEVkkPY7UmGWtilC2SvOxO98anaO0W/yIZpgDeSXMbciUuddvoVnmrZltsqWZINfTy7iqdyHzs+fkxZ9EvqfdojvKQ97CeV0wwR2q2iix9Pfzcyn7BmC1v2XHxOZXsXnUWIfI/8eYCZk62aNeeKfTKPmG/hHKR7OkJIiMO81eCnebLhRWLzl5sdDdVGHtwUTFLybMesXugDB8pMQ964/F/YO6AuI86dL+T2Cef9ymMoDpyvU10L/O235ZFep/kMbbWVCwsRW9/m8Hg5FA6f01x2oOslgpRfer9VLrtMdAh9QD6LMpaNRNGUv/zNTNOz5l2dnxL75d0wp+VwGPE7JeMnjEUI8tAEBuR4P49MutDMXJtx+6guLWLN1QXULUewGJxYAozUHCHcAmOThqxwJTwBKqtB4Qo7LGrmuKtA6EQfn9h+dzB272J2W99ERMyyDtMEfMdQYoHnp0Mgj7G8/aRy3gS0f1UCoK8/Kfw77vVKY1QDEjwcZBQTIbQFfrJRlHYfXT6FqLMeLfTwGTKCDaZoRjp5i61flBxH7aRG1G0o3uYeDAjCCnqNA0vyEDfCEYmno7qc9ljfSL/3PvYxEtB4EylusfBy+98KIInXBUugskm6ILit/I+yYXyYP0c/0vCT4FA6iXM5HOJIdddTwnICUA2WUUelyeTzKqtS51OO52f6xNAu3so8xz+ap5EFF238n2SiNdHs6lP5JKIRJKPXSi6FoAibK7w0Sr6OtMdMkSs8g2xQ+N/iaZQHgWHvb+2ZTRTQtm0wG1LHrG3Wd3rFfmBDCZHhOv9sIPWQfTXoC7h+mG27BL3/h+Nv+WwSdH2CAfkN754bgIWEbnkFhvGHzE1PNJJhEy0pih4PoaeBMdnxV61oMeJ8jN3e9anxv7DdJ9CwxSdgPFJmpt/x5/THbQ9vb/lWz/6yN1cP+C3NFdaz9g35qf4TCBVaqv62qSAiGaMYSxHoRPo7bDAZ/AHGRPl4Mt+iNSc/sL/qiwqVycq/2C2teuemxJW5Sgu+aZeY0h/NVW2qCEGDTpTsvWQaUFnPoa5dz0f+MSs6Jh6ewLgttf4FWCUQrix6qWQDAoiqMvqGOhNqiEGBHfvUcZslGHfvNh1BOckoCqdh9oPbbHBi+2mRlzMNU71VBQ5vNS7w8z5EoqnNwp4HO1Sv4QIj0UCdlIWTMWV+5cIyWrht8tswNuj4uzFGWjjD7l+tRdNf734jKFSWjTI4VUJJ9Jw1iNyGGADls2GQCmb4iZvwP8fb9NZ7iKn0c20HamuE13I+kjQNy/L1Yv6nqa63sjPfwLjRBIot8+NMH2yWoSlDdN0I+iWKfUnPYOUTFsHDNpqmMYHp/ShrOUpUMXnwT6iZ1s7uPd1AyuAXYZc23zeC5ucYzynqCvqy5hV60TUkJ8GqlQBTyZsrJV54rJxmom9LjEmOLTNQxwsaRxyQGTf04QA8fzAXrjxO13YOLvgwj8H4QBHtd2Ze7FeKuQeJfiOEz6v+eXpU1FYV689md0lvmN9BY9cDyLOvobf8KGBaJoOOaD1F8xcbAkFUszJO3hQuGQ2GMigmlYHqpu0a53VnH0ohmCwvjuJFeRxLd9zxzcADRZRkmCFwXxaFPj+LSUoG5Zr05Hy9XXBt87henJjoT9wafDCl4m7V+w9FFHrtwBkZ/HL5FXQpdOMuVHaeTJNbQ5xd+iKsClBum4bTQY9uHvuwjthLEqlGAog9IdrHpax2NUaTHDNoSD+ijUhpWi+c7bC0NwaRdkh6iLutFahnYQmfM0sKX+4chw9kemmkD8uuRgsMKOTxEBYqFs9VSyCyecmLG72lLrq0cBTHwO+Zi4DXW1Lu2w8/8hkqkadTT8my0KW+8kdP2QWsJefyzJh7wjzTDN6XJ47QJmEmu0GdIseSd149rmxME4JLF8BzkK0F250HGHU9KZakDkfmy7UPWYae0x9k0KyXkHq6uv9paxpZwg8339dRiD1nu/+QLRsHHlHNWgMdGp0Eb1aOg5yR0kaXRFLWR1bNPrnxIBVkjbaRKGfaJNp9LQ4/ripZgPB7p6VY73Gq9dc4oXiPGL6iI5LhQOcEzQgHh0Kt0pP96jnG+CjzTyxaLUoS5G8hjZp6ujQMwJ9giP9J0GEgkPtEe0dZWvAb+Pa2CC4XW/i352MVnykrSXym3dMzecz3w8H/RMiawwMwH9k+9rV/G5bHsudP6TKUZ+yaBEa8Y6Rr9UEkeDLvTKUb4zWC4N7cFUWL3S3KoMCMpKli96Ga2IDSHNmdvDrAQ3ZkHhi1fE173+9+l/eACRt+eRTwlUv3sSJZYwKrTea4/Mlc2glzPDhVvWxnb2jclDLhJ5VgkkaexXE5Moz/SDgx1IfcYrq1v+kaqeV9zuxlKjcJIjqEwnHzVj8a9a/qT2E2KovN7QM7x1dyZG8JRmGDrgeisvppZZX4xrOKfuMrVH0OeDpnoxUHtgJplGGqeHq/mMCk0GAJIcOMzcWqzn/AaWqmX8DbsvPFhBBllyfYMr+0OyBMrZ6e72HjIWB0J9UixR3eX54MU0gB1d32RsXcxxtjfJD83uFWsErErziXo0uXoLulj94r6cm3JyAkv2DTLPPkneiJXT8tfYaeoOFmo8CNoVmgKriZ8nBlRrE4B6BktBr0o8TET5BRXn/zaxvj0hI0gHiih4bRgLeuMP6LUPAFElyy/RFOpPpjVJMUbk9dvZNul36lIeWtcEIargD4jxZjDUbSlW3s2I7TuRlWaAGVKv5bNssIzs+2ne8cyRIwy+aDUJDH3k3ytYA8s9gfIKGOX3Z4wGVjM4YS7eSD6GOyCHXUNM9sZ/8b2fjV2ySJWkUm+Vc3C0Q3ooLAAGCkNZBbbt4NIjRWfOeU8i+egDdOKyFfU2DOFD7h9T0LRYUtaT66ZRUdiD+GCpITZzkjyu3F2lczdUtvTZRnQVhr81eeoFmqs6aTVuzzYHrmGh+Qgd93TKLc7pqQQVHtJ58iwAUDZtS8Yvh5VxT2T8mOtP1eqhu9lj+XxcTXRliwW06ynZHADo41fWydYlEe0UHHjwe8yqxZfbN4u0YfZTxG8rYejfCaL1U2jMXDhEAZCw8YW61i29BnCVgLADs1q/xnHIolR6iss46i1wnysdpBkG8BvH/4djz6HPhERuuCBPHFasUo966F4yJmGTO1MNBd6dUpx9TDm+8SR51VW/7hdvCWsZGJQuY5EqUeQwk9ihM3Wx2k8FArmimyWMdL3GkweWuQEjW55o/kLPx3DUqf5CUp38/q86yNZZUwuPaqq1Jv+gRSaFGSOLEXwbiZZCvbpS/HAYEcchx6CHlQPHyd3aQOGsbGTjsnnqnflmzwTb+N+7cLtguQ6/45yIf5ThZQwOjz7DbrymrYaRN3RFfA/7Vo6miCjB1f/UB5sbfrpvlxiRoHX6NNMfOgjF+ao43vMkZfLOi0qyVmwaykUvf0MUcMvTd4uPOS0B0Uu12omjP/sABqQqrAa5cITa0kMr1Bb7FnwnDLtGXV0MaAvTfOYNY4hp8WUTtFFUde7MUETV4E+IJkYqHo9q08J3oqbK1B1YsJT1oQfoT4ZrRy86BGshKa/BWtpT+NZn7OAFPCfANlEzaMv/NagFROQmXJRwFsXG1cJZrj3+UV98fL2FylWibc3v/W7cpsqQyf2IJ+7JbrmbB8+H7fARz8QRL0WzUw2ciM/olGYi0tFyqnhmAwahDAF4ltXop0tc3Vc/UTiab1zCz8v"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1349,
+    "candidatesTokenCount": 186,
+    "totalTokenCount": 2288,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1349
+      }
+    ],
+    "thoughtsTokenCount": 753,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "YYufariDCrSNvr0PrfnDmA0"
+}

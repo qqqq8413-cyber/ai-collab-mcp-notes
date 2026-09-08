@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-b77361c6e2d06343e9c494a1fa123ac4a9e812478029928d8567125a6321ffa0",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks what the corporate wellness offering should contain and how it should be packaged (tiers vs flat), which is a service design artifact matching Product / Service Design; the direction to launch is settled but the question is scope and structure, not rollout mechanics. All constraints (capacity, staff, space, tech limits, client asks) are supplied in the text, and there is no steering about who should answer."
+}
+```

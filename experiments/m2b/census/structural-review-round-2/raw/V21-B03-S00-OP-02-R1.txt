@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-2ccf53c28e922ab380382e1c92eca14a5a19c3888f2e5f98e11424f0cecdc387",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The direction (5 vans) is already settled and funded; the request is for a rollout sequence and route schedule, which is an execution plan — correctly Operations. All figures needed (lab cap, van yield, staff count, training lead time, donor cycle, grant window) are supplied in the text, and 'donor eligibility' is a domain fact rather than experiment leakage."
+}
+```

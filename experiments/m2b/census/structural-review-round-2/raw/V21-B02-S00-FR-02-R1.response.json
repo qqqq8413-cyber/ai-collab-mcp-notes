@@ -1,0 +1,35 @@
+{
+  "model": "claude-opus-5",
+  "id": "msg_011CeqKSGghERnEmWXdr8X3D",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "",
+      "signature": "CAISvAQKjgEIERgCKkAviefiAnHOcjuLCOGiLPSENDMtt3T1GBiS7b7jwY/TOtkZ6CQE4UeO9CD3Io+oD2o1Ab6btcLu1pkQgTff/MrNMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiRjZTQ2Y2IxNy00NjE2LTQ3ZGMtYjM0Yi0yNjRiMTk1ZWFkMGKoAeWV/tQGEgwj1cehGlaU5WpeOvAaDLj+MAiCIypS1KoAcSIw6APTRHVM83ZA489qBLugPrI3zIUEhVAhv9FeJearpL5ws7LdWqA3w8F2tW7c+FAPKtoCquWrsmoQCqKIzO/vt+dTqYGVj47kxQQ3Pi1Ou9uMQbxAVGPILJFLjmeLqpQsBWPl6h1he+WWxzc50kiwGgPPnLM9b4iVdn6KzfUthxIMvfm0kSJ5/yGgx1fbVTdfsQD2HFEmJESoBN4OF2oTnX8yd9rGyDCNN1j1SqMhfp1RiAxwFTuspJflzDeMcMmju6EEI3D9S4M9QBOsEuNXC3kzxkHits1EgNtL2zfgdxAqutWwiCexF619yMRQYw5hI87RXY98dEJ1Jk0N+glpziVcu0+qdyDyKm+7AlnJgOHNZn2/AtTkZ8UrhCnVom9GktYE5UsYLTpImk/jSD3vcSzQ3MJiWODvG9oxPKBRdW1xs1VH6RbY4b5V/DJ6XWyr3tevzMh4U9aiZ8XnBx6T1A9567pbkFObwMlHw5u5u6E6dZ9nHnph36ypI9IOjtlkaQBKFhpAsFR/6JDXThgB"
+    },
+    {
+      "type": "text",
+      "text": "```json\n{\n  \"taskId\": \"SR-edbddefab175ad7cc52aa4e38e51a510bf6a3162a94084b78ba6a7eb7f589976\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The final request is how to split a fixed pot of 16 approved headcount among four competing departmental claimants, which matches Finance / Resource Allocation. It is a single clear request, all figures needed are supplied in the text, it reads as a genuine internal planning question, and it contains no leakage or instructions about how the answer should be produced.\"\n}\n```"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+    "input_tokens": 2189,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 378,
+    "output_tokens_details": {
+      "thinking_tokens": 114
+    },
+    "service_tier": "standard",
+    "inference_geo": "global"
+  }
+}

@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-792ac607bc18f51afc68b9aabde034d697141bb29a134a977d69ffe7169adb8c",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks for a direction on the name, visual identity and voice, which is a brand/creative artifact matching the assigned category. It is a single clear request, answerable from the supplied context, plausibly real, free of leakage, and the mention of a marketing consultant describes the situation rather than directing how the advisor should answer."
+}
+```

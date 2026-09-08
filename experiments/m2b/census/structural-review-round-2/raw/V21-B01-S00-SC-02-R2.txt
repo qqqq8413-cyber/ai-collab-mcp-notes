@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-bb7314846add9af70b9d67bd85aee56566cd741c8705177388bb60d6fc02025c",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The scenario clearly asks for a choice between two mutually exclusive strategic directions, provides all necessary context, and contains no steering or leakage."
+}
+```

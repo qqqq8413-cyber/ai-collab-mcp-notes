@@ -1,0 +1,35 @@
+{
+  "model": "claude-opus-5",
+  "id": "msg_011CeqKHqbc56FXGZGNsTwYn",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "",
+      "signature": "CAISlAUKjgEIERgCKkC0MU7A1+o4/nl/hA9YRLZ2kcWpZqUJBw5V1QHQ3i0bRAPWeZmhcC4GvKKABa8oLnH7km6gcG705SMiAGGG3r/4Mg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiRjZTQ2Y2IxNy00NjE2LTQ3ZGMtYjM0Yi0yNjRiMTk1ZWFkMGKoAfOU/tQGEgxo0CO6jVyC98Ti/NUaDB/ic/Es9lJw1Kh0wSIwm6pG7ZAL2h03no06/85feYpM51qrQaFxxTlqXHC4iT5Z2h2VigyEnOM12kUItnrkKrID20xEu7M6I0uD+l2VYwhIimaQJM3qAd/LTBobInqadwN4I1Q4lyQhimcxGBQoFk7hnNCRX0xMvh3R9alGnImHcYjb6GwKTNrZETuU38UxJrPNTBJFQAkBKh5EfUJSTNLOyFnAm4ZFQdM4lptH54Q/UjlZvRmO1Uai8Ao21Qi09dzJ6UEOSCQt5qUk9l0BRIygZPKNA+sO8q4xNxatv7fAOX+Zh0DNGEKHimpg/dZeAQXhWNdunQTo7TRxVP2yraOmSDO8ZZP8waAdNqburfli1IhzJTjYTYn4DLSLfjAs+JrDBMMfXSeHSfTpfa2r4p1FOnFukcW0oLQZqZasdJAHqjEo9+ZBXYWarCf0jbsqZGCz+v6mJABFH2zSwd4ljen9I4BVzs7de4Q2m1lG6LbbCLn+PHIsls0EurRlT+1Gy6l+bJ7yzojZfJyeJAvwF5Ypno67Jdgise4AXbV/g4h4S5+2iakmJg88VZ1ioIS2ooi5R+k5H2pNbzG7pimWQwulFXUFCvVNtBkHebowRW9D729cic6leP1SW4OAY/YSBBR6Ms6i7xW6sgDXMVv8nkFAYEQYAQ=="
+    },
+    {
+      "type": "text",
+      "text": "```json\n{\n  \"taskId\": \"SR-894ddc448f445e45e13f6a3cb7e7af5346a5723e06cd971d2b7d067985337780\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The final request asks what the described results mean regarding causation, which is an interpretation of supplied findings, matching Evidence Interpretation; the key figures and confounds are stated in the text, and there is no steering or leakage.\"\n}\n```"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+    "input_tokens": 1893,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 352,
+    "output_tokens_details": {
+      "thinking_tokens": 127
+    },
+    "service_tier": "standard",
+    "inference_geo": "global"
+  }
+}

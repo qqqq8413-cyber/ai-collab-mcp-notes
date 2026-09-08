@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-313da55b0a74c36f4621fde466e36270739c7b391babe88d44e8f23a74d3ca5f",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks what a supplied set of outcome figures and confounds actually shows and whether attribution holds, which is an interpretation of evidence. Key figures (94→71 minutes, 12% volume drop, staffing and annex changes) are stated in the text, so it can be answered on its own terms, and there is no steering or leakage."
+}
+```

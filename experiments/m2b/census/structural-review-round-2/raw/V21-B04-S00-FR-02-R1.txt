@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-d05cc219915e058bc71efebd6f109cc8710b659ab31aa8edf6c59636d1378bb5",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request is a distribution of a fixed pool of 14 headcount across three claimant units, which is squarely resource allocation; all figures needed (requests, current headcount, penalties, revenue at stake) are supplied in the text, and there is no leakage or instruction on how the answer should be produced."
+}
+```

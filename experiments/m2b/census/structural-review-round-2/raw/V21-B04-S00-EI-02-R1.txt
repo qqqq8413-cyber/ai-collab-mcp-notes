@@ -1,0 +1,13 @@
+```json
+{
+  "taskId": "SR-07d0cd584dd3ca73f7341b5ace7536362470a3cf7ae0d432f6eb3b6764b114dd",
+  "stratumCorrect": true,
+  "primaryOutputClear": true,
+  "selfContained": true,
+  "realistic": true,
+  "noExperimentLeakage": true,
+  "noSpecialistSteering": true,
+  "overallPass": true,
+  "reasons": "The final request asks what the supplied trial data demonstrates, which is an interpretation of evidence, matching the assigned category. All figures needed are included, the framing is plausible for a clinical research lead, and mentions of physiotherapists are situational rather than instructions on how the answer should be produced."
+}
+```

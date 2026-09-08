@@ -1,0 +1,32 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "```json\n{\n  \"taskId\": \"SR-a9acb2b2bf16942b8ce3937a907e94c75bd18153151d802c23565e82247309f1\",\n  \"stratumCorrect\": true,\n  \"primaryOutputClear\": true,\n  \"selfContained\": true,\n  \"realistic\": true,\n  \"noExperimentLeakage\": true,\n  \"noSpecialistSteering\": true,\n  \"overallPass\": true,\n  \"reasons\": \"The scenario clearly asks what the supplied confounding data can and cannot prove regarding program impact, perfectly matching Evidence Interpretation. It is self-contained, realistic, and free of steering or leakage.\"\n}\n```",
+            "thoughtSignature": "ErUJCrIJARFNMg9orix2hrZvUQUQDCov/PxfHB0Ltp2UlATCIpoyk9n6Qg7fZfv2vMffraEC749vR2Fd7/pSdqtt/YwHZsevsKrSO1LzNkXu/F/fRJRw2rKnhOEIXl001/bYkA0fyuEv8IpYK99u3fNSsE/GAwrszVE252bPqWRGWk3/SIJFMFFiHcpQfUs0IVV/pVq0ZpReOi0+QHTALPp97b7x3vraW55Z4ng20/nVgxzglIByWV50eBjm4vkH1mzW3zhWChWA59Qm+kpkAFDnxlikeCGMFjTDqgCnUkvlh+ID83cySdLeQFGc5SIORkYtjuHbX+5HPyqXkyMt8+YD6V+0muZr4GI9kuYvUVI99LfVXZXXswAZ7+F+UOghZ2jtP8SN5PUIQe0jTZIWgQgEzi8S9XggZvHdcSh5YxzT0LiOxHeNYNkanx91RWbVBWV5CDbzsPB4jfiiO6gPbkaHsxxmyC02MmZ31RDZ/hnF5Wts+u0yxJlkiClNkUlRJ8/wDRzoiI9sBSQOKV06GLKtc5jqLTxOnaK/eyeqNKiITCuLdHr5c/L0olTY+9S3pgRh3tv6kJhc6RcTKOHKB3Z6yHw14/WfuTfdjU3M7kg43m//AV3VC4eXrI1rRnDb6UfAcTk0qPa6y2WQkEyGV07kAhDR4om1YqxfcnluskDHumzKxYQ7dZqnw5svmjaGJGcgQXAP+MfNOOmVfM18tnIs5WSBR6jGgjyYYTYSZW5iIqu25ofmOw/8ZQKct5rhGFN7otuK6VvTBJ3iqtcSDyMQZfLuV0qwT5HaE2DN/h1NziV+Bk7LX9mPXGNc7P8L1W5bOdu11VYvEvz+EMcTuQyqr1XQ5Rm2R8Ca0T6QP7hPmdTYz6eFGOsgk84NIRAbjE8gBSsBR6HKVEI5KSc82MozLOGippCAGynnaSxMd3uTC65dXjYHmADlSp4I/ZTlJCmy+hRKiwecwbaPM8oai4DQG79q6FIuHkABt5868Az3SA9boSL6YC2NA0lOmDheb30kc+m0D/ObZwozXgLNpUYSvP8khtdEE3NcIUL4w6IgYjBA1onhP0yL7rOXnIV39QZCm1IIFHKNkkKhPMA3hn5qEBJ9lzyeQGpy1PIR8qCR2q/QNOlObwrJXej3kAWUxpC/xMQR/D7w1EQpF04qrzYwyYmggZ+KbVgewJ5aJCdojot7g0xUV7OjDdJy0si0oNDKNHq66qkExmaz12s96z4hRAV7nSab+rOrxUPqcEpABEcjcTREF6HSbVDdXE8nWqlyN5RS8zA8Pj5d8IYy4tqd2wqw3iuQNcZYLIKeTgRa+VTdo+ce9Mdl/vnr8TUDz5OYhxDFs6LOh+bp3+bnuUyVPfH+5suZpUoGjM4ptM3IIc7xXFJ4YUg8AmaPcBP048zOxTl8Rjc0IzMqy1KYu8bjSWh4X/R8XcFfH+bkUWNytZpyr1xPOraiuavcz+wjc3pAjh23wb8+JG0+3erbjwRKF2eHrvwrql2HHRy7H8wS3/Sg5lN25VWxWa0j+2UN8PSMQsCLBpq4E11+t/m5LGIXBs523Rco15mqttLFToQ1d/vKHTp8ECYBbiLTI889ZdtXg5F3Cxc="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1402,
+    "candidatesTokenCount": 184,
+    "totalTokenCount": 1799,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1402
+      }
+    ],
+    "thoughtsTokenCount": 213,
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.8-flash",
+  "responseId": "NIyfarxEn4XV7w-Y762ZDQ"
+}
