@@ -17,10 +17,11 @@
 ```
 repository            qqqq8413-cyber/ai-collab-mcp-notes
 branch                experimental/m2a-peer-challenge
-stateVerifiedThrough  161379ad07b038de90d1fbf49a5f8c8f7515026c（CWP-12D-2 authorized
-                      base；CWP-12D-2 於此 base 上真正 LIVE dispatch，D1 attempt
-                      consumed／STOP_PROVIDER_ERROR，D2 未嘗試；CWP-12D-2F 保存歷史
-                      證據、CWP-12D-2R 於同一 base 修補 namespace bug 與 transport 缺陷)
+stateVerifiedThrough  dc38d4518639ba99796dbfd266faad9009a82e0d（CWP-12E authorized
+                      base，即 CWP-12D-2R 完成後的 HEAD；CWP-12E 為 offline
+                      methodology/protocol finalization，0 provider calls，正式關閉
+                      Protocol-1 DUP-R00 為 FAILED CLOSED／TERMINAL 並凍結 Protocol-2
+                      recovery specification）
 production            src/** 最新 accepted 變更 = 1e182f6（runPlanningStage 抽取）
 main                  未 merge，且本階段不打算 merge
 ```
@@ -1755,6 +1756,83 @@ D1/D2（或針對 D1 的復原）LIVE dispatch 仍需另一份明寫
 `EXECUTION AUTHORIZATION: GRANTED` 的 GPT packet，且必須先由 GPT 決定
 D1 的復原方式（是否定義獨立的 execution identity）。**
 
+### CWP-12E —— CBRP Duplicate Audit Protocol-2 復原規格封閉
+
+```
+Protocol-1:
+SPECIFICATION CLOSED
+DUP-R00 EXECUTION FAILED CLOSED / TERMINAL
+SUPERSEDED FOR FUTURE DUPLICATE-AUDIT EXECUTION BY PROTOCOL-2
+HISTORICAL EVIDENCE IMMUTABLE
+
+Protocol-2:
+SPECIFICATION CLOSED
+IMPLEMENTATION NOT YET VERIFIED
+LIVE NOT AUTHORIZED
+0 PROTOCOL-2 AUDIT ROUNDS RUN
+0 PROTOCOL-2 PROVIDER CALLS
+0 SUBSTANTIVE DUPLICATE JUDGMENTS OBSERVED
+```
+
+`[DECISION]` **GPT 架構決策：Option C（新協定版本），非 Option B（同協定改名重試，
+已被明確判定為 disguised retry）。** Protocol-1 的 DUP-R00 執行永久 FAILED
+CLOSED——不重開、不重新詮釋已消耗的 `DUP-R00-D1` attempt 為未使用、不執行
+Protocol-1 未使用的 D2。新增
+[`CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_2.md`](experiments/m2b/census/CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_2.md)，
+以「delta 文件」形式將 Protocol-1 作為凍結的 methodological baseline **以引用方式
+併入**——不重新貼上、不複製任何 model-visible frozen text（Layer A、D1/D2/D3
+wrapper 逐位元組構造），避免出現兩份可能各自漂移的「同一份 prompt」副本。
+
+`[FACT]` **完整 delta 清單（Protocol-2 §4）**，除此六項外不得有任何語意變更：
+(1) 執行識別碼 `DUP-P2-R00-*`（取代 `DUP-R00-*`，metadata only，非 model-visible）；
+(2) round identifier `DUP-P2-R00`；(3) 證據 namespace
+`duplicate-audit-p2-round-00/`（既非歷史的 `duplicate-audit-round-0/`，也非
+Protocol-1 從未真正建立的 `duplicate-audit-round-00/`）；(4) 將 Protocol-1 §10
+本已存在的「一次 attempt、禁止重試」規則，明文化為可操作的 consumed/not-consumed
+邊界（§8：pre-dispatch failure＝未消耗、reserved/ambiguous＝視為已消耗、
+transport invoked＝已消耗且對該次執行終局）；(5) Protocol-1 DUP-R00 歷史封存
+記錄（Protocol-1 本身不可能記載自己之後才發生的失敗）；(6) 新增的必要 limitation
+disclosure 文字。corpus、duplicate definition、每一個 model-visible byte、
+provider/model pins、D3 routing、decision matrix、retention、replacement
+semantics、round sequencing、termination 全數不變，僅以引用方式指向 Protocol-1
+對應章節，非重新定義。
+
+`[FACT]` **Model-visible byte identity 為結構性保證，非僅要求相符**：Protocol-1
+§7.5/§8.5 的構造演算法本就只吃 frozen text blocks 與
+`corpusTasks`/`auditScopeIds`，從不吃 `roundId`／session identity／protocol
+version；Protocol-2 綁定同一個 canonical 60-task corpus，故 D1/D2 prompt bytes
+（77147／`40fc7509...`）與 Layer A bytes（639／`57ca27ec...`）在 Protocol-2 下
+必然與 Protocol-1 完全相同——這是既有凍結演算法的必然結果，不是本次新加的約束。
+
+`[FACT]` **歷史封存（Protocol-2 §2，normative）**：`DUP-R00-D1`（claude /
+claude-opus-5）attempt=CONSUMED、result=STOP_PROVIDER_ERROR、provider model
+output=NONE、pair judgments=0；`DUP-R00-D2`=NOT ATTEMPTED，且**非**可延續的
+「剩餘 attempt」——與失敗的 Protocol-1 執行一併視為 ABANDONED，未來任何「D2」
+執行都是 Protocol-2 的全新 D2，不是 Protocol-1 D2 的延續。歷史證據
+`experiments/m2b/census/duplicate-audit-round-0/**`（CWP-12D-2F 保存的原始檔）
+本次未變動、未改名、未搬移。
+
+`[FACT]` **獨立方法論建議已原樣保存為 ADVISORY EVIDENCE**：新增
+[`methodology-review/CBRP_DUPLICATE_PROTOCOL2_RECOVERY_GEMINI_REVIEW.md`](experiments/m2b/census/methodology-review/CBRP_DUPLICATE_PROTOCOL2_RECOVERY_GEMINI_REVIEW.md)，
+逐位元組保存 packet 提供的審查文字；因模型身分無法在本 repo 內機械驗證，記載為
+`UNKNOWN / NOT REPO-VERIFIED`，而非採信 packet 自身「Gemini」的標籤。明確標示
+GPT Architecture 仍是唯一決策者，本檔僅為輸入之一。
+
+```
+新增檔案                CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_2.md（新）
+                      methodology-review/CBRP_DUPLICATE_PROTOCOL2_RECOVERY_GEMINI_REVIEW.md（新）
+Protocol-1 檔案         完全未變動（byte-for-byte 核對）
+duplicate-audit-round-0/  完全未變動
+src/**                完全未變動
+provider calls          0
+regression suite        npm test 全綠（implementation 未變更，僅新增文件）
+```
+
+`[DECISION]` 本檔不宣告 Protocol-2 已執行、不實作 Protocol-2 harness、不將
+Protocol-1 呈現為另一個可用的 active 執行協定。**唯一 active 的未來 duplicate-audit
+執行協定為 Protocol-2；DUP-R00 LIVE（無論 Protocol-1 或 Protocol-2）仍需另一份
+明寫 `EXECUTION AUTHORIZATION: GRANTED` 的 GPT packet。**
+
 ### 目前的 M2-B 狀態（不得混淆 acquisition 與 effectiveness)
 
 ```
@@ -2249,28 +2327,30 @@ Structural Review ROUND_1  CONSUMED / CLOSED / IMMUTABLE ← CWP-11C 在 0 calls
 Structural Review ROUND_2  CONSUMED / CLOSED ← 已於 a4c343a (CWP-11G) 完成 R3，R3_COMPLETE
                           （122/122 validated，2 R3 dispatched，60/60 FINAL，0 PENDING_R3）
 Structural Review ROUND_2 R3  CONSUMED / CLOSED ← 已於 a4c343a (CWP-11G) 執行完畢
-Duplicate Audit           NOT AUTHORIZED ← 規格已於 CWP-12A 封閉、harness 已於
-                          CWP-12B 離線實作並驗證、CWP-12B-R 移除越權的 fenced
-                          extractor 行為、CWP-12C 完成 DUP-R00 pre-live corpus
-                          binding 與 execution envelope 硬化。CWP-12D 首次真正
-                          LIVE D1/D2 dispatch 嘗試於 0 provider calls 時
-                          STOP_CREDENTIAL_MISSING（FAILED CLOSED PRE-DISPATCH，
-                          憑證未真正缺失，是 harness 缺少 dotenv bootstrap）；
-                          CWP-12D-R 已 offline 修補該 bootstrap 缺口。CWP-12D-2
+Duplicate Audit           NOT AUTHORIZED ← Protocol-1 規格已於 CWP-12A 封閉、
+                          harness 已於 CWP-12B 離線實作並驗證、CWP-12B-R 移除
+                          越權的 fenced extractor 行為、CWP-12C 完成 DUP-R00
+                          pre-live corpus binding 與 execution envelope 硬化、
+                          CWP-12D-R 修補 dotenv bootstrap 缺口。CWP-12D-2 首次
                           真正 LIVE dispatch：D1 已消耗（進入 transport 後被
                           Anthropic SDK 以 STOP_PROVIDER_ERROR 拒絕，0 network
-                          bytes 送出），D2 未嘗試——**DUP-R00 為 INCOMPLETE /
-                          FAILED CLOSED，0/1770 判定完成**；此次亦發現真正的
-                          namespace off-by-one 缺陷（證據誤寫入
-                          duplicate-audit-round-0/ 而非 round-00/）。
-                          CWP-12D-2F 已原樣保存該歷史證據；CWP-12D-2R 已
-                          offline 修補 namespace bug、以結構性 guard
-                          （`STOP_HISTORICAL_ATTEMPT_CONSUMED`）保護已消耗的
-                          D1 attempt 不被重新 dispatch、並修補 Claude 長請求
-                          non-streaming transport 缺陷（duplicate-audit 離線
-                          測試合計 153 項、0 provider calls）。尚未取得 Final
-                          Pre-Live GPT approval；DUP-R00 LIVE 仍未授權、D1
-                          attempt 已消耗、D2 尚未消耗，復原方式待 GPT 決定
+                          bytes 送出），D2 未嘗試，且發現 namespace off-by-one
+                          缺陷（證據誤寫入 duplicate-audit-round-0/）。
+                          CWP-12D-2F 原樣保存該歷史證據；CWP-12D-2R offline
+                          修補 namespace bug 與 Claude 長請求 transport 缺陷、
+                          並以 `STOP_HISTORICAL_ATTEMPT_CONSUMED` 結構性保護
+                          已消耗的 D1 不被重新 dispatch。**CWP-12E：GPT 決定
+                          Option C——Protocol-1 DUP-R00 正式關閉為 FAILED
+                          CLOSED / TERMINAL（不重開、D1 永不重派、Protocol-1
+                          D2 永不執行），凍結 Protocol-2
+                          (`CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_2.md`) 作為
+                          delta 規格：相同 corpus/定義/model-visible
+                          bytes/pins/envelope/D3 routing/retention，新執行
+                          識別碼 `DUP-P2-R00-*`、新證據 namespace
+                          `duplicate-audit-p2-round-00/`、明文化的
+                          attempt/failure 邊界。** 尚未取得 Final Pre-Live GPT
+                          approval；DUP-R00（Protocol-1 或 Protocol-2）LIVE
+                          仍未授權、Protocol-2 harness 尚未實作
 Gemini A2               NOT AUTHORIZED
 Gate                    NOT AUTHORIZED
 Synthesis               NOT AUTHORIZED
@@ -2473,7 +2553,7 @@ Protocol 與 Structural Review Protocol 均已凍結）。以下為更正後、�
 的收尾狀態：
 
 ```
-STATE ALIGNED THROUGH 84157f9a30ae8c21336b2616c0220a76678cf29f (CWP-12D authorized base) / CWP-11H /
+STATE ALIGNED THROUGH dc38d4518639ba99796dbfd266faad9009a82e0d (CWP-12E authorized base) / CWP-11H /
 P03 CLOSED — 9/9 ATTEMPTED, 0 ADMITTED, 0 ARCHETYPES FILLED /
 F1 FAIL 3/9 ｜ F2 FAIL 7/9 ｜ F3 FAIL 0/9 ｜ ONE SPECIALIST 7/9 /
 A2 = 0 EXECUTIONS ｜ EFFECTIVENESS EXPERIMENT NOT EXECUTED ｜ C vs D₁ UNANSWERED /
@@ -2537,8 +2617,28 @@ CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-1 SPECIFICATION CLOSED (CWP-12A/12A-R) —
   hits the SDK's own streaming-required guard, with no change to
   provider/model/prompt/token/retry semantics; 153 duplicate-audit offline
   tests, 0 provider calls) /
+  PROTOCOL-1 DUP-R00 FORMALLY CLOSED — FAILED CLOSED / TERMINAL (CWP-12E @
+  dc38d4518639ba99796dbfd266faad9009a82e0d: GPT accepted recovery Option C —
+  new protocol version, not a same-protocol renamed retry; DUP-R00-D1 stays
+  CONSUMED and is never redispatched, Protocol-1's unused D2 is abandoned
+  with the failed execution, historical evidence at
+  duplicate-audit-round-0/ unchanged) /
+  PROTOCOL-2 SPECIFICATION CLOSED (CWP-12E:
+  CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_2.md — a delta document incorporating
+  Protocol-1 by reference; identical corpus/duplicate-definition/
+  model-visible prompt bytes (D1/D2 77147B `40fc7509...`, Layer A 639B
+  `57ca27ec...`, structurally guaranteed identical by construction, not
+  merely required)/provider-model pins/generation envelope/D3
+  routing/decision matrix/retention/replacement semantics; new execution
+  identities DUP-P2-R00-D1/D2/D3-<a>__<b> and new artifact namespace
+  duplicate-audit-p2-round-00/, both metadata-only and never model-visible;
+  explicit pre-dispatch/reserved-ambiguous/transport-invoked attempt
+  boundary; independent advisory methodology review preserved verbatim at
+  methodology-review/CBRP_DUPLICATE_PROTOCOL2_RECOVERY_GEMINI_REVIEW.md,
+  labeled ADVISORY EVIDENCE, reviewing model UNKNOWN/NOT REPO-VERIFIED) /
+  Protocol-2 IMPLEMENTATION NOT YET VERIFIED / LIVE NOT AUTHORIZED / 0
+  Protocol-2 provider calls / 0 substantive duplicate judgments observed /
   Final Pre-Live GPT approval NOT YET GRANTED / LIVE NOT AUTHORIZED /
-  D1 attempt consumed, recovery approach NOT YET DECIDED BY GPT /
   0 AUDIT ROUNDS RUN /
 60/60 structural decisions FINAL ｜ 0 duplicate audit rounds ｜ 0 replacement sessions ｜
 0 pools frozen ｜ 0 Chief Census calls ｜ 0 formal admitted tasks (pending duplicate audit) /
