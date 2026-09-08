@@ -24,7 +24,7 @@
 > | **M2-B Harness** | **ACCEPTED(GPT Final Harness Review)—— H-01…H-05 + D-01 全部 ACCEPT** |
 > | **M2-B P03 Acquisition** | **CLOSED / EXHAUSTED —— 9/9 attempted、0 admitted、0 archetypes filled、0 A2 executions,詳見第二十六節** |
 > | **M-ACQ-01** | **OPEN —— natural eligibility base rate 未知;在此問題被 characterize 之前,不得重新設計或執行 M2-B effectiveness experiment** |
-> | **Chief Natural Collaboration Census** | **DRAFT / NOT PREREGISTERED —— Protocol 2.1 60/60 acquired; Structural Review ROUND_2 R3_COMPLETE / CLOSED (60/60 FINAL, 0 PENDING_R3 @ a4c343a); Duplicate Audit Protocol-1 SPECIFICATION CLOSED / IMPLEMENTATION VERIFIED OFFLINE / DUP-R00 PRE-LIVE INPUT BINDING VERIFIED (CWP-12A..12C); DUP-R00 first REAL LIVE dispatch FAILED CLOSED (CWP-12D-2 @ 161379ad: D1 ATTEMPT CONSUMED — STOP_PROVIDER_ERROR, 0 network bytes reached the provider; D2 NOT ATTEMPTED; also exposed a real liveArtifactPaths() namespace off-by-one) / historical evidence preserved as-is (CWP-12D-2F) / namespace bug + Claude non-streaming transport repaired offline (CWP-12D-2R) / **GPT recovery decision: Option C — Protocol-1 DUP-R00 formally closed FAILED CLOSED / TERMINAL (never reopened, DUP-R00-D1 never redispatched, Protocol-1's unused D2 abandoned with the failed execution); Duplicate Audit Protocol-2 SPECIFICATION CLOSED (CWP-12E) as a delta document incorporating Protocol-1 by reference — identical corpus/duplicate-definition/model-visible prompt bytes/pins/envelope/D3 routing/retention, new execution identities (DUP-P2-R00-*) and artifact namespace (duplicate-audit-p2-round-00/), explicit attempt/failure boundary; Protocol-2 harness IMPLEMENTATION VERIFIED OFFLINE (CWP-12F) — reuses (not forks) Protocol-1's execution engine/artifact store/transport/corpus binding via a minimal backward-compatible protocolVersion/roundIdPattern parameter, hardened real entrypoint dispatchLiveDuplicateAuditP2() accepting only DUP-P2-R00/D1D2, D1/D2 prompt bytes proven byte-identical to Protocol-1's by direct regression, P2_R00_PRELIVE_MANIFEST.json generated, 189 duplicate-audit offline tests** / LIVE NOT AUTHORIZED, Final Pre-Live GPT approval NOT YET GRANTED, 0 Protocol-2 provider calls, 0 AUDIT ROUNDS RUN** |
+> | **Chief Natural Collaboration Census** | **DRAFT / NOT PREREGISTERED —— Protocol 2.1 60/60 acquired; Structural Review ROUND_2 R3_COMPLETE / CLOSED (60/60 FINAL, 0 PENDING_R3 @ a4c343a); **Duplicate Audit acquisition FORMALLY CLOSED (CWP-12H)**: Protocol-1 DUP-R00 FAILED CLOSED/TERMINAL (CWP-12E); Protocol-2 DUP-P2-R00 LIVE executed (CWP-12G @ ffbe0b2) — D1 SESSION_VALIDATED (19 positivePairs, not confirmed duplicates), D2 STOP_MALFORMED_RESPONSE (real response wrapped in a markdown fence, correctly rejected) — FAILED CLOSED/TERMINAL, no D1D2_OUTCOME, no D3; **NO Protocol-3 recovery authorized** (substantive output already observed); pool NOT FROZEN, no retention/replacement, M-ACQ-01 remains OPEN. Full record: `CBRP_DUPLICATE_AUDIT_EXECUTION_CLOSURE.md`** |
 > | **M2-B Fixture Freeze(synthetic)** | **SUPERSEDED —— GPT Fixture Review 判定 FIXTURE PROVENANCE BLOCKER;`fx-01…04` 改列 PRE-FLIGHT SYNTHETIC CANDIDATE MATERIAL,檔案原封保留於 `02cbb5f`** |
 > | **M2-B Pre-Synthesis Boundary** | **ACCEPTED(GPT)—— `runRound1Stage()` 已抽出,offline parity byte-identical** |
 > | **M2-B Real Round1 Capture — Set R1** | **FAILED(保存為失敗證據)—— fxr-01…04 四題全 FAIL F1,證據保留於 `81ac330`,詳見第二十七節** |
@@ -3998,18 +3998,16 @@ candidate 未重用。**下一步必須回到 GPT Architecture；不得自行續
     CBRP-D3-v1、decision matrix、retention、replacement semantics、
     termination semantics 全數未變動。**未取得 Final Pre-Live GPT
     approval，Protocol-2 LIVE 仍未授權、仍未執行。**
-- **當前邊界**：
-  - 下一個研究階段為 Duplicate Audit，現行 active 執行協定為
-    **Protocol-2**（Protocol-1 保留為歷史、SUPERSEDED，不再是可選的替代
-    active 執行協定）：規格已封閉（Protocol-1 §CWP-12A/12A-R/12B/12B-R，
-    Protocol-2 §CWP-12E）、**Protocol-1 與 Protocol-2 harness 均已離線
-    實作並驗證（CWP-12F）**、LIVE 憑證 bootstrap 缺口已於 CWP-12D-R 修補、
-    namespace bug 與 Claude 長請求 transport 缺陷已於 CWP-12D-2R 修補，
-    但**執行仍尚未授權（LIVE NOT AUTHORIZED）**，Final Pre-Live GPT
-    approval 尚未取得。Protocol-1 DUP-R00 = INCOMPLETE / FAILED CLOSED /
-    TERMINAL（0/1770 判定完成，永久關閉，不再嘗試）。
-  - DUP-R00（Protocol-1 或 Protocol-2 皆同一 60-task）input population =
-    通過 Structural Review ROUND_2 的現行 60 個 Protocol-2.1 candidates，
-    並已機械綁定（CWP-12C，Protocol-2 重用不變）。
-  - 0 duplicate audit rounds（任一協定），0 pool freeze，0 Chief Census
-    calls，亦無任何 effectiveness 實驗結果。
+- **當前邊界（CWP-12H 後）**：
+  - **CBRP corpus duplicate-audit acquisition 已正式關閉**：Protocol-1
+    DUP-R00 與 Protocol-2 DUP-P2-R00 均 FAILED CLOSED / TERMINAL（CWP-12G
+    真正 LIVE：D1 驗證通過但 D2 因 provider 以 markdown fence 包裹 JSON
+    被 extractor 正確拒絕），**不授權任何 Protocol-3 復原**（理由：
+    substantive output 已被觀察到，不再具備 Protocol-1→2 轉換時「尚未觀察
+    任何結果」的正當性）。完整記錄見
+    [`CBRP_DUPLICATE_AUDIT_EXECUTION_CLOSURE.md`](experiments/m2b/census/CBRP_DUPLICATE_AUDIT_EXECUTION_CLOSURE.md)。
+  - Pool 未凍結、無 retention、無 replacement；D1 的 19 對不得當作正式
+    duplicate 判定。**M-ACQ-01 仍為 OPEN**——CBRP reference-population
+    assignment rate 尚未測得。
+  - 未來若需 duplicate-audit，須為另一份獨立宣告的新 study/instrument，
+    不得呈現為本次 acquisition 的復原或延續。
