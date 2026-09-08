@@ -1,0 +1,9 @@
+{
+  "harnessVersion": "CBRP-DUPLICATE-AUDIT-LIVE-HARNESS-1",
+  "protocolVersion": "CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-1",
+  "status": "FAILED_CLOSED",
+  "roundId": "DUP-R00",
+  "stopCode": "STOP_PROVIDER_ERROR",
+  "stopMessage": "STOP_PROVIDER_ERROR: Streaming is required for operations that may take longer than 10 minutes. See https://github.com/anthropics/anthropic-sdk-typescript#long-requests for more details",
+  "sessionsRecorded": 1
+}

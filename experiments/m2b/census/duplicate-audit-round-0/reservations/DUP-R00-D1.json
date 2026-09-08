@@ -1,0 +1,11 @@
+{
+  "harnessVersion": "CBRP-DUPLICATE-AUDIT-LIVE-HARNESS-1",
+  "protocolVersion": "CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-1",
+  "sessionId": "DUP-R00-D1",
+  "roundId": "DUP-R00",
+  "role": "D1",
+  "providerRequested": "claude",
+  "modelRequested": "claude-opus-5",
+  "reservationTimestamp": "2026-09-08T10:49:03.343Z",
+  "status": "RESERVED_ATTEMPT_CONSUMED_ON_DISPATCH"
+}

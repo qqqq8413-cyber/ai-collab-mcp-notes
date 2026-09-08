@@ -1,0 +1,71 @@
+{
+  "sessions": [
+    {
+      "harnessVersion": "CBRP-DUPLICATE-AUDIT-LIVE-HARNESS-1",
+      "protocolVersion": "CBRP-CORPUS-DUPLICATE-AUDIT-PROTOCOL-1",
+      "sessionId": "DUP-R00-D1",
+      "roundId": "DUP-R00",
+      "role": "D1",
+      "providerRequested": "claude",
+      "modelRequested": "claude-opus-5",
+      "reservationTimestamp": "2026-09-08T10:49:03.343Z",
+      "status": "RESERVED_ATTEMPT_CONSUMED_ON_DISPATCH",
+      "modelFamily": "CLAUDE_FAMILY",
+      "modelPinVersion": "CBRP-SESSION-MODEL-PINS-1",
+      "freshContextConfirmed": true,
+      "freshContextBasis": "OPERATOR ATTESTATION — one stateless API request containing only the frozen model-visible prompt; no system prompt, prior turns, conversation id, or continuation. NOT independently verified.",
+      "wrapperVersion": "CBRP-DUPLICATE-AUDIT-D1D2-WRAPPER-1",
+      "layerAVersion": "CBRP-DUPLICATE-AUDIT-LAYER-A-v1",
+      "layerASha256": "57ca27ecf339ad4d5d5e1f45d3361a90a2ca1accf8a6e1433f55c831f613a05d",
+      "promptSha256": "40fc7509387777c010fee9016280b9f9e0120ee5276691540128bc68af725e2d",
+      "promptBytes": 77147,
+      "maxTokensRequested": 32768,
+      "thinkingLevelRequested": null,
+      "temperatureRequested": null,
+      "transportRetryConfiguration": "maxRetries: 0",
+      "d3SelectorInput": null,
+      "d3Selector": null,
+      "a": null,
+      "b": null,
+      "runtimeProvenance": {
+        "capturedAt": "2026-09-08T10:49:03.317Z",
+        "head": "161379ad07b038de90d1fbf49a5f8c8f7515026c",
+        "nodeVersion": "v24.15.0",
+        "packageLockSha256": "4fde57dc2c3102c081674bd6286dbc77aa9f8ecd128aa43450568edff840c5e1",
+        "anthropicSdkVersion": "0.123.0",
+        "geminiSdkVersion": "0.24.1",
+        "layerABytes": 639,
+        "layerASha256": "57ca27ecf339ad4d5d5e1f45d3361a90a2ca1accf8a6e1433f55c831f613a05d",
+        "sourceHashes": {
+          "experiments/m2b/census/CBRP_CORPUS_DUPLICATE_AUDIT_PROTOCOL_1.md": "cbac540b7214afcf6e6352fb81dd8bda68171707eed0ac5197ac9555e8c64555",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-prompt-v1.mjs": "a5abab6b0e20d0234c44c985224a1b8953473826abd34bf96aa71be0fa88debd",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-order-v1.mjs": "dd25109b8571e42f5f51d222bd6fec03eeb441dac9b500364c19df923fb52772",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-extractor-v1.mjs": "78aee59362768e5ee36fe56952184de6eca505ad8e52f7c405f101d84d1a5eeb",
+          "experiments/m2b/census/duplicate-audit-protocol/duplicate-audit-decision-v1.mjs": "16fb3e3b2cb3c7888350402675e88de180fa82577693d1db24cb91948b4e6d03",
+          "experiments/m2b/census/authoring-v2p1-round-0/CANDIDATES.json": "05bb612aa85c95fdcc9e4dbf077ebc50b2977e0fe41df8179c127e2d9dc98368",
+          "experiments/m2b/census/structural-review-round-2/FINAL_DECISIONS.json": "1fbd7bab3a64a1750a4d571653b5299ed87242a4b72a5ac53b3c1c3e07878402",
+          "experiments/m2b/census/structural-review-round-2/VALIDATION.json": "5fc03db72f7a67843b6797f80da3cddae56f4fc04b0ba9694eea2ecff35c6f42"
+        },
+        "workingTreePaths": [
+          "experiments/m2b/census/duplicate-audit-round-0/CORPUS.json",
+          "experiments/m2b/census/duplicate-audit-round-0/CORPUS_TASKS.json",
+          "experiments/m2b/census/duplicate-audit-round-0/D1D2_PROMPT_MANIFEST.json",
+          "experiments/m2b/census/duplicate-audit-round-0/LAYER_A_SENT.txt",
+          "experiments/m2b/census/duplicate-audit-round-0/PAIR_UNIVERSE.json",
+          "experiments/m2b/census/duplicate-audit-round-0/RESULTS.json",
+          "experiments/m2b/census/duplicate-audit-round-0/SCOPE.json",
+          "experiments/m2b/census/duplicate-audit-round-0/SESSIONS.json",
+          "experiments/m2b/census/duplicate-audit-round-0/VALIDATION.json"
+        ],
+        "unexpectedWorkingTreePaths": []
+      },
+      "startedAt": "2026-09-08T10:49:03.347Z",
+      "settledAt": "2026-09-08T10:49:03.365Z",
+      "providerDispatchCount": 1,
+      "outcome": "STOP_PROVIDER_ERROR",
+      "errorName": "Error",
+      "errorStatus": null,
+      "errorMessage": "Streaming is required for operations that may take longer than 10 minutes. See https://github.com/anthropics/anthropic-sdk-typescript#long-requests for more details"
+    }
+  ]
+}

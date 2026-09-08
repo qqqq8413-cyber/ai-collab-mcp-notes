@@ -1,0 +1,20 @@
+Two scenarios are duplicates when they instantiate **substantially the same underlying
+decision structure** and differ only in superficial substitution:
+
+```
+industry ｜ organisation name ｜ the numbers ｜ the setting ｜ cosmetic wording
+```
+
+Ask: *strip the surface detail — is the decision being made the same decision?*
+
+**Similarity is not duplication.** Two scenarios may freely share any of:
+
+```
+the same industry
+the same kind of decision
+the same format or length
+the same style of request
+```
+
+and not be duplicates. Only judge a pair as a duplicate when the decision itself is the
+same decision wearing different clothes.
