@@ -25,6 +25,7 @@ import {
   REVIEWER_PINS,
   GENERATION_ENVELOPES,
   computeInitialReviewPlan,
+  computeR3Plan,
   dispatchLiveStructuralReview,
 } from './structural-review-runner.mjs';
 import {
@@ -48,6 +49,10 @@ const HISTORICAL_ROUND_SEALS = Object.freeze({
   'structural-review-round-1': Object.freeze({
     fileCount: 7,
     sha256: 'b7dfa9d806b092043194a90d8c73fa69deb89a06c1039530885310ea6073daec',
+  }),
+  'structural-review-round-2': Object.freeze({
+    fileCount: 369,
+    sha256: 'd657411d87379f55fc20c83c184b56fe67259bbe10cad6388c5f5627f1cdc5fa',
   }),
 });
 
@@ -506,6 +511,140 @@ await check('R3 requires a completed initial-stage artifact set', async () => {
   }), /INITIAL_COMPLETE|ENOENT/);
 });
 
+console.log('\n--- CWP-11F: R3 route manifest durability (protocol §9) ---');
+
+async function runFreshInitialStage(label) {
+  const dir = artifactDir(label);
+  const { transport } = makeTransport((call) => {
+    const shouldFail = call.reviewRole === 'R2'
+      && disagreeingIds.has(call.reviewSessionId.replace(/-R2$/, ''));
+    return fakeResponse(call, validReview(call.blindTaskId, !shouldFail));
+  });
+  await runInitialStructuralReviewStage({
+    authorizedBaseSha: AUTHORIZED_BASE,
+    pool,
+    rubricPasteBytes: RUBRIC,
+    artifactDir: dir,
+    transport,
+    credentials: { claude: 'synthetic-claude', gemini: 'synthetic-gemini' },
+    revalidate: async () => ({ syntheticRuntimeSnapshot: true }),
+  });
+  return dir;
+}
+
+await check('R3_ROUTE_MANIFEST.json is durably persisted with every route before the first R3 transport call', () => {
+  const manifest = readJson(successDir, 'R3_ROUTE_MANIFEST.json');
+  assert.equal(manifest.harnessVersion, HARNESS_VERSION);
+  assert.equal(manifest.roundId, 'ROUND_0');
+  assert.equal(manifest.routeCount, disagreeingIds.size);
+  assert.equal(manifest.routes.length, disagreeingIds.size);
+  assert.deepEqual(
+    new Set(manifest.routes.map((route) => route.taskCandidateId)),
+    disagreeingIds
+  );
+});
+
+await check('manifest route order equals the frozen filtered initial order', () => {
+  const manifest = readJson(successDir, 'R3_ROUTE_MANIFEST.json');
+  const expectedOrder = orderedIds.filter((id) => disagreeingIds.has(id));
+  assert.deepEqual(manifest.routes.map((route) => route.taskCandidateId), expectedOrder);
+});
+
+await check('manifest provider/model/D3-selector fields equal an independent computeR3Plan() derivation', () => {
+  const manifest = readJson(successDir, 'R3_ROUTE_MANIFEST.json');
+  const reviewResultsByTaskId = new Map(orderedIds.map((id) => [id, {
+    r1Review: { overallPass: true },
+    r2Review: { overallPass: !disagreeingIds.has(id) },
+  }]));
+  const expectedPlan = computeR3Plan({
+    initialPlan: computeInitialReviewPlan({ pool, rubricPasteBytes: RUBRIC }),
+    reviewResultsByTaskId,
+  });
+  const expectedByTaskId = new Map(expectedPlan.map((entry) => [entry.taskCandidateId, entry]));
+  assert.equal(manifest.routes.length, expectedPlan.length);
+  for (const route of manifest.routes) {
+    const expected = expectedByTaskId.get(route.taskCandidateId);
+    assert.equal(route.provider, expected.r3.provider);
+    assert.equal(route.model, expected.r3.model);
+    assert.equal(route.modelFamily, expected.r3.modelFamily);
+    assert.equal(route.d3Selector, expected.r3.d3Selector);
+    assert.equal(route.d3SelectorInput, expected.r3.d3SelectorInput);
+    assert.equal(route.reviewSessionId, `${route.taskCandidateId}-R3`);
+    assert.equal(route.promptSha256, expected.r3.prompt.promptSha256);
+  }
+});
+
+await check('a route-manifest persistence failure stops before any R3 transport call', async () => {
+  const dir = await runFreshInitialStage('r3-manifest-persist-failure');
+  const baseStore = createArtifactStore(dir);
+  const store = { ...baseStore, writeJson(name, value) {
+    if (name === 'R3_ROUTE_MANIFEST.json') throw new Error('synthetic manifest write failure');
+    return baseStore.writeJson(name, value);
+  } };
+  const { calls, transport } = makeTransport();
+  await assert.rejects(() => runR3StructuralReviewStage({
+    authorizedBaseSha: AUTHORIZED_BASE,
+    artifactDir: dir,
+    transport,
+    credentials: { claude: 'x', gemini: 'y' },
+    revalidate: async () => ({ syntheticRuntimeSnapshot: true }),
+    store,
+  }), (error) => error.code === 'STOP_R3_ROUTE_MANIFEST_PERSISTENCE_FAILED');
+  assert.equal(calls.length, 0);
+  assert.equal(fs.existsSync(path.join(dir, 'R3_ROUTE_MANIFEST.json')), false);
+});
+
+await check('an existing route manifest that mismatches the recomputed plan stops with 0 R3 calls and is never overwritten', async () => {
+  const dir = await runFreshInitialStage('r3-manifest-mismatch');
+  const store = createArtifactStore(dir);
+  const forged = {
+    harnessVersion: HARNESS_VERSION,
+    protocolVersion: 'FORGED',
+    d3Version: 'FORGED',
+    roundId: 'ROUND_0',
+    routeCount: 0,
+    routes: [],
+  };
+  store.writeJson('R3_ROUTE_MANIFEST.json', forged);
+  const { calls, transport } = makeTransport();
+  await assert.rejects(() => runR3StructuralReviewStage({
+    authorizedBaseSha: AUTHORIZED_BASE,
+    artifactDir: dir,
+    transport,
+    credentials: { claude: 'x', gemini: 'y' },
+    revalidate: async () => ({ syntheticRuntimeSnapshot: true }),
+  }), (error) => error.code === 'STOP_R3_ROUTE_MANIFEST_MISMATCH');
+  assert.equal(calls.length, 0);
+  assert.deepEqual(readJson(dir, 'R3_ROUTE_MANIFEST.json'), forged);
+});
+
+await check('R3 route metadata (D3 selector, provider, model) never appears in the model-visible prompt', () => {
+  const manifest = readJson(successDir, 'R3_ROUTE_MANIFEST.json');
+  for (const route of manifest.routes) {
+    const prompt = promptByTask.get(route.taskCandidateId);
+    assert.equal(prompt.includes(route.d3Selector), false);
+    assert.equal(prompt.includes(route.d3SelectorInput), false);
+    assert.equal(prompt.includes(route.provider), false);
+    assert.equal(prompt.includes(route.model), false);
+  }
+});
+
+await check('existing R1/R2 review evidence is byte-identical after the R3 stage materializes its manifest', async () => {
+  const dir = await runFreshInitialStage('r3-preserves-initial-evidence');
+  const beforeR3 = readJson(dir, 'REVIEWS.json').reviews;
+  const { transport } = makeTransport((call) => fakeResponse(call, validReview(call.blindTaskId, true)));
+  await runR3StructuralReviewStage({
+    authorizedBaseSha: AUTHORIZED_BASE,
+    artifactDir: dir,
+    transport,
+    credentials: { claude: 'synthetic-claude', gemini: 'synthetic-gemini' },
+    revalidate: async () => ({ syntheticRuntimeSnapshot: true }),
+  });
+  const afterR3 = readJson(dir, 'REVIEWS.json').reviews;
+  assert.deepEqual(afterR3.slice(0, beforeR3.length), beforeR3);
+  assert.equal(afterR3.length, beforeR3.length + disagreeingIds.size);
+});
+
 console.log('\n--- CWP-11B/CWP-11D: round generation envelopes ---');
 
 await check('GENERATION_ENVELOPES.ROUND_0 matches the historical MAX_OUTPUT_TOKENS constant exactly', () => {
@@ -704,8 +843,28 @@ await check('structural-review-round-1 preserves the immutable zero-call STOP_SO
   assert.deepEqual(directorySeal('structural-review-round-1'), HISTORICAL_ROUND_SEALS['structural-review-round-1']);
 });
 
-await check('no real structural-review-round-2 namespace was created', () => {
-  assert.equal(fs.existsSync(new URL('../structural-review-round-2/', import.meta.url)), false);
+await check('structural-review-round-2 preserves the immutable 120/120 INITIAL_COMPLETE evidence (CWP-11E)', () => {
+  // CWP-11E ran ROUND_2 INITIAL LIVE: 120/120 sessions validated, 2 admission
+  // disagreements (V21-B05-S00-OP-02, V21-B01-S00-OP-01) held PENDING_R3, R3
+  // not dispatched. This suite must never write into this namespace; it only
+  // reads VALIDATION.json/DISAGREEMENTS.json to confirm the immutable baseline
+  // CWP-11F's route-manifest repair is layered on top of, never as a fixture
+  // this file defines.
+  const validation = JSON.parse(fs.readFileSync(new URL('../structural-review-round-2/VALIDATION.json', import.meta.url), 'utf8'));
+  assert.equal(validation.status, 'INITIAL_COMPLETE');
+  assert.equal(validation.roundId, 'ROUND_2');
+  assert.equal(validation.sessionsRecorded, 120);
+  assert.equal(validation.reviewsValidated, 120);
+  assert.equal(validation.disagreementCount, 2);
+  assert.equal(validation.automaticR3Dispatched, false);
+  const disagreements = JSON.parse(fs.readFileSync(new URL('../structural-review-round-2/DISAGREEMENTS.json', import.meta.url), 'utf8'));
+  assert.deepEqual(
+    disagreements.disagreements.map((entry) => entry.taskCandidateId),
+    ['V21-B05-S00-OP-02', 'V21-B01-S00-OP-01']
+  );
+  assert.equal(fs.existsSync(new URL('../structural-review-round-2/R3_ROUTE_MANIFEST.json', import.meta.url)), false,
+    'this offline repair must not materialize a route manifest inside real ROUND_2 evidence');
+  assert.deepEqual(directorySeal('structural-review-round-2'), HISTORICAL_ROUND_SEALS['structural-review-round-2']);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -617,6 +617,34 @@ function manifestFromPlan(initialPlan) {
   }));
 }
 
+/**
+ * §9's route-materialization requirement, made concrete: every field a future
+ * auditor needs to confirm an R3 dispatch went where CBRP-D3-v1 said it would,
+ * captured before any transport call, never derived from a model response.
+ */
+function buildR3RouteManifest({ r3Plan, roundId }) {
+  return {
+    harnessVersion: HARNESS_VERSION,
+    protocolVersion: PROTOCOL_VERSION,
+    d3Version: D3_VERSION,
+    roundId,
+    routeCount: r3Plan.length,
+    routes: r3Plan.map((entry) => ({
+      taskCandidateId: entry.taskCandidateId,
+      blindTaskId: entry.blindTaskId,
+      reviewOrderKey: entry.reviewOrderKey,
+      reviewSessionId: entry.r3.reviewId,
+      reviewRole: entry.r3.reviewRole,
+      provider: entry.r3.provider,
+      model: entry.r3.model,
+      modelFamily: entry.r3.modelFamily,
+      d3SelectorInput: entry.r3.d3SelectorInput,
+      d3Selector: entry.r3.d3Selector,
+      promptSha256: entry.r3.prompt.promptSha256,
+    })),
+  };
+}
+
 function reviewMap(reviews) {
   const map = new Map();
   for (const entry of reviews) {
@@ -796,6 +824,28 @@ export async function runR3StructuralReviewStage({
   const recordedIds = frozenDisagreements.disagreements.map((entry) => entry.taskCandidateId);
   if (JSON.stringify(expectedIds) !== JSON.stringify(recordedIds)) {
     throw stop('STOP_DISAGREEMENT_SET_MISMATCH', 'recorded disagreement set differs from frozen derivation');
+  }
+
+  // CWP-11F: §9 requires the disagreement set AND each task's D3 route to be
+  // durably materialized before the first R3 dispatch -- not one route persisted
+  // immediately before its own call, but the complete manifest persisted before
+  // call #1. A pre-existing manifest is never overwritten or repaired, only
+  // mechanically compared to the freshly recomputed frozen plan.
+  const routeManifest = buildR3RouteManifest({ r3Plan, roundId });
+  if (store.exists('R3_ROUTE_MANIFEST.json')) {
+    const existingManifest = store.readJson('R3_ROUTE_MANIFEST.json');
+    if (JSON.stringify(existingManifest) !== JSON.stringify(routeManifest)) {
+      throw stop(
+        'STOP_R3_ROUTE_MANIFEST_MISMATCH',
+        'existing R3_ROUTE_MANIFEST.json does not match the recomputed frozen R3 plan; refusing to overwrite or repair it'
+      );
+    }
+  } else {
+    try {
+      store.writeJson('R3_ROUTE_MANIFEST.json', routeManifest);
+    } catch (error) {
+      throw stop('STOP_R3_ROUTE_MANIFEST_PERSISTENCE_FAILED', String(error?.message ?? error));
+    }
   }
 
   try {
