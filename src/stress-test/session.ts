@@ -9,6 +9,7 @@ import type {
   Judgment,
   ReviewFinding,
   RevisionAction,
+  RevisionSourceRef,
   SemanticIssue,
   StressTestSession,
 } from './types.js';
@@ -41,6 +42,8 @@ export function createSession(artifactText: string): StressTestSession {
 const AUTHOR_CONTEXT_CATEGORIES = ['confirmedFacts', 'knownRisks', 'openQuestions', 'constraints'] as const;
 type AuthorContextCategory = (typeof AUTHOR_CONTEXT_CATEGORIES)[number];
 
+const AUTHOR_CONTEXT_ITEM_STATUSES = ['CURRENT', 'RESOLVED', 'SUPERSEDED'] as const;
+
 function assertNotFrozen(session: StressTestSession, action: string): void {
   if (session.state !== 'DRAFT') {
     throw new Error(
@@ -63,11 +66,14 @@ export function addAuthorContextItem(
   if (!AUTHOR_CONTEXT_CATEGORIES.includes(category)) {
     throw new Error(`addAuthorContextItem: unknown category ${JSON.stringify(category)}`);
   }
+  if (input.status !== undefined && !AUTHOR_CONTEXT_ITEM_STATUSES.includes(input.status)) {
+    throw new Error(`addAuthorContextItem: invalid status ${JSON.stringify(input.status)}`);
+  }
   const item: AuthorContextItem = {
     id: randomUUID(),
     text: input.text,
     sourceType: input.sourceType,
-    status: input.status ?? 'OPEN',
+    status: input.status ?? 'CURRENT',
     createdAt: nowIso(),
   };
   return {
@@ -238,22 +244,36 @@ export function adjudicate(
 
 /**
  * Plans a revision action against the artifact, tied back to the
- * semantic issue(s)/adjudicated finding(s) that motivated it. A revision
- * action existing does not itself mean the artifact was edited — see
- * implementRevisionAction/rejectRevisionAction for the distinction this
+ * semantic issue(s)/adjudicated finding(s) that motivated it via an explicit
+ * discriminated RevisionSourceRef — never inferred from the shape of an id.
+ * A revision action existing does not itself mean the artifact was edited —
+ * see implementRevisionAction/rejectRevisionAction for the distinction this
  * slice insists on.
  */
 export function planRevisionAction(
   session: StressTestSession,
-  input: { sourceIssueIds: string[]; description: string; targetLocation: string }
+  input: { sourceRefs: RevisionSourceRef[]; description: string; targetLocation: string }
 ): StressTestSession {
   assertFrozenOrLater(session, 'planRevisionAction');
-  if (input.sourceIssueIds.length === 0) {
-    throw new Error('planRevisionAction: sourceIssueIds must be non-empty');
+  if (input.sourceRefs.length === 0) {
+    throw new Error('planRevisionAction: sourceRefs must be non-empty');
+  }
+  for (const ref of input.sourceRefs) {
+    if (ref.kind === 'SEMANTIC_ISSUE') {
+      if (!session.semanticIssues[ref.id]) {
+        throw new Error(`planRevisionAction: unknown semantic issue id ${ref.id}`);
+      }
+    } else if (ref.kind === 'FINDING') {
+      if (!session.findings[ref.id]) {
+        throw new Error(`planRevisionAction: unknown finding id ${ref.id}`);
+      }
+    } else {
+      throw new Error(`planRevisionAction: invalid source ref kind ${JSON.stringify((ref as { kind: unknown }).kind)}`);
+    }
   }
   const action: RevisionAction = {
     id: randomUUID(),
-    sourceIssueIds: [...input.sourceIssueIds],
+    sourceRefs: [...input.sourceRefs],
     description: input.description,
     targetLocation: input.targetLocation,
     status: 'PLANNED',

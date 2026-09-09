@@ -81,7 +81,9 @@ export function generateDecisionRecord(session: StressTestSession): DecisionReco
   }
 
   const revisionActionsFor = (issueOrFindingId: string) =>
-    Object.values(session.revisionActions).filter((action) => action.sourceIssueIds.includes(issueOrFindingId));
+    Object.values(session.revisionActions).filter((action) =>
+      action.sourceRefs.some((ref) => ref.id === issueOrFindingId)
+    );
 
   const issues: DecisionRecordIssueEntry[] = Object.values(session.semanticIssues).map((issue) => {
     const adjudication = issueAdjudications.get(issue.id) ?? null;

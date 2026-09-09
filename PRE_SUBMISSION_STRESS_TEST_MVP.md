@@ -33,7 +33,11 @@ into `npm test`.
 - **AuthorContext** — `confirmedFacts[]`, `knownRisks[]`, `openQuestions[]`,
   `constraints[]`, each an array of `AuthorContextItem` (`id`, `text`,
   `sourceType`, `status`, `createdAt`). `sourceType` is `ARTIFACT` | `AUTHOR` |
-  `EXTERNAL_SOURCE` — see provenance rules below.
+  `EXTERNAL_SOURCE` — see provenance rules below. `status` is `CURRENT` |
+  `RESOLVED` | `SUPERSEDED` — the item's own lifecycle (still standing /
+  settled / replaced by a later item), not whether it is syntactically a
+  question, and never an epistemic claim (no `VERIFIED`). `addAuthorContextItem`
+  defaults new items to `CURRENT` and rejects any other value at runtime.
 - **ReviewFinding** — one reviewer-produced observation: `id`,
   `reviewerRunId`, `type` (`CLAIM` | `ASSUMPTION` | `AMBIGUITY` |
   `EXECUTION_RISK`), `title`, `artifactLocation`, `evidenceState`,
@@ -47,11 +51,15 @@ into `npm test`.
   `findingId`, `judgment` (`KNOWN_PRE_DISPATCH` | `NEW_NON_MATERIAL` |
   `NEW_MATERIAL` | `WRONG`), `actionChange` (`YES` | `NO`), `note`,
   `adjudicatedAt`.
-- **RevisionAction** — `id`, `sourceIssueIds[]`, `description`,
+- **RevisionAction** — `id`, `sourceRefs: RevisionSourceRef[]`, `description`,
   `targetLocation`, `status` (`PLANNED` | `IMPLEMENTED` | `REJECTED`),
   `createdAt`. A finding — even NEW_MATERIAL + actionChange=YES — does not
   automatically equal an artifact edit; this is the separately tracked fact
-  of whether an edit actually happened.
+  of whether an edit actually happened. Each `RevisionSourceRef` is an
+  explicit discriminated union — `{ kind: 'SEMANTIC_ISSUE', id }` or
+  `{ kind: 'FINDING', id }` — never inferred from the shape of `id`.
+  `planRevisionAction` validates every ref's `id` exists against the kind it
+  claims and rejects any other `kind` outright.
 - **StressTestSession** — the aggregate: `id`, `state`, `createdAt`,
   `artifactText`, `authorContext`, `frozenAt`, `artifactHash`,
   `authorContextHash`, and the `findings` / `semanticIssues` /
@@ -104,9 +112,14 @@ DRAFT → INPUT_FROZEN → REVIEWED → ADJUDICATED → REVISION_PLANNED → COM
   construction: `ReviewFinding` has no field for it, and adjudicating a
   semantic issue only ever sets that issue's own `status`, never anything on
   the findings it clusters.
-- A `RevisionAction`'s `sourceIssueIds` links back to whichever
-  issue/finding ids motivated it, so a `DecisionRecord` can always trace an
-  implemented change back to the judgment that authorized it.
+- A `RevisionAction`'s `sourceRefs` links back to whichever issue/finding ids
+  motivated it, each tagged with an explicit `kind`, so a `DecisionRecord`
+  can always trace an implemented change back to the judgment that
+  authorized it without guessing what kind of id it is looking at.
+- `HumanAdjudication`'s `semanticIssueId?` / `findingId?` pair is already an
+  unambiguous discriminated target (exactly one is ever set, and the caller
+  names which by the field itself) — it was deliberately left as-is during
+  the RevisionAction provenance hardening rather than redesigned to match.
 
 ## Evidence-state rules
 
@@ -131,6 +144,15 @@ new session value rather than mutating their argument in place, matching
 existing repository conventions (immutable-style updates elsewhere in
 `src/`) rather than introducing an unfreeze/versioning mechanism, which is
 out of scope for this slice.
+
+**Architecture decision (confirmed during Slice 1 hardening):** frozen
+artifact input and frozen author context are immutable by design, not by
+omission. No unfreeze API is desired at any point — changing frozen input
+always requires a new `StressTestSession`. A future slice may add session
+*lineage* metadata (e.g. `parentSessionId`, `supersedesSessionId`) so a new
+session can declare which prior session it supersedes, but that lineage
+mechanism is explicitly not implemented in this hardening step and must not
+be inferred from the current schema.
 
 ## What this slice deliberately does NOT implement
 

@@ -96,15 +96,40 @@ check('author context separates ARTIFACT-sourced from AUTHOR-sourced items', () 
   assert.equal(authorSourced[0].text.includes('pre-negotiated'), true);
 });
 
-check('each author context item gets an id, default OPEN status, and createdAt', () => {
+check('each author context item gets an id, default CURRENT status, and createdAt', () => {
   const session = addAuthorContextItem(createSession(ARTIFACT_TEXT), 'knownRisks', {
     text: 'x',
     sourceType: 'AUTHOR',
   });
   const item = session.authorContext.knownRisks[0];
   assert.equal(typeof item.id, 'string');
-  assert.equal(item.status, 'OPEN');
+  assert.equal(item.status, 'CURRENT');
   assert.equal(typeof item.createdAt, 'string');
+});
+
+console.log('\nAuthor context item status');
+
+check('AuthorContextItem accepts CURRENT, RESOLVED, and SUPERSEDED explicitly', () => {
+  for (const status of ['CURRENT', 'RESOLVED', 'SUPERSEDED']) {
+    const session = addAuthorContextItem(createSession(ARTIFACT_TEXT), 'knownRisks', {
+      text: 'x',
+      sourceType: 'AUTHOR',
+      status,
+    });
+    assert.equal(session.authorContext.knownRisks[0].status, status);
+  }
+});
+
+check('AuthorContextItem rejects the old OPEN status value', () => {
+  assert.throws(
+    () =>
+      addAuthorContextItem(createSession(ARTIFACT_TEXT), 'knownRisks', {
+        text: 'x',
+        sourceType: 'AUTHOR',
+        status: 'OPEN',
+      }),
+    /invalid status/
+  );
 });
 
 console.log('\nInput freezing');
@@ -428,14 +453,14 @@ console.log('\nRevision action linkage');
 check('a NEW_MATERIAL + actionChange=YES issue can produce a PLANNED then IMPLEMENTED revision action', () => {
   const { session, itIssueId } = buildAdjudicatedFixtureSession();
   let withAction = planRevisionAction(session, {
-    sourceIssueIds: [itIssueId],
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
     description: 'Add a paragraph committing to confirm IT provisioning capacity, and add explicit provisioning time to the rollout timeline, before the launch date is finalized.',
     targetLocation: 'Rollout Plan section',
   });
   assert.equal(withAction.state, 'REVISION_PLANNED');
   const actionId = Object.keys(withAction.revisionActions)[0];
   assert.equal(withAction.revisionActions[actionId].status, 'PLANNED');
-  assert.deepEqual(withAction.revisionActions[actionId].sourceIssueIds, [itIssueId]);
+  assert.deepEqual(withAction.revisionActions[actionId].sourceRefs, [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }]);
 
   const implemented = implementRevisionAction(withAction, actionId);
   assert.equal(implemented.revisionActions[actionId].status, 'IMPLEMENTED');
@@ -444,7 +469,7 @@ check('a NEW_MATERIAL + actionChange=YES issue can produce a PLANNED then IMPLEM
 check('a revision action can instead be REJECTED, and re-resolving an already-resolved action is refused', () => {
   const { session, itIssueId } = buildAdjudicatedFixtureSession();
   const withAction = planRevisionAction(session, {
-    sourceIssueIds: [itIssueId],
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
     description: 'x',
     targetLocation: 'x',
   });
@@ -457,7 +482,7 @@ check('a revision action can instead be REJECTED, and re-resolving an already-re
 check('completeSession refuses while a revision action is still PLANNED, and succeeds once resolved', () => {
   const { session, itIssueId } = buildAdjudicatedFixtureSession();
   const planned = planRevisionAction(session, {
-    sourceIssueIds: [itIssueId],
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
     description: 'x',
     targetLocation: 'x',
   });
@@ -467,12 +492,75 @@ check('completeSession refuses while a revision action is still PLANNED, and suc
   assert.equal(done.state, 'COMPLETED');
 });
 
+console.log('\nRevision source provenance (discriminated refs)');
+
+check('planRevisionAction accepts a SEMANTIC_ISSUE-kind source ref', () => {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  const withAction = planRevisionAction(session, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+    description: 'x',
+    targetLocation: 'x',
+  });
+  const actionId = Object.keys(withAction.revisionActions)[0];
+  assert.deepEqual(withAction.revisionActions[actionId].sourceRefs, [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }]);
+});
+
+check('planRevisionAction accepts a FINDING-kind source ref', () => {
+  const { session, budgetFindingId } = buildAdjudicatedFixtureSession();
+  const withAction = planRevisionAction(session, {
+    sourceRefs: [{ kind: 'FINDING', id: budgetFindingId }],
+    description: 'x',
+    targetLocation: 'x',
+  });
+  const actionId = Object.keys(withAction.revisionActions)[0];
+  assert.deepEqual(withAction.revisionActions[actionId].sourceRefs, [{ kind: 'FINDING', id: budgetFindingId }]);
+});
+
+check('planRevisionAction rejects an unrecognized source ref kind', () => {
+  const { session, budgetFindingId } = buildAdjudicatedFixtureSession();
+  assert.throws(
+    () =>
+      planRevisionAction(session, {
+        sourceRefs: [{ kind: 'NOT_A_KIND', id: budgetFindingId }],
+        description: 'x',
+        targetLocation: 'x',
+      }),
+    /invalid source ref kind/
+  );
+});
+
+check('planRevisionAction rejects a SEMANTIC_ISSUE ref whose id does not exist', () => {
+  const { session } = buildAdjudicatedFixtureSession();
+  assert.throws(
+    () =>
+      planRevisionAction(session, {
+        sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: 'not-a-real-id' }],
+        description: 'x',
+        targetLocation: 'x',
+      }),
+    /unknown semantic issue id/
+  );
+});
+
+check('planRevisionAction rejects a FINDING ref whose id does not exist', () => {
+  const { session } = buildAdjudicatedFixtureSession();
+  assert.throws(
+    () =>
+      planRevisionAction(session, {
+        sourceRefs: [{ kind: 'FINDING', id: 'not-a-real-id' }],
+        description: 'x',
+        targetLocation: 'x',
+      }),
+    /unknown finding id/
+  );
+});
+
 console.log('\nDecision-record generation');
 
 function buildCompletedFixtureSession() {
   const { session, itIssueId } = buildAdjudicatedFixtureSession();
   const withAction = planRevisionAction(session, {
-    sourceIssueIds: [itIssueId],
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
     description: 'Add a paragraph committing to confirm IT provisioning capacity, and add explicit provisioning time to the rollout timeline, before the launch date is finalized.',
     targetLocation: 'Rollout Plan section',
   });
@@ -517,6 +605,33 @@ check('the decision record answers what was reviewed, known, raised, new, materi
   assert.equal(rollback.actionChange, 'NO');
   assert.equal(budget.judgment, 'WRONG');
   assert.equal(budget.actionChange, 'NO');
+});
+
+check('DecisionRecord preserves revision source provenance across both SEMANTIC_ISSUE and FINDING refs', () => {
+  const { session, itIssueId, budgetFindingId } = buildAdjudicatedFixtureSession();
+  const withAction = planRevisionAction(session, {
+    sourceRefs: [
+      { kind: 'SEMANTIC_ISSUE', id: itIssueId },
+      { kind: 'FINDING', id: budgetFindingId },
+    ],
+    description: 'x',
+    targetLocation: 'x',
+  });
+  const actionId = Object.keys(withAction.revisionActions)[0];
+  const completed = completeSession(implementRevisionAction(withAction, actionId));
+  const record = generateDecisionRecord(completed);
+
+  // The same revision action is traceable both from the semantic issue it targets...
+  const itIssueEntry = record.issues.find((i) => i.title.includes('IT provisioning'));
+  assert.deepEqual(itIssueEntry.revisionActionIds, [actionId]);
+  // ...and from the standalone finding it also targets.
+  const budgetEntry = record.standaloneFindingAdjudications.find((a) => a.findingTitle.includes('$8,000'));
+  assert.deepEqual(budgetEntry.revisionActionIds, [actionId]);
+  // The underlying RevisionAction itself keeps the full discriminated source list.
+  assert.deepEqual(completed.revisionActions[actionId].sourceRefs, [
+    { kind: 'SEMANTIC_ISSUE', id: itIssueId },
+    { kind: 'FINDING', id: budgetFindingId },
+  ]);
 });
 
 check('renderDecisionRecordMarkdown produces readable markdown covering the summary and every issue', () => {

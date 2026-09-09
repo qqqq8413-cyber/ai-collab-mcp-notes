@@ -13,11 +13,15 @@
 export type AuthorContextSourceType = 'ARTIFACT' | 'AUTHOR' | 'EXTERNAL_SOURCE';
 
 /**
- * An AUTHOR-sourced item is the author's own claim about what they know —
- * never treated as independently verified merely because it was recorded.
- * Only ARTIFACT items are backed by the submitted text itself.
+ * Lifecycle status of an author-context item — CURRENT (still standing),
+ * RESOLVED (the risk/question/constraint has been settled), or SUPERSEDED
+ * (replaced by a later item). This is the item's own lifecycle, not whether
+ * it is syntactically a question. It carries no epistemic weight: an
+ * AUTHOR-sourced item is the author's own claim about what they know, never
+ * treated as independently verified merely because it was recorded. Only
+ * ARTIFACT items are backed by the submitted text itself.
  */
-export type AuthorContextItemStatus = 'OPEN' | 'RESOLVED';
+export type AuthorContextItemStatus = 'CURRENT' | 'RESOLVED' | 'SUPERSEDED';
 
 export interface AuthorContextItem {
   id: string;
@@ -116,6 +120,15 @@ export interface HumanAdjudication {
 export type RevisionActionStatus = 'PLANNED' | 'IMPLEMENTED' | 'REJECTED';
 
 /**
+ * An explicit, discriminated reference to whatever motivated a revision
+ * action — a semantic issue or a bare finding. Callers must state which;
+ * this is never inferred from the shape of `id` (e.g. an id prefix).
+ */
+export type RevisionSourceRef =
+  | { kind: 'SEMANTIC_ISSUE'; id: string }
+  | { kind: 'FINDING'; id: string };
+
+/**
  * An explicit, separately tracked action against the artifact. A review
  * finding — even one judged NEW_MATERIAL with actionChange=YES — does not
  * automatically equal an artifact edit; this record is what makes an
@@ -123,7 +136,7 @@ export type RevisionActionStatus = 'PLANNED' | 'IMPLEMENTED' | 'REJECTED';
  */
 export interface RevisionAction {
   id: string;
-  sourceIssueIds: string[];
+  sourceRefs: RevisionSourceRef[];
   description: string;
   targetLocation: string;
   status: RevisionActionStatus;
