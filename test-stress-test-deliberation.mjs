@@ -21,6 +21,7 @@ import {
   applyLatencySpend,
   createContextRequest,
   recordRouteAttemptStart,
+  recordRouteOutcome,
 } from './dist/stress-test/index.js';
 
 let passed = 0;
@@ -142,9 +143,9 @@ function buildRegisteredQuestion(session, state, input) {
 }
 
 /** Convenience: register a question for the given rootCause, then plan+record its RouteDecision via the real API (never a raw history insert). */
-function buildRecordedDecisionFixture(rootCause, costCeiling = 5) {
-  const { session, issueId } = buildFixtureWithIssue();
-  const state0 = createDeliberationState(session, { costCeiling, latencyCeiling: 5 });
+function buildRecordedDecisionFixture(rootCause, costCeiling = 5, latencyCeiling = 5) {
+  const { session, issueId, findingIds } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling, latencyCeiling });
   const { state: state1, question } = buildRegisteredQuestion(session, state0, {
     rootCause,
     materialityReason: `material ${rootCause}`,
@@ -152,14 +153,36 @@ function buildRecordedDecisionFixture(rootCause, costCeiling = 5) {
   });
   const decision = planRouteForQuestion(session, state1, question);
   const state2 = recordRouteDecision(session, state1, decision);
-  return { session, state: state2, decision, question, issueId };
+  return { session, state: state2, decision, question, issueId, findingIds };
 }
 
 /** Convenience: same as buildRecordedDecisionFixture, then starts the RouteAttempt. */
-function buildStartedAttemptFixture(rootCause, costCeiling = 5) {
-  const { session, state, decision, question, issueId } = buildRecordedDecisionFixture(rootCause, costCeiling);
+function buildStartedAttemptFixture(rootCause, costCeiling = 5, latencyCeiling = 5) {
+  const { session, state, decision, question, issueId, findingIds } = buildRecordedDecisionFixture(
+    rootCause,
+    costCeiling,
+    latencyCeiling
+  );
   const started = recordRouteAttemptStart(session, state, decision.id);
-  return { session, state: started, decision, question, issueId };
+  return { session, state: started, decision, question, issueId, findingIds };
+}
+
+/** Convenience: adds one new ReviewFinding with the given reviewerRunId via the real addFinding API, returning the updated session and the new finding's id. */
+function addReviewerFinding(session, reviewerRunId, overrides = {}) {
+  const before = new Set(Object.keys(session.findings));
+  const next = addFinding(session, {
+    reviewerRunId,
+    type: 'CLAIM',
+    title: 'A reviewer-produced finding for ADD_REVIEWER outcome testing',
+    artifactLocation: 'paragraph 1',
+    evidenceState: 'UNSUPPORTED_IN_MATERIAL',
+    whyMaterial: 'Testing ADD_REVIEWER RouteOutcome recording.',
+    likelyRecipientChallenge: 'n/a',
+    minimumBeforeSendAction: 'n/a',
+    ...overrides,
+  });
+  const findingId = Object.keys(next.findings).find((id) => !before.has(id));
+  return { session: next, findingId };
 }
 
 const NON_STOP_ROUTE_FIXTURES = [
@@ -1838,6 +1861,858 @@ check('recordRouteAttemptStart never touches session.adjudications or session.re
   recordRouteAttemptStart(session, state, decision.id);
   assert.deepEqual(session.adjudications, {});
   assert.deepEqual(session.revisionActions, {});
+});
+
+// ==================================================================
+// Q. RouteOutcome ledger (Slice 2D-B1)
+// ==================================================================
+console.log('\nRouteOutcome ledger (Slice 2D-B1)');
+
+const VALID_FAILURE = { category: 'TRANSPORT', message: 'The provider request could not be completed.' };
+
+// --- Q1. State shape --------------------------------------------------
+
+check('createDeliberationState initializes outcomes=[]; prior fields and RouteAttempt behavior unchanged', () => {
+  const session = buildReviewedFixtureSession();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  assert.deepEqual(state.outcomes, []);
+  assert.deepEqual(state.history, []);
+  assert.deepEqual(state.attempts, []);
+  assert.deepEqual(state.unresolvedQuestions, []);
+  assert.equal(state.stopReason, null);
+});
+
+// --- Q2. Generic FAILED, for every non-STOP route ----------------------
+
+for (const { rootCause, route } of NON_STOP_ROUTE_FIXTURES) {
+  check(`generic FAILED RouteOutcome records for ${route} with every field correct`, () => {
+    const { session, state, decision } = buildStartedAttemptFixture(rootCause, 5, 5);
+    const attempt = state.attempts[0];
+    const preOutcomeCostSpent = state.costBudget.spent;
+
+    const next = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'FAILED',
+      latencyConsumed: 2,
+      failure: VALID_FAILURE,
+    });
+
+    assert.equal(next.outcomes.length, 1);
+    const outcome = next.outcomes[0];
+    assert.equal(outcome.attemptId, attempt.attemptId);
+    assert.equal(outcome.decisionId, decision.id);
+    assert.equal(outcome.originatingQuestionId, decision.questionId);
+    assert.equal(outcome.route, route);
+    assert.equal(outcome.sessionId, session.id);
+    assert.equal(outcome.artifactHash, session.artifactHash);
+    assert.equal(outcome.authorContextHash, session.authorContextHash);
+    assert.equal(outcome.status, 'FAILED');
+    assert.equal(outcome.logicalCost, attempt.logicalCost);
+    assert.equal(outcome.latencyConsumed, 2);
+    assert.equal(typeof outcome.completedAt, 'string');
+    assert.ok(outcome.completedAt.length > 0);
+    assert.deepEqual(outcome.failure, VALID_FAILURE);
+    assert.equal(next.costBudget.spent, preOutcomeCostSpent, 'cost is unchanged by recording an outcome');
+    assert.equal(next.latencyBudget.spent, 2, 'latency increments exactly once');
+  });
+}
+
+// --- Q3. Failure validation ---------------------------------------------
+
+check('an unknown FailureCategory is rejected', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'FAILED',
+        latencyConsumed: 1,
+        failure: { category: 'NOT_A_CATEGORY', message: 'x' },
+      }),
+    /invalid FailureCategory/
+  );
+});
+
+check('an empty or whitespace-only failure message is rejected', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  for (const message of ['', '   ']) {
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, state, {
+          attemptId: attempt.attemptId,
+          status: 'FAILED',
+          latencyConsumed: 1,
+          failure: { category: 'TRANSPORT', message },
+        }),
+      /must be a non-empty string/
+    );
+  }
+});
+
+check('a failure message over 2000 characters is rejected, not truncated', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const tooLong = 'x'.repeat(2001);
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'FAILED',
+        latencyConsumed: 1,
+        failure: { category: 'TRANSPORT', message: tooLong },
+      }),
+    /exceeds 2000 characters/
+  );
+});
+
+check('a failure message of exactly 2000 characters is accepted', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const exactly2000 = 'x'.repeat(2000);
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'FAILED',
+    latencyConsumed: 1,
+    failure: { category: 'TRANSPORT', message: exactly2000 },
+  });
+  assert.equal(next.outcomes[0].failure.message.length, 2000);
+});
+
+check('a null failure message, or a raw object in place of a message, is rejected', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  for (const message of [null, { code: 'ECONNRESET' }]) {
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, state, {
+          attemptId: attempt.attemptId,
+          status: 'FAILED',
+          latencyConsumed: 1,
+          failure: { category: 'TRANSPORT', message },
+        }),
+      /must be a non-empty string/
+    );
+  }
+});
+
+check('extra keys on FailureInfo are rejected (stack/headers/raw/cause never persisted)', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  for (const extra of [{ stack: 'at foo()' }, { headers: {} }, { raw: {} }, { cause: new Error('x') }]) {
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, state, {
+          attemptId: attempt.attemptId,
+          status: 'FAILED',
+          latencyConsumed: 1,
+          failure: { category: 'TRANSPORT', message: 'x', ...extra },
+        }),
+      /unexpected field/
+    );
+  }
+});
+
+check('a FAILED input carrying a route-specific success payload field is rejected', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  for (const extra of [
+    { reviewerRunId: 'x', findingIds: [] },
+    { result: 'REPRODUCED', targetRef: { kind: 'SEMANTIC_ISSUE', id: 'x' } },
+  ]) {
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, state, {
+          attemptId: attempt.attemptId,
+          status: 'FAILED',
+          latencyConsumed: 1,
+          failure: VALID_FAILURE,
+          ...extra,
+        }),
+      /unexpected field/
+    );
+  }
+});
+
+check('caller-supplied logicalCost, completedAt, route, decisionId, or hashes are all rejected', () => {
+  const { session, state, decision } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const forbiddenExtras = [
+    { logicalCost: 0 },
+    { completedAt: new Date().toISOString() },
+    { route: 'ADD_REVIEWER' },
+    { decisionId: decision.id },
+    { sessionId: session.id },
+    { artifactHash: session.artifactHash },
+    { authorContextHash: session.authorContextHash },
+  ];
+  for (const extra of forbiddenExtras) {
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, state, {
+          attemptId: attempt.attemptId,
+          status: 'FAILED',
+          latencyConsumed: 1,
+          failure: VALID_FAILURE,
+          ...extra,
+        }),
+      /unexpected field/,
+      `expected extra field ${JSON.stringify(Object.keys(extra))} to be rejected`
+    );
+  }
+});
+
+// --- Q4. Duplicate / attempt binding -------------------------------------
+
+check('an unknown, blank, or missing attemptId is rejected', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  for (const attemptId of ['not-a-real-attempt', '', '   ', null, undefined]) {
+    assert.throws(
+      () => recordRouteOutcome(session, state, { attemptId, status: 'FAILED', latencyConsumed: 1, failure: VALID_FAILURE }),
+      /must be a non-empty string|is not a currently recorded RouteAttempt/,
+      `expected attemptId ${JSON.stringify(attemptId)} to be rejected`
+    );
+  }
+});
+
+check('a second RouteOutcome for the same attemptId is rejected; the first outcome is unchanged', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'FAILED',
+    latencyConsumed: 1,
+    failure: VALID_FAILURE,
+  });
+  const before = JSON.parse(JSON.stringify(next));
+  assert.throws(
+    () => recordRouteOutcome(session, next, { attemptId: attempt.attemptId, status: 'FAILED', latencyConsumed: 1, failure: VALID_FAILURE }),
+    /already has a RouteOutcome/
+  );
+  assert.deepEqual(next, before, 'no extra outcome or latency spend from the rejected duplicate');
+});
+
+check('recording is rejected once the deliberation has stopped', () => {
+  const { session, state, decision } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const stopDecision = planRouteForQuestion(session, state, {
+    id: 'stop-q',
+    rootCause: 'NONE',
+    materialityReason: 'nothing material remains',
+    inputRefs: [],
+    createdAt: new Date().toISOString(),
+  });
+  const stopped = recordRouteDecision(session, state, stopDecision, { stopReason: 'budget' });
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, stopped, {
+        attemptId: attempt.attemptId,
+        status: 'FAILED',
+        latencyConsumed: 1,
+        failure: VALID_FAILURE,
+      }),
+    /already stopped/
+  );
+});
+
+check('a tampered attempt (route/decisionId/questionId/sessionId/hashes/logicalCost) is rejected', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const tamperCases = [
+    { route: 'REPLICATE' },
+    { decisionId: 'not-a-real-decision' },
+    { questionId: 'not-a-real-question' },
+    { sessionId: 'not-the-real-session' },
+    { artifactHash: 'not-the-real-hash' },
+    { authorContextHash: 'not-the-real-hash' },
+    { logicalCost: attempt.logicalCost + 1 },
+  ];
+  for (const tamper of tamperCases) {
+    const tamperedState = { ...state, attempts: [{ ...attempt, ...tamper }] };
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, tamperedState, {
+          attemptId: attempt.attemptId,
+          status: 'FAILED',
+          latencyConsumed: 1,
+          failure: VALID_FAILURE,
+        }),
+      undefined,
+      `expected tamper ${JSON.stringify(tamper)} to be rejected`
+    );
+  }
+});
+
+check('a malformed attempt.startedAt is rejected', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const tamperedState = { ...state, attempts: [{ ...attempt, startedAt: 'not-a-timestamp' }] };
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, tamperedState, {
+        attemptId: attempt.attemptId,
+        status: 'FAILED',
+        latencyConsumed: 1,
+        failure: VALID_FAILURE,
+      }),
+    /not a valid parseable timestamp/
+  );
+});
+
+check('an attempt whose recorded decision is missing is rejected', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const tamperedState = { ...state, history: [] };
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, tamperedState, {
+        attemptId: attempt.attemptId,
+        status: 'FAILED',
+        latencyConsumed: 1,
+        failure: VALID_FAILURE,
+      }),
+    /is not a currently recorded RouteDecision/
+  );
+});
+
+check('an attempt whose recorded decision has a mismatched route is rejected', () => {
+  const { session, state, decision } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const tamperedState = {
+    ...state,
+    history: [{ ...decision, route: 'REPLICATE', reason: { ...decision.reason, rootCause: 'STABILITY_QUESTION' } }],
+  };
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, tamperedState, {
+        attemptId: attempt.attemptId,
+        status: 'FAILED',
+        latencyConsumed: 1,
+        failure: VALID_FAILURE,
+      }),
+    /recorded decision route does not match the attempt route/
+  );
+});
+
+check('an attempt whose registered question provenance mismatches the decision is rejected', () => {
+  const { session, state, question } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const tamperedState = {
+    ...state,
+    unresolvedQuestions: [{ ...question, materialityReason: 'a different reason entirely' }],
+  };
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, tamperedState, {
+        attemptId: attempt.attemptId,
+        status: 'FAILED',
+        latencyConsumed: 1,
+        failure: VALID_FAILURE,
+      }),
+    /materialityReason does not match/
+  );
+});
+
+// --- Q5. Latency ----------------------------------------------------------
+
+check('finite non-negative latencyConsumed, including zero, is accepted', () => {
+  for (const latencyConsumed of [0, 3.5]) {
+    const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+    const attempt = state.attempts[0];
+    const next = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'FAILED',
+      latencyConsumed,
+      failure: VALID_FAILURE,
+    });
+    assert.equal(next.latencyBudget.spent, latencyConsumed);
+  }
+});
+
+check('negative, NaN, or Infinity latencyConsumed is rejected', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  for (const latencyConsumed of [-1, NaN, Infinity]) {
+    assert.throws(() =>
+      recordRouteOutcome(session, state, { attemptId: attempt.attemptId, status: 'FAILED', latencyConsumed, failure: VALID_FAILURE })
+    );
+  }
+});
+
+check('latency over the ceiling is rejected; no outcome appended, no extra spend, cost unaffected', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP', 5, 1);
+  const attempt = state.attempts[0];
+  const before = JSON.parse(JSON.stringify(state));
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, { attemptId: attempt.attemptId, status: 'FAILED', latencyConsumed: 2, failure: VALID_FAILURE }),
+    /exceed the latency ceiling/
+  );
+  assert.deepEqual(state, before, 'original state unchanged after a rejected recording');
+});
+
+check('a rejected duplicate outcome does not charge latency twice', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP', 5, 3);
+  const attempt = state.attempts[0];
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'FAILED',
+    latencyConsumed: 2,
+    failure: VALID_FAILURE,
+  });
+  assert.equal(next.latencyBudget.spent, 2);
+  try {
+    recordRouteOutcome(session, next, { attemptId: attempt.attemptId, status: 'FAILED', latencyConsumed: 2, failure: VALID_FAILURE });
+  } catch {
+    // expected
+  }
+  assert.equal(next.latencyBudget.spent, 2, 'no second latency charge from a rejected duplicate');
+});
+
+// --- Q6. ADD_REVIEWER -------------------------------------------------------
+
+check('ADD_REVIEWER succeeds with zero, one, and multiple findings', () => {
+  for (const count of [0, 1, 2]) {
+    const { session: session0, state, attempt } = (() => {
+      const fixture = buildStartedAttemptFixture('COVERAGE_GAP');
+      return { ...fixture, attempt: fixture.state.attempts[0] };
+    })();
+    let session = session0;
+    const findingIds = [];
+    for (let i = 0; i < count; i++) {
+      const added = addReviewerFinding(session, 'reviewer-run-multi');
+      session = added.session;
+      findingIds.push(added.findingId);
+    }
+    const next = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      reviewerRunId: 'reviewer-run-multi',
+      findingIds,
+    });
+    const outcome = next.outcomes[0];
+    assert.equal(outcome.status, 'SUCCEEDED');
+    assert.equal(outcome.route, 'ADD_REVIEWER');
+    assert.equal(outcome.reviewerRunId, 'reviewer-run-multi');
+    assert.deepEqual(outcome.findingIds, findingIds);
+    assert.notEqual(outcome.reviewerRunId, attempt.attemptId);
+    assert.equal(Object.prototype.hasOwnProperty.call(outcome, 'reviewFindings'), false, 'no ReviewFinding objects are copied');
+  }
+});
+
+check('ADD_REVIEWER rejects when the attempt route is not ADD_REVIEWER', () => {
+  const { session, state } = buildStartedAttemptFixture('STABILITY_QUESTION');
+  const attempt = state.attempts[0];
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        reviewerRunId: 'x',
+        findingIds: [],
+      }),
+    /not authorized in Slice 2D-B1|unexpected field/
+  );
+});
+
+check('ADD_REVIEWER rejects a blank reviewerRunId, or reviewerRunId === attemptId', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  for (const reviewerRunId of ['', '   ', attempt.attemptId]) {
+    assert.throws(() =>
+      recordRouteOutcome(session, state, { attemptId: attempt.attemptId, status: 'SUCCEEDED', latencyConsumed: 1, reviewerRunId, findingIds: [] })
+    );
+  }
+});
+
+check('ADD_REVIEWER rejects an unknown or duplicate findingId', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        reviewerRunId: 'run-x',
+        findingIds: ['not-a-real-finding'],
+      }),
+    /unknown findingId/
+  );
+  const added = addReviewerFinding(session, 'run-x');
+  assert.throws(
+    () =>
+      recordRouteOutcome(added.session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        reviewerRunId: 'run-x',
+        findingIds: [added.findingId, added.findingId],
+      }),
+    /duplicate findingId/
+  );
+});
+
+check('ADD_REVIEWER rejects a findingId whose reviewerRunId does not match', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const added = addReviewerFinding(session, 'actual-run');
+  assert.throws(
+    () =>
+      recordRouteOutcome(added.session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        reviewerRunId: 'claimed-run',
+        findingIds: [added.findingId],
+      }),
+    /reviewerRunId does not match/
+  );
+});
+
+check('ADD_REVIEWER rejects a finding with a malformed createdAt or createdAt before attempt.startedAt', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const malformed = addReviewerFinding(session, 'run-malformed', { createdAt: 'not-a-timestamp' });
+  // addFinding always stamps its own createdAt (createdAt is not caller-overridable there), so this
+  // exercises the case indirectly by tampering the session's stored finding instead.
+  const tamperedSession = {
+    ...malformed.session,
+    findings: {
+      ...malformed.session.findings,
+      [malformed.findingId]: { ...malformed.session.findings[malformed.findingId], createdAt: 'not-a-timestamp' },
+    },
+  };
+  assert.throws(
+    () =>
+      recordRouteOutcome(tamperedSession, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        reviewerRunId: 'run-malformed',
+        findingIds: [malformed.findingId],
+      }),
+    /unparseable createdAt/
+  );
+
+  const early = addReviewerFinding(session, 'run-early');
+  const backdatedSession = {
+    ...early.session,
+    findings: {
+      ...early.session.findings,
+      [early.findingId]: { ...early.session.findings[early.findingId], createdAt: '2000-01-01T00:00:00.000Z' },
+    },
+  };
+  assert.throws(
+    () =>
+      recordRouteOutcome(backdatedSession, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        reviewerRunId: 'run-early',
+        findingIds: [early.findingId],
+      }),
+    /before the attempt's startedAt/
+  );
+});
+
+check('ADD_REVIEWER rejects a reviewerRunId already claimed by an earlier successful outcome', () => {
+  const { session: session0, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const added1 = addReviewerFinding(session0, 'shared-run');
+  const afterFirst = recordRouteOutcome(added1.session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    reviewerRunId: 'shared-run',
+    findingIds: [added1.findingId],
+  });
+
+  const { session: session2, state: state2 } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt2 = state2.attempts[0];
+  const mergedState = { ...state2, outcomes: afterFirst.outcomes };
+  const added2 = addReviewerFinding(session2, 'shared-run');
+  assert.throws(
+    () =>
+      recordRouteOutcome(added2.session, mergedState, {
+        attemptId: attempt2.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        reviewerRunId: 'shared-run',
+        findingIds: [added2.findingId],
+      }),
+    /already claimed by an earlier successful ADD_REVIEWER RouteOutcome/
+  );
+});
+
+check('ADD_REVIEWER rejects unexpected extra fields and leaves session findings unchanged on rejection', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const findingsBefore = JSON.parse(JSON.stringify(session.findings));
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        reviewerRunId: 'run-x',
+        findingIds: [],
+        targetRef: { kind: 'SEMANTIC_ISSUE', id: 'x' },
+      }),
+    /unexpected field/
+  );
+  assert.deepEqual(session.findings, findingsBefore);
+});
+
+// --- Q7. REPLICATE ----------------------------------------------------------
+
+for (const result of ['REPRODUCED', 'NOT_REPRODUCED', 'PARTIAL']) {
+  check(`REPLICATE succeeds with result=${result}`, () => {
+    const { session, state, issueId } = buildStartedAttemptFixture('STABILITY_QUESTION');
+    const attempt = state.attempts[0];
+    const targetRef = { kind: 'SEMANTIC_ISSUE', id: issueId };
+    const next = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      result,
+      targetRef,
+    });
+    const outcome = next.outcomes[0];
+    assert.equal(outcome.status, 'SUCCEEDED');
+    assert.equal(outcome.route, 'REPLICATE');
+    assert.equal(outcome.result, result);
+    assert.deepEqual(outcome.targetRef, targetRef);
+  });
+}
+
+check('REPLICATE rejects an invalid result string and status=INCONCLUSIVE', () => {
+  const { session, state, issueId } = buildStartedAttemptFixture('STABILITY_QUESTION');
+  const attempt = state.attempts[0];
+  const targetRef = { kind: 'SEMANTIC_ISSUE', id: issueId };
+  assert.throws(
+    () => recordRouteOutcome(session, state, { attemptId: attempt.attemptId, status: 'SUCCEEDED', latencyConsumed: 1, result: 'NOT_A_RESULT', targetRef }),
+    /invalid ReplicationResult/
+  );
+  assert.throws(
+    () => recordRouteOutcome(session, state, { attemptId: attempt.attemptId, status: 'INCONCLUSIVE', latencyConsumed: 1, result: 'PARTIAL', targetRef }),
+    /INCONCLUSIVE is not recordable/
+  );
+});
+
+check('REPLICATE rejects when the attempt route is not REPLICATE', () => {
+  const { session, state, issueId } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        result: 'REPRODUCED',
+        targetRef: { kind: 'SEMANTIC_ISSUE', id: issueId },
+      }),
+    /not authorized in Slice 2D-B1|unexpected field/
+  );
+});
+
+check('REPLICATE rejects an unknown targetRef, a ref absent from decision.inputRefs, and a same-id-wrong-kind ref', () => {
+  const { session, state, issueId, findingIds } = buildStartedAttemptFixture('STABILITY_QUESTION');
+  const attempt = state.attempts[0];
+
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        result: 'REPRODUCED',
+        targetRef: { kind: 'SEMANTIC_ISSUE', id: 'not-a-real-issue' },
+      }),
+    /unknown SEMANTIC_ISSUE id/
+  );
+
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        result: 'REPRODUCED',
+        targetRef: { kind: 'FINDING', id: findingIds[0] },
+      }),
+    /must exactly match one of the recorded RouteDecision.inputRefs/
+  );
+
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        result: 'REPRODUCED',
+        targetRef: { kind: 'FINDING', id: issueId },
+      }),
+    /unknown FINDING id/
+  );
+});
+
+check('REPLICATE rejects an AUTHOR_CONTEXT_ITEM target and a malformed targetRef', () => {
+  const { session, state } = buildStartedAttemptFixture('STABILITY_QUESTION');
+  const attempt = state.attempts[0];
+  const authorItemId = session.authorContext.constraints[0].id;
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        result: 'REPRODUCED',
+        targetRef: { kind: 'AUTHOR_CONTEXT_ITEM', id: authorItemId },
+      }),
+    /must be FINDING or SEMANTIC_ISSUE/
+  );
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        result: 'REPRODUCED',
+        targetRef: { kind: 'NOT_A_KIND', id: 'x' },
+      }),
+    /invalid ref kind/
+  );
+});
+
+check('REPLICATE rejects unexpected extra fields', () => {
+  const { session, state, issueId } = buildStartedAttemptFixture('STABILITY_QUESTION');
+  const attempt = state.attempts[0];
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        result: 'REPRODUCED',
+        targetRef: { kind: 'SEMANTIC_ISSUE', id: issueId },
+        reviewerRunId: 'x',
+      }),
+    /unexpected field/
+  );
+});
+
+check('REPLICATE targetRef is snapshot-isolated: mutating the caller-owned ref after recording does not alter the outcome', () => {
+  const { session, state, issueId } = buildStartedAttemptFixture('STABILITY_QUESTION');
+  const attempt = state.attempts[0];
+  const targetRef = { kind: 'SEMANTIC_ISSUE', id: issueId };
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'REPRODUCED',
+    targetRef,
+  });
+  targetRef.id = 'mutated-after-recording';
+  targetRef.kind = 'FINDING';
+  assert.deepEqual(next.outcomes[0].targetRef, { kind: 'SEMANTIC_ISSUE', id: issueId });
+});
+
+// --- Q8. Blocked successful routes/results ---------------------------------
+
+const BLOCKED_SUCCESS_CASES = [
+  { rootCause: 'CONTEXT_GAP', extra: { responseText: 'The team confirmed capacity.' }, label: 'ADD_CONTEXT SUPPLIED' },
+  { rootCause: 'CONTEXT_GAP', extra: {}, label: 'ADD_CONTEXT DECLINED' },
+  { rootCause: 'CONTEXT_GAP', extra: {}, label: 'ADD_CONTEXT NO_RESPONSE' },
+  { rootCause: 'EVIDENCE_GAP', extra: { citations: [] }, label: 'SEEK_EVIDENCE SUPPORTIVE' },
+  { rootCause: 'EVIDENCE_GAP', extra: { citations: [] }, label: 'SEEK_EVIDENCE CONTRADICTORY' },
+  { rootCause: 'EVIDENCE_GAP', extra: {}, label: 'SEEK_EVIDENCE INCONCLUSIVE' },
+  {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    extra: { targetRef: { kind: 'SEMANTIC_ISSUE', id: 'x' }, sourceRef: { kind: 'SEMANTIC_ISSUE', id: 'y' }, response: 'x' },
+    label: 'TARGETED_PEER_CHALLENGE REBUTTAL',
+  },
+];
+
+for (const { rootCause, extra, label } of BLOCKED_SUCCESS_CASES) {
+  check(`SUCCEEDED recording is rejected for ${label} (route not authorized in Slice 2D-B1)`, () => {
+    const { session, state } = buildStartedAttemptFixture(rootCause);
+    const attempt = state.attempts[0];
+    const before = JSON.parse(JSON.stringify(state));
+    assert.throws(
+      () => recordRouteOutcome(session, state, { attemptId: attempt.attemptId, status: 'SUCCEEDED', latencyConsumed: 1, ...extra }),
+      /not authorized in Slice 2D-B1/
+    );
+    assert.deepEqual(state, before, 'no outcome or spend from a rejected blocked-route recording');
+  });
+}
+
+check('generic FAILED still succeeds for ADD_CONTEXT, SEEK_EVIDENCE, and TARGETED_PEER_CHALLENGE attempts', () => {
+  for (const rootCause of ['CONTEXT_GAP', 'EVIDENCE_GAP', 'DECISION_SENSITIVE_CONFLICT']) {
+    const { session, state } = buildStartedAttemptFixture(rootCause);
+    const attempt = state.attempts[0];
+    const next = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'FAILED',
+      latencyConsumed: 1,
+      failure: VALID_FAILURE,
+    });
+    assert.equal(next.outcomes[0].status, 'FAILED');
+  }
+});
+
+// --- Q9. Snapshot / immutability --------------------------------------------
+
+check('recording an outcome leaves the original DeliberationState/session unchanged and returns a new object', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const sessionBefore = JSON.parse(JSON.stringify(session));
+  const stateBefore = JSON.parse(JSON.stringify(state));
+
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'FAILED',
+    latencyConsumed: 1,
+    failure: VALID_FAILURE,
+  });
+
+  assert.notEqual(next, state);
+  assert.deepEqual(session, sessionBefore, 'session must be unchanged');
+  assert.deepEqual(state, stateBefore, 'the original DeliberationState must be unchanged');
+  assert.deepEqual(next.attempts, state.attempts);
+  assert.deepEqual(next.history, state.history);
+  assert.deepEqual(next.unresolvedQuestions, state.unresolvedQuestions);
+  assert.deepEqual(session.adjudications, {});
+  assert.deepEqual(session.revisionActions, {});
+});
+
+check('mutating a caller-owned FailureInfo after recording does not alter the recorded outcome', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const failure = { category: 'TRANSPORT', message: 'original message' };
+  const next = recordRouteOutcome(session, state, { attemptId: attempt.attemptId, status: 'FAILED', latencyConsumed: 1, failure });
+  failure.message = 'mutated after recording';
+  failure.category = 'VALIDATION';
+  assert.deepEqual(next.outcomes[0].failure, { category: 'TRANSPORT', message: 'original message' });
+});
+
+check('mutating a caller-owned findingIds array after recording does not alter the recorded outcome', () => {
+  const { session: session0, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const added = addReviewerFinding(session0, 'run-snapshot');
+  const findingIds = [added.findingId];
+  const next = recordRouteOutcome(added.session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    reviewerRunId: 'run-snapshot',
+    findingIds,
+  });
+  findingIds.push('sneaked-in-after-recording');
+  assert.deepEqual(next.outcomes[0].findingIds, [added.findingId]);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

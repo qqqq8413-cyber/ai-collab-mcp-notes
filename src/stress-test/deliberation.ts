@@ -206,6 +206,15 @@ export interface RouteDecision {
 /** Every route except STOP -- STOP has no RouteAttempt (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §5). */
 export type NonStopDeliberationRoute = Exclude<DeliberationRoute, 'STOP'>;
 
+/** Runtime allowlist mirroring NonStopDeliberationRoute -- a plain-JS caller has no compile-time check. */
+const NON_STOP_ROUTES: readonly NonStopDeliberationRoute[] = [
+  'ADD_CONTEXT',
+  'ADD_REVIEWER',
+  'REPLICATE',
+  'SEEK_EVIDENCE',
+  'TARGETED_PEER_CHALLENGE',
+];
+
 /**
  * The immutable fact that one authorized, already-recorded RouteDecision
  * has begun execution -- recorded BEFORE any external/human mechanism runs,
@@ -229,6 +238,119 @@ export interface RouteAttempt {
   logicalCost: number;
 }
 
+/** The closed, three-value technical-completion classification of one terminal RouteAttempt (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §6). */
+export type AttemptStatus = 'SUCCEEDED' | 'FAILED' | 'INCONCLUSIVE';
+
+/** Runtime allowlist mirroring AttemptStatus -- a plain-JS caller has no compile-time check. */
+const ATTEMPT_STATUSES: readonly AttemptStatus[] = ['SUCCEEDED', 'FAILED', 'INCONCLUSIVE'];
+
+function assertValidAttemptStatus(status: AttemptStatus, label: string): void {
+  if (!ATTEMPT_STATUSES.includes(status)) {
+    throw new Error(`${label}: invalid AttemptStatus ${JSON.stringify(status)}`);
+  }
+}
+
+/** The closed, provider-neutral failure-category vocabulary (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7). */
+export type FailureCategory = 'TRANSPORT' | 'VALIDATION' | 'REFERENCE_RESOLUTION' | 'EXECUTION';
+
+const FAILURE_CATEGORIES: readonly FailureCategory[] = ['TRANSPORT', 'VALIDATION', 'REFERENCE_RESOLUTION', 'EXECUTION'];
+
+/** Implementation hard cap for audit safety, not a provider-specific policy. Messages over this length are rejected, never truncated. */
+const FAILURE_MESSAGE_MAX_CHARS = 2000;
+
+/**
+ * Generic, provider-neutral failure payload. Exactly `{ category, message }`
+ * -- never a stack trace, request header, API key, raw SDK error object, or
+ * any other field. `message` is a sanitized, bounded, human-readable
+ * explanation; sanitizing actual secrets out of it is the caller/execution
+ * layer's responsibility before this domain API is ever called.
+ */
+export interface FailureInfo {
+  category: FailureCategory;
+  message: string;
+}
+
+function assertValidFailureInfo(failure: FailureInfo, label: string): void {
+  if (failure === null || typeof failure !== 'object') {
+    throw new Error(`${label} must be an object`);
+  }
+  assertExactKeys(failure, ['category', 'message'], label);
+  if (!FAILURE_CATEGORIES.includes(failure.category)) {
+    throw new Error(`${label}.category: invalid FailureCategory ${JSON.stringify(failure.category)}`);
+  }
+  if (typeof failure.message !== 'string' || failure.message.trim().length === 0) {
+    throw new Error(`${label}.message must be a non-empty string`);
+  }
+  if (failure.message.length > FAILURE_MESSAGE_MAX_CHARS) {
+    throw new Error(`${label}.message exceeds ${FAILURE_MESSAGE_MAX_CHARS} characters`);
+  }
+}
+
+/** Independent snapshot of a FailureInfo -- never the caller-owned object. */
+function cloneFailureInfo(failure: FailureInfo): FailureInfo {
+  return { category: failure.category, message: failure.message };
+}
+
+/** Closed, three-value REPLICATE result vocabulary -- all determinate; none maps to INCONCLUSIVE (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.C). */
+export type ReplicationResult = 'REPRODUCED' | 'NOT_REPRODUCED' | 'PARTIAL';
+
+const REPLICATION_RESULTS: readonly ReplicationResult[] = ['REPRODUCED', 'NOT_REPRODUCED', 'PARTIAL'];
+
+function assertValidReplicationResult(result: ReplicationResult, label: string): void {
+  if (!REPLICATION_RESULTS.includes(result)) {
+    throw new Error(`${label}: invalid ReplicationResult ${JSON.stringify(result)}`);
+  }
+}
+
+/**
+ * Common fields every RouteOutcome carries, regardless of route/status
+ * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7's generic envelope).
+ * `attemptId` is RouteOutcome's own identity -- no separate `outcomeId`,
+ * since one RouteAttempt has at most one RouteOutcome. `logicalCost` is
+ * always a copied audit mirror of the terminated RouteAttempt's own
+ * `logicalCost`, never caller input. `completedAt` is runtime-generated:
+ * the time this domain runtime defensibly recorded the outcome, not a
+ * claimed provider-side completion time.
+ */
+interface RouteOutcomeCommon {
+  attemptId: string;
+  decisionId: string;
+  originatingQuestionId: string;
+  route: NonStopDeliberationRoute;
+  sessionId: string;
+  artifactHash: string;
+  authorContextHash: string;
+  completedAt: string;
+  status: AttemptStatus;
+  logicalCost: number;
+  latencyConsumed: number;
+}
+
+/** The immutable terminal record for an attempt whose mechanism did not produce a valid route-specific result. Recordable for any non-STOP route. */
+export interface FailedRouteOutcome extends RouteOutcomeCommon {
+  status: 'FAILED';
+  failure: FailureInfo;
+}
+
+/** The immutable terminal record for a successful ADD_REVIEWER attempt. `findingIds` may be empty; every id must resolve in StressTestSession.findings and share `reviewerRunId` (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7.B). */
+export interface AddReviewerRouteOutcome extends RouteOutcomeCommon {
+  status: 'SUCCEEDED';
+  route: 'ADD_REVIEWER';
+  reviewerRunId: string;
+  findingIds: string[];
+}
+
+/** The immutable terminal record for a successful REPLICATE attempt. `targetRef` must exactly match one of the terminated RouteDecision's own inputRefs (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7.C). */
+export interface ReplicationRouteOutcome extends RouteOutcomeCommon {
+  status: 'SUCCEEDED';
+  route: 'REPLICATE';
+  result: ReplicationResult;
+  targetRef: RouteInputRef;
+}
+
+/** Slice 2D-B1's complete RouteOutcome vocabulary. ADD_CONTEXT/SEEK_EVIDENCE/TARGETED_PEER_CHALLENGE successful outcomes and any INCONCLUSIVE outcome are not yet representable -- not authorized in this slice. */
+export type RouteOutcome = FailedRouteOutcome | AddReviewerRouteOutcome | ReplicationRouteOutcome;
+
 export interface DeliberationBudget {
   spent: number;
   ceiling: number;
@@ -248,6 +370,7 @@ export interface DeliberationState {
   authorContextHash: string;
   history: RouteDecision[];
   attempts: RouteAttempt[];
+  outcomes: RouteOutcome[];
   costBudget: DeliberationBudget;
   latencyBudget: DeliberationBudget;
   unresolvedQuestions: UnresolvedQuestion[];
@@ -276,6 +399,22 @@ function assertNonEmptyString(value: string, label: string): void {
 function assertValidRootCause(rootCause: RootCauseCategory, label: string): void {
   if (!ROOT_CAUSES.includes(rootCause)) {
     throw new Error(`${label}: invalid rootCause ${JSON.stringify(rootCause)}`);
+  }
+}
+
+/**
+ * Rejects any top-level key not in `allowed`. A plain-JS caller bypasses
+ * TypeScript's excess-property checks entirely, so this is the only thing
+ * that actually stops an unexpected field (a stray `logicalCost`, a
+ * `route`, a raw error object's `stack`) from silently riding along on an
+ * otherwise-valid input (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §14-§15).
+ */
+function assertExactKeys(input: object, allowed: readonly string[], label: string): void {
+  const allowedSet = new Set(allowed);
+  for (const key of Object.keys(input)) {
+    if (!allowedSet.has(key)) {
+      throw new Error(`${label}: unexpected field ${JSON.stringify(key)}`);
+    }
   }
 }
 
@@ -364,6 +503,7 @@ export function createDeliberationState(session: StressTestSession, budgets: Del
     authorContextHash: session.authorContextHash,
     history: [],
     attempts: [],
+    outcomes: [],
     costBudget: { spent: 0, ceiling: budgets.costCeiling },
     latencyBudget: { spent: 0, ceiling: budgets.latencyCeiling },
     unresolvedQuestions: [],
@@ -722,6 +862,283 @@ export function recordRouteAttemptStart(
     ...withCost,
     attempts: [...withCost.attempts, attempt],
   };
+}
+
+/**
+ * Never blindly trusts a stored `RouteAttempt` merely because it is present
+ * in `deliberationState.attempts` — every structural rule is independently
+ * re-validated (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7 amendment,
+ * "Revalidate attempt provenance"). Resolves and cross-checks the attempt's
+ * own recorded `RouteDecision` and registered `UnresolvedQuestion`, and
+ * returns the decision (needed by `REPLICATE`'s `targetRef` check). Throws
+ * on any mismatch; no repair path.
+ */
+function validateAttemptProvenanceForOutcome(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  attempt: RouteAttempt
+): RouteDecision {
+  assertNonEmptyString(attempt.attemptId, 'recordRouteOutcome: attempt.attemptId');
+  assertNonEmptyString(attempt.decisionId, 'recordRouteOutcome: attempt.decisionId');
+  assertNonEmptyString(attempt.questionId, 'recordRouteOutcome: attempt.questionId');
+  if (!NON_STOP_ROUTES.includes(attempt.route)) {
+    throw new Error(`recordRouteOutcome: attempt.route ${JSON.stringify(attempt.route)} is not a valid non-STOP route`);
+  }
+  if (attempt.sessionId !== deliberationState.sessionId || attempt.sessionId !== session.id) {
+    throw new Error('recordRouteOutcome: attempt.sessionId does not match the current session/DeliberationState binding');
+  }
+  if (attempt.artifactHash !== deliberationState.artifactHash || attempt.artifactHash !== session.artifactHash) {
+    throw new Error('recordRouteOutcome: attempt.artifactHash does not match the current session/DeliberationState binding');
+  }
+  if (attempt.authorContextHash !== deliberationState.authorContextHash || attempt.authorContextHash !== session.authorContextHash) {
+    throw new Error('recordRouteOutcome: attempt.authorContextHash does not match the current session/DeliberationState binding');
+  }
+  assertFiniteNonNegative(attempt.logicalCost, 'recordRouteOutcome: attempt.logicalCost');
+  if (attempt.logicalCost !== logicalAttemptCostForRoute(attempt.route)) {
+    throw new Error('recordRouteOutcome: attempt.logicalCost does not match the expected logical cost for its route');
+  }
+  if (Number.isNaN(Date.parse(attempt.startedAt))) {
+    throw new Error('recordRouteOutcome: attempt.startedAt is not a valid parseable timestamp');
+  }
+
+  const decision = deliberationState.history.find((d) => d.id === attempt.decisionId);
+  if (!decision) {
+    throw new Error(
+      `recordRouteOutcome: attempt ${attempt.attemptId}'s decisionId ${attempt.decisionId} is not a currently recorded RouteDecision`
+    );
+  }
+  if (decision.route === 'STOP') {
+    throw new Error('recordRouteOutcome: STOP has no RouteAttempt/RouteOutcome');
+  }
+  if (decision.route !== attempt.route) {
+    throw new Error('recordRouteOutcome: recorded decision route does not match the attempt route');
+  }
+  if (decision.questionId !== attempt.questionId) {
+    throw new Error('recordRouteOutcome: recorded decision questionId does not match the attempt questionId');
+  }
+
+  const question = deliberationState.unresolvedQuestions.find((q) => q.id === attempt.questionId);
+  if (!question) {
+    throw new Error(
+      `recordRouteOutcome: attempt ${attempt.attemptId}'s questionId ${attempt.questionId} is not a currently registered unresolved question`
+    );
+  }
+  if (decision.reason.rootCause !== question.rootCause) {
+    throw new Error('recordRouteOutcome: recorded decision rootCause does not match the registered question rootCause');
+  }
+  if (decision.reason.materialityReason !== question.materialityReason) {
+    throw new Error('recordRouteOutcome: recorded decision materialityReason does not match the registered question materialityReason');
+  }
+  if (!refsExactlyMatch(decision.inputRefs, question.inputRefs)) {
+    throw new Error('recordRouteOutcome: recorded decision inputRefs do not exactly match the registered question inputRefs (order-sensitive)');
+  }
+  if (routeForRootCause(question.rootCause) !== decision.route) {
+    throw new Error('recordRouteOutcome: registered question rootCause does not map to the recorded decision route');
+  }
+
+  return decision;
+}
+
+/** The caller-suppliable shape for `recordRouteOutcome`. Every field this module derives/generates (route, decisionId, originatingQuestionId, sessionId, artifactHash, authorContextHash, logicalCost, completedAt) is deliberately absent -- accepting them here would let a caller restate a binding fact inconsistently, which `assertExactKeys` independently rejects at runtime regardless of what TypeScript's optional fields imply. */
+export interface RecordRouteOutcomeInput {
+  attemptId: string;
+  status: AttemptStatus;
+  latencyConsumed: number;
+  failure?: FailureInfo;
+  reviewerRunId?: string;
+  findingIds?: string[];
+  result?: ReplicationResult;
+  targetRef?: RouteInputRef;
+}
+
+/**
+ * Records the immutable terminal fact for one already-started `RouteAttempt`
+ * — offline audit bookkeeping only; never executes a route, calls a
+ * provider, retrieves anything, or contacts a human
+ * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7, §20).
+ *
+ * Slice 2D-B1 records exactly three shapes: a generic `FAILED` outcome for
+ * any already-started non-STOP attempt, a successful `ADD_REVIEWER`
+ * outcome, and a successful `REPLICATE` outcome. `ADD_CONTEXT`/
+ * `SEEK_EVIDENCE`/`TARGETED_PEER_CHALLENGE` successful outcomes and any
+ * `INCONCLUSIVE` outcome are rejected outright — not yet authorized,
+ * regardless of how plausible the supplied payload looks.
+ *
+ * `attemptId` is resolved only against `deliberationState.attempts` (no
+ * free-floating outcome) and re-validated against its own recorded
+ * `RouteDecision`/`UnresolvedQuestion` from scratch
+ * (`validateAttemptProvenanceForOutcome`) — the stored `RouteAttempt` is
+ * never trusted merely because it is present in state. `ONE RouteAttempt ->
+ * AT MOST ONE RouteOutcome`: a second outcome for an already-terminated
+ * attempt is rejected. `logicalCost` is always copied from the attempt,
+ * never caller-suppliable, and `applyCostSpend` is never called here — cost
+ * was already accounted at attempt start. `latencyConsumed` is accounted
+ * exactly once, after every structural/payload check passes, so a rejected
+ * recording never spends latency and never appends a partial outcome.
+ */
+export function recordRouteOutcome(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  input: RecordRouteOutcomeInput
+): DeliberationState {
+  verifyDeliberationBinding(session, deliberationState);
+  if (deliberationState.stopReason !== null) {
+    throw new Error('recordRouteOutcome: deliberation has already stopped; no further RouteOutcome may be recorded');
+  }
+  if (input === null || typeof input !== 'object') {
+    throw new Error('recordRouteOutcome: input must be an object');
+  }
+  assertNonEmptyString(input.attemptId, 'recordRouteOutcome: attemptId');
+  assertValidAttemptStatus(input.status, 'recordRouteOutcome: status');
+  if (input.status === 'INCONCLUSIVE') {
+    throw new Error('recordRouteOutcome: INCONCLUSIVE is not recordable in Slice 2D-B1');
+  }
+
+  const attempt = deliberationState.attempts.find((a) => a.attemptId === input.attemptId);
+  if (!attempt) {
+    throw new Error(`recordRouteOutcome: attemptId ${input.attemptId} is not a currently recorded RouteAttempt`);
+  }
+  if (deliberationState.outcomes.some((o) => o.attemptId === input.attemptId)) {
+    throw new Error(`recordRouteOutcome: attempt ${input.attemptId} already has a RouteOutcome; one attempt has at most one outcome`);
+  }
+
+  const decision = validateAttemptProvenanceForOutcome(session, deliberationState, attempt);
+
+  let allowedKeys: readonly string[];
+  if (input.status === 'FAILED') {
+    allowedKeys = ['attemptId', 'status', 'latencyConsumed', 'failure'];
+  } else if (attempt.route === 'ADD_REVIEWER') {
+    allowedKeys = ['attemptId', 'status', 'latencyConsumed', 'reviewerRunId', 'findingIds'];
+  } else if (attempt.route === 'REPLICATE') {
+    allowedKeys = ['attemptId', 'status', 'latencyConsumed', 'result', 'targetRef'];
+  } else {
+    throw new Error(
+      `recordRouteOutcome: SUCCEEDED result recording for route ${attempt.route} is not authorized in Slice 2D-B1`
+    );
+  }
+  assertExactKeys(input, allowedKeys, 'recordRouteOutcome');
+  assertFiniteNonNegative(input.latencyConsumed, 'recordRouteOutcome: latencyConsumed');
+
+  if (input.status === 'FAILED') {
+    assertValidFailureInfo(input.failure as FailureInfo, 'recordRouteOutcome: failure');
+
+    const withLatency = applyLatencySpend(deliberationState, input.latencyConsumed);
+    verifyDeliberationBinding(session, deliberationState);
+
+    const outcome: FailedRouteOutcome = {
+      attemptId: attempt.attemptId,
+      decisionId: attempt.decisionId,
+      originatingQuestionId: attempt.questionId,
+      route: attempt.route,
+      sessionId: attempt.sessionId,
+      artifactHash: attempt.artifactHash,
+      authorContextHash: attempt.authorContextHash,
+      completedAt: nowIso(),
+      status: 'FAILED',
+      logicalCost: attempt.logicalCost,
+      latencyConsumed: input.latencyConsumed,
+      failure: cloneFailureInfo(input.failure as FailureInfo),
+    };
+    return { ...withLatency, outcomes: [...withLatency.outcomes, outcome] };
+  }
+
+  if (attempt.route === 'ADD_REVIEWER') {
+    const reviewerRunId = input.reviewerRunId as string;
+    assertNonEmptyString(reviewerRunId, 'recordRouteOutcome: reviewerRunId');
+    if (reviewerRunId === attempt.attemptId) {
+      throw new Error('recordRouteOutcome: reviewerRunId must not equal attemptId -- they are separate identities, never made equal');
+    }
+    if (!Array.isArray(input.findingIds)) {
+      throw new Error('recordRouteOutcome: findingIds must be an array');
+    }
+    const seenFindingIds = new Set<string>();
+    for (const findingId of input.findingIds) {
+      assertNonEmptyString(findingId, 'recordRouteOutcome: findingIds[]');
+      if (seenFindingIds.has(findingId)) {
+        throw new Error(`recordRouteOutcome: duplicate findingId ${findingId}`);
+      }
+      seenFindingIds.add(findingId);
+      const finding = session.findings[findingId];
+      if (!finding) {
+        throw new Error(`recordRouteOutcome: unknown findingId ${findingId}`);
+      }
+      if (finding.reviewerRunId !== reviewerRunId) {
+        throw new Error(`recordRouteOutcome: finding ${findingId}'s reviewerRunId does not match the supplied reviewerRunId`);
+      }
+      const findingCreatedAtMs = Date.parse(finding.createdAt);
+      if (Number.isNaN(findingCreatedAtMs)) {
+        throw new Error(`recordRouteOutcome: finding ${findingId} has an unparseable createdAt`);
+      }
+      if (findingCreatedAtMs < Date.parse(attempt.startedAt)) {
+        throw new Error(`recordRouteOutcome: finding ${findingId}.createdAt is before the attempt's startedAt`);
+      }
+    }
+    const reviewerRunIdReused = deliberationState.outcomes.some(
+      (o): o is AddReviewerRouteOutcome =>
+        o.route === 'ADD_REVIEWER' && o.status === 'SUCCEEDED' && o.reviewerRunId === reviewerRunId
+    );
+    if (reviewerRunIdReused) {
+      throw new Error(
+        `recordRouteOutcome: reviewerRunId ${reviewerRunId} was already claimed by an earlier successful ADD_REVIEWER RouteOutcome in this session`
+      );
+    }
+
+    const withLatency = applyLatencySpend(deliberationState, input.latencyConsumed);
+    verifyDeliberationBinding(session, deliberationState);
+
+    const outcome: AddReviewerRouteOutcome = {
+      attemptId: attempt.attemptId,
+      decisionId: attempt.decisionId,
+      originatingQuestionId: attempt.questionId,
+      route: 'ADD_REVIEWER',
+      sessionId: attempt.sessionId,
+      artifactHash: attempt.artifactHash,
+      authorContextHash: attempt.authorContextHash,
+      completedAt: nowIso(),
+      status: 'SUCCEEDED',
+      logicalCost: attempt.logicalCost,
+      latencyConsumed: input.latencyConsumed,
+      reviewerRunId,
+      findingIds: [...input.findingIds],
+    };
+    return { ...withLatency, outcomes: [...withLatency.outcomes, outcome] };
+  }
+
+  // attempt.route === 'REPLICATE'
+  const result = input.result as ReplicationResult;
+  assertValidReplicationResult(result, 'recordRouteOutcome: result');
+  const targetRef = input.targetRef as RouteInputRef;
+  if (targetRef === null || typeof targetRef !== 'object') {
+    throw new Error('recordRouteOutcome: targetRef must be an object');
+  }
+  validateRouteInputRef(session, targetRef);
+  if (targetRef.kind === 'AUTHOR_CONTEXT_ITEM') {
+    throw new Error('recordRouteOutcome: REPLICATE targetRef must be FINDING or SEMANTIC_ISSUE, not AUTHOR_CONTEXT_ITEM');
+  }
+  const targetRefMatchesDecision = decision.inputRefs.some((ref) => ref.kind === targetRef.kind && ref.id === targetRef.id);
+  if (!targetRefMatchesDecision) {
+    throw new Error('recordRouteOutcome: REPLICATE targetRef must exactly match one of the recorded RouteDecision.inputRefs');
+  }
+
+  const withLatency = applyLatencySpend(deliberationState, input.latencyConsumed);
+  verifyDeliberationBinding(session, deliberationState);
+
+  const outcome: ReplicationRouteOutcome = {
+    attemptId: attempt.attemptId,
+    decisionId: attempt.decisionId,
+    originatingQuestionId: attempt.questionId,
+    route: 'REPLICATE',
+    sessionId: attempt.sessionId,
+    artifactHash: attempt.artifactHash,
+    authorContextHash: attempt.authorContextHash,
+    completedAt: nowIso(),
+    status: 'SUCCEEDED',
+    logicalCost: attempt.logicalCost,
+    latencyConsumed: input.latencyConsumed,
+    result,
+    targetRef: cloneRouteInputRef(targetRef),
+  };
+  return { ...withLatency, outcomes: [...withLatency.outcomes, outcome] };
 }
 
 /**
