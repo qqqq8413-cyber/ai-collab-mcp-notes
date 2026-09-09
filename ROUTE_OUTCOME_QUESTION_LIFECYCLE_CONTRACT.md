@@ -19,11 +19,11 @@ Answer: five concepts that must never collapse into one another, each a distinct
 ```
 ROUTE DECISION        "this route is the justified next step"           (Slice 2A/2B, accepted, unchanged)
       ≠
-ROUTE ATTEMPT          "this route was actually attempted, once"         (new, §6)
+ROUTE ATTEMPT          "this route was actually attempted, once"         (new, §5)
       ≠
-ROUTE OUTCOME          "this is what that one attempt produced"          (new, §8)
+ROUTE OUTCOME          "this is what that one attempt produced"          (new, §7)
       ≠
-QUESTION DISPOSITION   "this is what the outcome implies for the         (new, §10)
+QUESTION DISPOSITION   "this is what the outcome implies for the         (new, §9)
                         question that motivated it"
       ≠
 HUMAN ADJUDICATION     "a human decided what this means for the          (Slice 1, accepted, unchanged)
@@ -51,13 +51,14 @@ This document does **not**:
 
 ## 3. Definitions (new concepts)
 
-- **RouteAttempt** — the record that a specific `RouteDecision` was actually attempted, exactly once. Distinct from the decision itself (§6).
-- **AttemptStatus** — the closed, three-value technical-completion classification of one `RouteAttempt`: `SUCCEEDED` | `FAILED` | `INCONCLUSIVE` (§7).
-- **RouteOutcome** — the immutable, route-specific result payload (or failure information) produced by one terminal `RouteAttempt` (§8).
-- **QuestionDisposition** — a separate lifecycle record stating what a `RouteOutcome` implies for the `UnresolvedQuestion` that motivated the attempt: `RESOLVED` | `STILL_OPEN` | `SUPERSEDED_RECLASSIFIED` | `CROSS_SESSION` (§10).
-- **Derived question identity** — a new `UnresolvedQuestion` created when a `QuestionDisposition` is `SUPERSEDED_RECLASSIFIED`, carrying `derivedFromQuestionId` pointing back at the question it replaces (§9).
-- **SessionVersionLineage** — the conceptual lineage record (already named, unscheduled, in `MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §8) produced when an `ADD_CONTEXT` outcome's disposition is `CROSS_SESSION` (§14.A).
-- **ReplicationResult** — the closed, three-value result vocabulary a `REPLICATE` outcome payload carries: `REPRODUCED` | `NOT_REPRODUCED` | `PARTIAL` (§14.C).
+- **RouteAttempt** — the immutable fact that a specific `RouteDecision` has begun execution, exactly once. A start-only record, distinct from the decision itself and from any terminal result (§5).
+- **AttemptStatus** — the closed, three-value technical-completion classification of one terminal `RouteAttempt`: `SUCCEEDED` | `FAILED` | `INCONCLUSIVE` (§6).
+- **RouteOutcome** — the immutable, terminal, route-specific result payload (or failure information) produced by one `RouteAttempt` (§7).
+- **QuestionDisposition** — a separate lifecycle record stating what a `RouteOutcome` implies for the `UnresolvedQuestion` that motivated the attempt: `RESOLVED` | `STILL_OPEN` | `SUPERSEDED_RECLASSIFIED` | `CROSS_SESSION` (§9).
+- **Derived question identity** — a new `UnresolvedQuestion` created when a `QuestionDisposition` is `SUPERSEDED_RECLASSIFIED`, carrying `derivedFromQuestionId` pointing back at the question it replaces (§8).
+- **SessionVersionLineage** — the conceptual lineage record (already named, unscheduled, in `MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §8) produced when an `ADD_CONTEXT` outcome's disposition is `CROSS_SESSION` (§13.A).
+- **ReplicationResult** — the closed, three-value result vocabulary a `REPLICATE` outcome payload carries: `REPRODUCED` | `NOT_REPRODUCED` | `PARTIAL` (§13.C).
+- **Open / unterminated attempt** — a `RouteAttempt` for which no terminal `RouteOutcome` has been recorded; a derived condition, never a fourth `AttemptStatus` value (§5).
 
 None of these are added to `src/stress-test/types.ts` by this document. They are named here so later, explicitly-authorized implementation work has one non-ambiguous vocabulary to build against.
 
@@ -67,13 +68,15 @@ None of these are added to `src/stress-test/types.ts` by this document. They are
 
 Restated from `MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §4 and `src/stress-test/deliberation.ts`'s own module docstring, and extended: `RouteDecision` records "this is the justified next route." It is not, and must never become, proof that a provider call happened, retrieval happened, a human answered, the route succeeded, the question changed, or the question was resolved. Every one of those facts — if it ever exists — is recorded by a `RouteAttempt`/`RouteOutcome`/`QuestionDisposition`, never folded backward into the `RouteDecision` that merely justified attempting the route.
 
-`STOP` is the one route with no attempt at all (§6, §14.F) — it remains exactly `RouteDecision(route=STOP)` + `StopReason`, as already implemented.
+`STOP` is the one route with no attempt at all (§5, §13.F) — it remains exactly `RouteDecision(route=STOP)` + `StopReason`, as already implemented.
 
 ---
 
 ## 5. RouteAttempt — identity, binding, and lifecycle
 
-A `RouteAttempt` is the record that a specific `RouteDecision` was actually attempted, once.
+**Binding decision: `RouteAttempt` is the start fact, not the terminal fact.** `RouteAttempt` is the immutable record that one authorized `RouteDecision` has begun execution. It is recorded **before** the external/human mechanism begins — before a provider call is sent, before a human is asked, before a retrieval request is issued — precisely so that a process/provider/retrieval-layer crash after execution starts still leaves an auditable proof that the attempt was begun.
+
+`RouteAttempt` owns, at minimum:
 
 | Field | Requirement |
 |---|---|
@@ -83,16 +86,32 @@ A `RouteAttempt` is the record that a specific `RouteDecision` was actually atte
 | `route` | Required; must exactly equal the referenced `RouteDecision.route`. Never inferred, never re-derived from `rootCause` independently of the decision it attempts. |
 | `sessionId` | Required; must match the current `DeliberationState.sessionId`. |
 | `artifactHash` / `authorContextHash` | Required; must match the current `DeliberationState`'s bound frozen hashes. |
-| `startedAt` / `completedAt` | Required once terminal. |
-| Logical cost consumed | Required once terminal; feeds `CostBudget` (§13). |
-| Latency consumed | Required once terminal; feeds `LatencyBudget` (§13). |
-| `status` | Required once terminal: one of `AttemptStatus` (§7). |
+| `startedAt` | Required, recorded at the moment the attempt begins. |
+
+`RouteAttempt` must **not** require `completedAt`, a terminal `AttemptStatus`, or a terminal route result — those belong exclusively to `RouteOutcome` (§7). `RouteAttempt` is never later mutated from a "started" shape into a "completed" shape; it remains, permanently, a start-only record:
+
+```
+RouteAttempt(start)  ->  RouteOutcome(terminal)         [correct model]
+
+mutable RouteAttempt(start -> completed)                [rejected]
+```
 
 Binding rules, all fail-closed, mirroring the pattern `verifyDeliberationBinding`/`recordRouteDecision` already enforce today (`src/stress-test/deliberation.ts`):
 - No free-floating attempt: every `RouteAttempt` must reference an existing `RouteDecision`; an attempt naming an unknown `decisionId` cannot exist.
 - No inferred route identity: `route` is copied from, and checked against, the referenced decision — never re-derived, never guessed.
 - No cross-session reuse: an attempt's `sessionId`/hashes must match the `DeliberationState` currently acting, exactly like every existing Slice 2A/2B binding check; an attempt bound to Session A's hashes can never be recorded against Session B's `DeliberationState`.
 - **For `STOP`: there is no `RouteAttempt`.** `STOP` has no provider/execution step to attempt; its audit representation stays `RouteDecision(route=STOP)` + `StopReason`, unchanged.
+
+### Open / unterminated attempt
+
+Because a `RouteAttempt` is written before execution, it is possible for a `RouteAttempt` to exist with no corresponding `RouteOutcome` — execution began but no terminal result was defensibly recorded. This is **not** a fourth `AttemptStatus` value: no `UNKNOWN`, `ABANDONED`, or `CRASHED` status is introduced at this architecture stage. It is instead a condition *derived* purely from the absence of a terminal `RouteOutcome` for a given `attemptId` — an **open / unterminated attempt**.
+
+Binding rules:
+- It remains an auditable fact; it must never be silently deleted.
+- It must never be treated as `SUCCEEDED`.
+- It must never be treated as `FAILED` unless a valid `FAILED` `RouteOutcome` is explicitly recorded for it.
+- Another `RouteAttempt` for the same `RouteDecision` remains forbidden while its predecessor is open — the one-attempt-per-decision cardinality (§19) holds whether or not the existing attempt has terminated.
+- No automatic retry. A future recovery policy may issue a **new** `RouteDecision` only through an explicitly authorized, fail-closed recovery path. That recovery runtime is not designed by this document.
 
 ---
 
@@ -102,24 +121,47 @@ Closed, three-value vocabulary: `SUCCEEDED` | `FAILED` | `INCONCLUSIVE`.
 
 **`FAILED`** — the route mechanism itself could not produce any structurally valid result: a provider/transport failure, a retrieval failure, or output that fails runtime validation. The mechanism did not complete as intended.
 
-**`INCONCLUSIVE`** — the route mechanism completed without technical failure, but its own designed result vocabulary includes an explicit indeterminate/insufficient category, and that is what it returned (for example, `SEEK_EVIDENCE`'s evidence-lookup result explicitly supports a "partial / inconclusive" value, §14.D). The mechanism worked; the specific answer it produced is, by the mechanism's own design, indeterminate.
+**`INCONCLUSIVE`** — the route mechanism completed without technical failure, but its own designed result vocabulary includes an explicit indeterminate/insufficient category, and that is what it returned (for example, `SEEK_EVIDENCE`'s evidence-lookup result explicitly supports a "partial / inconclusive" value, §13.D). The mechanism worked; the specific answer it produced is, by the mechanism's own design, indeterminate.
 
-**`SUCCEEDED`** — the route mechanism completed and produced a complete, structurally valid, *determinate* categorical result — even when that result is substantively unhelpful for resolving the underlying question. A replication that reproduces the finding, a peer-challenge response that maintains disagreement, a reviewer pass that finds nothing material: all `SUCCEEDED`. None of these facts says anything about whether the question is now resolved (§11) — that is a disposition question, never an attempt-status question.
+**`SUCCEEDED`** — the route mechanism completed and produced a complete, structurally valid, *determinate* categorical result — even when that result is substantively unhelpful for resolving the underlying question. A replication that reproduces the finding, a peer-challenge response that maintains disagreement, a reviewer pass that finds nothing material: all `SUCCEEDED`. None of these facts says anything about whether the question is now resolved (§10) — that is a disposition question, never an attempt-status question.
 
-**The precise boundary** (resolving the distinction the governing packet asked to be defined precisely): a route's own result vocabulary decides whether `INCONCLUSIVE` is even reachable for it. A vocabulary built entirely from determinate categories (`ADD_REVIEWER`'s "found N findings, possibly zero"; `REPLICATE`'s `REPRODUCED`/`NOT_REPRODUCED`/`PARTIAL`; `TARGETED_PEER_CHALLENGE`'s rebuttal/concession/qualification/refusal-to-yield) never produces `INCONCLUSIVE` — every one of its possible answers is `SUCCEEDED` or `FAILED`, never in between. A vocabulary that itself defines an indeterminate category (`SEEK_EVIDENCE`'s "partial/inconclusive evidence") produces `INCONCLUSIVE` exactly when that category is what came back. `INCONCLUSIVE` must never be redefined per-route as "didn't resolve the question" — that would silently duplicate `QuestionDisposition.STILL_OPEN` at the attempt layer and destroy the separation this contract requires (§11).
+**The precise boundary** (resolving the distinction the governing packet asked to be defined precisely): a route's own result vocabulary decides whether `INCONCLUSIVE` is even reachable for it. A vocabulary built entirely from determinate categories (`ADD_REVIEWER`'s "found N findings, possibly zero"; `REPLICATE`'s `REPRODUCED`/`NOT_REPRODUCED`/`PARTIAL`; `TARGETED_PEER_CHALLENGE`'s rebuttal/concession/qualification/refusal-to-yield) never produces `INCONCLUSIVE` — every one of its possible answers is `SUCCEEDED` or `FAILED`, never in between. A vocabulary that itself defines an indeterminate category (`SEEK_EVIDENCE`'s "partial/inconclusive evidence") produces `INCONCLUSIVE` exactly when that category is what came back. `INCONCLUSIVE` must never be redefined per-route as "didn't resolve the question" — that would silently duplicate `QuestionDisposition.STILL_OPEN` at the attempt layer and destroy the separation this contract requires (§10).
 
-Not every route needs all three values. `ADD_CONTEXT` and `STOP` are handled separately (§14.A, §14.F) since neither is a provider/model route.
+Not every route needs all three values. `ADD_CONTEXT` and `STOP` are handled separately (§13.A, §13.F) since neither is a provider/model route.
+
+### Per-route AttemptStatus allowlist (binding)
+
+Previously advisory (Slice 2C's Engineering Lead recommendation); **accepted here as a binding architecture requirement.** Which `AttemptStatus` values a route's `RouteOutcome` may legally carry is fixed per route, not left to per-implementation convention:
+
+| Route | Allowed `AttemptStatus` values |
+|---|---|
+| `ADD_CONTEXT` | `SUCCEEDED`, `FAILED` |
+| `ADD_REVIEWER` | `SUCCEEDED`, `FAILED` |
+| `REPLICATE` | `SUCCEEDED`, `FAILED` |
+| `SEEK_EVIDENCE` | `SUCCEEDED`, `INCONCLUSIVE`, `FAILED` |
+| `TARGETED_PEER_CHALLENGE` | `SUCCEEDED`, `FAILED` |
+| `STOP` | — no `RouteAttempt`, no `AttemptStatus` |
+
+`INCONCLUSIVE` is never a generic synonym for "the question remained unresolved" — only a route whose own result vocabulary contains an explicit indeterminate category may ever produce it; today, that is `SEEK_EVIDENCE` alone. Resolving the three cases the governing packet named explicitly:
+- `REPLICATE` result `PARTIAL` → `AttemptStatus = SUCCEEDED`, because `PARTIAL` is a determinate `ReplicationResult` category, not an indeterminate one.
+- `TARGETED_PEER_CHALLENGE` refusal-to-yield → `AttemptStatus = SUCCEEDED`, because the mechanism successfully produced a determinate response.
+- `ADD_REVIEWER` returning zero material findings → `AttemptStatus = SUCCEEDED`, because zero findings is itself a valid, determinate reviewer result.
+
+`QuestionDisposition` (§9) — never `AttemptStatus` — decides whether the *question* remains open.
 
 ---
 
 ## 7. RouteOutcome contract
 
-`RouteOutcome` is the immutable result of exactly one terminal `RouteAttempt`.
+**Binding decision: `RouteOutcome` is the terminal fact, not `RouteAttempt`.** `RouteOutcome` is the immutable terminal record for exactly one `RouteAttempt`. Recording a `RouteOutcome` is what makes that `RouteAttempt` terminal — `RouteOutcome` is a wholly separate record, never an update to the `RouteAttempt` it terminates (§5).
 
 Every `RouteOutcome` binds to:
 - `attemptId`, `decisionId`, `originatingQuestionId`, `sessionId`, `artifactHash`, `authorContextHash`, `route`,
-- an outcome timestamp,
-- a route-specific result payload (§14) or failure information (when `status = FAILED`).
+- `completedAt` (the outcome timestamp),
+- `status` — one of `AttemptStatus` (§6), subject to the per-route allowlist (§6),
+- logical cost consumed / accounted (§12),
+- latency consumed (§12),
+- a route-specific result payload (§13) or failure information (when `status = FAILED`).
 
 `RouteOutcome` must **not**:
 - directly mutate `StressTestSession`,
@@ -130,7 +172,7 @@ Every `RouteOutcome` binds to:
 - silently rewrite `SemanticIssue`,
 - silently rewrite the original `UnresolvedQuestion`.
 
-`RouteOutcome` is evidence/audit input to re-evaluation (§15) — never itself the fact that a question is resolved (§10, §11).
+`RouteOutcome` is evidence/audit input to re-evaluation (§14) — never itself the fact that a question is resolved (§9, §10).
 
 ---
 
@@ -158,7 +200,7 @@ Q2  rootCause = DECISION_SENSITIVE_CONFLICT
     derivedFromQuestionId = Q1
 ```
 
-`Q1.rootCause` is never rewritten to `DECISION_SENSITIVE_CONFLICT`. `Q2` is a new registered question, carrying explicit lineage (`derivedFromQuestionId`) back to `Q1`. The minimum required structure is exactly that one field — no separate lineage aggregate is needed for this case, unlike the cross-session case (§14.A), which already has its own conceptual `SessionVersionLineage` record.
+`Q1.rootCause` is never rewritten to `DECISION_SENSITIVE_CONFLICT`. `Q2` is a new registered question, carrying explicit lineage (`derivedFromQuestionId`) back to `Q1`. The minimum required structure is exactly that one field — no separate lineage aggregate is needed for this case, unlike the cross-session case (§13.A), which already has its own conceptual `SessionVersionLineage` record.
 
 ---
 
@@ -171,9 +213,22 @@ A separate conceptual lifecycle record — never overloaded onto `RouteOutcome`,
 | `RESOLVED` | The original information deficit no longer remains materially open. |
 | `STILL_OPEN` | The original deficit remains materially unresolved. |
 | `SUPERSEDED_RECLASSIFIED` | The original question no longer correctly describes the remaining deficit; a new `UnresolvedQuestion` (`derivedFromQuestionId` pointing back at this one) is created (§8). |
-| `CROSS_SESSION` | Specific to `ADD_CONTEXT` (§14.A): the supplied context caused creation of a new `StressTestSession` version; the question's disposition under the *old* session is recorded as `CROSS_SESSION`, distinct from `RESOLVED` — the deficit was not resolved under Session A, it was carried across a version boundary into Session B. |
+| `CROSS_SESSION` | Specific to `ADD_CONTEXT` (§13.A): the supplied context caused creation of a new `StressTestSession` version; the question's disposition under the *old* session is recorded as `CROSS_SESSION`, distinct from `RESOLVED` — the deficit was not resolved under Session A, it was carried across a version boundary into Session B. |
 
-A question may accumulate more than one `QuestionDisposition` record over time (each re-evaluation after a fresh `RouteAttempt` produces one) — dispositions are themselves append-only, exactly like `RouteDecision` history. The *current* disposition for a question is its most recent record (§16).
+### Terminality
+
+Each disposition value has explicit terminality semantics for the question it targets:
+
+| Disposition | Terminal for this question? | Question remains current (§15)? |
+|---|---|---|
+| `STILL_OPEN` | No | Yes — a future fresh `RouteDecision` may target it |
+| `RESOLVED` | Yes, in this session | No |
+| `SUPERSEDED_RECLASSIFIED` | Yes, for the original question | No — the replacement deficit must use a new `UnresolvedQuestion` identity (§8) |
+| `CROSS_SESSION` | Yes, under the old session | No — not copied as current into the new session |
+
+Once a question has a terminal disposition (`RESOLVED`, `SUPERSEDED_RECLASSIFIED`, or `CROSS_SESSION`), **no future `RouteDecision`, `RouteAttempt`, `RouteOutcome`, or second `QuestionDisposition` may target that original question in that session.** This is fail-closed, mirroring every other binding check in this architecture: a routing gate presented with a non-current question must refuse, not silently proceed.
+
+A question's disposition history is itself append-only, but bounded: it may accumulate any number of `STILL_OPEN` records — one per re-evaluation cycle that did not close it — but the moment a terminal disposition is recorded, no disposition of any kind may follow it for that question (§19). This removes any ambiguity from "current disposition" semantics: for a non-terminal question, the current disposition is simply its most recent `STILL_OPEN` record (or "none yet"); for a terminal question, there is exactly one disposition, ever, and it is the terminal one.
 
 ---
 
@@ -188,7 +243,7 @@ Binding invariant. `AttemptStatus` and `QuestionDisposition` are answers to two 
 | `SEEK_EVIDENCE` completes; evidence is inconclusive | `INCONCLUSIVE` | May remain `STILL_OPEN` — the lookup's own indeterminacy does not resolve anything by itself |
 | `ADD_REVIEWER` completes; finds nothing material | `SUCCEEDED` | Still requires explicit re-evaluation before the coverage gap is treated as closed |
 
-No route's `SUCCEEDED` status is ever read, by itself, as `QuestionDisposition = RESOLVED`. Resolution is always a separate, explicit act (§15).
+No route's `SUCCEEDED` status is ever read, by itself, as `QuestionDisposition = RESOLVED`. Resolution is always a separate, explicit act (§14).
 
 ---
 
@@ -220,13 +275,31 @@ Never reuse a failed attempt's identity. Never overwrite failed-attempt history 
 Extending `MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §12's pure-counter model to actual attempts:
 
 - Planning a `RouteDecision` costs zero provider-call units — planning is pure and offline today (`planRouteForQuestion`) and stays that way.
-- An actual `RouteAttempt` consumes logical cost when the route is provider/retrieval-backed (every route except `ADD_CONTEXT` and `STOP`, §14).
-- Latency attaches to the actual attempt, not the decision.
+- An actual `RouteAttempt` consumes logical cost when the route is provider/retrieval-backed (every route except `ADD_CONTEXT` and `STOP`, §13).
 - `FAILED` and `INCONCLUSIVE` attempts may still consume cost and latency — a failed or indeterminate call was still made and still cost something; spend is never waived because the outcome was unhelpful.
 - Spend is append/audit based: `applyCostSpend`/`applyLatencySpend` (accepted, unchanged) never decrement — no failed attempt's spend is ever hidden by reversing it.
 - Explicit finite ceilings remain non-negotiable (`MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §12, §16 invariant 18): a missing provider-runtime ceiling is a precondition failure for enabling any attempt runtime, not a default of "no limit."
 - `transportMaxRetries` remains RESEARCH_ONLY and is not introduced here, exactly as before.
 - No numeric production ceiling is chosen by this document.
+
+### Cost accounted at attempt start, not at outcome
+
+For provider/retrieval-backed routes, the logical cost budget must be validated and the route's logical call cost accounted **when the `RouteAttempt` begins — before the external call is made**, not when a `RouteOutcome` is eventually recorded:
+
+```
+start RouteAttempt
+  -> validate the finite CostBudget has room
+  -> account the route's logical call cost
+  -> external execution may then begin
+```
+
+This ordering exists precisely because a process that crashes after sending a provider request must not make that cost disappear merely because no `RouteOutcome` was ever recorded (§5, open/unterminated attempts). Cost already accounted at attempt start is **never reversed** — not because the attempt failed, not because it was inconclusive, and not because the process lost the response and left the attempt open.
+
+`ADD_CONTEXT`'s logical provider-call cost is `0` — it is human context acquisition, not a model call (§13.A). `STOP` has no `RouteAttempt` and therefore no attempt cost at all (§5).
+
+### Latency accounted at completion
+
+Latency remains associated with the `RouteOutcome` where it is actually measured — an attempt's duration is only knowable once it terminates. If an attempt never receives a defensible `RouteOutcome` (an open/unterminated attempt, §5), no terminal latency value is fabricated merely to make the record look complete. A future execution/recovery layer may define a conservative accounting rule for interrupted-attempt latency, but that is an execution-runtime concern, not authorized or designed here — it is never a reason to mutate or erase the open `RouteAttempt` itself.
 
 ---
 
@@ -256,19 +329,19 @@ Rules, unchanged from the routing contract: no unfreeze; no mutation of Session 
 
 ### B. ADD_REVIEWER
 
-Route output: new `ReviewFinding[]` from one reviewer pass (accepted, unchanged shape). `AttemptStatus`: `SUCCEEDED` (findings produced, possibly zero) or `FAILED` (acquisition/technical failure, invalid output). No `INCONCLUSIVE` category — "found nothing material" is itself a determinate answer, not an indeterminate one. Append-only review evidence; no automatic materiality authority; no automatic question resolution — re-evaluation (§15) decides the coverage gap's disposition.
+Route output: new `ReviewFinding[]` from one reviewer pass (accepted, unchanged shape). `AttemptStatus`: `SUCCEEDED` (findings produced, possibly zero) or `FAILED` (acquisition/technical failure, invalid output). No `INCONCLUSIVE` category — "found nothing material" is itself a determinate answer, not an indeterminate one. Append-only review evidence; no automatic materiality authority; no automatic question resolution — re-evaluation (§14) decides the coverage gap's disposition.
 
 ### C. REPLICATE
 
-`ReplicationResult`: `REPRODUCED` | `NOT_REPRODUCED` | `PARTIAL` — a closed, three-value categorical result, chosen because it mirrors the pattern already governing every other closed enum in this runtime (`StopReason`, `RootCauseCategory`), and because `PARTIAL` is itself a determinate designed category, not an indeterminate escape hatch. `AttemptStatus`: `SUCCEEDED` for any of the three (the replication mechanism ran and produced a definite categorical answer) or `FAILED` (the replication attempt itself could not execute). Reproduction is never treated as truth — it is one input the disposition step (§15) weighs, never a self-executing verdict.
+`ReplicationResult`: `REPRODUCED` | `NOT_REPRODUCED` | `PARTIAL` — a closed, three-value categorical result, chosen because it mirrors the pattern already governing every other closed enum in this runtime (`StopReason`, `RootCauseCategory`), and because `PARTIAL` is itself a determinate designed category, not an indeterminate escape hatch. `AttemptStatus`: `SUCCEEDED` for any of the three (the replication mechanism ran and produced a definite categorical answer) or `FAILED` (the replication attempt itself could not execute). Reproduction is never treated as truth — it is one input the disposition step (§14) weighs, never a self-executing verdict.
 
 ### D. SEEK_EVIDENCE
 
-Evidence-lookup result, one of: supportive | contradictory | partial/inconclusive | execution failure. The first two map to `AttemptStatus = SUCCEEDED`; "partial/inconclusive" maps to `AttemptStatus = INCONCLUSIVE` (§6); "execution failure" maps to `AttemptStatus = FAILED`. Never directly mutates `ReviewFinding.evidenceState` — any later projection into that vocabulary is an explicit, separately-designed re-evaluation step (§15), not an automatic side effect of the lookup.
+Evidence-lookup result, one of: supportive | contradictory | partial/inconclusive | execution failure. The first two map to `AttemptStatus = SUCCEEDED`; "partial/inconclusive" maps to `AttemptStatus = INCONCLUSIVE` (§6); "execution failure" maps to `AttemptStatus = FAILED`. Never directly mutates `ReviewFinding.evidenceState` — any later projection into that vocabulary is an explicit, separately-designed re-evaluation step (§14), not an automatic side effect of the lookup.
 
 ### E. TARGETED_PEER_CHALLENGE
 
-Challenge-response outcome preserving target/source provenance, bounded excerpt identity, and one of: rebuttal | concession | qualification | refusal-to-yield. All four map to `AttemptStatus = SUCCEEDED` — a complete, valid response was produced, regardless of whether it resolves anything. `FAILED` covers a call failure or an unresolvable reference. Consensus is never truth: no peer response, by itself, automatically resolves the conflict (§10, §11) — that remains a disposition decided by re-evaluation, ultimately subordinate to `HumanAdjudication` (§18).
+Challenge-response outcome preserving target/source provenance, bounded excerpt identity, and one of: rebuttal | concession | qualification | refusal-to-yield. All four map to `AttemptStatus = SUCCEEDED` — a complete, valid response was produced, regardless of whether it resolves anything. `FAILED` covers a call failure or an unresolvable reference. Consensus is never truth: no peer response, by itself, automatically resolves the conflict (§10, §14) — that remains a disposition decided by re-evaluation, ultimately subordinate to `HumanAdjudication` (§17).
 
 ### F. STOP
 
@@ -283,7 +356,7 @@ No `RouteAttempt`, no `RouteOutcome`, no `AttemptStatus`. Terminal audit represe
 1. **Raw route outcome** — the immutable fact of what the attempt produced (§7).
 2. **Deterministic runtime validation** — the same fail-closed, structural checking already used everywhere in this runtime today (provenance resolves, hashes bind, `status`/result values are in their allowlist). This layer can reject a malformed `RouteOutcome` outright; it never decides materiality or disposition.
 3. **Semantic re-evaluation** — the actual classification of what the outcome means for the question: does the deficit remain, does it get reclassified, is it resolved. This is **not implemented anywhere in this document or in `deliberation.ts`.** `QuestionDisposition`-construction consumes an externally supplied / later-authorized re-evaluation result as an input — exactly the same posture Slice 2A/2B already takes for `rootCause`/`materialityReason`: this module "enforces structure, not classification — no AI classifier, no numeric score" (`RouteReason` docstring, `src/stress-test/deliberation.ts`). No AI materiality classifier and no numeric materiality scoring is introduced by this document, and none should be introduced silently by whatever implementation phase eventually builds this.
-4. **Human adjudication** — entirely unchanged (§18), downstream of and unaffected by everything above.
+4. **Human adjudication** — entirely unchanged (§17), downstream of and unaffected by everything above.
 
 Prefer minimum architecture: a future `recordQuestionDisposition`-shaped function would validate structure (valid disposition kind, valid provenance, non-empty reason) exactly like `registerUnresolvedQuestion` does today, and accept the disposition classification itself as caller-supplied input — never compute it.
 
@@ -306,6 +379,8 @@ current questions
 
 **Compatibility, explicit:** today's runtime has no `questionDispositions` array and no derivation step — every registered question is, by the absence of any disposition mechanism, definitionally current. Adding `questionDispositions` later is purely additive: no existing field is renamed or removed, no existing behavior changes, and the degenerate case (no dispositions recorded) reproduces exactly today's behavior. No breaking schema migration is required; this is a conceptual description for a later phase, not an instruction to implement it now.
 
+**Fail-closed on non-current questions:** once a question's disposition is terminal (`RESOLVED`, `SUPERSEDED_RECLASSIFIED`, or `CROSS_SESSION`, §9), it leaves the current set permanently — there is no path back from a terminal disposition. A future implementation phase must update `planRouteForQuestion` and `recordRouteDecision` (or an equivalent routing gate) so that a non-`STOP` `RouteDecision` may target only a question in the *current* set — not merely any historical question still physically present in the append-only `unresolvedQuestions` registry. This is not implemented by this document; it is a binding requirement on whatever phase does implement it.
+
 ---
 
 ## 16. Audit chain / identity relationships
@@ -323,13 +398,24 @@ UnresolvedQuestion              (registered, append-only, id)
 RouteDecision                   (id, questionId, route derived from rootCause)
   |  (decisionId, route copied+checked)
   v
-RouteAttempt                    (attemptId, decisionId, questionId, route, sessionId+hashes)
-  |  (attemptId)
+RouteAttempt                    (START fact only: attemptId, decisionId, questionId, route,
+                                  sessionId+hashes, startedAt — immutable, never mutated to "completed")
+  |
+  +-- (attemptId) no terminal RouteOutcome ever recorded --> OPEN / UNTERMINATED ATTEMPT
+  |                                                            (auditable; not SUCCEEDED; not FAILED
+  |                                                             without an explicit FAILED RouteOutcome;
+  |                                                             no second RouteAttempt for this
+  |                                                             RouteDecision while open; no auto-retry)
+  |
+  v  (attemptId)
+RouteOutcome                    (TERMINAL fact: attemptId, decisionId, originatingQuestionId,
+                                  sessionId+hashes, route, completedAt, AttemptStatus,
+                                  cost consumed, latency consumed, result payload OR failure info)
+  |  (originatingQuestionId; at most one QuestionDisposition per RouteOutcome, §19)
   v
-RouteOutcome                    (attemptId, decisionId, originatingQuestionId, sessionId+hashes, route)
-  |  (originatingQuestionId)
-  v
-QuestionDisposition             (questionId, disposition, provenance to the RouteOutcome that motivated it)
+QuestionDisposition             (questionId, disposition, provenance to the RouteOutcome that motivated it;
+                                  RESOLVED/SUPERSEDED_RECLASSIFIED/CROSS_SESSION are terminal and
+                                  permanently close the question to further routing, §9)
   |
   +-- RESOLVED / STILL_OPEN ------------------------------> (loop: re-classification, §5 of routing contract)
   |
@@ -350,7 +436,7 @@ QuestionDisposition             (questionId, disposition, provenance to the Rout
   STOP  (RouteDecision(route=STOP) + StopReason; no RouteAttempt, no RouteOutcome)
     |
     v
-  HumanAdjudication   (unchanged, Slice 1; sole gate to RevisionAction, §18)
+  HumanAdjudication   (unchanged, Slice 1; sole gate to RevisionAction, §17)
 ```
 
 Every edge above is an identity check, not a convenience link: an object at one layer that cannot resolve its required reference to the layer above it cannot exist, following the same fail-closed pattern Slice 2A/2B already enforces for `RouteInputRef`/`UnresolvedQuestion`/`RouteDecision` binding.
@@ -381,9 +467,14 @@ Nothing in `RouteAttempt`, `RouteOutcome`, `QuestionDisposition`, a reviewer's o
 ```
 ONE RouteDecision   -> AT MOST ONE RouteAttempt
 ONE RouteAttempt    -> AT MOST ONE terminal RouteOutcome
+ONE RouteOutcome    -> AT MOST ONE QuestionDisposition
 ```
 
 Repeated submission of the same outcome identity (`attemptId`) must never create a duplicate historical fact — the same posture `registerUnresolvedQuestion`'s duplicate-id rejection already takes today. Retry always requires a new `RouteDecision` and a new `RouteAttempt`; nothing reuses a prior attempt's identity. No conflict with the current, already-accepted runtime was found: `RouteAttempt`/`RouteOutcome` do not exist in `src/stress-test/deliberation.ts` today, so this is a forward constraint on a not-yet-authorized runtime, not a correction of anything already implemented.
+
+A question may accumulate multiple `QuestionDisposition` records only through the non-terminal path: `STILL_OPEN` → fresh `RouteDecision` → fresh `RouteAttempt` → fresh `RouteOutcome` → new `QuestionDisposition`. The moment a terminal disposition (`RESOLVED`/`SUPERSEDED_RECLASSIFIED`/`CROSS_SESSION`) is recorded, no later disposition may exist for that question (§9) — for a terminal question there is exactly one disposition, ever.
+
+An open/unterminated attempt (§5) is itself an idempotency concern: while a `RouteAttempt` has no recorded `RouteOutcome`, no second `RouteAttempt` for the same `RouteDecision` may be created — `ONE RouteDecision -> AT MOST ONE RouteAttempt` holds whether or not that one attempt has yet terminated.
 
 ---
 
@@ -409,6 +500,13 @@ Repeated submission of the same outcome identity (`attemptId`) must never create
 18. `QuestionDisposition` has no revision authority.
 19. `HumanAdjudication.actionChange = YES` remains the sole gate to `RevisionAction` — nothing above it substitutes for it.
 20. Audit objects use snapshot/value semantics at every API boundary; a mutable caller-owned reference must never silently rewrite prior history (extends the Slice 2B amendment's alias-isolation hardening to every new concept in this document).
+21. `RouteAttempt` is an immutable start-only fact; it is never mutated from a "started" shape into a "completed" shape — `RouteOutcome` is a separate terminal record, not an update to it (§5).
+22. An attempt with no recorded `RouteOutcome` is an open/unterminated attempt — auditable, never silently deleted, never treated as `SUCCEEDED`, and never treated as `FAILED` without an explicit `FAILED` `RouteOutcome` (§5).
+23. No second `RouteAttempt` may exist for a `RouteDecision` whose existing attempt is open/unterminated; recovery, if ever authorized, issues a new `RouteDecision` through an explicit, fail-closed recovery path (§5).
+24. Logical cost is accounted at `RouteAttempt` start, before external execution begins, and is never reversed regardless of the eventual `AttemptStatus` (§12).
+25. Each route's `RouteOutcome.status` is restricted to that route's binding `AttemptStatus` allowlist (§6); `INCONCLUSIVE` is reachable only for a route whose own result vocabulary defines an indeterminate category.
+26. A question with a terminal `QuestionDisposition` (`RESOLVED`/`SUPERSEDED_RECLASSIFIED`/`CROSS_SESSION`) may never again be targeted by a `RouteDecision`, `RouteAttempt`, `RouteOutcome`, or further `QuestionDisposition` in that session (§9).
+27. One `RouteOutcome` produces at most one `QuestionDisposition` for its originating question (§19).
 
 ---
 
@@ -448,6 +546,22 @@ Repeated submission of the same outcome identity (`attemptId`) must never create
 
 No governing source-of-truth document contradicts any of these seven closures; none required reopening an already-accepted Slice 2A/2B invariant to close.
 
+**Closed by this amendment:**
+
+**H. Is `RouteAttempt` mutated from a "started" shape into a "completed" shape, or is `RouteOutcome` a separate terminal record?** Separate. `RouteAttempt` is an immutable start-only fact; `RouteOutcome` is the only terminal record, and recording it never mutates the `RouteAttempt` it terminates (§5, §7, invariant 21).
+
+**I. Does an attempt with no recorded `RouteOutcome` get a new `AttemptStatus` value such as `UNKNOWN`, `ABANDONED`, or `CRASHED`?** No. It is an open/unterminated attempt, a condition derived from the absence of a terminal outcome — never a fourth `AttemptStatus` value (§5, invariant 22).
+
+**J. Is logical cost accounted at `RouteAttempt` start or only once a `RouteOutcome` is recorded?** At start, before external execution begins, and never reversed regardless of the eventual outcome (§12, invariant 24).
+
+**K. Is the per-route `AttemptStatus` allowlist (§6) binding or advisory?** Binding. Originally an Engineering Lead advisory recommendation from Slice 2C; explicitly accepted by GPT as an architecture requirement in this amendment (§6, invariant 25).
+
+**L. May a question with a terminal disposition be targeted by routing again?** No. Fail closed — a terminal `QuestionDisposition` permanently removes the question from the current set (§9, §15, invariant 26).
+
+**M. May one `RouteOutcome` produce more than one `QuestionDisposition`?** No. At most one, for the outcome's originating question (§19, invariant 27).
+
+No governing source-of-truth document contradicts H–M; none required reopening an already-accepted Slice 2A/2B/2C invariant to close.
+
 ---
 
 ## 23. Relation to accepted Slice 2A/2B runtime
@@ -458,7 +572,7 @@ Nothing in this document alters, weakens, or contradicts `src/stress-test/delibe
 
 ## 24. Open GPT decisions
 
-None. Every decision this packet asked to be closed (§22) is closed, using only source-of-truth material already in this repository (`src/stress-test/deliberation.ts`, `src/stress-test/session.ts`, `MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md`) and the packet's own explicit instructions. No contradiction between governing documents was found, so nothing was reported instead of resolved (§3 of the governing packet). `ReplicationResult`'s exact vocabulary (§13.C) and the `questionDispositions` migration shape (§15) were closed rather than left open, on the same minimal-closed-enum / purely-additive-field reasoning pattern this repository already uses for `StopReason` and `RootCauseCategory` — both are conceptual-only and implement nothing.
+None. Every decision either governing packet asked to be closed (§22, including the amendment's H–M) is closed, using only source-of-truth material already in this repository (`src/stress-test/deliberation.ts`, `src/stress-test/session.ts`, `MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md`) and the packets' own explicit instructions. No contradiction between governing documents was found, so nothing was reported instead of resolved. `ReplicationResult`'s exact vocabulary (§13.C) and the `questionDispositions` migration shape (§15) were closed rather than left open, on the same minimal-closed-enum / purely-additive-field reasoning pattern this repository already uses for `StopReason` and `RootCauseCategory` — both are conceptual-only and implement nothing. The per-route `AttemptStatus` allowlist (§6, decision K) was originally submitted as Engineering Lead advisory input in Slice 2C and has now been explicitly accepted by GPT as binding — recorded here as provenance, not as a decision this document made unilaterally.
 
 ---
 
