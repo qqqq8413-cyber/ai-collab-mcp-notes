@@ -559,6 +559,243 @@ Once a question has a terminal disposition (`RESOLVED`, `SUPERSEDED_RECLASSIFIED
 
 A question's disposition history is itself append-only, but bounded: it may accumulate any number of `STILL_OPEN` records — one per re-evaluation cycle that did not close it — but the moment a terminal disposition is recorded, no disposition of any kind may follow it for that question (§19). This removes any ambiguity from "current disposition" semantics: for a non-terminal question, the current disposition is simply its most recent `STILL_OPEN` record (or "none yet"); for a terminal question, there is exactly one disposition, ever, and it is the terminal one.
 
+### Schema freeze (Slice 2D-B2-0)
+
+The remainder of this section freezes `QuestionDisposition`'s exact conceptual envelope, its binding to `RouteOutcome`, current-question derivation, the complete current-gate API set, and active-cycle semantics — so a future implementation phase has one unambiguous schema to build against. Nothing below is implemented; no `src/**` type, function, or test is added by this freeze.
+
+#### Identity: no separate `dispositionId`
+
+`QuestionDisposition` does **not** get its own `dispositionId`, for the same reason `RouteOutcome` got no separate `outcomeId` (§7): invariant 27 already fixes `ONE RouteOutcome -> AT MOST ONE QuestionDisposition`, so the outcome's own identity — `attemptId` — is sufficient to identify the (at most one) disposition that closes it. A disposition is uniquely identifiable *from* the `RouteOutcome` that motivated it; inventing a second identity would duplicate a cardinality guarantee that already exists rather than add one.
+
+#### Generic envelope — derived vs. supplied vs. generated
+
+| Field | Source |
+|---|---|
+| `attemptId` | Caller-supplied — identifies which existing, terminal `RouteOutcome` this disposition targets. Resolved only against `deliberationState.outcomes`; an unknown `attemptId` is rejected (no free-floating disposition, mirroring `recordRouteAttemptStart`/`recordRouteOutcome`'s own resolution rule). |
+| `disposition` | Caller-supplied — one of the closed `QuestionDispositionKind` values (below), the one fact only an external semantic re-evaluation can supply. |
+| `reason` | Caller-supplied — non-empty explicit prose (below). |
+| Disposition-specific payload (e.g. a `SUPERSEDED_RECLASSIFIED` replacement question, §"SUPERSEDED_RECLASSIFIED" below) | Caller-supplied where the disposition requires one; forbidden otherwise. |
+| `questionId` | Derived — copied from the resolved `RouteOutcome.originatingQuestionId`. Never independently caller-supplied; a caller can never restate it inconsistently with the outcome they claim to target. |
+| `sessionId`, `artifactHash`, `authorContextHash` | Derived — copied from the resolved chain (`RouteOutcome` -> `RouteAttempt` -> current `DeliberationState`/`StressTestSession`), re-verified against the current binding before the disposition is recorded (fail-closed, mirroring `recordRouteOutcome`'s own re-check, §7). |
+| `createdAt` | **Runtime-generated at record time.** Never a caller-supplied timestamp, for the same reason `RouteOutcome.completedAt` is runtime-generated (§7). |
+
+Caller must never be able to restate a derived binding field inconsistently — exactly the same discipline `recordRouteOutcome`'s exact-key-shape hardening already enforces (§7, §14 of the governing packet), extended to this new operation.
+
+#### `reason`
+
+Every `QuestionDisposition` requires `reason`: a non-empty, explicit prose string — the externally-supplied semantic re-evaluation rationale. This runtime validates structure only; it never computes or infers the disposition itself, exactly the posture `RouteReason.materialityReason` and `UnresolvedQuestion.materialityReason` already take (no AI classifier, no numeric materiality score, §14).
+
+No maximum bound is frozen here. `materialityReason` — the closest existing precedent, structurally identical in purpose — carries no bound in the accepted runtime (`assertNonEmptyMaterialityReason` checks only non-emptiness), and no repository evidence justifies inventing one for `reason` merely for symmetry with `FailureInfo.message`'s 2000-character cap. That cap exists for a specifically named reason — bounding a payload that could otherwise carry an unbounded raw error blob (§7) — which does not apply here: `reason` is always a short, deliberately-authored rationale, not a place where an unbounded external payload could leak in. Inventing a bound without an analogous justification would be exactly the kind of unjustified invention this contract has consistently refused elsewhere (§7's `SEEK_EVIDENCE`/`ADD_REVIEWER` provenance sections).
+
+#### Outcome binding (fail-closed chain resolution)
+
+A `QuestionDisposition` must resolve `attemptId` to exactly one existing, terminal `RouteOutcome` — no free-floating disposition. Required, all independently re-validated (never trusting that an earlier layer already checked them, mirroring `validateAttemptProvenanceForOutcome`'s posture in `recordRouteOutcome`, §7):
+
+- the `RouteOutcome` exists (resolved from `deliberationState.outcomes`),
+- its `RouteAttempt` exists (resolved from `deliberationState.attempts`),
+- its `RouteDecision` exists (resolved from `deliberationState.history`),
+- its `UnresolvedQuestion` exists (resolved from `deliberationState.unresolvedQuestions`),
+- `outcome.originatingQuestionId === question.id`,
+- `sessionId`/`artifactHash`/`authorContextHash` bind exactly across every layer of the chain and the current `DeliberationState`/`StressTestSession`.
+
+`ONE RouteOutcome -> AT MOST ONE QuestionDisposition` (already invariant 27): a second disposition attempting to claim an `attemptId` that already has one is rejected outright — no overwrite, no repair path.
+
+#### The outcome must be terminal
+
+A `QuestionDisposition` may only be recorded against an existing, terminal `RouteOutcome`. An open/unterminated `RouteAttempt` — one with no recorded outcome yet (§5) — cannot receive a disposition. There is no path `RouteAttempt -> QuestionDisposition` that skips `RouteOutcome`; the chain is always `RouteAttempt -> RouteOutcome -> QuestionDisposition`, never shorter.
+
+#### Legal disposition combinations after `FAILED` / `SUCCEEDED`
+
+`AttemptStatus` never mechanically determines `QuestionDisposition` (§10, invariant 4 — restated and extended here to the failure direction too). The legal-combination table:
+
+| Outcome status | `STILL_OPEN` | `RESOLVED` | `SUPERSEDED_RECLASSIFIED` | `CROSS_SESSION` |
+|---|---|---|---|---|
+| `FAILED` (any route) | Legal | Legal | Legal | **Illegal** |
+| `SUCCEEDED` — `ADD_REVIEWER` | Legal | Legal | Legal | Illegal (wrong route) |
+| `SUCCEEDED` — `REPLICATE` | Legal | Legal | Legal | Illegal (wrong route) |
+
+**`CROSS_SESSION` after `FAILED` is illegal, closed explicitly.** `CROSS_SESSION` requires an actual new `StressTestSession` version carrying supplied context forward (§13.A); a failed attempt produced no supplied context and cannot have caused a version transition — there is nothing to carry across. This holds regardless of route.
+
+**`RESOLVED` after `FAILED` is legal, closed explicitly — not left implicit.** The materiality/resolution decision is made by an *externally supplied* semantic re-evaluation, never by the attempt's own mechanical status (§14) — the same separation invariant 4 already establishes in the success direction (`SUCCEEDED` never mechanically implies `RESOLVED`) must hold symmetrically in the failure direction (`FAILED` must not mechanically forbid `RESOLVED`). A concrete, legitimate case: `SEEK_EVIDENCE` fails (retrieval outright unavailable), and an independent re-evaluation determines the underlying claim is no longer material for reasons unrelated to the failed lookup (e.g. the claim's context changed, or it was never as material as first classified) — that is a genuine `RESOLVED`, not a misattribution, *provided* `reason` states the independent rationale rather than citing the failure itself as the resolving fact. Forbidding this structurally would force a caller into an artificial `SUPERSEDED_RECLASSIFIED` detour merely to close a legitimately-resolved question, which is a worse, more convoluted answer than simply allowing the disposition value the semantics were always meant to carry. The misattribution risk the governing packet names is real but is a **reason-quality** concern, not a **structural-legality** one: this runtime validates that `reason` is a non-empty, explicit rationale (above); it does not, and architecturally should not, attempt to verify that the rationale is *good* — exactly the same boundary `materialityReason` already draws everywhere else in this contract.
+
+#### `SUCCEEDED` never automatically infers `RESOLVED`
+
+For both currently-implemented success paths, a valid re-evaluation may legitimately produce any of `STILL_OPEN`, `RESOLVED`, or `SUPERSEDED_RECLASSIFIED` (§10's own table already gives concrete examples for `REPLICATE`/`ADD_REVIEWER`) — this document does not compute or default to any of them from the outcome's `status` or route-specific result value. `SUPERSEDED_RECLASSIFIED` is architecturally legal after either success path (e.g. a `REPLICATE` result reveals the real deficit is something else entirely) even though its first-implementation runtime is deferred (below).
+
+#### `CROSS_SESSION` remains runtime-blocked
+
+`CROSS_SESSION` is architecture-valid only for `ADD_CONTEXT` + a successful `SUPPLIED` result + an actual new `StressTestSession` version / `SessionVersionLineage` (§13.A, §14 of the governing packet). The accepted runtime today has none of: an attempt-bound `ContextRequest`, an `ADD_CONTEXT` success `RouteOutcome`, `SessionVersionLineage`, or Session-B-creation runtime. `CROSS_SESSION` `QuestionDisposition` runtime is therefore **BLOCKED** and excluded from the first `QuestionDisposition` implementation set (below) — no fabricated cross-session record may exist without the actual lineage it claims to represent.
+
+#### `SUPERSEDED_RECLASSIFIED` — replacement-question model (architecture only)
+
+Two requirements must both hold, atomically, per the worked example already given (§8): `Q1` becomes terminally `SUPERSEDED_RECLASSIFIED` if and only if its replacement `Q2` is simultaneously registered — never one without the other. A caller must not be able to leave `Q1` terminal with no `Q2`, nor register an orphan `Q2` claiming derivation from `Q1` without the matching disposition.
+
+The frozen model, chosen to preserve the existing pure-factory separation (`createUnresolvedQuestion` stays a pure, unvalidated-against-state factory; `registerUnresolvedQuestion` stays the sole state-mutating registration path) rather than weakening it:
+
+```
+caller constructs Q2 via createUnresolvedQuestion(session, {
+  rootCause, materialityReason, inputRefs, derivedFromQuestionId: Q1.id
+})
+  -> a plain, offline, pure value; not yet registered; not yet state
+
+caller calls (conceptual, not implemented):
+recordQuestionDisposition(session, deliberationState, {
+  attemptId,                          -- Q1's terminal RouteOutcome
+  disposition: 'SUPERSEDED_RECLASSIFIED',
+  reason,
+  replacementQuestion: Q2,
+})
+  -> independently re-validates Q2 from scratch (never trusts createUnresolvedQuestion
+     produced it correctly) -- ordinary inputRef/materiality validation, rootCause != NONE,
+     Q2.id != Q1.id, Q2.derivedFromQuestionId === Q1.id exactly
+  -> atomically, in one returned DeliberationState:
+       - registers Q2 into unresolvedQuestions (same structural rules registerUnresolvedQuestion
+         already enforces, re-validated independently -- never trusting Q2 arrived pre-validated)
+       - records Q1's terminal SUPERSEDED_RECLASSIFIED disposition
+  -> either both facts land in the returned state, or neither does; no partial transition
+```
+
+This mirrors the existing `createUnresolvedQuestion` (pure factory) / `registerUnresolvedQuestion` (state-mutating, independently re-validating) separation exactly — `recordQuestionDisposition` plays the role `registerUnresolvedQuestion` already plays for an ordinary question, just atomically bundled with the disposition it is inseparable from. This does not weaken the pure-factory rule; it reuses it for the replacement question exactly as already established for every other question.
+
+#### `derivedFromQuestionId` becomes a field on `UnresolvedQuestion`
+
+**Confirmed, with technical reasoning, not merely inherited from the earlier draft.** Two options were weighed: (A) a single `derivedFromQuestionId: string | null` field on every `UnresolvedQuestion`, or (B) a separate lineage-tracking collection alongside it. (A) is adopted. Reasoning: (B) would track exactly the same relationship (A) already captures with one field, at the cost of a second collection whose entries would need to stay in permanent agreement with the field on the record it describes — an integrity risk (A) cannot have, since (A) stores the fact in exactly one place. This matches the design principle already used throughout this contract: a reference lives on the entity that needs it (`RouteAttempt.decisionId`, `RouteOutcome.originatingQuestionId`) rather than in a parallel link table. Every originally-created question has `derivedFromQuestionId: null`; a replacement question created only through the atomic transition above has it set to the exact `Q1.id` it supersedes.
+
+Rules, closed:
+- `derivedFromQuestionId` on an originally-created question is always `null`.
+- On a replacement question, it must reference an existing `Q1` that is, in the *same atomic transition*, being marked terminally `SUPERSEDED_RECLASSIFIED` — never an arbitrary, independently-chosen `Q1`.
+- The replacement question's `id` must be distinct from `Q1.id`.
+- The replacement question's `rootCause` must not be `NONE` (ordinary registration rule, unchanged).
+- The replacement question keeps every ordinary `inputRef`/materiality validation `registerUnresolvedQuestion` already enforces — `derivedFromQuestionId` is an addition, not a relaxation.
+- **`registerUnresolvedQuestion` (the ordinary, non-atomic registration path) must reject any question whose `derivedFromQuestionId` is non-`null`.** The *only* path to register a derived question is the atomic `SUPERSEDED_RECLASSIFIED` transition above — never a standalone call that fabricates lineage to an arbitrary `Q1` without an accompanying terminal disposition on it. This closes the governing packet's requirement that "no arbitrary derivation chain attachment" exist outside a superseding transition.
+
+This is a schema change to an already-accepted Slice 2A/2B type (`UnresolvedQuestion`), which is precisely why it is scoped to a later slice (below), not bundled into the first `QuestionDisposition` runtime.
+
+#### First-implementation subset
+
+**Closed: `STILL_OPEN` + `RESOLVED` only, first.** `SUPERSEDED_RECLASSIFIED` requires a material schema change to an already-shipped, already-tested Slice 2A/2B type (`derivedFromQuestionId` on `UnresolvedQuestion`, above) — every function that already constructs or validates `UnresolvedQuestion` (`createUnresolvedQuestion`, `registerUnresolvedQuestion`, `planRouteForQuestion`, `recordRouteDecision`, `cloneUnresolvedQuestion`) would need to decide how the new field interacts with its existing validation, widening the blast radius of a single slice considerably. `CROSS_SESSION` is blocked outright regardless (above). Isolating `STILL_OPEN`/`RESOLVED` — which need no schema change to any existing accepted type, only the wholly-new `QuestionDisposition` concept — into a first slice keeps that risk contained; `SUPERSEDED_RECLASSIFIED` (and, separately, whenever its prerequisites exist, `CROSS_SESSION`) belongs in a later, explicitly authorized slice (recommended below).
+
+#### Current-question derivation
+
+Formalizing §15's existing rule as an exact, implementable definition:
+
+```
+isQuestionCurrent(deliberationState, questionId): boolean
+  = true  iff no terminal QuestionDisposition (RESOLVED, SUPERSEDED_RECLASSIFIED,
+           or CROSS_SESSION) has been recorded for questionId
+  = true  for a question with zero dispositions, or only STILL_OPEN dispositions
+  = false once any terminal disposition has been recorded for it -- permanently,
+           for the life of that DeliberationState
+```
+
+No redundant `current: true/false` field is ever stored on `UnresolvedQuestion` — currentness is always derived from `questionDispositions[]` (§15's already-frozen array), never cached, so it can never drift out of sync with the disposition history that actually determines it.
+
+#### Current gates — complete API list
+
+**Closed: all five require a fail-closed current-question check, confirmed technically, not merely because GPT prefers it:**
+
+| API | Why it needs the gate |
+|---|---|
+| `planRouteForQuestion` | Early, non-authoritative fail-fast: planning is pure and ephemeral by design (`planRouteForQuestion`'s own accepted docstring, `src/stress-test/deliberation.ts`: "Plans (does not record or execute)... Pure and offline"), so refusing here catches the mistake before any further work happens — consistent with this function's existing practice of independently re-validating everything `recordRouteDecision` will also re-validate (defense in depth already established, not a new pattern). |
+| `recordRouteDecision` | **Authoritative gate.** Only a recorded decision is audit truth; a terminal historical question must never receive a new recorded decision, full stop. |
+| `recordRouteAttemptStart` | A stale, pre-terminal decision recorded *before* the question went terminal must not be allowed to start a fresh attempt after the question closed — currently checks only "registered" (`deliberationState.unresolvedQuestions.find`); must also check current. |
+| `recordRouteOutcome` | The critical stale-attempt case (§"RouteOutcome after terminal disposition," below): a second, still-open historical attempt on an already-terminal question must not be allowed to terminalize. |
+| `createContextRequest` | A new `ContextRequest` against an already-terminal question must reject (§"ContextRequest after terminal disposition," below); currently checks only registration. |
+
+No runtime code is modified by this document; this is the frozen requirement a future implementation phase must satisfy.
+
+#### Active-cycle semantics
+
+**Closed: at most one ACTIVE deliberation cycle per current question, at a time.** A question's cycle — beginning at a recorded `RouteDecision` for it and ending at a recorded `QuestionDisposition` for that decision's eventual outcome — is **ACTIVE** for the whole span between those two events, regardless of which intermediate stage it is currently in:
+
+```
+ACTIVE(question) = exists a RouteDecision d in history with d.questionId === question.id
+                    such that no QuestionDisposition has yet been recorded for d's
+                    eventual outcome
+```
+
+This single definition subsumes every stage the governing packet named separately — a decision recorded with no attempt yet, an attempt started with no outcome yet, and an outcome recorded with no disposition yet are all just different points along the *same* active span, not three different categories needing different handling. Only once a disposition is recorded for a decision's cycle — `STILL_OPEN` (permitting a fresh cycle to begin) or a terminal disposition (permitting no further cycle at all) — may a *new* `RouteDecision` for that same question ever be recorded.
+
+#### Existing historical state (non-retroactive)
+
+The active-cycle rule above is a **forward-looking gate on future recording**, never a retroactive claim about what the currently-accepted runtime already enforces. Today's `planRouteForQuestion`/`recordRouteDecision` place no check preventing two decisions from being recorded for the same question — the accepted runtime is, and always has been, more permissive than this new rule. No shipped test in `test-stress-test-deliberation.mjs` (Slice 2A through 2D-B1) ever exercises or relies on that permissiveness — none constructs two decisions for one question — so tightening this later is a compatible, non-breaking hardening, not a correction of a bug. No historical record is ever silently deleted, and no migration is invented: if a future implementation phase ever discovers a session with genuinely parallel decisions/attempts for one question (a state nothing in the accepted runtime has ever produced), it must fail closed on that discovery — treat it as an inconsistent state requiring explicit reconciliation — rather than silently picking one decision as authoritative.
+
+#### Where active-cycle enforcement belongs
+
+**Closed: the authoritative gate belongs at `recordRouteDecision`**, for the same reason it is the authoritative gate for currentness (above) — only a recorded decision is audit truth, so that is the one place a second active cycle can actually be *created*. `planRouteForQuestion` should refuse for the same early-fail-fast consistency reason it already gets the currentness gate. `recordRouteAttemptStart` needs no *independent* active-cycle check beyond what it inherits structurally: invariant 9 already fixes one attempt per decision, and once `recordRouteDecision` refuses to ever record a second active decision for the same question, there is no path by which `recordRouteAttemptStart` could encounter two competing active decisions for one question in the first place. Enforcing once, at the point where the second active cycle would actually be created, is the minimum safe enforcement — duplicating it downstream would add no additional safety, only redundant code paths.
+
+#### `RouteOutcome` after terminal disposition (stale attempts)
+
+Concrete case, made explicit: a session has (hypothetically, per "existing historical state" above) two historical attempts on `Q1` — attempt A and attempt B, both started before either question-currentness or active-cycle enforcement existed. Attempt A's outcome is recorded and disposed `RESOLVED`. Attempt B is still open. **After `RESOLVED`, attempt B must never be allowed to record a `RouteOutcome`** — this is exactly why `recordRouteOutcome` needs the current-question gate (above), not merely the outcome-binding checks it already has. Attempt B becomes a **permanently open/unterminated attempt** — an accepted, explicit audit state (§5, invariant 22), never silently deleted, never coerced into `SUCCEEDED` or `FAILED` after the fact.
+
+#### `ContextRequest` after terminal disposition
+
+The same rule extends to `ADD_CONTEXT`: once `Q1` (a `CONTEXT_GAP` question) has any terminal disposition, a new `ContextRequest` against it must reject. `createContextRequest` today checks only that the question is *registered* (`deliberationState.unresolvedQuestions.find`); a future implementation must add the current-question check alongside it.
+
+#### `STOP` interaction with an open attempt — a major decision, closed explicitly
+
+Three options were weighed, per the governing packet's own framing:
+
+- **(A) An open attempt at `STOP` time is an acceptable, explicit audit state.**
+- **(B) `STOP` must fail closed while any active attempt is open.**
+- **(C) `STOP` may proceed only after explicit interrupted-attempt handling.**
+
+**(A) is adopted.** (B) is rejected because it would make `STOP` unreachable in exactly the situations it is most needed: `budget` and `latency` `StopReason`s (already-accepted vocabulary, restated at §18) are precisely the outcomes of an attempt that is *itself* mid-flight and consuming the exhausted budget — forcing `STOP` to wait for that attempt to close would make the ceiling meaningless, since the one thing exceeding a ceiling is supposed to do is stop the session regardless of what is still running. (C) is rejected because "explicit interrupted-attempt handling" does not exist and is repeatedly, deliberately not designed by this contract (§5's open/unterminated attempt is already accepted as a permanent state with "no automatic retry" and recovery deferred to "an explicitly authorized, fail-closed recovery path," not yet built) — requiring a precondition that has no implementation would make `STOP` just as unreachable as (B), for a different reason.
+
+(A) is also the option every other part of this contract already points toward: an open/unterminated attempt is *already* an accepted permanent audit fact (invariant 22); `STOP` already may hand `STILL_OPEN` questions to `HumanAdjudication` unfiltered (invariant 13, §18) — a human is precisely the right authority to decide what, if anything, to do about an attempt orphaned by `STOP`, exactly as they are already the authority for unresolved questions in general. Concretely: `STOP` may be recorded while a `RouteAttempt` is open. Once recorded, `deliberationState.stopReason !== null`, and `recordRouteOutcome`'s existing "already stopped" check (Slice 2D-B1, accepted) already rejects any later outcome for that attempt — meaning the open attempt becomes **permanently** open in that `DeliberationState`. This is not a gap to close; it is the same accepted permanent-audit-state pattern as every other open/unterminated attempt, just triggered by `STOP` instead of a terminal disposition.
+
+#### Snapshot / value semantics (extended)
+
+`QuestionDisposition` and every nested payload it carries — `reason`, and (once implemented) a `SUPERSEDED_RECLASSIFIED` replacement question's own `inputRefs`/lineage fields — follow the same independent-snapshot discipline every other concept in this contract already follows (§7's "Snapshot / value semantics," invariant 20): a caller-owned mutable reference must never be able to silently rewrite `questionDispositions[]` after the fact.
+
+#### Authority (restated)
+
+`QuestionDisposition` does **not**: authorize a `RevisionAction`, mutate `HumanAdjudication`, set `actionChange`, mutate `ReviewFinding`, mutate `SemanticIssue`, or mutate the frozen artifact/context. `HumanAdjudication.actionChange = YES -> RevisionAction` remains the sole gate to revision authority (§17, invariant 19) — entirely unaffected by anything in this section.
+
+#### Schema decisions closed (Slice 2D-B2-0)
+
+**A. Does `QuestionDisposition` need a separate `dispositionId`?** No — `attemptId` is sufficient identity, given the already-fixed `ONE RouteOutcome -> AT MOST ONE QuestionDisposition` cardinality (invariant 27).
+
+**B. Exact generic envelope.** See the derived/supplied/generated table above.
+
+**C. Exact caller vs. derived/generated fields.** Caller: `attemptId`, `disposition`, `reason`, disposition-specific payload where required. Derived: `questionId`, `sessionId`, `artifactHash`, `authorContextHash`. Generated: `createdAt`.
+
+**D. Legal disposition combinations after `FAILED`/`SUCCEEDED`.** See the table above. `CROSS_SESSION` after `FAILED` is illegal; `RESOLVED` after `FAILED` is legal, closed explicitly (not left implicit) — resolution is decided by externally-supplied re-evaluation, never by the attempt's own mechanical status.
+
+**E. Is `CROSS_SESSION` runtime-blocked?** Yes — no attempt-bound `ContextRequest`, `ADD_CONTEXT` success outcome, `SessionVersionLineage`, or Session-B runtime exists yet.
+
+**F. Exact `SUPERSEDED_RECLASSIFIED` replacement-question model.** Caller constructs `Q2` via the existing pure `createUnresolvedQuestion` factory (with `derivedFromQuestionId`); a new, atomic `recordQuestionDisposition` operation independently re-validates `Q2` and, in one returned state, both registers `Q2` and terminally disposes `Q1` — both facts land together or neither does.
+
+**G. Does `derivedFromQuestionId` become a field on `UnresolvedQuestion`?** Yes, confirmed with technical reasoning (a single field, not a parallel lineage collection) — `null` on originally-created questions, `Q1.id` on a replacement, settable *only* through the atomic `SUPERSEDED_RECLASSIFIED` transition, never through ordinary registration.
+
+**H. Does `SUPERSEDED_RECLASSIFIED` belong in the first runtime slice?** No — it requires a material schema change to the already-accepted `UnresolvedQuestion` type; deferred to a later, separately authorized slice (below).
+
+**I. Exact current-question derivation.** `isQuestionCurrent` — true iff no terminal disposition has been recorded; no redundant stored boolean.
+
+**J. Complete current-gate API list.** `planRouteForQuestion`, `recordRouteDecision`, `recordRouteAttemptStart`, `recordRouteOutcome`, `createContextRequest` — all five, confirmed technically (see the table above), not merely asserted.
+
+**K. May one question have parallel active deliberation cycles?** No — at most one `ACTIVE` cycle per current question at a time.
+
+**L. Definition of `ACTIVE`.** A single span from a recorded `RouteDecision` to a recorded `QuestionDisposition` for its eventual outcome — subsuming the decision-only, attempt-only, and outcome-only sub-stages as one continuous active state, not three separate categories.
+
+**M. Where does active-cycle enforcement belong?** Authoritatively at `recordRouteDecision`; `planRouteForQuestion` refuses for the same early-fail-fast reason it already gets the currentness gate; `recordRouteAttemptStart` needs no independent check, since the authoritative gate upstream already prevents the state it would otherwise have to detect.
+
+**N. What does `STOP` do when an open attempt exists?** Proceeds — an explicit, accepted, permanent open/unterminated-attempt audit state, per option (A) above; never fails closed on this basis, and never requires interrupted-attempt handling that does not exist.
+
+**O. How do stale historical attempts behave after a terminal disposition?** They can never record a `RouteOutcome` (the current-question gate on `recordRouteOutcome` rejects them) and remain permanently open/unterminated — the identical pattern as an attempt orphaned by `STOP` (N above), just triggered by a terminal disposition instead.
+
+No governing source-of-truth document contradicts A–O; none required reopening an already-accepted Slice 2A/2B/2C/2D invariant to close.
+
+#### Recommended next runtime slices
+
+Not authorized by this document. Two slices, in this order:
+
+**`SLICE 2D-B2-A` — CURRENTNESS CORE:** `QuestionDisposition` type; `questionDispositions[]` ledger; `STILL_OPEN`/`RESOLVED` only; outcome binding; `isQuestionCurrent`; all five current gates; the active-cycle gate at `recordRouteDecision` (+ `planRouteForQuestion`); no `SUPERSEDED_RECLASSIFIED`; no `CROSS_SESSION`. This is the smallest slice that makes currentness and active-cycle enforcement real without touching any already-accepted type's shape.
+
+**`SLICE 2D-B2-B` — SUPERSEDED / DERIVED QUESTION LINEAGE** (later, separately authorized): adds `derivedFromQuestionId` to `UnresolvedQuestion` (the one material schema change deferred out of 2D-B2-A), the atomic `recordQuestionDisposition(SUPERSEDED_RECLASSIFIED, replacementQuestion)` operation, and `registerUnresolvedQuestion`'s corresponding rejection of a non-`null` `derivedFromQuestionId` on the ordinary registration path.
+
+`CROSS_SESSION` remains excluded from both — it depends on prerequisites (`ADD_CONTEXT` success, `SessionVersionLineage`) neither slice builds, and belongs in whichever future slice actually builds those.
+
 ---
 
 ## 10. Route success does not equal question resolution
@@ -708,7 +945,7 @@ current questions
 
 **Compatibility, explicit:** today's runtime has no `questionDispositions` array and no derivation step — every registered question is, by the absence of any disposition mechanism, definitionally current. Adding `questionDispositions` later is purely additive: no existing field is renamed or removed, no existing behavior changes, and the degenerate case (no dispositions recorded) reproduces exactly today's behavior. No breaking schema migration is required; this is a conceptual description for a later phase, not an instruction to implement it now.
 
-**Fail-closed on non-current questions:** once a question's disposition is terminal (`RESOLVED`, `SUPERSEDED_RECLASSIFIED`, or `CROSS_SESSION`, §9), it leaves the current set permanently — there is no path back from a terminal disposition. A future implementation phase must update `planRouteForQuestion` and `recordRouteDecision` (or an equivalent routing gate) so that a non-`STOP` `RouteDecision` may target only a question in the *current* set — not merely any historical question still physically present in the append-only `unresolvedQuestions` registry. This is not implemented by this document; it is a binding requirement on whatever phase does implement it.
+**Fail-closed on non-current questions:** once a question's disposition is terminal (`RESOLVED`, `SUPERSEDED_RECLASSIFIED`, or `CROSS_SESSION`, §9), it leaves the current set permanently — there is no path back from a terminal disposition. §9's Slice 2D-B2-0 schema freeze closes the complete list of APIs a future implementation phase must gate on currentness: `planRouteForQuestion`, `recordRouteDecision`, `recordRouteAttemptStart`, `recordRouteOutcome`, and `createContextRequest` — not merely the two named in an earlier draft of this document. This is not implemented by this document; it is a binding requirement on whatever phase does implement it.
 
 ---
 
@@ -842,6 +1079,11 @@ An open/unterminated attempt (§5) is itself an idempotency concern: while a `Ro
 31. A `TARGETED_PEER_CHALLENGE` `RouteOutcome`'s `targetRef` and `sourceRef` must be distinct from one another and must each exactly match one of the terminated `RouteDecision`'s own `inputRefs`, with no inference and no new ref introduced at outcome time (§7).
 32. No `SEEK_EVIDENCE` result (`SUPPORTIVE`/`CONTRADICTORY`/`INCONCLUSIVE`) may be recorded until claim-level `EvidenceSubject` provenance is separately, explicitly frozen; only a generic `FAILED` outcome is recordable for `SEEK_EVIDENCE` until then (§7).
 33. `TARGETED_PEER_CHALLENGE`'s successful result variants may not be recorded until the `DECISION_SENSITIVE_CONFLICT` input-cardinality routing gate (invariant 30) exists; only a generic `FAILED` outcome is recordable for `TARGETED_PEER_CHALLENGE` until then (§7).
+34. `planRouteForQuestion`, `recordRouteDecision`, `recordRouteAttemptStart`, `recordRouteOutcome`, and `createContextRequest` must all fail closed on a non-current question — registration in `unresolvedQuestions` is never sufficient by itself once a terminal disposition exists (§9).
+35. At most one `ACTIVE` deliberation cycle — a recorded `RouteDecision` through a recorded `QuestionDisposition` for its eventual outcome — may exist per question at a time; enforced authoritatively at `recordRouteDecision` (§9).
+36. `STOP` may be recorded while a `RouteAttempt` is open; the attempt becomes permanently open/unterminated, never forced closed, never treated as an error caused by stopping (§9).
+37. `registerUnresolvedQuestion` must reject any question whose `derivedFromQuestionId` is non-`null`; a derived question may only ever be registered through the atomic `SUPERSEDED_RECLASSIFIED` transition, never standalone (§9).
+38. `RESOLVED` is a legal `QuestionDisposition` after a `FAILED` `RouteOutcome` when independently justified by `reason`; `CROSS_SESSION` is never legal after `FAILED`, regardless of route (§9).
 
 ---
 
@@ -903,6 +1145,8 @@ No governing source-of-truth document contradicts H–M; none required reopening
 
 **Corrected by the Slice 2D-B0 final amendment:** two further provenance gaps, discovered while translating the frozen schemas into executable requirements, are corrected — decisions L–N in §7. `TARGETED_PEER_CHALLENGE` requires two distinct source/target refs (invariant 30), and its `targetRef`/`sourceRef` must both originate from the terminated `RouteDecision`'s own `inputRefs` (invariant 31) — closed decisions, but its successful-outcome *runtime* stays blocked until a routing gate enforces the cardinality requirement, since no such gate exists in the accepted runtime today. `SEEK_EVIDENCE`'s frozen `{result, citations}` payload is confirmed insufficient to identify *which claim* is being evaluated — `SEEK_EVIDENCE`'s claim-level provenance is left genuinely open (§24) rather than solved by inventing an unjustified `claimId`/`claimText`/`paragraphId` field. The route-readiness table (§7) and the reviewerRunId-reuse scope note (§7) are revised accordingly; a recommended, not-authorized `SLICE 2D-B1` scope is proposed (§7) for whatever GPT chooses to authorize next.
 
+**Closed by the Slice 2D-B2-0 schema freeze:** fifteen decisions (A–O, §9's "Schema decisions closed" subsection), covering `QuestionDisposition` identity and generic envelope, legal disposition/status combinations (including `RESOLVED` after `FAILED`, closed explicitly rather than left implicit), `CROSS_SESSION`'s continued runtime block, the `SUPERSEDED_RECLASSIFIED` replacement-question model and its `derivedFromQuestionId` field (confirmed for `UnresolvedQuestion`, deferred to a later slice), the complete five-API current-gate list, active-cycle semantics and where its gate belongs, and — as a major architecture decision — that `STOP` may proceed while a `RouteAttempt` is open, leaving it permanently open/unterminated rather than failing closed or requiring not-yet-built recovery machinery (invariants 34–38). Two prior open items (`ADD_CONTEXT`'s `NO_RESPONSE` and `SEEK_EVIDENCE`'s claim-level provenance) are explicitly left open, unrevisited, per this packet's own instruction not to solve unrelated items merely because this document was open (§24).
+
 ---
 
 ## 23. Relation to accepted Slice 2A/2B runtime
@@ -919,9 +1163,11 @@ Nothing in this document alters, weakens, or contradicts `src/stress-test/delibe
 
 **2. `SEEK_EVIDENCE` claim-level `EvidenceSubject` provenance: OPEN / requires a separately authorized architecture decision.** The frozen `{result, citations}` payload identifies a source, but not which specific factual claim within a `ReviewFinding`/`SemanticIssue` the citations evaluate (§7, invariant 32). This document explicitly declines to invent `claimText`/`claimId`/`claimIndex`/`paragraphId`/`chunkId` to paper over the gap — paragraph-local identity is not product authority, copied claim text can drift, a `SemanticIssue` can aggregate multiple findings, and one finding can carry more than one factual proposition. `SUPPORTIVE`/`CONTRADICTORY`/`INCONCLUSIVE` all stay runtime-blocked until this is closed.
 
-**Not an open decision, despite being a runtime blocker:** `TARGETED_PEER_CHALLENGE`'s source/target provenance rule *is* closed by this amendment (§7 decisions L–M, invariants 30–31) — two distinct refs, both drawn from the terminated `RouteDecision`'s own `inputRefs`. Its successful-outcome runtime stays blocked only because the routing gate that would *enforce* that closed rule does not exist yet — a sequencing gap, not an unresolved architecture question.
+**Not an open decision, despite being a runtime blocker:** `TARGETED_PEER_CHALLENGE`'s source/target provenance rule *is* closed by this amendment (§7 decisions L–M, invariants 30–31) — two distinct refs, both drawn from the terminated `RouteDecision`'s own `inputRefs`. Its successful-outcome runtime stays blocked only because the routing gate that would *enforce* that closed rule does not exist yet — a sequencing gap, not an unresolved architecture question. The same is true of `SUPERSEDED_RECLASSIFIED` (§9 decisions F–H) and `CROSS_SESSION` (§9 decision E): both are architecturally closed — the replacement-question model, the `derivedFromQuestionId` field, and the exact prerequisites `CROSS_SESSION` still lacks are all frozen — but deliberately sequenced into a later slice rather than left as unresolved questions.
 
-Every other decision either governing packet asked to be closed (§22, including the amendment's H–M and the Slice 2D-B0 schema freeze's A–N in §7) is closed, using only source-of-truth material already in this repository (`src/stress-test/deliberation.ts`, `src/stress-test/session.ts`, `src/stress-test/types.ts`, `src/providers/types.ts`, `src/agents/collaboration.ts`, `MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md`) and the packets' own explicit instructions. No contradiction between governing documents was found, so nothing was reported instead of resolved. `ReplicationResult`'s exact vocabulary (§13.C) and the `questionDispositions` migration shape (§15) were closed rather than left open, on the same minimal-closed-enum / purely-additive-field reasoning pattern this repository already uses for `StopReason` and `RootCauseCategory` — both are conceptual-only and implement nothing. The per-route `AttemptStatus` allowlist (§6, decision K of §22) was originally submitted as Engineering Lead advisory input in Slice 2C and has now been explicitly accepted by GPT as binding — recorded here as provenance, not as a decision this document made unilaterally. `ADD_REVIEWER`'s newness-provenance rule (§7 decision D) is closed as a structural, multi-signal check, not as identity equality — GPT's rejection of the prior `reviewerRunId === attemptId` convention is fully incorporated, not merely noted.
+**Neither of the two items above was revisited by the Slice 2D-B2-0 schema freeze**, per that packet's own instruction not to solve unrelated open items merely because this document was open for editing (§29 of that packet). Both remain exactly as recorded: still open, still requiring a separately authorized architecture decision before their respective runtimes can be authorized.
+
+Every other decision either governing packet asked to be closed (§22, including the amendment's H–M, the Slice 2D-B0 schema freeze's A–N in §7, and the Slice 2D-B2-0 schema freeze's A–O in §9) is closed, using only source-of-truth material already in this repository (`src/stress-test/deliberation.ts`, `src/stress-test/session.ts`, `src/stress-test/types.ts`, `src/providers/types.ts`, `src/agents/collaboration.ts`, `MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md`) and the packets' own explicit instructions. No contradiction between governing documents was found, so nothing was reported instead of resolved. `ReplicationResult`'s exact vocabulary (§13.C) and the `questionDispositions` migration shape (§15) were closed rather than left open, on the same minimal-closed-enum / purely-additive-field reasoning pattern this repository already uses for `StopReason` and `RootCauseCategory` — both are conceptual-only and implement nothing. The per-route `AttemptStatus` allowlist (§6, decision K of §22) was originally submitted as Engineering Lead advisory input in Slice 2C and has now been explicitly accepted by GPT as binding — recorded here as provenance, not as a decision this document made unilaterally. `ADD_REVIEWER`'s newness-provenance rule (§7 decision D) is closed as a structural, multi-signal check, not as identity equality — GPT's rejection of the prior `reviewerRunId === attemptId` convention is fully incorporated, not merely noted. The `STOP`-while-open-attempt decision (§9 decision N) was explicitly evaluated against all three options the governing packet posed, not assumed by default.
 
 ---
 
