@@ -2882,8 +2882,11 @@ check('an empty, whitespace-only, or null reason is rejected', () => {
 });
 
 check('an invalid, unsupported, or missing disposition is rejected, never silently coerced', () => {
+  // SUPERSEDED_RECLASSIFIED became recordable in Slice 2D-B2-B (see Section S
+  // below for its own dedicated validation); it is intentionally no longer
+  // in this "always invalid" list.
   const { session, state, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
-  for (const disposition of ['SUPERSEDED_RECLASSIFIED', 'CROSS_SESSION', 'NOT_A_DISPOSITION', null, undefined]) {
+  for (const disposition of ['CROSS_SESSION', 'NOT_A_DISPOSITION', null, undefined]) {
     assert.throws(
       () => recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition, reason: 'x' }),
       /invalid or unsupported disposition/,
@@ -3484,6 +3487,527 @@ check('two dispositions for one question remain valid when they belong to differ
   assert.equal(next.questionDispositions.length, 2);
   assert.notEqual(next.questionDispositions[0].attemptId, next.questionDispositions[1].attemptId);
   assert.equal(isQuestionCurrent(next, question.id), false);
+});
+
+// ==================================================================
+// S. SUPERSEDED_RECLASSIFIED / derived question lineage (Slice 2D-B2-B)
+// ==================================================================
+console.log('\nSUPERSEDED_RECLASSIFIED / derived question lineage (Slice 2D-B2-B)');
+
+/** Convenience: a valid, independently-constructed replacement question (Q2) for `cycle.question` (Q1), via the real createUnresolvedQuestion factory. */
+function buildReplacementFor(cycle, overrides = {}) {
+  return createUnresolvedQuestion(cycle.session, {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'reclassified: two interpretations now materially conflict',
+    inputRefs: cycle.question.inputRefs.map((ref) => ({ ...ref })),
+    derivedFromQuestionId: cycle.question.id,
+    ...overrides,
+  });
+}
+
+// --- S1. Global duplicate question-id (packet §34) -------------------------
+
+check('a duplicate UnresolvedQuestion.id anywhere fails closed, even with no derived lineage involved', () => {
+  const { session, state, question } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  const duplicate = { ...question };
+  const corrupted = { ...state, unresolvedQuestions: [...state.unresolvedQuestions, duplicate] };
+  assert.throws(() => isQuestionCurrent(corrupted, question.id), /duplicate UnresolvedQuestion\.id/);
+  assert.throws(
+    () => planRouteForQuestion(session, corrupted, question),
+    /duplicate UnresolvedQuestion\.id|is not current/
+  );
+});
+
+// --- S2. SUPERSEDED positive test (packet §35) ------------------------------
+
+check('SUPERSEDED_RECLASSIFIED atomically registers Q2 and terminally disposes Q1', () => {
+  const cycle = buildFailedCycleFixture('COVERAGE_GAP');
+  const { session, state, question, attempt } = cycle;
+  const replacementQuestion = buildReplacementFor(cycle);
+  const next = recordQuestionDisposition(session, state, {
+    attemptId: attempt.attemptId,
+    disposition: 'SUPERSEDED_RECLASSIFIED',
+    reason: 'the real deficit is a decision conflict, not a coverage gap',
+    replacementQuestion,
+  });
+
+  assert.equal(next.questionDispositions.length, 1);
+  assert.equal(next.unresolvedQuestions.length, 2);
+  const stored = next.questionDispositions[0];
+  assert.equal(stored.disposition, 'SUPERSEDED_RECLASSIFIED');
+  assert.equal(stored.questionId, question.id);
+  assert.equal('replacementQuestionId' in stored, false);
+  assert.equal('replacementQuestion' in stored, false);
+
+  assert.ok(next.unresolvedQuestions.some((q) => q.id === question.id));
+  assert.equal(isQuestionCurrent(next, question.id), false);
+
+  const storedQ2 = next.unresolvedQuestions.find((q) => q.id === replacementQuestion.id);
+  assert.ok(storedQ2);
+  assert.equal(storedQ2.derivedFromQuestionId, question.id);
+  assert.equal(isQuestionCurrent(next, storedQ2.id), true);
+});
+
+// --- S3. SUPERSEDED after FAILED / SUCCEEDED (packet §36) ------------------
+
+check('SUPERSEDED_RECLASSIFIED is recordable after a FAILED, a successful ADD_REVIEWER, and a successful REPLICATE outcome', () => {
+  const cycles = [
+    buildFailedCycleFixture('COVERAGE_GAP'),
+    buildAddReviewerSuccessCycleFixture('reviewer-run-supersede'),
+    buildReplicateSuccessCycleFixture('REPRODUCED'),
+  ];
+  for (const cycle of cycles) {
+    const { session, state, question, attempt } = cycle;
+    const replacementQuestion = buildReplacementFor(cycle);
+    const next = recordQuestionDisposition(session, state, {
+      attemptId: attempt.attemptId,
+      disposition: 'SUPERSEDED_RECLASSIFIED',
+      reason: 'independent re-evaluation reclassified the deficit',
+      replacementQuestion,
+    });
+    assert.equal(isQuestionCurrent(next, question.id), false);
+    assert.equal(isQuestionCurrent(next, replacementQuestion.id), true);
+  }
+});
+
+// --- S4. Invalid replacement tests (packet §37) -----------------------------
+
+check('an invalid replacementQuestion is rejected in every case, with no partial write', () => {
+  const cycle = buildFailedCycleFixture('COVERAGE_GAP');
+  const { session, state: state0, question, attempt } = cycle;
+  const extra = buildRegisteredQuestion(session, state0, {
+    rootCause: 'STABILITY_QUESTION',
+    materialityReason: 'an unrelated already-registered question',
+    inputRefs: question.inputRefs.map((ref) => ({ ...ref })),
+  });
+  const state = extra.state;
+  const otherRegisteredId = extra.question.id;
+  const valid = buildReplacementFor({ ...cycle, state });
+
+  const missingLineage = { ...valid };
+  delete missingLineage.derivedFromQuestionId;
+
+  const invalidCases = [
+    ['null replacement', null],
+    ['non-object replacement', 'not-an-object'],
+    ['blank id', { ...valid, id: '' }],
+    ['same id as Q1', { ...valid, id: question.id }],
+    ['duplicate registered id', { ...valid, id: otherRegisteredId }],
+    ['rootCause NONE', { ...valid, rootCause: 'NONE' }],
+    ['invalid rootCause', { ...valid, rootCause: 'NOT_A_ROOT_CAUSE' }],
+    ['blank materialityReason', { ...valid, materialityReason: '   ' }],
+    ['empty inputRefs', { ...valid, inputRefs: [] }],
+    ['invalid ref', { ...valid, inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: 'no-such-issue' }] }],
+    ['malformed createdAt', { ...valid, createdAt: 'not-a-date' }],
+    ['derivedFromQuestionId null', { ...valid, derivedFromQuestionId: null }],
+    ['derivedFromQuestionId missing', missingLineage],
+    ['derivedFromQuestionId wrong parent', { ...valid, derivedFromQuestionId: otherRegisteredId }],
+    ['derivedFromQuestionId blank', { ...valid, derivedFromQuestionId: '   ' }],
+  ];
+
+  for (const [label, replacementQuestion] of invalidCases) {
+    assert.throws(
+      () =>
+        recordQuestionDisposition(session, state, {
+          attemptId: attempt.attemptId,
+          disposition: 'SUPERSEDED_RECLASSIFIED',
+          reason: 'x',
+          replacementQuestion,
+        }),
+      `expected case "${label}" to be rejected`
+    );
+  }
+  assert.equal(state.unresolvedQuestions.length, 2);
+  assert.equal(state.questionDispositions.length, 0);
+});
+
+// --- S5. Input shape tests (packet §38) -------------------------------------
+
+check('SUPERSEDED_RECLASSIFIED input rejects a missing replacementQuestion and every forbidden extra key', () => {
+  const { session, state, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+  assert.throws(
+    () => recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition: 'SUPERSEDED_RECLASSIFIED', reason: 'x' }),
+    /requires replacementQuestion/
+  );
+
+  const validReplacement = {
+    id: 'input-shape-q2',
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'x',
+    inputRefs: [],
+    createdAt: new Date().toISOString(),
+    derivedFromQuestionId: null,
+  };
+  const forbiddenExtras = [
+    { replacementQuestionId: 'x' },
+    { newQuestionId: 'x' },
+    { parentId: 'x' },
+    { lineage: {} },
+    { newSessionId: 'x' },
+    { actionChange: 'YES' },
+    { arbitraryField: 1 },
+  ];
+  for (const extra of forbiddenExtras) {
+    assert.throws(
+      () =>
+        recordQuestionDisposition(session, state, {
+          attemptId: attempt.attemptId,
+          disposition: 'SUPERSEDED_RECLASSIFIED',
+          reason: 'x',
+          replacementQuestion: validReplacement,
+          ...extra,
+        }),
+      /unexpected field/,
+      `expected extra field ${JSON.stringify(Object.keys(extra))} to be rejected`
+    );
+  }
+  // A top-level derivedFromQuestionId (as opposed to one nested inside
+  // replacementQuestion, which is required) is equally forbidden.
+  assert.throws(
+    () =>
+      recordQuestionDisposition(session, state, {
+        attemptId: attempt.attemptId,
+        disposition: 'SUPERSEDED_RECLASSIFIED',
+        reason: 'x',
+        replacementQuestion: validReplacement,
+        derivedFromQuestionId: 'x',
+      }),
+    /unexpected field/
+  );
+});
+
+check('STILL_OPEN/RESOLVED input still rejects a replacementQuestion field (unchanged from Slice 2D-B2-A)', () => {
+  const { session, state, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+  for (const disposition of ['STILL_OPEN', 'RESOLVED']) {
+    assert.throws(
+      () => recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition, reason: 'x', replacementQuestion: { id: 'q2' } }),
+      /unexpected field/
+    );
+  }
+});
+
+// --- S6. Ordinary registration tests (packet §39) ---------------------------
+
+check('createUnresolvedQuestion + registerUnresolvedQuestion: omitted/null derivedFromQuestionId succeeds; non-null is rejected on the ordinary path', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+
+  const omitted = createUnresolvedQuestion(session, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  assert.equal(omitted.derivedFromQuestionId, null);
+  const afterOmitted = registerUnresolvedQuestion(session, state0, omitted);
+  assert.equal(afterOmitted.unresolvedQuestions.length, 1);
+
+  const explicitNull = createUnresolvedQuestion(session, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'y',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    derivedFromQuestionId: null,
+  });
+  assert.equal(explicitNull.derivedFromQuestionId, null);
+  const afterExplicitNull = registerUnresolvedQuestion(session, afterOmitted, explicitNull);
+  assert.equal(afterExplicitNull.unresolvedQuestions.length, 2);
+
+  const derived = createUnresolvedQuestion(session, {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'z',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    derivedFromQuestionId: omitted.id,
+  });
+  assert.equal(derived.derivedFromQuestionId, omitted.id);
+  assert.throws(
+    () => registerUnresolvedQuestion(session, afterExplicitNull, derived),
+    /atomic SUPERSEDED_RECLASSIFIED transition/
+  );
+});
+
+check('the atomic SUPERSEDED path succeeds for the same derived question the ordinary path rejects', () => {
+  const cycle = buildFailedCycleFixture('COVERAGE_GAP');
+  const { session, state, attempt } = cycle;
+  const derived = buildReplacementFor(cycle);
+  assert.throws(() => registerUnresolvedQuestion(session, state, derived), /atomic SUPERSEDED_RECLASSIFIED transition/);
+  const next = recordQuestionDisposition(session, state, {
+    attemptId: attempt.attemptId,
+    disposition: 'SUPERSEDED_RECLASSIFIED',
+    reason: 'x',
+    replacementQuestion: derived,
+  });
+  assert.ok(next.unresolvedQuestions.some((q) => q.id === derived.id));
+});
+
+// --- S7. Legacy missing-field compatibility (packet §40) -------------------
+
+check('a legacy question object missing derivedFromQuestionId reads as a valid original, without mutation', () => {
+  const { state, question } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  const legacyQuestion = { ...question };
+  delete legacyQuestion.derivedFromQuestionId;
+  const legacyState = {
+    ...state,
+    unresolvedQuestions: state.unresolvedQuestions.map((q) => (q.id === question.id ? legacyQuestion : q)),
+  };
+  const before = JSON.parse(JSON.stringify(legacyState));
+  assert.equal(isQuestionCurrent(legacyState, question.id), true);
+  assert.deepEqual(legacyState, before);
+});
+
+// --- S11. Missing-child test (packet §44) -----------------------------------
+// (Numbered per the governing packet's own test list; placed here because it
+// shares this section's "legacy compatibility never masks broken superseding
+// lineage" theme, packet §40's closing requirement.)
+
+check('a SUPERSEDED_RECLASSIFIED disposition with zero registered derived children fails lineage integrity', () => {
+  const { session, state, question, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+  const outcome = state.outcomes[0];
+  const brokenState = {
+    ...state,
+    questionDispositions: [
+      {
+        attemptId: outcome.attemptId,
+        questionId: question.id,
+        sessionId: state.sessionId,
+        artifactHash: state.artifactHash,
+        authorContextHash: state.authorContextHash,
+        disposition: 'SUPERSEDED_RECLASSIFIED',
+        reason: 'legacy superseding with no recorded child',
+        createdAt: new Date().toISOString(),
+      },
+    ],
+  };
+  assert.throws(() => isQuestionCurrent(brokenState, question.id), /registered direct children/);
+});
+
+// --- S8. Orphan test (packet §41) -------------------------------------------
+
+check('a registered question claiming a nonexistent parent (orphan) fails lineage integrity, never silently treated as original', () => {
+  const { session, state, question } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  const orphan = createUnresolvedQuestion(session, {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'orphaned derived question',
+    inputRefs: question.inputRefs.map((ref) => ({ ...ref })),
+    derivedFromQuestionId: 'nonexistent-parent-id',
+  });
+  const corrupted = { ...state, unresolvedQuestions: [...state.unresolvedQuestions, orphan] };
+  assert.throws(() => isQuestionCurrent(corrupted, question.id), /orphan derived question/);
+});
+
+// --- S9. Parent-not-superseded test (packet §42) ----------------------------
+
+check('a derived question whose claimed parent has no disposition, or STILL_OPEN, or RESOLVED (never SUPERSEDED) fails lineage integrity', () => {
+  for (const dispositionKind of [null, 'STILL_OPEN', 'RESOLVED']) {
+    const { session, state, question, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+    const withParentDisposition =
+      dispositionKind === null
+        ? state
+        : recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition: dispositionKind, reason: 'x' });
+    const child = createUnresolvedQuestion(session, {
+      rootCause: 'DECISION_SENSITIVE_CONFLICT',
+      materialityReason: 'claims a parent that was never superseded',
+      inputRefs: question.inputRefs.map((ref) => ({ ...ref })),
+      derivedFromQuestionId: question.id,
+    });
+    const corrupted = { ...withParentDisposition, unresolvedQuestions: [...withParentDisposition.unresolvedQuestions, child] };
+    assert.throws(
+      () => isQuestionCurrent(corrupted, question.id),
+      /does not have exactly one SUPERSEDED_RECLASSIFIED disposition/
+    );
+  }
+});
+
+// --- S10. Fork test (packet §43) --------------------------------------------
+
+check('two questions both claiming the same superseded parent is a fork, rejected with no first/latest-child winner', () => {
+  const cycle = buildFailedCycleFixture('COVERAGE_GAP');
+  const { session, state, question, attempt } = cycle;
+  const q2 = buildReplacementFor(cycle);
+  const disposed = recordQuestionDisposition(session, state, {
+    attemptId: attempt.attemptId,
+    disposition: 'SUPERSEDED_RECLASSIFIED',
+    reason: 'x',
+    replacementQuestion: q2,
+  });
+  const q3 = createUnresolvedQuestion(session, {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'a second, forking claimed replacement',
+    inputRefs: question.inputRefs.map((ref) => ({ ...ref })),
+    derivedFromQuestionId: question.id,
+  });
+  const forked = { ...disposed, unresolvedQuestions: [...disposed.unresolvedQuestions, q3] };
+  assert.throws(() => isQuestionCurrent(forked, question.id), /fork in derived lineage/);
+});
+
+// --- S12. Cycle tests (packet §45) ------------------------------------------
+
+check('self-reference, a two-node cycle, and a longer cycle in derived lineage are all rejected, without relying on timestamps', () => {
+  {
+    const { state, question } = buildRecordedDecisionFixture('COVERAGE_GAP');
+    const selfCycled = { ...question, derivedFromQuestionId: question.id };
+    const corrupted = {
+      ...state,
+      unresolvedQuestions: state.unresolvedQuestions.map((q) => (q.id === question.id ? selfCycled : q)),
+    };
+    assert.throws(() => isQuestionCurrent(corrupted, question.id), /self-referential lineage/);
+  }
+  {
+    const { state, question } = buildRecordedDecisionFixture('COVERAGE_GAP');
+    const q1Cycled = { ...question, derivedFromQuestionId: 'cycle-q2' };
+    const q2 = { ...question, id: 'cycle-q2', derivedFromQuestionId: question.id };
+    const corrupted = { ...state, unresolvedQuestions: [q1Cycled, q2] };
+    assert.throws(() => isQuestionCurrent(corrupted, question.id), /derived lineage cycle detected/);
+  }
+  {
+    const { state, question } = buildRecordedDecisionFixture('COVERAGE_GAP');
+    const q1Cycled = { ...question, derivedFromQuestionId: 'cycle-q3' };
+    const q2 = { ...question, id: 'cycle-q2', derivedFromQuestionId: question.id };
+    const q3 = { ...question, id: 'cycle-q3', derivedFromQuestionId: 'cycle-q2' };
+    const corrupted = { ...state, unresolvedQuestions: [q1Cycled, q2, q3] };
+    assert.throws(() => isQuestionCurrent(corrupted, question.id), /derived lineage cycle detected/);
+  }
+});
+
+// --- S13. Valid multi-generation test (packet §46) --------------------------
+
+check('a real Q1 -> Q2 -> Q3 lineage chain: Q1 and Q2 non-current, Q3 current, no forks', () => {
+  const cycle1 = buildFailedCycleFixture('COVERAGE_GAP');
+  const { session, state: state0, question: q1, attempt: attempt1 } = cycle1;
+  const q2 = buildReplacementFor(cycle1);
+  const state1 = recordQuestionDisposition(session, state0, {
+    attemptId: attempt1.attemptId,
+    disposition: 'SUPERSEDED_RECLASSIFIED',
+    reason: 'Q1 reclassified into Q2',
+    replacementQuestion: q2,
+  });
+
+  const decision2 = planRouteForQuestion(session, state1, q2);
+  const state2 = recordRouteDecision(session, state1, decision2);
+  const state3 = recordRouteAttemptStart(session, state2, decision2.id);
+  const attempt2 = state3.attempts.find((a) => a.decisionId === decision2.id);
+  const state4 = recordRouteOutcome(session, state3, {
+    attemptId: attempt2.attemptId,
+    status: 'FAILED',
+    latencyConsumed: 1,
+    failure: VALID_FAILURE_FOR_DISPOSITION,
+  });
+
+  const q3 = createUnresolvedQuestion(session, {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'Q2 further reclassified into Q3',
+    inputRefs: q2.inputRefs.map((ref) => ({ ...ref })),
+    derivedFromQuestionId: q2.id,
+  });
+  const state5 = recordQuestionDisposition(session, state4, {
+    attemptId: attempt2.attemptId,
+    disposition: 'SUPERSEDED_RECLASSIFIED',
+    reason: 'Q2 reclassified into Q3',
+    replacementQuestion: q3,
+  });
+
+  assert.equal(isQuestionCurrent(state5, q1.id), false);
+  assert.equal(isQuestionCurrent(state5, q2.id), false);
+  assert.equal(isQuestionCurrent(state5, q3.id), true);
+  assert.equal(state5.unresolvedQuestions.length, 3);
+});
+
+// --- S14. Disposition cardinality (packet §47) ------------------------------
+
+check('the same outcome cannot receive a second disposition of any kind, including SUPERSEDED_RECLASSIFIED', () => {
+  for (const firstDisposition of ['STILL_OPEN', 'RESOLVED']) {
+    const cycle = buildFailedCycleFixture('COVERAGE_GAP');
+    const { session, state, attempt } = cycle;
+    const once = recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition: firstDisposition, reason: 'x' });
+    const replacementQuestion = buildReplacementFor({ ...cycle, state: once });
+    assert.throws(
+      () =>
+        recordQuestionDisposition(session, once, {
+          attemptId: attempt.attemptId,
+          disposition: 'SUPERSEDED_RECLASSIFIED',
+          reason: 'x',
+          replacementQuestion,
+        }),
+      /already has a QuestionDisposition|is not current/
+    );
+  }
+  {
+    const cycle = buildFailedCycleFixture('COVERAGE_GAP');
+    const { session, state, attempt } = cycle;
+    const q2 = buildReplacementFor(cycle);
+    const once = recordQuestionDisposition(session, state, {
+      attemptId: attempt.attemptId,
+      disposition: 'SUPERSEDED_RECLASSIFIED',
+      reason: 'x',
+      replacementQuestion: q2,
+    });
+    const q2b = buildReplacementFor(cycle, { materialityReason: 'a second attempted supersede of the same outcome' });
+    assert.throws(
+      () =>
+        recordQuestionDisposition(session, once, {
+          attemptId: attempt.attemptId,
+          disposition: 'SUPERSEDED_RECLASSIFIED',
+          reason: 'x',
+          replacementQuestion: q2b,
+        }),
+      /already has a QuestionDisposition/
+    );
+  }
+});
+
+// --- S15. Active-cycle re-entry (packet §48) --------------------------------
+
+check('after SUPERSEDED, Q1 rejects every current-gated API while Q2 routes normally, via existing transitive gates', () => {
+  const cycle = buildFailedCycleFixture('COVERAGE_GAP');
+  const { session, state, question: q1, attempt } = cycle;
+  const q2 = buildReplacementFor(cycle);
+  const disposed = recordQuestionDisposition(session, state, {
+    attemptId: attempt.attemptId,
+    disposition: 'SUPERSEDED_RECLASSIFIED',
+    reason: 'x',
+    replacementQuestion: q2,
+  });
+
+  assert.throws(() => planRouteForQuestion(session, disposed, q1), /is not current/);
+  assert.throws(
+    () =>
+      createContextRequest(session, disposed, {
+        questionId: q1.id,
+        category: 'constraints',
+        question: 'still relevant?',
+        inferenceReason: 'x',
+      }),
+    /is not current|rootCause/
+  );
+
+  const decision2 = planRouteForQuestion(session, disposed, q2);
+  assert.equal(decision2.questionId, q2.id);
+  const recorded2 = recordRouteDecision(session, disposed, decision2);
+  assert.equal(recorded2.history.some((d) => d.id === decision2.id), true);
+});
+
+// --- S16. Human authority (packet §49) --------------------------------------
+
+check('SUPERSEDED_RECLASSIFIED never mutates the session (HumanAdjudication/findings/semanticIssues/artifact/context untouched)', () => {
+  const cycle = buildFailedCycleFixture('COVERAGE_GAP');
+  const { session, state, attempt } = cycle;
+  const replacementQuestion = buildReplacementFor(cycle);
+  const before = JSON.parse(JSON.stringify(session));
+  recordQuestionDisposition(session, state, {
+    attemptId: attempt.attemptId,
+    disposition: 'SUPERSEDED_RECLASSIFIED',
+    reason: 'x',
+    replacementQuestion,
+  });
+  assert.deepEqual(session, before);
+});
+
+// --- S17. No CROSS_SESSION (packet §50) -------------------------------------
+
+check('CROSS_SESSION remains rejected outright even after SUPERSEDED_RECLASSIFIED became recordable', () => {
+  const { session, state, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+  assert.throws(
+    () => recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition: 'CROSS_SESSION', reason: 'x' }),
+    /invalid or unsupported disposition/
+  );
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

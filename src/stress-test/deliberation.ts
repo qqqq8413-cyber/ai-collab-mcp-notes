@@ -182,6 +182,17 @@ export interface UnresolvedQuestion {
   rootCause: RootCauseCategory;
   materialityReason: string;
   createdAt: string;
+  /**
+   * `null` for an originally-created question. Non-null only for a direct
+   * replacement created through the atomic `SUPERSEDED_RECLASSIFIED`
+   * transition (`recordQuestionDisposition`) -- never through ordinary
+   * `registerUnresolvedQuestion`
+   * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9, Slice 2D-B2-B0/B2-B).
+   * A question predating this field may lack the key entirely; read it via
+   * `effectiveDerivedFromQuestionId`, never this property directly, unless
+   * the value is already known-canonical.
+   */
+  derivedFromQuestionId: string | null;
 }
 
 /**
@@ -351,13 +362,17 @@ export interface ReplicationRouteOutcome extends RouteOutcomeCommon {
 /** Slice 2D-B1's complete RouteOutcome vocabulary. ADD_CONTEXT/SEEK_EVIDENCE/TARGETED_PEER_CHALLENGE successful outcomes and any INCONCLUSIVE outcome are not yet representable -- not authorized in this slice. */
 export type RouteOutcome = FailedRouteOutcome | AddReviewerRouteOutcome | ReplicationRouteOutcome;
 
-/** The full accepted architecture vocabulary (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9) -- only half of it is recordable in this slice, below. */
+/** The full accepted architecture vocabulary (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9). `CROSS_SESSION` remains excluded from the recordable subset below -- it needs `ADD_CONTEXT` success + session-lineage runtime, not authorized yet. */
 export type QuestionDispositionKind = 'STILL_OPEN' | 'RESOLVED' | 'SUPERSEDED_RECLASSIFIED' | 'CROSS_SESSION';
 
-/** Slice 2D-B2-A's recordable subset. `SUPERSEDED_RECLASSIFIED` (needs `derivedFromQuestionId` on `UnresolvedQuestion`) and `CROSS_SESSION` (needs `ADD_CONTEXT` success + session-lineage runtime) are deliberately excluded -- not authorized in this slice. */
-export type RecordableQuestionDispositionKind = 'STILL_OPEN' | 'RESOLVED';
+/** Slice 2D-B2-B's recordable subset. `SUPERSEDED_RECLASSIFIED` was added in Slice 2D-B2-B (`derivedFromQuestionId` on `UnresolvedQuestion`, ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9 Slice 2D-B2-B0 freeze). `CROSS_SESSION` remains excluded -- needs `ADD_CONTEXT` success + session-lineage runtime, not authorized yet. */
+export type RecordableQuestionDispositionKind = 'STILL_OPEN' | 'RESOLVED' | 'SUPERSEDED_RECLASSIFIED';
 
-const RECORDABLE_QUESTION_DISPOSITION_KINDS: readonly RecordableQuestionDispositionKind[] = ['STILL_OPEN', 'RESOLVED'];
+const RECORDABLE_QUESTION_DISPOSITION_KINDS: readonly RecordableQuestionDispositionKind[] = [
+  'STILL_OPEN',
+  'RESOLVED',
+  'SUPERSEDED_RECLASSIFIED',
+];
 
 /**
  * The immutable fact of one semantic re-evaluation of a terminal
@@ -449,7 +464,25 @@ function assertExactKeys(input: object, allowed: readonly string[], label: strin
   }
 }
 
-/** Independent snapshot of an UnresolvedQuestion -- never the caller-owned object, so post-registration mutation of the original cannot alter registry history. */
+/**
+ * Reads `UnresolvedQuestion.derivedFromQuestionId` tolerating legacy state
+ * that predates the field (missing/`undefined` -- read-time compatibility
+ * only, never a mutation of the stored record,
+ * ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9 "Legacy missing-
+ * `derivedFromQuestionId` semantics"). A non-null value must still be a
+ * non-empty string; a malformed value fails closed rather than being
+ * silently treated as absent.
+ */
+function effectiveDerivedFromQuestionId(question: UnresolvedQuestion): string | null {
+  const raw = (question as { derivedFromQuestionId?: string | null }).derivedFromQuestionId;
+  if (raw === undefined || raw === null) {
+    return null;
+  }
+  assertNonEmptyString(raw, 'UnresolvedQuestion.derivedFromQuestionId');
+  return raw;
+}
+
+/** Independent snapshot of an UnresolvedQuestion -- never the caller-owned object, so post-registration mutation of the original cannot alter registry history. Legacy-missing `derivedFromQuestionId` is always materialized as an explicit `null` in new output (§"effectiveDerivedFromQuestionId" above). */
 function cloneUnresolvedQuestion(question: UnresolvedQuestion): UnresolvedQuestion {
   return {
     id: question.id,
@@ -457,6 +490,7 @@ function cloneUnresolvedQuestion(question: UnresolvedQuestion): UnresolvedQuesti
     rootCause: question.rootCause,
     materialityReason: question.materialityReason,
     createdAt: question.createdAt,
+    derivedFromQuestionId: effectiveDerivedFromQuestionId(question),
   };
 }
 
@@ -654,6 +688,111 @@ function assertQuestionDispositionLedgerIntegrity(deliberationState: Deliberatio
 }
 
 /**
+ * Validates the COMPLETE derived-lineage graph, never only the one question
+ * a caller happens to be asking about
+ * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9, "Global lineage
+ * read-integrity boundary"): global `UnresolvedQuestion.id` uniqueness
+ * first (identity before local derivation), then reverse integrity (every
+ * derived child resolves to exactly one existing question with exactly one
+ * `SUPERSEDED_RECLASSIFIED` disposition, and is that parent's unique direct
+ * child), forward integrity (every `SUPERSEDED_RECLASSIFIED` disposition has
+ * exactly one registered direct child), and acyclicity. Pure, non-cached,
+ * non-memoized -- never persists anything on `DeliberationState`. Any
+ * violation fails closed; none is ever automatically reconciled.
+ */
+function assertDerivedQuestionLineageIntegrity(deliberationState: DeliberationState): void {
+  assertQuestionDispositionLedgerIntegrity(deliberationState);
+
+  const seenQuestionIds = new Set<string>();
+  for (const question of deliberationState.unresolvedQuestions) {
+    assertNonEmptyString(question.id, 'assertDerivedQuestionLineageIntegrity: question.id');
+    if (seenQuestionIds.has(question.id)) {
+      throw new Error(
+        `assertDerivedQuestionLineageIntegrity: duplicate UnresolvedQuestion.id ${question.id} -- identity-ambiguous legacy/inconsistent state`
+      );
+    }
+    seenQuestionIds.add(question.id);
+  }
+
+  const questionsById = new Map(deliberationState.unresolvedQuestions.map((q) => [q.id, q] as const));
+
+  // Structural checks (self-reference, acyclicity) run before any
+  // disposition-semantic check below -- a broken graph *shape* is reported
+  // before this function tries to reason about what a (possibly cyclic)
+  // chain's dispositions mean.
+  for (const child of deliberationState.unresolvedQuestions) {
+    const parentId = effectiveDerivedFromQuestionId(child);
+    if (parentId === child.id) {
+      throw new Error(
+        `assertDerivedQuestionLineageIntegrity: question ${child.id} has derivedFromQuestionId equal to its own id -- self-referential lineage`
+      );
+    }
+  }
+
+  const globallyVisited = new Set<string>();
+  for (const question of deliberationState.unresolvedQuestions) {
+    if (globallyVisited.has(question.id)) continue;
+    const pathSeen = new Set<string>();
+    let current: UnresolvedQuestion | undefined = question;
+    while (current) {
+      if (pathSeen.has(current.id)) {
+        throw new Error(`assertDerivedQuestionLineageIntegrity: derived lineage cycle detected involving question ${current.id}`);
+      }
+      pathSeen.add(current.id);
+      globallyVisited.add(current.id);
+      const parentId = effectiveDerivedFromQuestionId(current);
+      current = parentId === null ? undefined : questionsById.get(parentId);
+    }
+  }
+
+  // Reverse integrity (child -> parent) and fork detection.
+  const childIdsByParentId = new Map<string, string[]>();
+
+  for (const child of deliberationState.unresolvedQuestions) {
+    const parentId = effectiveDerivedFromQuestionId(child);
+    if (parentId === null) continue;
+    if (!questionsById.has(parentId)) {
+      throw new Error(
+        `assertDerivedQuestionLineageIntegrity: question ${child.id} claims derivedFromQuestionId ${parentId}, which is not a currently registered question -- orphan derived question`
+      );
+    }
+    const supersededForParent = deliberationState.questionDispositions.filter(
+      (d) => d.questionId === parentId && d.disposition === 'SUPERSEDED_RECLASSIFIED'
+    );
+    if (supersededForParent.length !== 1) {
+      throw new Error(
+        `assertDerivedQuestionLineageIntegrity: question ${child.id}'s claimed parent ${parentId} does not have exactly one SUPERSEDED_RECLASSIFIED disposition -- broken lineage`
+      );
+    }
+    const siblings = childIdsByParentId.get(parentId) ?? [];
+    siblings.push(child.id);
+    childIdsByParentId.set(parentId, siblings);
+  }
+
+  for (const [parentId, childIds] of childIdsByParentId) {
+    if (childIds.length > 1) {
+      throw new Error(
+        `assertDerivedQuestionLineageIntegrity: question ${parentId} has more than one direct derived child (${childIds.join(', ')}) -- fork in derived lineage`
+      );
+    }
+  }
+
+  // Forward integrity (parent -> child): every SUPERSEDED_RECLASSIFIED
+  // disposition must have exactly one registered child pointing back at it.
+  const supersededQuestionIds = new Set(
+    deliberationState.questionDispositions.filter((d) => d.disposition === 'SUPERSEDED_RECLASSIFIED').map((d) => d.questionId)
+  );
+  for (const parentId of supersededQuestionIds) {
+    const childCount = childIdsByParentId.get(parentId)?.length ?? 0;
+    if (childCount !== 1) {
+      throw new Error(
+        `assertDerivedQuestionLineageIntegrity: superseded question ${parentId} has ${childCount} registered direct children (expected exactly 1) -- missing or forked replacement`
+      );
+    }
+  }
+}
+
+/**
  * Pure, non-cached, non-memoized: recomputes from `history`/`attempts`/
  * `outcomes`/`questionDispositions` on every call -- never stored, never an
  * `active: boolean` field anywhere. A non-`STOP` `RouteDecision` targeting
@@ -731,20 +870,28 @@ function getActiveRouteDecisionsForQuestion(deliberationState: DeliberationState
 /**
  * Pure, non-cached, non-memoized derivation -- currentness is never stored
  * as a field on `UnresolvedQuestion` (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
- * §9, "Current-question derivation"). Fails closed on an unregistered
- * question rather than silently treating it as current or terminal by
- * default. Never depends on `deliberationState.stopReason` -- a question
- * may remain current after `STOP` for the `HumanAdjudication` handoff;
- * `STOP` ends routing, never question identity/currentness.
+ * §9, "Current-question derivation"). Global identity/lineage integrity is
+ * validated before any local question is answered -- global corruption can
+ * change the correct interpretation of a query that looks local (§9,
+ * "Global lineage read-integrity boundary"); this also means a
+ * duplicate-`UnresolvedQuestion.id` state fails closed here rather than
+ * being silently resolved by whichever local `.find()`/`.some()` a caller
+ * happens to run first. Fails closed on an unregistered question rather
+ * than silently treating it as current or terminal by default. Never
+ * depends on `deliberationState.stopReason` -- a question may remain
+ * current after `STOP` for the `HumanAdjudication` handoff; `STOP` ends
+ * routing, never question identity/currentness. `STILL_OPEN` is the only
+ * non-terminal recordable disposition; any other recorded disposition
+ * (`RESOLVED`, `SUPERSEDED_RECLASSIFIED`) terminalizes the question.
  */
 export function isQuestionCurrent(deliberationState: DeliberationState, questionId: string): boolean {
+  assertDerivedQuestionLineageIntegrity(deliberationState);
   const registered = deliberationState.unresolvedQuestions.some((q) => q.id === questionId);
   if (!registered) {
     throw new Error(`isQuestionCurrent: questionId ${questionId} is not a currently registered unresolved question`);
   }
-  assertQuestionDispositionLedgerIntegrity(deliberationState);
   const dispositionsForQuestion = deliberationState.questionDispositions.filter((d) => d.questionId === questionId);
-  return !dispositionsForQuestion.some((d) => d.disposition === 'RESOLVED');
+  return !dispositionsForQuestion.some((d) => d.disposition !== 'STILL_OPEN');
 }
 
 /**
@@ -755,7 +902,12 @@ export function isQuestionCurrent(deliberationState: DeliberationState, question
  */
 export function createUnresolvedQuestion(
   session: StressTestSession,
-  input: { rootCause: RootCauseCategory; materialityReason: string; inputRefs: RouteInputRef[] }
+  input: {
+    rootCause: RootCauseCategory;
+    materialityReason: string;
+    inputRefs: RouteInputRef[];
+    derivedFromQuestionId?: string | null;
+  }
 ): UnresolvedQuestion {
   assertValidRootCause(input.rootCause, 'createUnresolvedQuestion');
   assertNonEmptyMaterialityReason(input.materialityReason);
@@ -763,12 +915,18 @@ export function createUnresolvedQuestion(
     throw new Error('createUnresolvedQuestion: at least one inputRef is required for a non-NONE root cause');
   }
   for (const ref of input.inputRefs) validateRouteInputRef(session, ref);
+  let derivedFromQuestionId: string | null = null;
+  if (input.derivedFromQuestionId !== undefined && input.derivedFromQuestionId !== null) {
+    assertNonEmptyString(input.derivedFromQuestionId, 'createUnresolvedQuestion: derivedFromQuestionId');
+    derivedFromQuestionId = input.derivedFromQuestionId;
+  }
   return {
     id: randomUUID(),
     inputRefs: [...input.inputRefs],
     rootCause: input.rootCause,
     materialityReason: input.materialityReason,
     createdAt: nowIso(),
+    derivedFromQuestionId,
   };
 }
 
@@ -802,6 +960,11 @@ export function registerUnresolvedQuestion(
   for (const ref of question.inputRefs) validateRouteInputRef(session, ref);
   if (question.inputRefs.length === 0) {
     throw new Error('registerUnresolvedQuestion: at least one inputRef is required for a non-NONE root cause');
+  }
+  if (effectiveDerivedFromQuestionId(question) !== null) {
+    throw new Error(
+      `registerUnresolvedQuestion: question ${question.id} has a non-null derivedFromQuestionId; a derived question may only be registered through the atomic SUPERSEDED_RECLASSIFIED transition (recordQuestionDisposition)`
+    );
   }
   if (deliberationState.unresolvedQuestions.some((q) => q.id === question.id)) {
     throw new Error(`registerUnresolvedQuestion: question ${question.id} is already registered`);
@@ -1415,11 +1578,27 @@ export function recordRouteOutcome(
 }
 
 /** The caller-suppliable shape for `recordQuestionDisposition`. Every derived/generated field (questionId, sessionId, artifactHash, authorContextHash, createdAt) is deliberately absent -- `assertExactKeys` independently rejects any of them if supplied, regardless of what TypeScript's own shape implies. */
-export interface RecordQuestionDispositionInput {
+export interface RecordStillOpenOrResolvedDispositionInput {
   attemptId: string;
-  disposition: RecordableQuestionDispositionKind;
+  disposition: 'STILL_OPEN' | 'RESOLVED';
   reason: string;
 }
+
+/**
+ * `replacementQuestion` (`Q2`) is caller-owned -- typically, but not
+ * necessarily, the direct output of `createUnresolvedQuestion` -- and is
+ * independently revalidated from scratch, never trusted merely because it
+ * has the right shape (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9,
+ * Slice 2D-B2-B0 freeze, §H).
+ */
+export interface RecordSupersededDispositionInput {
+  attemptId: string;
+  disposition: 'SUPERSEDED_RECLASSIFIED';
+  reason: string;
+  replacementQuestion: UnresolvedQuestion;
+}
+
+export type RecordQuestionDispositionInput = RecordStillOpenOrResolvedDispositionInput | RecordSupersededDispositionInput;
 
 /**
  * Records the immutable fact of one semantic re-evaluation of a terminal
@@ -1443,8 +1622,10 @@ export interface RecordQuestionDispositionInput {
  * QuestionDisposition`: a second disposition for an already-disposed
  * outcome is rejected outright.
  *
- * Slice 2D-B2-A records only `STILL_OPEN`/`RESOLVED`; `SUPERSEDED_RECLASSIFIED`
- * and `CROSS_SESSION` are rejected outright, not yet authorized.
+ * Slice 2D-B2-B additionally records `SUPERSEDED_RECLASSIFIED`, atomically
+ * with registering its replacement question (§"SUPERSEDED_RECLASSIFIED
+ * branch" below); `CROSS_SESSION` remains rejected outright, not yet
+ * authorized.
  */
 export function recordQuestionDisposition(
   session: StressTestSession,
@@ -1458,12 +1639,24 @@ export function recordQuestionDisposition(
   if (input === null || typeof input !== 'object') {
     throw new Error('recordQuestionDisposition: input must be an object');
   }
-  assertExactKeys(input, ['attemptId', 'disposition', 'reason'], 'recordQuestionDisposition');
+  // Exact-key set is chosen by raw disposition-string equality, not by
+  // validated disposition membership -- so a STILL_OPEN/RESOLVED/garbage
+  // input keeps exactly the original three-key check (and its original
+  // error precedence) it always had; only a literal 'SUPERSEDED_RECLASSIFIED'
+  // input gets the wider four-key set.
+  const allowedKeys: readonly string[] =
+    (input as { disposition?: unknown }).disposition === 'SUPERSEDED_RECLASSIFIED'
+      ? ['attemptId', 'disposition', 'reason', 'replacementQuestion']
+      : ['attemptId', 'disposition', 'reason'];
+  assertExactKeys(input, allowedKeys, 'recordQuestionDisposition');
   assertNonEmptyString(input.attemptId, 'recordQuestionDisposition: attemptId');
   if (!RECORDABLE_QUESTION_DISPOSITION_KINDS.includes(input.disposition)) {
     throw new Error(`recordQuestionDisposition: invalid or unsupported disposition ${JSON.stringify(input.disposition)}`);
   }
   assertNonEmptyString(input.reason, 'recordQuestionDisposition: reason');
+  if (input.disposition === 'SUPERSEDED_RECLASSIFIED' && input.replacementQuestion === undefined) {
+    throw new Error('recordQuestionDisposition: SUPERSEDED_RECLASSIFIED requires replacementQuestion');
+  }
 
   const matchingOutcomes = deliberationState.outcomes.filter((o) => o.attemptId === input.attemptId);
   if (matchingOutcomes.length === 0) {
@@ -1562,8 +1755,72 @@ export function recordQuestionDisposition(
     createdAt: nowIso(),
   };
 
+  if (input.disposition !== 'SUPERSEDED_RECLASSIFIED') {
+    return {
+      ...deliberationState,
+      questionDispositions: [...deliberationState.questionDispositions, newDisposition],
+    };
+  }
+
+  // SUPERSEDED_RECLASSIFIED branch (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+  // §9, Slice 2D-B2-B0 freeze, §I/§H/§P): write-time existing-child check,
+  // then full independent revalidation of the caller-owned replacement
+  // question, then one atomic dual-append -- both facts land together, or
+  // (via every throw above and below) neither does.
+  const existingChildren = deliberationState.unresolvedQuestions.filter(
+    (q) => effectiveDerivedFromQuestionId(q) === questionId
+  );
+  if (existingChildren.length === 1) {
+    throw new Error(`recordQuestionDisposition: question ${questionId} already has a registered replacement question`);
+  }
+  if (existingChildren.length > 1) {
+    throw new Error(
+      `recordQuestionDisposition: question ${questionId} already has more than one registered replacement question -- inconsistent legacy state`
+    );
+  }
+
+  const replacement = input.replacementQuestion;
+  if (replacement === null || typeof replacement !== 'object') {
+    throw new Error('recordQuestionDisposition: replacementQuestion must be an object');
+  }
+  assertNonEmptyString(replacement.id, 'recordQuestionDisposition: replacementQuestion.id');
+  if (replacement.id === questionId) {
+    throw new Error('recordQuestionDisposition: replacementQuestion.id must be distinct from the superseded question id');
+  }
+  if (deliberationState.unresolvedQuestions.some((q) => q.id === replacement.id)) {
+    throw new Error(`recordQuestionDisposition: replacementQuestion.id ${replacement.id} is already registered`);
+  }
+  assertValidRootCause(replacement.rootCause, 'recordQuestionDisposition: replacementQuestion');
+  if (replacement.rootCause === 'NONE') {
+    throw new Error('recordQuestionDisposition: replacementQuestion.rootCause must not be NONE');
+  }
+  assertNonEmptyMaterialityReason(replacement.materialityReason);
+  if (!Array.isArray(replacement.inputRefs) || replacement.inputRefs.length === 0) {
+    throw new Error('recordQuestionDisposition: replacementQuestion.inputRefs must be a non-empty array');
+  }
+  for (const ref of replacement.inputRefs) validateRouteInputRef(session, ref);
+  if (typeof replacement.createdAt !== 'string' || Number.isNaN(Date.parse(replacement.createdAt))) {
+    throw new Error('recordQuestionDisposition: replacementQuestion.createdAt is not a valid parseable timestamp');
+  }
+  const replacementLineage = effectiveDerivedFromQuestionId(replacement);
+  if (replacementLineage !== questionId) {
+    throw new Error(
+      `recordQuestionDisposition: replacementQuestion.derivedFromQuestionId must exactly equal the superseded question id ${questionId}`
+    );
+  }
+
+  const replacementQuestionSnapshot: UnresolvedQuestion = {
+    id: replacement.id,
+    inputRefs: cloneRouteInputRefs(replacement.inputRefs),
+    rootCause: replacement.rootCause,
+    materialityReason: replacement.materialityReason,
+    createdAt: replacement.createdAt,
+    derivedFromQuestionId: questionId,
+  };
+
   return {
     ...deliberationState,
+    unresolvedQuestions: [...deliberationState.unresolvedQuestions, replacementQuestionSnapshot],
     questionDispositions: [...deliberationState.questionDispositions, newDisposition],
   };
 }
