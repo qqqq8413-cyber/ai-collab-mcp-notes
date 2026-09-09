@@ -878,9 +878,139 @@ Not authorized by this document. Two slices, in this order:
 
 **Reaffirmed as binding sequencing, not merely a recommendation:** currentness and active-cycle enforcement — including the legacy-integrity validation above — **must** land together in `SLICE 2D-B2-A` as one indivisible hardening unit. They must never be split across separate runtime slices. Splitting them would reopen exactly the gap this amendment corrects: an implementation that lands currentness alone, deferring active-cycle (and its legacy-integrity checks) to a later slice, would leave a window in which the same current question could still have two active decisions recorded against it, because the very re-derivation that would catch that inconsistency is what got deferred.
 
-**`SLICE 2D-B2-B` — SUPERSEDED / DERIVED QUESTION LINEAGE** (later, separately authorized): adds `derivedFromQuestionId` to `UnresolvedQuestion` (the one material schema change deferred out of 2D-B2-A), the atomic `recordQuestionDisposition(SUPERSEDED_RECLASSIFIED, replacementQuestion)` operation, and `registerUnresolvedQuestion`'s corresponding rejection of a non-`null` `derivedFromQuestionId` on the ordinary registration path.
+**`SLICE 2D-B2-B` — SUPERSEDED / DERIVED QUESTION LINEAGE** (later, separately authorized): adds `derivedFromQuestionId` to `UnresolvedQuestion` (the one material schema change deferred out of 2D-B2-A), the atomic `recordQuestionDisposition(SUPERSEDED_RECLASSIFIED, replacementQuestion)` operation, and `registerUnresolvedQuestion`'s corresponding rejection of a non-`null` `derivedFromQuestionId` on the ordinary registration path. Its exact schema is now frozen, in full, by the Slice 2D-B2-B0 freeze immediately below.
 
 `CROSS_SESSION` remains excluded from both — it depends on prerequisites (`ADD_CONTEXT` success, `SessionVersionLineage`) neither slice builds, and belongs in whichever future slice actually builds those.
+
+#### `SLICE 2D-B2-A` — accepted status (recorded here as provenance, not granted by this document)
+
+`SLICE 2D-B2-A` (recommended immediately above) has since been separately authorized, implemented, and accepted by GPT, exactly as scoped. This document records that acceptance as provenance for the freeze below; it neither grants nor amends that authorization, and does not alter §25's authorization ledger, which remains GPT's own to update.
+
+#### Schema freeze (Slice 2D-B2-B0)
+
+This subsection freezes the exact executable architecture for `QuestionDisposition.SUPERSEDED_RECLASSIFIED` and `UnresolvedQuestion.derivedFromQuestionId` — the one item the Slice 2D-B2-0 first-implementation subset (above) deferred. As with that freeze, nothing below is implemented by this document; no `src/**` type, function, or test is added.
+
+**Core architecture question, answered:** the minimum immutable lineage representation is a single field, `UnresolvedQuestion.derivedFromQuestionId: string | null`, written exactly once, only through the atomic `SUPERSEDED_RECLASSIFIED` transition, together with a non-cached global read-time integrity check over the complete `unresolvedQuestions`/`questionDispositions` graph. The forward direction (parent -> child) is derived by scanning for a match, never stored on the parent; the reverse direction (`Q1` was in fact disposed `SUPERSEDED_RECLASSIFIED`) is derived from the already-existing disposition ledger. No second, parallel field is needed on either record, and none is added — duplicating the same relationship in two places would only invent a second synchronization invariant to maintain, not add safety.
+
+##### A. Legacy missing-`derivedFromQuestionId` semantics
+
+Closed. A question registered before this field existed has no `derivedFromQuestionId` key at all. At read boundaries only, missing/`undefined` is interpreted as the legal equivalent of `derivedFromQuestionId: null` — never as an error, and never by mutating the stored record merely to backfill the key. This is safe, not merely convenient: no legitimate `SUPERSEDED_RECLASSIFIED` derivation could exist before this runtime was authorized, so no pre-existing question can legitimately be a replacement question in disguise. This compatibility reading must never be used to excuse a genuine lineage break — a legacy `SUPERSEDED_RECLASSIFIED` disposition with no matching child (§K below) fails closed exactly as a freshly-written one would; "old questions lack the field" is never grounds for treating a broken chain as valid. All newly-created or newly-cloned output — from the factory, from cloning, or from the atomic transition — must materialize an explicit `null` (never leave the key absent); the missing-as-null reading exists solely for reading state that predates the field, never as a shape new code is allowed to produce.
+
+##### B. Canonical `derivedFromQuestionId` shape
+
+Closed, reaffirming the Slice 2D-B2-0 freeze (§9 above) without reopening it: `string | null`, never `string | null | undefined` in canonical (post-factory) output. `null` means original question; a non-empty string means a direct replacement of exactly one prior question, and must equal that question's `id` exactly.
+
+##### C. `createUnresolvedQuestion` factory behavior
+
+Closed. The factory stays pure and state-unvalidating. Its conceptual input gains an optional `derivedFromQuestionId?: string | null`. Omitted or `null` both produce an explicit `null` in the output — never left absent. A non-empty string is required to be non-empty (rejecting `''`/whitespace-only) and is preserved exactly. The factory proves nothing about state: not that the named parent exists, is current, is being superseded, or that registration is authorized — those remain the atomic transition's own, independent responsibility (§H–§J below), exactly as the factory already proves nothing about `inputRefs` resolving against a real session beyond calling the same `validateRouteInputRef` it always has.
+
+##### D. `registerUnresolvedQuestion` (ordinary path) behavior
+
+Closed, reaffirming and formalizing what the Slice 2D-B2-0 freeze already required (invariant 37): the ordinary registration path accepts only an original question. Effective `derivedFromQuestionId` (after the legacy-compatible read, §A) must be `null`; any non-null value is rejected outright. The only path that may ever register a question with a non-null `derivedFromQuestionId` is the atomic `SUPERSEDED_RECLASSIFIED` transition (§H–§J below) — never a standalone call that fabricates lineage to an arbitrary parent with no accompanying terminal disposition on it.
+
+##### E. Single lineage source of truth — no `replacementQuestionId` on the disposition
+
+Closed. `QuestionDisposition` gains no `replacementQuestionId`, and no nested `replacementQuestion` is persisted inside the disposition ledger. The stored lineage fact is exactly one thing, in exactly one place: `Q2.derivedFromQuestionId = Q1.id`. Storing the same relationship a second time on `Q1`'s own disposition record would not add a capability — the forward direction is already answerable by scanning `unresolvedQuestions` for a match — it would only create a second copy of one fact that both future writes and future reads would need to keep synchronized, exactly the kind of self-inflicted integrity risk this contract has consistently refused elsewhere (the `derivedFromQuestionId`-vs-lineage-collection reasoning above applies identically here, one layer down).
+
+##### F. Exact `SUPERSEDED_RECLASSIFIED` input shape
+
+Closed. `recordQuestionDisposition`'s conceptual input becomes a discriminated union on `disposition`. `STILL_OPEN`/`RESOLVED` keep their existing exact shape (`attemptId`, `disposition`, `reason` — no other key). `SUPERSEDED_RECLASSIFIED`'s exact shape is `attemptId`, `disposition`, `reason`, `replacementQuestion` — and no other key. `replacementQuestion` is caller-owned (typically, but not necessarily, the direct output of `createUnresolvedQuestion`) and must be independently revalidated from scratch (§H), never trusted merely because it has the right shape. Exact-key rejection (the same discipline already governing every other input in this runtime) applies in both directions: a `SUPERSEDED_RECLASSIFIED` input carrying `replacementQuestionId`, `newQuestionId`, `parentId`, a top-level `derivedFromQuestionId`, `lineage`, `newSessionId`, or `actionChange` is rejected; a `STILL_OPEN`/`RESOLVED` input carrying `replacementQuestion` is equally rejected. `CROSS_SESSION` remains excluded from `RecordableQuestionDispositionKind` entirely (unchanged, §9 above).
+
+##### G. Stored `QuestionDisposition` shape
+
+Closed. The persisted envelope does not change shape for `SUPERSEDED_RECLASSIFIED` — it is exactly the same generic envelope already frozen (`attemptId`, `questionId`, `sessionId`, `artifactHash`, `authorContextHash`, `disposition`, `reason`, `createdAt`) with `disposition = 'SUPERSEDED_RECLASSIFIED'`. No extra replacement-identity field is stored on it (§E) — `Q2` itself carries the lineage back to `Q1`, not the other way around.
+
+##### H. Replacement `Q2` validation (minimum exact checks)
+
+Closed, exhaustive. The atomic transition independently re-validates `replacementQuestion` from scratch — never trusting it arrived pre-validated, mirroring `recordRouteOutcome`'s posture toward its own caller-supplied payload:
+
+- `id`: non-empty; distinct from `Q1.id`; not already present in `unresolvedQuestions` (the existing duplicate-id rule, unchanged).
+- `rootCause`: a valid `RootCauseCategory`; must not be `NONE` (the existing "`NONE` maps to `STOP`, never a registered question" rule, unchanged).
+- `materialityReason`: the existing non-empty rule, unchanged.
+- `inputRefs`: non-empty; every ref independently valid against the current `StressTestSession` (unchanged); independently snapshotted, never aliased to the caller's array (§Q below).
+- `createdAt`: must be present and parseable; the atomic transition preserves the exact value it is given rather than silently regenerating it — the same "never silently regenerate a caller/factory-supplied fact" posture `RouteOutcome.completedAt`/`QuestionDisposition.createdAt` take in the *opposite* direction (those are always runtime-generated, never caller-supplied; `UnresolvedQuestion.createdAt` has always been factory-generated-once-and-preserved-through-registration, unchanged since Slice 2B — this freeze reaffirms that split for the replacement question specifically, it does not alter it).
+- `derivedFromQuestionId`: must exactly equal `Q1.id` — not merely non-null, not merely a well-formed string.
+
+Any failure here rejects the entire transition; nothing is partially registered.
+
+##### I. Existing-child check (write-time)
+
+Closed. Before superseding `Q1`, the transition counts already-registered questions whose *effective* `derivedFromQuestionId` (§A) equals `Q1.id`. Required: exactly `0`. If `1` already exists, reject — `Q1` already has a replacement; a second is a fork (§J), never permitted. If `>1` already exists, reject as inconsistent state (§J) — the same "never automatically reconciled" posture as every other cardinality violation in this contract. The atomic transition itself is the only mechanism ever authorized to create the one permitted direct child.
+
+##### J. Cardinality
+
+Closed. One superseded parent has at most one direct child through derived lineage, and a derived child has exactly one direct parent. A chain (`Q1 -> Q2 -> Q3`) is valid; a fork (`Q1` claimed as parent by both `Q2` and `Q3`) is not. This is enforced going forward at write time (§I) and independently re-validated at read time in both directions (§K), because — the lesson already carried forward from the Slice 2D-B2-0 amendment — a write-time gate alone cannot retroactively guarantee anything about state that predates it or about state a write path never touches.
+
+##### K. Read-time lineage integrity — both directions
+
+Closed, exhaustive, fail-closed, never automatically reconciled:
+
+- **Reverse (child -> parent), for every registered `Q2` with effective `derivedFromQuestionId = Q1.id`:** exactly one `Q1` must exist; `Q1.id != Q2.id`; `Q1` must have exactly one `QuestionDisposition` and it must be `SUPERSEDED_RECLASSIFIED`; `Q1` and `Q2` must share the same session/artifact/author-context binding; `Q2` must be the unique direct child of `Q1` (no sibling fork). Any violation — an orphan `Q2` whose named parent does not exist, is not disposed `SUPERSEDED_RECLASSIFIED`, or has more than one claimed child — is invalid.
+- **Forward (parent -> child), for every `QuestionDisposition` with `disposition = SUPERSEDED_RECLASSIFIED` targeting `Q1`:** exactly one `Q2` must exist with effective `derivedFromQuestionId === Q1.id`. `0` (a superseded parent with no replacement ever registered) is invalid. `>1` (a fork) is invalid. There is no latest-child winner and no first-child winner.
+
+##### L. Cycle handling
+
+Closed. Derived lineage must be acyclic. Self-reference (`Q1.derivedFromQuestionId = Q1.id`), a two-question cycle (`Q1 -> Q2 -> Q1`), and any longer cycle are all invalid. No timestamp-based arbitration ever breaks a cycle — a cycle is simply invalid, full stop. The accepted atomic write path (§H–§J) can never construct one on its own, but read-time validation must still detect one in tampered, hand-constructed, or legacy state — the same posture already taken toward every other integrity property in this section, consistent with this contract's standing refusal to let "the write path would never do this" stand in for an actual read-time check (the active-cycle `>1` case, §9 above, already established this precedent).
+
+##### M. Currentness — no change required
+
+Confirmed, not newly decided: `isQuestionCurrent`'s existing formal definition (§9 above, "Current-question derivation") already treats `SUPERSEDED_RECLASSIFIED` as terminal, identically to `RESOLVED` and `CROSS_SESSION` — it was written disposition-kind-agnostic from the start. Implementing `SUPERSEDED_RECLASSIFIED` therefore requires no change to that definition's *logic* — only, per §O below, that it run the new global lineage-integrity check before answering.
+
+##### N. Active-cycle integration — no redesign; transitive coverage confirmed
+
+Closed: `getActiveRouteDecisionsForQuestion`'s existing definition (§9 above) is already disposition-kind-agnostic — it does not inspect *which* disposition, so a cycle closed by `SUPERSEDED_RECLASSIFIED` ends it exactly as `RESOLVED`/`STILL_OPEN` already do. No redesign of the cycle state machine is needed or authorized. Explicitly inspected, per the governing packet's own instruction: `planRouteForQuestion`, `recordRouteDecision`, `recordRouteAttemptStart`, `recordRouteOutcome`, and `createContextRequest` all reach their currentness/active-cycle behavior *transitively*, through their existing (2D-B2-A) calls to `isQuestionCurrent`/`getActiveRouteDecisionsForQuestion` — provided the new global lineage-integrity check (§O) is invoked inside `isQuestionCurrent` itself, every one of those five call sites inherits it automatically, with no direct code change to any of the five. `refsExactlyMatch` requires no change — it operates on `RouteInputRef` arrays and has no relationship to question lineage.
+
+##### O. Global lineage read-integrity boundary
+
+Closed. A future, pure, non-cached helper — name not binding, conceptually `assertDerivedQuestionLineageIntegrity(state)` — validates the *complete* derived-lineage graph (every registered question's effective `derivedFromQuestionId`, cross-checked against every `SUPERSEDED_RECLASSIFIED` disposition) in one pass: reverse integrity, forward integrity, and acyclicity (§K–§L). This must run before any *local* question is answered, for the same reason the disposition ledger is re-validated globally before a local query narrows to one question (§9 above) — global corruption can change the correct interpretation of a query that looks local. Exact invocation boundary, closed: `isQuestionCurrent` runs it once, at entry, on the full state; `recordQuestionDisposition`'s `SUPERSEDED_RECLASSIFIED` branch runs it once, before writing (in addition to, not instead of, its existing precondition list, §9 above). `getActiveRouteDecisionsForQuestion` does **not** independently re-run it — within a single call chain, once `isQuestionCurrent` (or an equivalent entry check) has validated the immutable state snapshot that call is operating on, no further internal derivation in that same call needs to repeat an unchanged fact about the same unchanged state. This is not a relaxation of "never trust an upstream check" — that principle governs trust *across separate calls/operations* (exactly why `recordRouteAttemptStart` cannot rely on `recordRouteDecision`'s gate, §9 above); it says nothing about redundantly re-scanning the same immutable snapshot multiple times *within* one function's own execution. The helper itself is never cached or persisted across calls — every independent call re-validates from scratch.
+
+##### Atomic transition — complete step list
+
+Closed, superseding the illustrative (non-exhaustive) sketch given earlier in this section with the complete, exact sequence:
+
+1. Verify `DeliberationState`/`StressTestSession` binding (unchanged).
+2. Require `deliberationState.stopReason === null` (already precondition 1 of `recordQuestionDisposition`'s general list, §9 above — restated, not duplicated, for this branch).
+3. Resolve exactly one `RouteOutcome -> RouteAttempt -> RouteDecision -> Q1` chain (already precondition 3 of the general list — restated, not duplicated).
+4. Require `Q1` current, and require exactly one active cycle for `Q1` matching the exact decision represented by the supplied `attemptId` (already preconditions 2 and 4 of the general list — restated, not duplicated).
+5. Reject if the targeted `RouteOutcome` already has a `QuestionDisposition` (already precondition 5 — restated, not duplicated; invariant 27).
+6. Run the global lineage-integrity check (§O) over the state as it stands before this write.
+7. Run the existing-child check (§I): exactly zero questions may already claim `derivedFromQuestionId = Q1.id`.
+8. Independently validate `replacementQuestion` (§H) in full.
+9. Atomically produce one returned `DeliberationState` in which `Q2` is appended to `unresolvedQuestions` (independently snapshotted, below) **and** `Q1`'s `SUPERSEDED_RECLASSIFIED` disposition is appended to `questionDispositions` — both facts land together, or the call throws and neither lands.
+
+Steps 2–5 are the same preconditions every `recordQuestionDisposition` call already enforces (§9 above); steps 6–9 are the `SUPERSEDED_RECLASSIFIED`-specific additions this freeze closes.
+
+##### Snapshot semantics for `Q2`
+
+Closed, restating the existing "Snapshot / value semantics (extended)" rule (§9 above) for this specific caller-owned payload: on a successful transition, both `replacementQuestion` and `replacementQuestion.inputRefs` are independently snapshotted before being stored. Caller mutation of the object passed in must never be able to alter `unresolvedQuestions[]` or `questionDispositions[]` after the call returns — no aliasing, in either direction.
+
+##### Human authority — unaffected, restated
+
+`SUPERSEDED_RECLASSIFIED` does not set `actionChange`, create or mutate `HumanAdjudication`, create `RevisionAction`, or mutate the frozen artifact, `AuthorContext`, `ReviewFinding`, or `SemanticIssue`. `HumanAdjudication.actionChange = YES -> RevisionAction` remains the sole revision gate (§17, invariant 19) — entirely unaffected, exactly as every other `QuestionDisposition` kind already is (§9 above).
+
+##### `SLICE 2D-B2-B` blast radius — exact function list
+
+Closed. Functions a future, separately authorized `SLICE 2D-B2-B` runtime implementation is expected to touch:
+
+- `UnresolvedQuestion` — add `derivedFromQuestionId: string | null`.
+- `createUnresolvedQuestion` — accept optional `derivedFromQuestionId`, default/normalize to explicit `null` (§C).
+- `cloneUnresolvedQuestion` — copy `derivedFromQuestionId` (a scalar field; no new aliasing concern).
+- `registerUnresolvedQuestion` — reject non-null effective `derivedFromQuestionId` (§D; formalizes already-frozen invariant 37).
+- `RecordableQuestionDispositionKind` — add `SUPERSEDED_RECLASSIFIED`.
+- `RecordQuestionDispositionInput` — become a discriminated union; add the `SUPERSEDED_RECLASSIFIED` variant carrying `replacementQuestion` (§F).
+- `recordQuestionDisposition` — add the `SUPERSEDED_RECLASSIFIED` branch implementing the atomic step list above.
+- `assertLedgerQuestionDispositionIntegrity` — extend its allowed-kind check to include `SUPERSEDED_RECLASSIFIED`; no other change to its existing logic.
+- A new derived-lineage integrity helper (§O) — new code, not a modification of an existing function.
+- `isQuestionCurrent` — invoke the new helper (§O) at entry; no change to its terminal-disposition logic itself (§M).
+- Tests/fixtures — scope determined at implementation time, not by this document.
+
+Confirmed to need **no** direct change, gaining correct behavior transitively (§N) or being structurally unrelated: `planRouteForQuestion`, `recordRouteDecision`, `recordRouteAttemptStart`, `recordRouteOutcome`, `createContextRequest`, `getActiveRouteDecisionsForQuestion`, `resolveUniqueRouteDecisionById`, `validateAttemptProvenanceForOutcome`, `refsExactlyMatch`, `applyCostSpend`, `applyLatencySpend`.
+
+#### Schema decisions closed (Slice 2D-B2-B0)
+
+**A–O map exactly to the lettered subsections immediately above** (§A legacy semantics, §B canonical shape, §C factory, §D ordinary registration, §E single source of truth, §F exact input shape, §G stored shape, §H replacement validation, §I existing-child check, §J cardinality, §K read-time integrity, §L cycles, §M currentness, §N active-cycle integration, §O global lineage boundary) — recorded together here, in one place, rather than repeated, mirroring how the Slice 2D-B2-0 freeze indexes its own A–O above.
+
+No governing source-of-truth document contradicts A–O; none required reopening an already-accepted Slice 2A/2B/2C/2D-B0/2D-B2-0/2D-B2-A invariant to close. This freeze introduces zero new open decisions (§24 below).
 
 ---
 
@@ -1174,6 +1304,12 @@ An open/unterminated attempt (§5) is itself an idempotency concern: while a `Ro
 40. A question found to have more than one active `RouteDecision` is a legacy-inconsistent state that always fails closed; it is never automatically reconciled, never resolved by picking the latest, and never silently deleted (§9).
 41. `STOP` is exempt from active-cycle blocking at every stage — decision-only, attempt-open, and outcome-recorded-but-undisposed — because it is session-level termination, not a new question cycle; none of the three stages ever blocks it, and none is ever retroactively completed or resolved merely because `STOP` occurred (§9).
 42. Once `deliberationState.stopReason !== null`, no further machine-deliberation mutation is permitted (no new `RouteDecision`, `RouteAttempt`, `RouteOutcome`, `QuestionDisposition`, or `ContextRequest`); read-only derivation/audit inspection remains permitted (§9).
+43. A `SUPERSEDED_RECLASSIFIED` transition is atomic: `Q1`'s terminal disposition and `Q2`'s registration land in the same returned `DeliberationState`, or neither does (§9).
+44. Before a `SUPERSEDED_RECLASSIFIED` transition is recorded, exactly zero questions may already have an effective `derivedFromQuestionId` equal to the question being superseded; one or more is rejected (§9).
+45. A superseded parent has at most one direct child through derived lineage, and a derived child has exactly one direct parent; a fork and an orphan are both invalid and fail closed, never automatically reconciled (§9).
+46. Derived lineage must be acyclic; a question that is its own ancestor through any chain of `derivedFromQuestionId` references is invalid at read time, regardless of whether the accepted write path could ever produce one (§9).
+47. A question's missing `derivedFromQuestionId` (predating the field's existence) is read as its legal equivalent, `null`, without mutating the stored record, and this compatibility reading may never be used to treat a genuinely broken lineage chain as valid (§9).
+48. Global derived-lineage graph integrity is validated before any local question's currentness or lineage is answered, never cached and never persisted (§9).
 
 ---
 
@@ -1239,6 +1375,8 @@ No governing source-of-truth document contradicts H–M; none required reopening
 
 **Corrected by the Slice 2D-B2-0 amendment:** two executable-consistency gaps found in remote architecture review are closed, both in §9. First, the earlier claim that `recordRouteAttemptStart`/`recordRouteOutcome` need no independent active-cycle check because `recordRouteDecision`'s gate already prevents the problem is corrected — that gate only prevents *future* creation of a second active cycle; it says nothing about state that predates the gate's existence. `recordRouteAttemptStart`, `recordRouteOutcome`, `recordQuestionDisposition`, and `createContextRequest` must each independently re-derive the question's active-cycle set and fail closed on `0`/`>1`/wrong-cycle results (invariant 39), and a `>1` result is always a legacy-inconsistent state, never automatically reconciled (invariant 40). Second, `STOP`'s interaction with an unfinished cycle — previously closed only for the open-attempt stage — is generalized to all three `ACTIVE` stages, including a decision with no attempt yet and an outcome recorded with no disposition yet (invariant 41), together with an explicit post-`STOP` no-further-mutation rule (invariant 42) and a named distinction between `ACTIVE FOR ROUTING` and an `UNFINISHED HISTORICAL CYCLE AFTER STOP`, so an unresolved pre-`STOP` cycle is never mistaken for one deliberation could still act on. A third, smaller correction replaces the `RESOLVED`-after-`FAILED` worked example, which had implied the frozen artifact/context could change in place — a frozen-input-integrity violation this contract has never permitted — with one consistent with re-evaluating the *same* frozen input. `SLICE 2D-B2-A`'s scope (§9, "Recommended next runtime slices") is reaffirmed as one indivisible unit that must include the legacy-integrity validation above, not merely currentness and decision-time active-cycle creation alone.
 
+**Closed by the Slice 2D-B2-B0 schema freeze:** fifteen decisions (A–O, §9's "Schema decisions closed (Slice 2D-B2-B0)" subsection), covering the exact `SUPERSEDED_RECLASSIFIED`/`derivedFromQuestionId` schema deferred by the Slice 2D-B2-0 freeze: legacy missing-field read semantics, the canonical single-field lineage shape (confirmed, not reopened), factory and ordinary-registration behavior, the single-source-of-truth rejection of a second stored lineage field, the exact discriminated input/stored-envelope shapes, replacement-question validation, write-time and read-time cardinality (existing-child check, fork/orphan rejection, no automatic reconciliation), cycle detection, and the exact boundary at which a new global lineage-integrity check must run relative to the already-accepted currentness/active-cycle machinery (invariants 43–48). `SLICE 2D-B2-A` (currentness/active-cycle core) is recorded in §9 as separately accepted and closed, not granted by this freeze; this freeze's own authorization scope is architecture documentation only (§25).
+
 ---
 
 ## 23. Relation to accepted Slice 2A/2B runtime
@@ -1257,7 +1395,9 @@ Nothing in this document alters, weakens, or contradicts `src/stress-test/delibe
 
 **Not an open decision, despite being a runtime blocker:** `TARGETED_PEER_CHALLENGE`'s source/target provenance rule *is* closed by this amendment (§7 decisions L–M, invariants 30–31) — two distinct refs, both drawn from the terminated `RouteDecision`'s own `inputRefs`. Its successful-outcome runtime stays blocked only because the routing gate that would *enforce* that closed rule does not exist yet — a sequencing gap, not an unresolved architecture question. The same is true of `SUPERSEDED_RECLASSIFIED` (§9 decisions F–H) and `CROSS_SESSION` (§9 decision E): both are architecturally closed — the replacement-question model, the `derivedFromQuestionId` field, and the exact prerequisites `CROSS_SESSION` still lacks are all frozen — but deliberately sequenced into a later slice rather than left as unresolved questions.
 
-**Neither of the two items above was revisited by the Slice 2D-B2-0 schema freeze, nor by this amendment.** Both remain exactly as recorded: still open, still requiring a separately authorized architecture decision before their respective runtimes can be authorized.
+**Neither of the two items above was revisited by the Slice 2D-B2-0 schema freeze, by the Slice 2D-B2-A amendment, nor by the Slice 2D-B2-B0 schema freeze.** Both remain exactly as recorded: still open, still requiring a separately authorized architecture decision before their respective runtimes can be authorized.
+
+**The Slice 2D-B2-B0 schema freeze introduces zero new open decisions.** All fifteen items its governing packet asked to be closed (§9's "Schema decisions closed (Slice 2D-B2-B0)," A–O) were closeable from source-of-truth already accepted in this document and this repository's existing runtime (`src/stress-test/deliberation.ts`'s current `UnresolvedQuestion`, `createUnresolvedQuestion`, `cloneUnresolvedQuestion`, and `registerUnresolvedQuestion`, inspected directly rather than assumed) and this contract's own already-established patterns (global-before-local integrity validation, write-time-gate-is-not-sufficient-alone, never-automatically-reconciled cardinality violations) — not left open for lack of a clear answer.
 
 **This amendment introduces zero new open decisions.** Both executable-consistency gaps it was asked to close — the legacy active-cycle integrity gap and the incomplete `STOP`-interaction closure — were closeable from source-of-truth already accepted in this repository and this contract's own already-established patterns (the "never trust an upstream check for pre-existing state" posture already used everywhere else, and the existing `budget`/`latency` `StopReason` vocabulary), not left open for lack of a clear answer.
 
