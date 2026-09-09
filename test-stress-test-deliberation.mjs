@@ -20,6 +20,7 @@ import {
   applyCostSpend,
   applyLatencySpend,
   createContextRequest,
+  recordRouteAttemptStart,
 } from './dist/stress-test/index.js';
 
 let passed = 0;
@@ -139,6 +140,35 @@ function buildRegisteredQuestion(session, state, input) {
   const registered = registerUnresolvedQuestion(session, state, question);
   return { state: registered, question };
 }
+
+/** Convenience: register a question for the given rootCause, then plan+record its RouteDecision via the real API (never a raw history insert). */
+function buildRecordedDecisionFixture(rootCause, costCeiling = 5) {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling, latencyCeiling: 5 });
+  const { state: state1, question } = buildRegisteredQuestion(session, state0, {
+    rootCause,
+    materialityReason: `material ${rootCause}`,
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const decision = planRouteForQuestion(session, state1, question);
+  const state2 = recordRouteDecision(session, state1, decision);
+  return { session, state: state2, decision, question, issueId };
+}
+
+/** Convenience: same as buildRecordedDecisionFixture, then starts the RouteAttempt. */
+function buildStartedAttemptFixture(rootCause, costCeiling = 5) {
+  const { session, state, decision, question, issueId } = buildRecordedDecisionFixture(rootCause, costCeiling);
+  const started = recordRouteAttemptStart(session, state, decision.id);
+  return { session, state: started, decision, question, issueId };
+}
+
+const NON_STOP_ROUTE_FIXTURES = [
+  { rootCause: 'CONTEXT_GAP', route: 'ADD_CONTEXT' },
+  { rootCause: 'EVIDENCE_GAP', route: 'SEEK_EVIDENCE' },
+  { rootCause: 'STABILITY_QUESTION', route: 'REPLICATE' },
+  { rootCause: 'COVERAGE_GAP', route: 'ADD_REVIEWER' },
+  { rootCause: 'DECISION_SENSITIVE_CONFLICT', route: 'TARGETED_PEER_CHALLENGE' },
+];
 
 // ==================================================================
 // A. createDeliberationState
@@ -1579,6 +1609,235 @@ check('planRouteForQuestion rejects an empty/blank/null/missing question.id on t
       `expected id ${JSON.stringify(id)} to be rejected on the NONE/STOP path`
     );
   }
+});
+
+// ==================================================================
+// P. Route attempt start ledger (Slice 2D-A)
+// ==================================================================
+console.log('\nRoute attempt start ledger (Slice 2D-A)');
+
+check('createDeliberationState initializes attempts=[]; existing fields unchanged', () => {
+  const session = buildReviewedFixtureSession();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  assert.deepEqual(state.attempts, []);
+  assert.deepEqual(state.history, []);
+  assert.deepEqual(state.unresolvedQuestions, []);
+  assert.equal(state.stopReason, null);
+  assert.equal(state.costBudget.spent, 0);
+  assert.equal(state.latencyBudget.spent, 0);
+});
+
+for (const { rootCause, route } of NON_STOP_ROUTE_FIXTURES) {
+  check(`a recorded ${route} RouteDecision starts exactly one RouteAttempt with correct fields`, () => {
+    const { session, state, decision } = buildStartedAttemptFixture(rootCause);
+    assert.equal(state.attempts.length, 1);
+    const attempt = state.attempts[0];
+    assert.equal(attempt.decisionId, decision.id);
+    assert.equal(attempt.questionId, decision.questionId);
+    assert.equal(attempt.route, route);
+    assert.equal(attempt.sessionId, session.id);
+    assert.equal(attempt.artifactHash, session.artifactHash);
+    assert.equal(attempt.authorContextHash, session.authorContextHash);
+    assert.equal(typeof attempt.attemptId, 'string');
+    assert.ok(attempt.attemptId.length > 0);
+    assert.equal(typeof attempt.startedAt, 'string');
+    assert.ok(attempt.startedAt.length > 0);
+    assert.equal('status' in attempt, false, 'RouteAttempt must not carry a status field');
+    assert.equal('completedAt' in attempt, false, 'RouteAttempt must not carry a completedAt field');
+    assert.equal('latency' in attempt, false, 'RouteAttempt must not carry a latency field');
+    assert.equal('outcome' in attempt, false, 'RouteAttempt must not carry an outcome field');
+  });
+}
+
+check('ADD_CONTEXT attempt has logicalCost=0 and does not increment costBudget.spent', () => {
+  const { state } = buildStartedAttemptFixture('CONTEXT_GAP', 5);
+  assert.equal(state.attempts[0].logicalCost, 0);
+  assert.equal(state.costBudget.spent, 0);
+});
+
+for (const { rootCause, route } of NON_STOP_ROUTE_FIXTURES.filter((r) => r.route !== 'ADD_CONTEXT')) {
+  check(`${route} attempt has logicalCost=1 and increments costBudget.spent by exactly 1`, () => {
+    const { state } = buildStartedAttemptFixture(rootCause, 5);
+    assert.equal(state.attempts[0].logicalCost, 1);
+    assert.equal(state.costBudget.spent, 1);
+  });
+}
+
+for (const { rootCause, route } of NON_STOP_ROUTE_FIXTURES.filter((r) => r.route !== 'ADD_CONTEXT')) {
+  check(`${route} attempt is rejected when costCeiling=0, with no attempt or cost recorded`, () => {
+    const { session, state, decision } = buildRecordedDecisionFixture(rootCause, 0);
+    const before = JSON.parse(JSON.stringify(state));
+    assert.throws(() => recordRouteAttemptStart(session, state, decision.id), /exceed the cost ceiling/);
+    assert.deepEqual(state, before, 'original state unchanged after a rejected attempt start');
+  });
+}
+
+check('ADD_CONTEXT attempt still succeeds when costCeiling=0 because its logical cost is 0', () => {
+  const { state } = buildStartedAttemptFixture('CONTEXT_GAP', 0);
+  assert.equal(state.attempts.length, 1);
+  assert.equal(state.costBudget.spent, 0);
+});
+
+check('starting a second RouteAttempt for the same RouteDecision is rejected; the first attempt is unchanged', () => {
+  const { session, state, decision } = buildStartedAttemptFixture('COVERAGE_GAP', 5);
+  const before = JSON.parse(JSON.stringify(state));
+  assert.throws(() => recordRouteAttemptStart(session, state, decision.id), /already has a RouteAttempt/);
+  assert.deepEqual(state, before, 'no extra cost or attempt from the rejected duplicate');
+});
+
+check('a recorded STOP RouteDecision cannot start a RouteAttempt', () => {
+  const session = buildReviewedFixtureSession();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const stopDecision = planRouteForQuestion(session, state0, {
+    id: 'stop-q',
+    rootCause: 'NONE',
+    materialityReason: 'nothing material remains',
+    inputRefs: [],
+    createdAt: new Date().toISOString(),
+  });
+  const state1 = recordRouteDecision(session, state0, stopDecision, { stopReason: 'successful' });
+  const before = JSON.parse(JSON.stringify(state1));
+  assert.throws(
+    () => recordRouteAttemptStart(session, state1, stopDecision.id),
+    /already stopped|STOP has no RouteAttempt/
+  );
+  assert.deepEqual(state1, before, 'no attempt or cost from the rejected STOP start');
+});
+
+check('recordRouteAttemptStart independently rejects a STOP RouteDecision even when stopReason is not yet set (defensive corruption test)', () => {
+  const session = buildReviewedFixtureSession();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const stopDecision = planRouteForQuestion(session, state0, {
+    id: 'stop-q',
+    rootCause: 'NONE',
+    materialityReason: 'nothing material remains',
+    inputRefs: [],
+    createdAt: new Date().toISOString(),
+  });
+  // Intentionally bypasses recordRouteDecision to isolate recordRouteAttemptStart's
+  // own STOP-route guard from the separate "already stopped" guard -- both
+  // independently reject STOP once a decision is recorded through the real API.
+  const corrupted = { ...state0, history: [...state0.history, stopDecision] };
+  assert.throws(() => recordRouteAttemptStart(session, corrupted, stopDecision.id), /STOP has no RouteAttempt/);
+});
+
+check('an unknown decisionId is rejected', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP', 5);
+  assert.throws(
+    () => recordRouteAttemptStart(session, state, 'not-a-real-decision-id'),
+    /is not a currently recorded RouteDecision/
+  );
+});
+
+check('an empty or whitespace-only decisionId is rejected', () => {
+  const session = buildReviewedFixtureSession();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  for (const decisionId of ['', '   ']) {
+    assert.throws(
+      () => recordRouteAttemptStart(session, state, decisionId),
+      /decisionId must be a non-empty string/,
+      `expected decisionId ${JSON.stringify(decisionId)} to be rejected`
+    );
+  }
+});
+
+check('a null/missing decisionId from a plain-JS caller is rejected', () => {
+  const session = buildReviewedFixtureSession();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  for (const decisionId of [null, undefined]) {
+    assert.throws(
+      () => recordRouteAttemptStart(session, state, decisionId),
+      /decisionId must be a non-empty string/,
+      `expected decisionId ${JSON.stringify(decisionId)} to be rejected`
+    );
+  }
+});
+
+check('a planned-but-never-recorded RouteDecision does not authorize an attempt', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state: state1, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const plannedOnly = planRouteForQuestion(session, state1, question);
+  assert.throws(
+    () => recordRouteAttemptStart(session, state1, plannedOnly.id),
+    /is not a currently recorded RouteDecision/
+  );
+});
+
+check('recordRouteAttemptStart rejects a wrong session binding', () => {
+  const { state, decision } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  const otherSession = buildReviewedFixtureSession();
+  assert.throws(() => recordRouteAttemptStart(otherSession, state, decision.id), /bound to session/);
+});
+
+check('recordRouteAttemptStart rejects a tampered frozen artifact', () => {
+  const { session, state, decision } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  const tamperedSession = { ...session, artifactText: session.artifactText + ' TAMPERED' };
+  assert.throws(
+    () => recordRouteAttemptStart(tamperedSession, state, decision.id),
+    /no longer matches its frozen artifactHash/
+  );
+});
+
+check('recordRouteAttemptStart rejects a tampered frozen AuthorContext', () => {
+  const { session, state, decision } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  const sneaked = { id: 'x', text: 'sneaked in', sourceType: 'AUTHOR', status: 'CURRENT', createdAt: new Date().toISOString() };
+  const tamperedSession = {
+    ...session,
+    authorContext: { ...session.authorContext, constraints: [...session.authorContext.constraints, sneaked] },
+  };
+  assert.throws(
+    () => recordRouteAttemptStart(tamperedSession, state, decision.id),
+    /no longer matches its frozen authorContextHash/
+  );
+});
+
+check('recordRouteAttemptStart rejects a mismatched DeliberationState.artifactHash', () => {
+  const { session, state, decision } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  const tamperedState = { ...state, artifactHash: 'not-the-real-hash' };
+  assert.throws(() => recordRouteAttemptStart(session, tamperedState, decision.id), /artifactHash/);
+});
+
+check('a state already terminated by STOP rejects starting an old, previously-recorded non-STOP decision', () => {
+  const { session, state, decision } = buildRecordedDecisionFixture('COVERAGE_GAP', 5);
+  const stopDecision = planRouteForQuestion(session, state, {
+    id: 'stop-q',
+    rootCause: 'NONE',
+    materialityReason: 'nothing material remains',
+    inputRefs: [],
+    createdAt: new Date().toISOString(),
+  });
+  const stopped = recordRouteDecision(session, state, stopDecision, { stopReason: 'budget' });
+  assert.equal(stopped.stopReason, 'budget');
+  const before = JSON.parse(JSON.stringify(stopped));
+  assert.throws(() => recordRouteAttemptStart(session, stopped, decision.id), /already stopped/);
+  assert.deepEqual(stopped, before, 'no attempt or cost from the rejected start');
+});
+
+check('starting an attempt leaves the original DeliberationState, session, and registered question unchanged; returns a new object', () => {
+  const { session, state, decision, question } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  const sessionBefore = JSON.parse(JSON.stringify(session));
+  const stateBefore = JSON.parse(JSON.stringify(state));
+  const questionBefore = JSON.parse(JSON.stringify(question));
+
+  const next = recordRouteAttemptStart(session, state, decision.id);
+
+  assert.notEqual(next, state, 'a new object must be returned');
+  assert.deepEqual(session, sessionBefore, 'session must be unchanged');
+  assert.deepEqual(state, stateBefore, 'the original DeliberationState must be unchanged');
+  assert.deepEqual(question, questionBefore, 'the registered question fixture object must be unchanged');
+  assert.equal(next.history, state.history, 'history array reference is untouched by starting an attempt');
+});
+
+check('recordRouteAttemptStart never touches session.adjudications or session.revisionActions', () => {
+  const { session, state, decision } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  recordRouteAttemptStart(session, state, decision.id);
+  assert.deepEqual(session.adjudications, {});
+  assert.deepEqual(session.revisionActions, {});
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

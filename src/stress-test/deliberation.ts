@@ -203,6 +203,32 @@ export interface RouteDecision {
   createdAt: string;
 }
 
+/** Every route except STOP -- STOP has no RouteAttempt (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §5). */
+export type NonStopDeliberationRoute = Exclude<DeliberationRoute, 'STOP'>;
+
+/**
+ * The immutable fact that one authorized, already-recorded RouteDecision
+ * has begun execution -- recorded BEFORE any external/human mechanism runs,
+ * so a crash after execution starts still leaves an auditable proof the
+ * attempt was begun (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §5). A
+ * start-only record: it carries no `completedAt`, `status`, outcome,
+ * latency, or result payload -- those belong exclusively to a future
+ * RouteOutcome (§7). Never mutated once created. Because no RouteOutcome
+ * runtime exists yet, every RouteAttempt in this slice is, by construction,
+ * open/unterminated (§5, §14) -- that is expected, not an error.
+ */
+export interface RouteAttempt {
+  attemptId: string;
+  decisionId: string;
+  questionId: string;
+  route: NonStopDeliberationRoute;
+  sessionId: string;
+  artifactHash: string;
+  authorContextHash: string;
+  startedAt: string;
+  logicalCost: number;
+}
+
 export interface DeliberationBudget {
   spent: number;
   ceiling: number;
@@ -221,6 +247,7 @@ export interface DeliberationState {
   artifactHash: string;
   authorContextHash: string;
   history: RouteDecision[];
+  attempts: RouteAttempt[];
   costBudget: DeliberationBudget;
   latencyBudget: DeliberationBudget;
   unresolvedQuestions: UnresolvedQuestion[];
@@ -275,6 +302,31 @@ function cloneRouteDecision(decision: RouteDecision): RouteDecision {
   };
 }
 
+/**
+ * Fail-closed logical-call cost per route
+ * (MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md §12;
+ * ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §12). Logical-call
+ * accounting only -- never dollars, token prices, provider pricing, or a
+ * numeric production ceiling. The caller never supplies this value; it is
+ * always derived from the recorded RouteDecision.route, so a caller can
+ * never claim `logicalCost = 0` for a provider-backed route.
+ */
+function logicalAttemptCostForRoute(route: NonStopDeliberationRoute): number {
+  switch (route) {
+    case 'ADD_CONTEXT':
+      return 0;
+    case 'ADD_REVIEWER':
+    case 'REPLICATE':
+    case 'SEEK_EVIDENCE':
+    case 'TARGETED_PEER_CHALLENGE':
+      return 1;
+    default: {
+      const exhaustive: never = route;
+      throw new Error(`logicalAttemptCostForRoute: unhandled route ${JSON.stringify(exhaustive)}`);
+    }
+  }
+}
+
 export interface DeliberationBudgetInput {
   costCeiling: number;
   latencyCeiling: number;
@@ -311,6 +363,7 @@ export function createDeliberationState(session: StressTestSession, budgets: Del
     artifactHash: session.artifactHash,
     authorContextHash: session.authorContextHash,
     history: [],
+    attempts: [],
     costBudget: { spent: 0, ceiling: budgets.costCeiling },
     latencyBudget: { spent: 0, ceiling: budgets.latencyCeiling },
     unresolvedQuestions: [],
@@ -577,6 +630,97 @@ export function recordRouteDecision(
     ...deliberationState,
     history: [...deliberationState.history, cloneRouteDecision(routeDecision)],
     stopReason,
+  };
+}
+
+/**
+ * Records that one already-recorded, non-STOP `RouteDecision` has begun
+ * execution — offline audit bookkeeping only. Never executes the route,
+ * calls a provider, retrieves anything, or contacts a human
+ * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §5, §20). The intended
+ * future ordering is: `recordRouteAttemptStart` -> persist the returned
+ * state -> an external mechanism MAY execute in a separately-authorized
+ * layer.
+ *
+ * `decisionId` is resolved ONLY against `deliberationState.history` — a
+ * structurally-valid `RouteDecision` that was never recorded does not
+ * authorize an attempt (no free-floating attempt). `STOP` decisions are
+ * rejected outright: `STOP` has no `RouteAttempt`, no external execution,
+ * and no attempt cost. Logical cost is derived from the decision's own
+ * route, never supplied by the caller, and is accounted atomically with
+ * the new `RouteAttempt` via `applyCostSpend` — either both happen, or
+ * neither does; there is never a returned state where the attempt exists
+ * but its cost was not accounted.
+ *
+ * `ONE RouteDecision -> AT MOST ONE RouteAttempt`: a second attempt for a
+ * decision that already has one is rejected outright, regardless of
+ * whether a future outcome would succeed, fail, or remain unterminated.
+ * Retry is never a second attempt for the same decision — it requires a
+ * new `RouteDecision`, which this function does not create.
+ *
+ * Because no RouteOutcome runtime exists yet, every RouteAttempt created
+ * here is, by construction, open/unterminated
+ * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §5, §14) — expected, not an
+ * error. Because no QuestionDisposition runtime exists yet, "registered"
+ * and "current" are the same thing in this slice (§23 of that contract);
+ * no second currentness policy is introduced here.
+ */
+export function recordRouteAttemptStart(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  decisionId: string
+): DeliberationState {
+  verifyDeliberationBinding(session, deliberationState);
+  if (deliberationState.stopReason !== null) {
+    throw new Error('recordRouteAttemptStart: deliberation has already stopped; no further RouteAttempt may start');
+  }
+  assertNonEmptyString(decisionId, 'recordRouteAttemptStart: decisionId');
+
+  const decision = deliberationState.history.find((d) => d.id === decisionId);
+  if (!decision) {
+    throw new Error(`recordRouteAttemptStart: decisionId ${decisionId} is not a currently recorded RouteDecision`);
+  }
+  if (decision.route === 'STOP') {
+    throw new Error('recordRouteAttemptStart: STOP has no RouteAttempt, no external execution, and no attempt cost');
+  }
+  if (typeof decision.questionId !== 'string' || decision.questionId.length === 0) {
+    throw new Error(`recordRouteAttemptStart: recorded decision ${decisionId} has no non-empty questionId`);
+  }
+  const registered = deliberationState.unresolvedQuestions.find((q) => q.id === decision.questionId);
+  if (!registered) {
+    throw new Error(
+      `recordRouteAttemptStart: decision ${decisionId}'s questionId ${decision.questionId} is not a currently registered unresolved question`
+    );
+  }
+  if (deliberationState.attempts.some((attempt) => attempt.decisionId === decisionId)) {
+    throw new Error(
+      `recordRouteAttemptStart: decision ${decisionId} already has a RouteAttempt; retry requires a new RouteDecision`
+    );
+  }
+
+  const logicalCost = logicalAttemptCostForRoute(decision.route);
+  const withCost = applyCostSpend(deliberationState, logicalCost);
+
+  verifyDeliberationBinding(session, deliberationState);
+  if (!session.artifactHash || !session.authorContextHash) {
+    throw new Error('recordRouteAttemptStart: session is missing its frozen artifactHash/authorContextHash');
+  }
+
+  const attempt: RouteAttempt = {
+    attemptId: randomUUID(),
+    decisionId: decision.id,
+    questionId: decision.questionId,
+    route: decision.route,
+    sessionId: session.id,
+    artifactHash: session.artifactHash,
+    authorContextHash: session.authorContextHash,
+    startedAt: nowIso(),
+    logicalCost,
+  };
+
+  return {
+    ...withCost,
+    attempts: [...withCost.attempts, attempt],
   };
 }
 
