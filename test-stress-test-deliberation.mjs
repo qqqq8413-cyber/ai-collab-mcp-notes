@@ -1368,5 +1368,218 @@ check('session and DeliberationState remain immutable across the rejected regres
   assert.equal(question.rootCause, 'CONTEXT_GAP', 'sanity check: the registered question fixture itself is untouched');
 });
 
+// ==================================================================
+// O. Alias-isolation hardening (regression, Slice 2B amendment)
+// ==================================================================
+console.log('\nAlias-isolation hardening (Slice 2B amendment)');
+
+check('mutating the original question after registration does not alter the registered snapshot (rootCause/materialityReason)', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const original = createUnresolvedQuestion(session, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'original reason',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const state = registerUnresolvedQuestion(session, state0, original);
+
+  original.rootCause = 'EVIDENCE_GAP';
+  original.materialityReason = 'mutated after registration';
+
+  assert.equal(state.unresolvedQuestions[0].rootCause, 'COVERAGE_GAP');
+  assert.equal(state.unresolvedQuestions[0].materialityReason, 'original reason');
+});
+
+check('mutating the original question.inputRefs array after registration does not alter the registered snapshot', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const original = createUnresolvedQuestion(session, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const state = registerUnresolvedQuestion(session, state0, original);
+
+  original.inputRefs.push({ kind: 'FINDING', id: 'not-real' });
+  original.inputRefs[0] = { kind: 'FINDING', id: 'replaced' };
+
+  assert.equal(state.unresolvedQuestions[0].inputRefs.length, 1);
+  assert.deepEqual(state.unresolvedQuestions[0].inputRefs[0], { kind: 'SEMANTIC_ISSUE', id: issueId });
+});
+
+check('mutating the original question.inputRefs[0] fields after registration does not alter the registered snapshot', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const original = createUnresolvedQuestion(session, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const state = registerUnresolvedQuestion(session, state0, original);
+
+  original.inputRefs[0].id = 'mutated-id';
+  original.inputRefs[0].kind = 'FINDING';
+
+  assert.deepEqual(state.unresolvedQuestions[0].inputRefs[0], { kind: 'SEMANTIC_ISSUE', id: issueId });
+});
+
+check('mutating a planned decision does not alter the registered question it was planned from', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const decision = planRouteForQuestion(session, state, question);
+
+  decision.reason.materialityReason = 'mutated after planning';
+  decision.inputRefs[0].id = 'mutated-id';
+  decision.inputRefs[0].kind = 'FINDING';
+
+  assert.equal(state.unresolvedQuestions[0].materialityReason, 'x');
+  assert.deepEqual(state.unresolvedQuestions[0].inputRefs[0], { kind: 'SEMANTIC_ISSUE', id: issueId });
+});
+
+check('mutating the original question after planning does not alter the returned decision', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const decision = planRouteForQuestion(session, state, question);
+
+  question.materialityReason = 'mutated after planning';
+  question.inputRefs[0].id = 'mutated-id';
+
+  assert.equal(decision.reason.materialityReason, 'x');
+  assert.deepEqual(decision.inputRefs[0], { kind: 'SEMANTIC_ISSUE', id: issueId });
+});
+
+check('mutating a recorded non-STOP decision does not alter DeliberationState history', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const decision = planRouteForQuestion(session, state, question);
+  const next = recordRouteDecision(session, state, decision);
+
+  decision.route = 'SEEK_EVIDENCE';
+  decision.questionId = 'mutated';
+  decision.reason.rootCause = 'EVIDENCE_GAP';
+  decision.reason.materialityReason = 'mutated';
+  decision.inputRefs.push({ kind: 'FINDING', id: 'not-real' });
+  decision.inputRefs[0].id = 'mutated-id';
+
+  const recorded = next.history[0];
+  assert.equal(recorded.route, 'ADD_REVIEWER');
+  assert.equal(recorded.questionId, question.id);
+  assert.equal(recorded.reason.rootCause, 'COVERAGE_GAP');
+  assert.equal(recorded.reason.materialityReason, 'x');
+  assert.equal(recorded.inputRefs.length, 1);
+  assert.deepEqual(recorded.inputRefs[0], { kind: 'SEMANTIC_ISSUE', id: issueId });
+});
+
+check('mutating a recorded STOP decision does not alter DeliberationState history', () => {
+  const session = buildReviewedFixtureSession();
+  const state = createDeliberationState(session, { costCeiling: 1, latencyCeiling: 1 });
+  const stopDecision = {
+    id: 'manual-stop-alias',
+    route: 'STOP',
+    reason: { rootCause: 'NONE', materialityReason: 'nothing material remains' },
+    inputRefs: [],
+    questionId: null,
+    createdAt: new Date().toISOString(),
+  };
+  const next = recordRouteDecision(session, state, stopDecision, { stopReason: 'successful' });
+
+  stopDecision.reason.materialityReason = 'mutated';
+  stopDecision.questionId = 'mutated';
+
+  assert.equal(next.history[0].reason.materialityReason, 'nothing material remains');
+  assert.equal(next.history[0].questionId, null);
+  assert.equal(next.stopReason, 'successful');
+});
+
+check('mutating a returned ContextRequest.sourceRefs does not alter the registered question', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'CONTEXT_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const request = createContextRequest(session, state, {
+    questionId: question.id,
+    category: 'constraints',
+    question: 'What is the actual notice period?',
+    inferenceReason: 'x',
+  });
+
+  request.sourceRefs[0].id = 'mutated-id';
+  request.sourceRefs[0].kind = 'FINDING';
+
+  assert.deepEqual(state.unresolvedQuestions[0].inputRefs[0], { kind: 'SEMANTIC_ISSUE', id: issueId });
+});
+
+check('createUnresolvedQuestion rejects an invalid rootCause at construction time (plain-JS runtime guard)', () => {
+  const { session } = buildFixtureWithIssue();
+  assert.throws(
+    () =>
+      createUnresolvedQuestion(session, {
+        rootCause: 'NOT_A_ROOT_CAUSE',
+        materialityReason: 'x',
+        inputRefs: [],
+      }),
+    /invalid rootCause/
+  );
+});
+
+check('planRouteForQuestion rejects an empty/blank/null/missing question.id on a non-NONE route', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const base = {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    createdAt: new Date().toISOString(),
+  };
+  for (const id of ['', '   ', null, undefined]) {
+    assert.throws(
+      () => planRouteForQuestion(session, state, { id, ...base }),
+      /question\.id must be a non-empty string/,
+      `expected id ${JSON.stringify(id)} to be rejected`
+    );
+  }
+});
+
+check('planRouteForQuestion rejects an empty/blank/null/missing question.id on the NONE/STOP path too', () => {
+  const session = buildReviewedFixtureSession();
+  const state = createDeliberationState(session, { costCeiling: 1, latencyCeiling: 1 });
+  const base = {
+    rootCause: 'NONE',
+    materialityReason: 'nothing material remains',
+    inputRefs: [],
+    createdAt: new Date().toISOString(),
+  };
+  for (const id of ['', '   ', null, undefined]) {
+    assert.throws(
+      () => planRouteForQuestion(session, state, { id, ...base }),
+      /question\.id must be a non-empty string/,
+      `expected id ${JSON.stringify(id)} to be rejected on the NONE/STOP path`
+    );
+  }
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed === 0 ? 0 : 1);

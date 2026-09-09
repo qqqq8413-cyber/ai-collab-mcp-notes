@@ -126,6 +126,31 @@ function refsExactlyMatch(a: RouteInputRef[], b: RouteInputRef[]): boolean {
   return a.every((ref, index) => ref.kind === b[index].kind && ref.id === b[index].id);
 }
 
+/**
+ * Independent, freshly-allocated copy of one RouteInputRef -- never the
+ * caller-owned object. Explicit per-kind construction (not a generic
+ * object-literal spread) so the result stays exhaustively typed as
+ * RouteInputRef rather than a widened `{kind: string; id: string}`.
+ */
+function cloneRouteInputRef(ref: RouteInputRef): RouteInputRef {
+  switch (ref.kind) {
+    case 'FINDING':
+      return { kind: 'FINDING', id: ref.id };
+    case 'SEMANTIC_ISSUE':
+      return { kind: 'SEMANTIC_ISSUE', id: ref.id };
+    case 'AUTHOR_CONTEXT_ITEM':
+      return { kind: 'AUTHOR_CONTEXT_ITEM', id: ref.id };
+    default: {
+      const exhaustive: never = ref;
+      throw new Error(`cloneRouteInputRef: invalid ref kind ${JSON.stringify((exhaustive as { kind: unknown }).kind)}`);
+    }
+  }
+}
+
+function cloneRouteInputRefs(refs: RouteInputRef[]): RouteInputRef[] {
+  return refs.map(cloneRouteInputRef);
+}
+
 export type StopReason =
   | 'successful'
   | 'budget'
@@ -227,6 +252,29 @@ function assertValidRootCause(rootCause: RootCauseCategory, label: string): void
   }
 }
 
+/** Independent snapshot of an UnresolvedQuestion -- never the caller-owned object, so post-registration mutation of the original cannot alter registry history. */
+function cloneUnresolvedQuestion(question: UnresolvedQuestion): UnresolvedQuestion {
+  return {
+    id: question.id,
+    inputRefs: cloneRouteInputRefs(question.inputRefs),
+    rootCause: question.rootCause,
+    materialityReason: question.materialityReason,
+    createdAt: question.createdAt,
+  };
+}
+
+/** Independent snapshot of a RouteDecision -- never the caller-owned object, so post-recording mutation of the original cannot alter audit history. */
+function cloneRouteDecision(decision: RouteDecision): RouteDecision {
+  return {
+    id: decision.id,
+    route: decision.route,
+    reason: { rootCause: decision.reason.rootCause, materialityReason: decision.reason.materialityReason },
+    inputRefs: cloneRouteInputRefs(decision.inputRefs),
+    questionId: decision.questionId,
+    createdAt: decision.createdAt,
+  };
+}
+
 export interface DeliberationBudgetInput {
   costCeiling: number;
   latencyCeiling: number;
@@ -304,6 +352,7 @@ export function createUnresolvedQuestion(
   session: StressTestSession,
   input: { rootCause: RootCauseCategory; materialityReason: string; inputRefs: RouteInputRef[] }
 ): UnresolvedQuestion {
+  assertValidRootCause(input.rootCause, 'createUnresolvedQuestion');
   assertNonEmptyMaterialityReason(input.materialityReason);
   if (input.rootCause !== 'NONE' && input.inputRefs.length === 0) {
     throw new Error('createUnresolvedQuestion: at least one inputRef is required for a non-NONE root cause');
@@ -354,7 +403,7 @@ export function registerUnresolvedQuestion(
   }
   return {
     ...deliberationState,
-    unresolvedQuestions: [...deliberationState.unresolvedQuestions, question],
+    unresolvedQuestions: [...deliberationState.unresolvedQuestions, cloneUnresolvedQuestion(question)],
   };
 }
 
@@ -384,6 +433,7 @@ export function planRouteForQuestion(
     throw new Error('planRouteForQuestion: deliberation has already stopped; no further route may be planned');
   }
   assertValidRootCause(question.rootCause, 'planRouteForQuestion');
+  assertNonEmptyString(question.id, 'planRouteForQuestion: question.id');
   assertNonEmptyMaterialityReason(question.materialityReason);
   if (question.rootCause !== 'NONE' && question.inputRefs.length === 0) {
     throw new Error('planRouteForQuestion: at least one inputRef is required for a non-NONE root cause');
@@ -399,7 +449,7 @@ export function planRouteForQuestion(
       id: randomUUID(),
       route,
       reason: { rootCause: question.rootCause, materialityReason: question.materialityReason },
-      inputRefs: [...question.inputRefs],
+      inputRefs: cloneRouteInputRefs(question.inputRefs),
       questionId: null,
       createdAt: nowIso(),
     };
@@ -423,11 +473,14 @@ export function planRouteForQuestion(
     );
   }
 
+  // Derived from the already-validated registry entry, not the caller-owned
+  // `question` argument, so the returned decision cannot alias anything the
+  // caller still holds a mutable reference to.
   return {
     id: randomUUID(),
     route,
-    reason: { rootCause: question.rootCause, materialityReason: question.materialityReason },
-    inputRefs: [...question.inputRefs],
+    reason: { rootCause: registered.rootCause, materialityReason: registered.materialityReason },
+    inputRefs: cloneRouteInputRefs(registered.inputRefs),
     questionId: question.id,
     createdAt: nowIso(),
   };
@@ -522,7 +575,7 @@ export function recordRouteDecision(
 
   return {
     ...deliberationState,
-    history: [...deliberationState.history, routeDecision],
+    history: [...deliberationState.history, cloneRouteDecision(routeDecision)],
     stopReason,
   };
 }
@@ -626,7 +679,7 @@ export function createContextRequest(
     originatingQuestionId: registered.id,
     artifactHash: session.artifactHash,
     authorContextHash: session.authorContextHash,
-    sourceRefs: [...registered.inputRefs],
+    sourceRefs: cloneRouteInputRefs(registered.inputRefs),
     category: input.category,
     question: input.question,
     inferenceReason: input.inferenceReason,
