@@ -22,6 +22,8 @@ import {
   createContextRequest,
   recordRouteAttemptStart,
   recordRouteOutcome,
+  recordQuestionDisposition,
+  isQuestionCurrent,
 } from './dist/stress-test/index.js';
 
 let passed = 0;
@@ -192,6 +194,50 @@ const NON_STOP_ROUTE_FIXTURES = [
   { rootCause: 'COVERAGE_GAP', route: 'ADD_REVIEWER' },
   { rootCause: 'DECISION_SENSITIVE_CONFLICT', route: 'TARGETED_PEER_CHALLENGE' },
 ];
+
+const VALID_FAILURE_FOR_DISPOSITION = { category: 'TRANSPORT', message: 'simulated failure for disposition testing' };
+
+/** Convenience: full cycle through a generic FAILED RouteOutcome for the given rootCause. */
+function buildFailedCycleFixture(rootCause, costCeiling = 5, latencyCeiling = 5) {
+  const { session, state, decision, question, issueId, findingIds } = buildStartedAttemptFixture(rootCause, costCeiling, latencyCeiling);
+  const attempt = state.attempts[0];
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'FAILED',
+    latencyConsumed: 1,
+    failure: VALID_FAILURE_FOR_DISPOSITION,
+  });
+  return { session, state: next, decision, question, issueId, findingIds, attempt };
+}
+
+/** Convenience: full cycle through a successful ADD_REVIEWER RouteOutcome (COVERAGE_GAP), with one fresh finding. */
+function buildAddReviewerSuccessCycleFixture(reviewerRunId = 'reviewer-run-cycle', costCeiling = 5, latencyCeiling = 5) {
+  const { session: session0, state, decision, question } = buildStartedAttemptFixture('COVERAGE_GAP', costCeiling, latencyCeiling);
+  const attempt = state.attempts[0];
+  const added = addReviewerFinding(session0, reviewerRunId);
+  const next = recordRouteOutcome(added.session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    reviewerRunId,
+    findingIds: [added.findingId],
+  });
+  return { session: added.session, state: next, decision, question, attempt };
+}
+
+/** Convenience: full cycle through a successful REPLICATE RouteOutcome (STABILITY_QUESTION). */
+function buildReplicateSuccessCycleFixture(result = 'REPRODUCED', costCeiling = 5, latencyCeiling = 5) {
+  const { session, state, decision, question, issueId } = buildStartedAttemptFixture('STABILITY_QUESTION', costCeiling, latencyCeiling);
+  const attempt = state.attempts[0];
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result,
+    targetRef: { kind: 'SEMANTIC_ISSUE', id: issueId },
+  });
+  return { session, state: next, decision, question, attempt };
+}
 
 // ==================================================================
 // A. createDeliberationState
@@ -2713,6 +2759,499 @@ check('mutating a caller-owned findingIds array after recording does not alter t
   });
   findingIds.push('sneaked-in-after-recording');
   assert.deepEqual(next.outcomes[0].findingIds, [added.findingId]);
+});
+
+// ==================================================================
+// R. Question disposition & currentness (Slice 2D-B2-A)
+// ==================================================================
+console.log('\nQuestion disposition & currentness (Slice 2D-B2-A)');
+
+// --- R1. State shape --------------------------------------------------
+
+check('createDeliberationState initializes questionDispositions=[]; other fields unchanged; no current/active field exists', () => {
+  const session = buildReviewedFixtureSession();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  assert.deepEqual(state.questionDispositions, []);
+  assert.deepEqual(state.history, []);
+  assert.deepEqual(state.attempts, []);
+  assert.deepEqual(state.outcomes, []);
+  assert.equal('current' in state, false);
+  assert.equal('active' in state, false);
+  assert.equal('currentQuestions' in state, false);
+  assert.equal('activeCycles' in state, false);
+});
+
+// --- R2. Basic disposition recording -----------------------------------
+
+check('STILL_OPEN and RESOLVED record correctly for a FAILED outcome', () => {
+  for (const disposition of ['STILL_OPEN', 'RESOLVED']) {
+    const { session, state, question, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+    const next = recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition, reason: 'independent re-evaluation' });
+    assert.equal(next.questionDispositions.length, 1);
+    const recorded = next.questionDispositions[0];
+    assert.equal(recorded.attemptId, attempt.attemptId);
+    assert.equal(recorded.questionId, question.id);
+    assert.equal(recorded.sessionId, session.id);
+    assert.equal(recorded.artifactHash, session.artifactHash);
+    assert.equal(recorded.authorContextHash, session.authorContextHash);
+    assert.equal(recorded.disposition, disposition);
+    assert.equal(recorded.reason, 'independent re-evaluation');
+    assert.equal(typeof recorded.createdAt, 'string');
+    assert.ok(recorded.createdAt.length > 0);
+    assert.equal('dispositionId' in recorded, false);
+    assert.equal('replacementQuestion' in recorded, false);
+  }
+});
+
+check('STILL_OPEN and RESOLVED record correctly for a successful ADD_REVIEWER outcome', () => {
+  for (const disposition of ['STILL_OPEN', 'RESOLVED']) {
+    const { session, state, question, attempt } = buildAddReviewerSuccessCycleFixture(`run-${disposition}`);
+    const next = recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition, reason: 'independent re-evaluation' });
+    const recorded = next.questionDispositions[0];
+    assert.equal(recorded.attemptId, attempt.attemptId);
+    assert.equal(recorded.questionId, question.id);
+    assert.equal(recorded.disposition, disposition);
+  }
+});
+
+check('STILL_OPEN and RESOLVED record correctly for a successful REPLICATE outcome', () => {
+  for (const disposition of ['STILL_OPEN', 'RESOLVED']) {
+    const { session, state, question, attempt } = buildReplicateSuccessCycleFixture('REPRODUCED');
+    const next = recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition, reason: 'independent re-evaluation' });
+    const recorded = next.questionDispositions[0];
+    assert.equal(recorded.attemptId, attempt.attemptId);
+    assert.equal(recorded.questionId, question.id);
+    assert.equal(recorded.disposition, disposition);
+  }
+});
+
+// --- R3. Disposition input validation -----------------------------------
+
+check('an unknown, blank, or missing attemptId is rejected', () => {
+  const { session, state } = buildFailedCycleFixture('COVERAGE_GAP');
+  for (const attemptId of ['not-a-real-attempt', '', '   ', null, undefined]) {
+    assert.throws(
+      () => recordQuestionDisposition(session, state, { attemptId, disposition: 'STILL_OPEN', reason: 'x' }),
+      /must be a non-empty string|does not resolve to any recorded RouteOutcome/,
+      `expected attemptId ${JSON.stringify(attemptId)} to be rejected`
+    );
+  }
+});
+
+check('an empty, whitespace-only, or null reason is rejected', () => {
+  const { session, state, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+  for (const reason of ['', '   ', null]) {
+    assert.throws(
+      () => recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason }),
+      /must be a non-empty string/
+    );
+  }
+});
+
+check('an invalid, unsupported, or missing disposition is rejected, never silently coerced', () => {
+  const { session, state, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+  for (const disposition of ['SUPERSEDED_RECLASSIFIED', 'CROSS_SESSION', 'NOT_A_DISPOSITION', null, undefined]) {
+    assert.throws(
+      () => recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition, reason: 'x' }),
+      /invalid or unsupported disposition/,
+      `expected disposition ${JSON.stringify(disposition)} to be rejected`
+    );
+  }
+});
+
+check('caller-supplied derived fields (questionId/sessionId/hashes/createdAt/dispositionId/replacementQuestion) are all rejected', () => {
+  const { session, state, question, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+  const forbiddenExtras = [
+    { questionId: question.id },
+    { sessionId: session.id },
+    { artifactHash: session.artifactHash },
+    { authorContextHash: session.authorContextHash },
+    { createdAt: new Date().toISOString() },
+    { dispositionId: 'x' },
+    { replacementQuestion: { id: 'x' } },
+    { newSessionId: 'x' },
+    { lineage: {} },
+    { actionChange: 'YES' },
+  ];
+  for (const extra of forbiddenExtras) {
+    assert.throws(
+      () => recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'x', ...extra }),
+      /unexpected field/,
+      `expected extra field ${JSON.stringify(Object.keys(extra))} to be rejected`
+    );
+  }
+});
+
+check('rejected disposition input never mutates the ledger', () => {
+  const { session, state, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+  const before = JSON.parse(JSON.stringify(state));
+  try {
+    recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition: 'RESOLVED', reason: 'x', extra: true });
+  } catch {
+    // expected
+  }
+  assert.deepEqual(state, before);
+});
+
+// --- R4. Duplicate disposition -------------------------------------------
+
+check('a second disposition for the same RouteOutcome is rejected, including STILL_OPEN then RESOLVED', () => {
+  const { session, state, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+  const next = recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'first' });
+  assert.throws(
+    () => recordQuestionDisposition(session, next, { attemptId: attempt.attemptId, disposition: 'RESOLVED', reason: 'second' }),
+    /already has a QuestionDisposition/
+  );
+  assert.equal(next.questionDispositions.length, 1);
+});
+
+// --- R5. Currentness -------------------------------------------------------
+
+check('a registered question with no disposition, or only STILL_OPEN, is current; RESOLVED makes it non-current', () => {
+  const { session: s1, state: st1, question: q1 } = buildFailedCycleFixture('COVERAGE_GAP');
+  assert.equal(isQuestionCurrent(st1, q1.id), true);
+
+  const { session: s2, state: st2, question: q2, attempt: a2 } = buildFailedCycleFixture('COVERAGE_GAP');
+  const afterStillOpen = recordQuestionDisposition(s2, st2, { attemptId: a2.attemptId, disposition: 'STILL_OPEN', reason: 'x' });
+  assert.equal(isQuestionCurrent(afterStillOpen, q2.id), true);
+
+  const { session: s3, state: st3, question: q3, attempt: a3 } = buildFailedCycleFixture('COVERAGE_GAP');
+  const afterResolved = recordQuestionDisposition(s3, st3, { attemptId: a3.attemptId, disposition: 'RESOLVED', reason: 'x' });
+  assert.equal(isQuestionCurrent(afterResolved, q3.id), false);
+});
+
+check('an unknown questionId fails closed across the current-gated APIs (registration is checked before currentness everywhere)', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const deliberationState = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  assert.throws(
+    () =>
+      planRouteForQuestion(session, deliberationState, {
+        id: 'never-registered',
+        rootCause: 'COVERAGE_GAP',
+        materialityReason: 'x',
+        inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+        createdAt: new Date().toISOString(),
+      }),
+    /is not a currently registered unresolved question/
+  );
+});
+
+check('a question stays physically registered in unresolvedQuestions after RESOLVED', () => {
+  const { session, state, question, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+  const next = recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition: 'RESOLVED', reason: 'x' });
+  assert.ok(next.unresolvedQuestions.some((q) => q.id === question.id));
+});
+
+// --- R6/R7. Active-cycle stages & second-cycle block ------------------------
+
+/** Builds a structurally valid, would-be "second RouteDecision" payload for the same registered question, for rejection testing at recordRouteDecision itself (never actually plannable through the real planRouteForQuestion, which rejects it first). */
+function planRouteForQuestionSafely(session, state, question) {
+  return {
+    id: `manual-second-decision-${Math.random().toString(36).slice(2)}`,
+    route: routeForRootCause(question.rootCause),
+    reason: { rootCause: question.rootCause, materialityReason: question.materialityReason },
+    inputRefs: question.inputRefs,
+    questionId: question.id,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+check('recordRouteDecision rejects a manually constructed second active decision at every unfinished stage; succeeds again only after STILL_OPEN', () => {
+  // Stage A: decision-only.
+  {
+    const { session, state, question } = buildRecordedDecisionFixture('COVERAGE_GAP');
+    const second = planRouteForQuestionSafely(session, state, question);
+    assert.throws(() => recordRouteDecision(session, state, second), /already has an active deliberation cycle/);
+    assert.throws(() => planRouteForQuestion(session, state, question), /already has an active deliberation cycle/);
+  }
+  // Stage B: attempt-open.
+  {
+    const { session, state, question } = buildStartedAttemptFixture('COVERAGE_GAP');
+    const second = planRouteForQuestionSafely(session, state, question);
+    assert.throws(() => recordRouteDecision(session, state, second), /already has an active deliberation cycle/);
+    assert.throws(() => planRouteForQuestion(session, state, question), /already has an active deliberation cycle/);
+  }
+  // Stage C: outcome recorded, undisposed.
+  {
+    const { session, state, question } = buildFailedCycleFixture('COVERAGE_GAP');
+    const second = planRouteForQuestionSafely(session, state, question);
+    assert.throws(() => recordRouteDecision(session, state, second), /already has an active deliberation cycle/);
+    assert.throws(() => planRouteForQuestion(session, state, question), /already has an active deliberation cycle/);
+  }
+  // After STILL_OPEN: a fresh cycle may begin.
+  {
+    const { session, state, question, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+    const afterStillOpen = recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'x' });
+    const secondDecisionPlan = planRouteForQuestion(session, afterStillOpen, question);
+    assert.equal(secondDecisionPlan.questionId, question.id);
+    const recorded = recordRouteDecision(session, afterStillOpen, secondDecisionPlan);
+    assert.equal(recorded.history.length, 2);
+    assert.notEqual(recorded.history[1].id, recorded.history[0].id);
+  }
+});
+
+// --- R8. Legacy parallel state ---------------------------------------------
+
+check('a legacy fixture with two unfinished decisions for the same question rejects every progression, with no reconciliation or deletion', () => {
+  const { session, state: state0, question } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  const d1 = state0.history[0];
+  const d2 = planRouteForQuestionSafely(session, state0, question);
+  // Intentionally corrupt: inject a second active decision directly into
+  // history, bypassing recordRouteDecision's own gate -- the only way to
+  // construct this legacy-inconsistent state for testing, per the packet's
+  // own exception for corruption tests.
+  const corrupted = { ...state0, history: [...state0.history, d2] };
+
+  assert.throws(() => planRouteForQuestion(session, corrupted, question), /more than one active deliberation cycle/);
+  assert.throws(() => recordRouteAttemptStart(session, corrupted, d1.id), /more than one active deliberation cycle/);
+  assert.throws(() => recordRouteAttemptStart(session, corrupted, d2.id), /more than one active deliberation cycle/);
+
+  // Advance d1 through to a recorded RouteOutcome inside the corrupted state.
+  const started = recordRouteAttemptStart(session, { ...corrupted, history: [d1] }, d1.id);
+  const withBothDecisions = { ...started, history: [...started.history, d2] };
+  const attempt1 = withBothDecisions.attempts[0];
+  assert.throws(
+    () => recordRouteOutcome(session, withBothDecisions, { attemptId: attempt1.attemptId, status: 'FAILED', latencyConsumed: 1, failure: VALID_FAILURE_FOR_DISPOSITION }),
+    /more than one active deliberation cycle/
+  );
+
+  // Fully corrupted state (both decisions recorded, no attempts yet) leaves history untouched by every rejection above.
+  assert.deepEqual(corrupted.history.map((d) => d.id).sort(), [d1.id, d2.id].sort());
+});
+
+check('createContextRequest rejects a CONTEXT_GAP question with more than one active legacy cycle', () => {
+  const { session, state: state0, question } = buildRecordedDecisionFixture('CONTEXT_GAP');
+  const d2 = planRouteForQuestionSafely(session, state0, question);
+  const corrupted = { ...state0, history: [...state0.history, d2] };
+  assert.throws(
+    () => createContextRequest(session, corrupted, { questionId: question.id, category: 'constraints', question: 'x?', inferenceReason: 'x' }),
+    /more than one active deliberation cycle/
+  );
+});
+
+// --- R10. RouteDecision identity -------------------------------------------
+
+check('recordRouteDecision rejects an empty, whitespace-only, null, or missing RouteDecision.id', () => {
+  const { session, state } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  for (const id of ['', '   ', null, undefined]) {
+    const manual = { id, route: 'STOP', reason: { rootCause: 'NONE', materialityReason: 'x' }, inputRefs: [], questionId: null, createdAt: new Date().toISOString() };
+    assert.throws(
+      () => recordRouteDecision(session, state, manual, { stopReason: 'successful' }),
+      /must be a non-empty string/,
+      `expected id ${JSON.stringify(id)} to be rejected`
+    );
+  }
+});
+
+check('recordRouteDecision rejects a duplicate RouteDecision.id, whether non-STOP->non-STOP or non-STOP->STOP; history unchanged after rejection', () => {
+  const { session, state, question } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  const existingId = state.history[0].id;
+  const before = JSON.parse(JSON.stringify(state));
+
+  const duplicateNonStop = planRouteForQuestionSafely(session, state, question);
+  duplicateNonStop.id = existingId;
+  assert.throws(() => recordRouteDecision(session, state, duplicateNonStop), /is already recorded in history/);
+
+  const duplicateStop = { id: existingId, route: 'STOP', reason: { rootCause: 'NONE', materialityReason: 'x' }, inputRefs: [], questionId: null, createdAt: new Date().toISOString() };
+  assert.throws(() => recordRouteDecision(session, state, duplicateStop, { stopReason: 'successful' }), /is already recorded in history/);
+
+  assert.deepEqual(state, before);
+});
+
+check('STOP still records with a unique id even while another question has an active cycle', () => {
+  const { session, state, question } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  const stopDecision = planRouteForQuestion(session, state, { id: 'stop-q', rootCause: 'NONE', materialityReason: 'x', inputRefs: [], createdAt: new Date().toISOString() });
+  const stopped = recordRouteDecision(session, state, stopDecision, { stopReason: 'successful' });
+  assert.equal(stopped.stopReason, 'successful');
+  assert.ok(isQuestionCurrent(stopped, question.id));
+});
+
+// --- R11. Legacy duplicate decision id -------------------------------------
+
+check('a legacy history with two entries sharing one RouteDecision.id fails closed on downstream resolution, not first-match', () => {
+  const { session, state: state0 } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  const original = state0.history[0];
+  const duplicateEntry = { ...original, createdAt: new Date(Date.now() + 1000).toISOString() };
+  const corrupted = { ...state0, history: [original, duplicateEntry] };
+
+  const before = { costBudget: { ...corrupted.costBudget }, latencyBudget: { ...corrupted.latencyBudget } };
+  assert.throws(() => recordRouteAttemptStart(session, corrupted, original.id), /matches more than one recorded RouteDecision/);
+  assert.deepEqual(corrupted.costBudget, before.costBudget);
+  assert.deepEqual(corrupted.latencyBudget, before.latencyBudget);
+});
+
+// --- R12. Current gates after RESOLVED --------------------------------------
+
+check('after RESOLVED, every current-gated API rejects: planRouteForQuestion, recordRouteDecision, recordRouteAttemptStart, recordRouteOutcome, createContextRequest, recordQuestionDisposition', () => {
+  const { session, state, question, attempt } = buildFailedCycleFixture('CONTEXT_GAP');
+  const resolved = recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition: 'RESOLVED', reason: 'x' });
+
+  assert.throws(() => planRouteForQuestion(session, resolved, question), /is not current/);
+
+  const manualDecision = planRouteForQuestionSafely(session, resolved, question);
+  assert.throws(() => recordRouteDecision(session, resolved, manualDecision), /is not current/);
+
+  // recordRouteAttemptStart's own currentness rejection is only reachable
+  // for a decision that does not yet have an attempt (the real D1 already
+  // does) -- inject a legacy second decision, never recordable through the
+  // real API once the question is resolved, to exercise it specifically.
+  const legacyD2 = planRouteForQuestionSafely(session, resolved, question);
+  const withLegacyD2 = { ...resolved, history: [...resolved.history, legacyD2] };
+  assert.throws(() => recordRouteAttemptStart(session, withLegacyD2, legacyD2.id), /is not current/);
+
+  assert.throws(
+    () => recordRouteOutcome(session, resolved, { attemptId: attempt.attemptId, status: 'FAILED', latencyConsumed: 1, failure: VALID_FAILURE_FOR_DISPOSITION }),
+    /already has a RouteOutcome/
+  );
+
+  assert.throws(
+    () => createContextRequest(session, resolved, { questionId: question.id, category: 'constraints', question: 'x?', inferenceReason: 'x' }),
+    /is not current/
+  );
+
+  assert.throws(
+    () => recordQuestionDisposition(session, resolved, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'x' }),
+    /already has a QuestionDisposition/
+  );
+});
+
+check('after RESOLVED, recordRouteOutcome against a *stale* still-open attempt on the same question rejects on currentness, not just duplication', () => {
+  // Build a question with TWO historical attempts (legacy-style corruption),
+  // resolve the first, then prove the second (still technically open) can
+  // never record its own outcome once the question is RESOLVED.
+  const { session, state: recordedState, question } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  const d1 = recordedState.history[0];
+  const startedA = recordRouteAttemptStart(session, recordedState, d1.id);
+  const attemptA = startedA.attempts[0];
+  const resolvedViaA = recordRouteOutcome(session, startedA, { attemptId: attemptA.attemptId, status: 'FAILED', latencyConsumed: 1, failure: VALID_FAILURE_FOR_DISPOSITION });
+  const disposedViaA = recordQuestionDisposition(session, resolvedViaA, { attemptId: attemptA.attemptId, disposition: 'RESOLVED', reason: 'x' });
+
+  // A second, legacy decision/attempt for the same question, injected directly
+  // (never possible through the now-hardened public API, hence direct injection).
+  const d2 = planRouteForQuestionSafely(session, recordedState, question);
+  const attemptB = { attemptId: 'legacy-attempt-b', decisionId: d2.id, questionId: question.id, route: d2.route, sessionId: session.id, artifactHash: session.artifactHash, authorContextHash: session.authorContextHash, startedAt: new Date().toISOString(), logicalCost: 1 };
+  const legacyState = { ...disposedViaA, history: [...disposedViaA.history, d2], attempts: [...disposedViaA.attempts, attemptB] };
+
+  assert.throws(
+    () => recordRouteOutcome(session, legacyState, { attemptId: attemptB.attemptId, status: 'FAILED', latencyConsumed: 1, failure: VALID_FAILURE_FOR_DISPOSITION }),
+    /is not current/
+  );
+  assert.ok(legacyState.attempts.some((a) => a.attemptId === attemptB.attemptId), 'the stale attempt remains present, never deleted');
+});
+
+// --- R13. STILL_OPEN re-entry, including wrong-cycle rejection on the old decision ---
+
+check('after STILL_OPEN, Q1 remains current, a fresh D2/A2 cycle can start, and the old D1 can no longer start a new attempt', () => {
+  const { session, state, question, attempt: attempt1 } = buildFailedCycleFixture('COVERAGE_GAP');
+  const d1 = state.history[0];
+  const afterStillOpen = recordQuestionDisposition(session, state, { attemptId: attempt1.attemptId, disposition: 'STILL_OPEN', reason: 'x' });
+  assert.equal(isQuestionCurrent(afterStillOpen, question.id), true);
+
+  const d2Plan = planRouteForQuestion(session, afterStillOpen, question);
+  const withD2 = recordRouteDecision(session, afterStillOpen, d2Plan);
+  assert.notEqual(d2Plan.id, d1.id);
+
+  const startedA2 = recordRouteAttemptStart(session, withD2, d2Plan.id);
+  assert.equal(startedA2.attempts.length, 2, 'the original attempt from the first cycle plus the new one for D2');
+  assert.ok(startedA2.attempts.some((a) => a.decisionId === d2Plan.id));
+
+  // The old, now-inactive D1 can never start a new attempt again.
+  assert.throws(() => recordRouteAttemptStart(session, withD2, d1.id), /already has a RouteAttempt/);
+});
+
+// --- R14/R15/R16. STOP at each unfinished stage -----------------------------
+
+check('STOP is recordable with a decision-only unfinished cycle; the old decision may never start an attempt afterward', () => {
+  const { session, state, question } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  const d1 = state.history[0];
+  const stopDecision = planRouteForQuestion(session, state, { id: 'stop-q', rootCause: 'NONE', materialityReason: 'x', inputRefs: [], createdAt: new Date().toISOString() });
+  const stopped = recordRouteDecision(session, state, stopDecision, { stopReason: 'successful' });
+  assert.equal(stopped.stopReason, 'successful');
+  assert.throws(() => recordRouteAttemptStart(session, stopped, d1.id), /already stopped/);
+  assert.equal(stopped.attempts.length, 0, 'no attempt fabricated');
+});
+
+check('STOP is recordable with an open RouteAttempt; the attempt may never record a RouteOutcome afterward', () => {
+  const { session, state } = buildStartedAttemptFixture('COVERAGE_GAP');
+  const attempt = state.attempts[0];
+  const stopDecision = planRouteForQuestion(session, state, { id: 'stop-q', rootCause: 'NONE', materialityReason: 'x', inputRefs: [], createdAt: new Date().toISOString() });
+  const stopped = recordRouteDecision(session, state, stopDecision, { stopReason: 'budget' });
+  assert.equal(stopped.stopReason, 'budget');
+  assert.throws(
+    () => recordRouteOutcome(session, stopped, { attemptId: attempt.attemptId, status: 'FAILED', latencyConsumed: 1, failure: VALID_FAILURE_FOR_DISPOSITION }),
+    /already stopped/
+  );
+  assert.ok(stopped.attempts.some((a) => a.attemptId === attempt.attemptId), 'the open attempt remains present');
+  assert.equal(stopped.outcomes.length, 0, 'no outcome fabricated');
+});
+
+check('STOP is recordable with a terminal RouteOutcome pending disposition; the disposition may never be recorded afterward; the question remains current', () => {
+  const { session, state, question, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+  const stopDecision = planRouteForQuestion(session, state, { id: 'stop-q', rootCause: 'NONE', materialityReason: 'x', inputRefs: [], createdAt: new Date().toISOString() });
+  const stopped = recordRouteDecision(session, state, stopDecision, { stopReason: 'latency' });
+  assert.equal(stopped.stopReason, 'latency');
+  assert.throws(
+    () => recordQuestionDisposition(session, stopped, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'x' }),
+    /already stopped/
+  );
+  assert.deepEqual(stopped.questionDispositions, []);
+  assert.equal(isQuestionCurrent(stopped, question.id), true, 'Q1 remains current -- STOP never fabricates a disposition');
+});
+
+// --- R17. STOP with legacy parallel cycles -----------------------------------
+
+check('STOP remains recordable even with more than one unfinished legacy cycle for the same question; no progression follows', () => {
+  const { session, state: state0, question } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  const d1 = state0.history[0];
+  const d2 = planRouteForQuestionSafely(session, state0, question);
+  const corrupted = { ...state0, history: [...state0.history, d2] };
+
+  const stopDecision = planRouteForQuestion(session, corrupted, { id: 'stop-q', rootCause: 'NONE', materialityReason: 'x', inputRefs: [], createdAt: new Date().toISOString() });
+  const stopped = recordRouteDecision(session, corrupted, stopDecision, { stopReason: 'unresolved_but_human_decidable' });
+  assert.equal(stopped.stopReason, 'unresolved_but_human_decidable');
+
+  assert.throws(() => recordRouteAttemptStart(session, stopped, d1.id), /already stopped/);
+  assert.throws(() => recordRouteAttemptStart(session, stopped, d2.id), /already stopped/);
+});
+
+// --- R18. No automatic disposition inference ---------------------------------
+
+check('SUCCEEDED, FAILED, and STOP never automatically create a QuestionDisposition -- only recordQuestionDisposition does', () => {
+  const failed = buildFailedCycleFixture('COVERAGE_GAP');
+  assert.deepEqual(failed.state.questionDispositions, []);
+
+  const succeeded = buildAddReviewerSuccessCycleFixture('run-no-infer');
+  assert.deepEqual(succeeded.state.questionDispositions, []);
+
+  const { session, state, question } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  const stopDecision = planRouteForQuestion(session, state, { id: 'stop-q', rootCause: 'NONE', materialityReason: 'x', inputRefs: [], createdAt: new Date().toISOString() });
+  const stopped = recordRouteDecision(session, state, stopDecision, { stopReason: 'successful' });
+  assert.deepEqual(stopped.questionDispositions, []);
+});
+
+// --- R19. Snapshot / authority -------------------------------------------------
+
+check('recording a disposition leaves the original session and state unchanged; returns a new object; mutating caller reason does not rewrite history', () => {
+  const { session, state, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+  const sessionBefore = JSON.parse(JSON.stringify(session));
+  const stateBefore = JSON.parse(JSON.stringify(state));
+  const input = { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'original reason' };
+
+  const next = recordQuestionDisposition(session, state, input);
+
+  input.reason = 'mutated after recording';
+  input.disposition = 'RESOLVED';
+
+  assert.notEqual(next, state);
+  assert.deepEqual(session, sessionBefore);
+  assert.deepEqual(state, stateBefore);
+  assert.equal(next.questionDispositions[0].reason, 'original reason');
+  assert.equal(next.questionDispositions[0].disposition, 'STILL_OPEN');
+  assert.deepEqual(session.adjudications, {});
+  assert.deepEqual(session.revisionActions, {});
+  assert.deepEqual(next.history, state.history);
+  assert.deepEqual(next.attempts, state.attempts);
+  assert.deepEqual(next.outcomes, state.outcomes);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

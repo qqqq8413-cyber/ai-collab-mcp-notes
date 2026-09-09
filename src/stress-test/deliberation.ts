@@ -351,6 +351,36 @@ export interface ReplicationRouteOutcome extends RouteOutcomeCommon {
 /** Slice 2D-B1's complete RouteOutcome vocabulary. ADD_CONTEXT/SEEK_EVIDENCE/TARGETED_PEER_CHALLENGE successful outcomes and any INCONCLUSIVE outcome are not yet representable -- not authorized in this slice. */
 export type RouteOutcome = FailedRouteOutcome | AddReviewerRouteOutcome | ReplicationRouteOutcome;
 
+/** The full accepted architecture vocabulary (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9) -- only half of it is recordable in this slice, below. */
+export type QuestionDispositionKind = 'STILL_OPEN' | 'RESOLVED' | 'SUPERSEDED_RECLASSIFIED' | 'CROSS_SESSION';
+
+/** Slice 2D-B2-A's recordable subset. `SUPERSEDED_RECLASSIFIED` (needs `derivedFromQuestionId` on `UnresolvedQuestion`) and `CROSS_SESSION` (needs `ADD_CONTEXT` success + session-lineage runtime) are deliberately excluded -- not authorized in this slice. */
+export type RecordableQuestionDispositionKind = 'STILL_OPEN' | 'RESOLVED';
+
+const RECORDABLE_QUESTION_DISPOSITION_KINDS: readonly RecordableQuestionDispositionKind[] = ['STILL_OPEN', 'RESOLVED'];
+
+/**
+ * The immutable fact of one semantic re-evaluation of a terminal
+ * `RouteOutcome`. `attemptId` is this record's own identity -- no separate
+ * `dispositionId`, since one `RouteOutcome` has at most one
+ * `QuestionDisposition`. `questionId`/`sessionId`/`artifactHash`/
+ * `authorContextHash` are always derived from the resolved
+ * outcome->attempt->decision->question chain, never caller-supplied.
+ * `disposition`/`reason` are the one fact only an external semantic
+ * re-evaluation can supply; this module enforces structure, never computes
+ * the disposition itself (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9).
+ */
+export interface QuestionDisposition {
+  attemptId: string;
+  questionId: string;
+  sessionId: string;
+  artifactHash: string;
+  authorContextHash: string;
+  disposition: RecordableQuestionDispositionKind;
+  reason: string;
+  createdAt: string;
+}
+
 export interface DeliberationBudget {
   spent: number;
   ceiling: number;
@@ -371,6 +401,7 @@ export interface DeliberationState {
   history: RouteDecision[];
   attempts: RouteAttempt[];
   outcomes: RouteOutcome[];
+  questionDispositions: QuestionDisposition[];
   costBudget: DeliberationBudget;
   latencyBudget: DeliberationBudget;
   unresolvedQuestions: UnresolvedQuestion[];
@@ -504,6 +535,7 @@ export function createDeliberationState(session: StressTestSession, budgets: Del
     history: [],
     attempts: [],
     outcomes: [],
+    questionDispositions: [],
     costBudget: { spent: 0, ceiling: budgets.costCeiling },
     latencyBudget: { spent: 0, ceiling: budgets.latencyCeiling },
     unresolvedQuestions: [],
@@ -533,6 +565,161 @@ export function verifyDeliberationBinding(session: StressTestSession, state: Del
       "verifyDeliberationBinding: DeliberationState.authorContextHash no longer matches the session's frozen authorContextHash"
     );
   }
+}
+
+/**
+ * Resolves a `RouteDecision` by id without ever trusting `.find()`'s
+ * first-match result blindly. The accepted runtime before this slice placed
+ * no check preventing a duplicate `RouteDecision.id` from ever being
+ * recorded (`recordRouteDecision` hardens this going forward, below), so a
+ * `DeliberationState` predating that hardening -- or one directly
+ * constructed by a test -- can still structurally contain two history
+ * entries sharing one id. Zero matches and more than one match both fail
+ * closed; only exactly one match resolves
+ * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9 amendment, "Legacy
+ * duplicate decision id").
+ */
+function resolveUniqueRouteDecisionById(deliberationState: DeliberationState, decisionId: string, label: string): RouteDecision {
+  const matches = deliberationState.history.filter((d) => d.id === decisionId);
+  if (matches.length === 0) {
+    throw new Error(`${label}: decisionId ${decisionId} is not a currently recorded RouteDecision`);
+  }
+  if (matches.length > 1) {
+    throw new Error(
+      `${label}: decisionId ${decisionId} matches more than one recorded RouteDecision -- identity-ambiguous legacy/inconsistent state`
+    );
+  }
+  return matches[0];
+}
+
+/**
+ * Never trusts a `QuestionDisposition` ledger entry merely because it is
+ * present in `deliberationState.questionDispositions` -- every structural
+ * rule is independently re-validated on every read, exactly the same
+ * "never trust, always re-validate at the boundary" posture
+ * `validateAttemptProvenanceForOutcome` already takes for `RouteAttempt`.
+ * An injected unsupported disposition (`SUPERSEDED_RECLASSIFIED`,
+ * `CROSS_SESSION`, or an unknown string) throws here rather than silently
+ * being treated as non-terminal.
+ */
+function assertLedgerQuestionDispositionIntegrity(deliberationState: DeliberationState, disposition: QuestionDisposition): void {
+  assertNonEmptyString(disposition.attemptId, 'QuestionDisposition ledger entry: attemptId');
+  assertNonEmptyString(disposition.questionId, 'QuestionDisposition ledger entry: questionId');
+  if (!RECORDABLE_QUESTION_DISPOSITION_KINDS.includes(disposition.disposition)) {
+    throw new Error(`QuestionDisposition ledger entry: invalid or unsupported disposition ${JSON.stringify(disposition.disposition)}`);
+  }
+  assertNonEmptyString(disposition.reason, 'QuestionDisposition ledger entry: reason');
+  if (Number.isNaN(Date.parse(disposition.createdAt))) {
+    throw new Error('QuestionDisposition ledger entry: createdAt is not a valid parseable timestamp');
+  }
+  if (disposition.sessionId !== deliberationState.sessionId) {
+    throw new Error('QuestionDisposition ledger entry: sessionId does not match the current DeliberationState binding');
+  }
+  if (disposition.artifactHash !== deliberationState.artifactHash) {
+    throw new Error('QuestionDisposition ledger entry: artifactHash does not match the current DeliberationState binding');
+  }
+  if (disposition.authorContextHash !== deliberationState.authorContextHash) {
+    throw new Error('QuestionDisposition ledger entry: authorContextHash does not match the current DeliberationState binding');
+  }
+  const matchingOutcomes = deliberationState.outcomes.filter((o) => o.attemptId === disposition.attemptId);
+  if (matchingOutcomes.length !== 1) {
+    throw new Error(
+      `QuestionDisposition ledger entry: attemptId ${disposition.attemptId} does not resolve to exactly one RouteOutcome`
+    );
+  }
+  if (matchingOutcomes[0].originatingQuestionId !== disposition.questionId) {
+    throw new Error('QuestionDisposition ledger entry: outcome.originatingQuestionId does not match disposition.questionId');
+  }
+}
+
+/**
+ * Pure, non-cached, non-memoized: recomputes from `history`/`attempts`/
+ * `outcomes`/`questionDispositions` on every call -- never stored, never an
+ * `active: boolean` field anywhere. A non-`STOP` `RouteDecision` targeting
+ * `questionId` counts as active for the whole span from being recorded to
+ * a `QuestionDisposition` being recorded for its eventual outcome,
+ * regardless of which of the three intermediate stages (decision-only,
+ * attempt-open, outcome-undisposed) it currently sits at
+ * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9, "Active-cycle
+ * semantics"). Fails closed on any identity ambiguity encountered along
+ * the way -- never resolves it by picking a first match, a latest
+ * timestamp, or silently repairing it.
+ */
+function getActiveRouteDecisionsForQuestion(deliberationState: DeliberationState, questionId: string): RouteDecision[] {
+  const candidates = deliberationState.history.filter((d) => d.route !== 'STOP' && d.questionId === questionId);
+
+  const seenDecisionIds = new Set<string>();
+  const active: RouteDecision[] = [];
+
+  for (const decision of candidates) {
+    assertNonEmptyString(decision.id, 'getActiveRouteDecisionsForQuestion: decision.id');
+    if (seenDecisionIds.has(decision.id)) {
+      throw new Error(
+        `getActiveRouteDecisionsForQuestion: duplicate RouteDecision.id ${decision.id} in history -- identity-ambiguous legacy/inconsistent state`
+      );
+    }
+    seenDecisionIds.add(decision.id);
+
+    const attemptsForDecision = deliberationState.attempts.filter((a) => a.decisionId === decision.id);
+    if (attemptsForDecision.length === 0) {
+      active.push(decision);
+      continue;
+    }
+    if (attemptsForDecision.length > 1) {
+      throw new Error(
+        `getActiveRouteDecisionsForQuestion: decision ${decision.id} has more than one RouteAttempt -- inconsistent legacy state`
+      );
+    }
+    const attempt = attemptsForDecision[0];
+
+    const outcomesForAttempt = deliberationState.outcomes.filter((o) => o.attemptId === attempt.attemptId);
+    if (outcomesForAttempt.length === 0) {
+      active.push(decision);
+      continue;
+    }
+    if (outcomesForAttempt.length > 1) {
+      throw new Error(
+        `getActiveRouteDecisionsForQuestion: attempt ${attempt.attemptId} has more than one RouteOutcome -- inconsistent legacy state`
+      );
+    }
+    const outcome = outcomesForAttempt[0];
+
+    const dispositionsForOutcome = deliberationState.questionDispositions.filter((d) => d.attemptId === outcome.attemptId);
+    if (dispositionsForOutcome.length === 0) {
+      active.push(decision);
+      continue;
+    }
+    if (dispositionsForOutcome.length > 1) {
+      throw new Error(
+        `getActiveRouteDecisionsForQuestion: outcome ${outcome.attemptId} has more than one QuestionDisposition -- inconsistent legacy state`
+      );
+    }
+    assertLedgerQuestionDispositionIntegrity(deliberationState, dispositionsForOutcome[0]);
+    // exactly one valid disposition -> this decision's cycle is inactive; not added to `active`.
+  }
+
+  return active;
+}
+
+/**
+ * Pure, non-cached, non-memoized derivation -- currentness is never stored
+ * as a field on `UnresolvedQuestion` (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+ * §9, "Current-question derivation"). Fails closed on an unregistered
+ * question rather than silently treating it as current or terminal by
+ * default. Never depends on `deliberationState.stopReason` -- a question
+ * may remain current after `STOP` for the `HumanAdjudication` handoff;
+ * `STOP` ends routing, never question identity/currentness.
+ */
+export function isQuestionCurrent(deliberationState: DeliberationState, questionId: string): boolean {
+  const registered = deliberationState.unresolvedQuestions.some((q) => q.id === questionId);
+  if (!registered) {
+    throw new Error(`isQuestionCurrent: questionId ${questionId} is not a currently registered unresolved question`);
+  }
+  const dispositionsForQuestion = deliberationState.questionDispositions.filter((d) => d.questionId === questionId);
+  for (const disposition of dispositionsForQuestion) {
+    assertLedgerQuestionDispositionIntegrity(deliberationState, disposition);
+  }
+  return !dispositionsForQuestion.some((d) => d.disposition === 'RESOLVED');
 }
 
 /**
@@ -665,6 +852,18 @@ export function planRouteForQuestion(
       `planRouteForQuestion: registered question ${question.id} has different inputRefs (order-sensitive) than supplied`
     );
   }
+  if (!isQuestionCurrent(deliberationState, question.id)) {
+    throw new Error(`planRouteForQuestion: question ${question.id} is not current`);
+  }
+  const activeForPlan = getActiveRouteDecisionsForQuestion(deliberationState, question.id);
+  if (activeForPlan.length === 1) {
+    throw new Error(`planRouteForQuestion: question ${question.id} already has an active deliberation cycle`);
+  }
+  if (activeForPlan.length > 1) {
+    throw new Error(
+      `planRouteForQuestion: question ${question.id} has more than one active deliberation cycle -- inconsistent legacy state`
+    );
+  }
 
   // Derived from the already-validated registry entry, not the caller-owned
   // `question` argument, so the returned decision cannot alias anything the
@@ -706,6 +905,12 @@ export function recordRouteDecision(
   verifyDeliberationBinding(session, deliberationState);
   if (deliberationState.stopReason !== null) {
     throw new Error('recordRouteDecision: deliberation has already stopped; no further RouteDecision may be recorded');
+  }
+  assertNonEmptyString(routeDecision.id, 'recordRouteDecision: routeDecision.id');
+  if (deliberationState.history.some((d) => d.id === routeDecision.id)) {
+    throw new Error(
+      `recordRouteDecision: RouteDecision.id ${routeDecision.id} is already recorded in history -- no audit identity may be duplicated`
+    );
   }
   assertValidRootCause(routeDecision.reason.rootCause, 'recordRouteDecision');
   const expectedRoute = routeForRootCause(routeDecision.reason.rootCause);
@@ -749,6 +954,21 @@ export function recordRouteDecision(
     if (!refsExactlyMatch(registered.inputRefs, routeDecision.inputRefs)) {
       throw new Error(
         `recordRouteDecision: registered question ${routeDecision.questionId} has different inputRefs (order-sensitive) than the decision`
+      );
+    }
+    // Authoritative active-cycle creation gate: STOP is exempt (it is
+    // session-level termination, never a new question cycle) -- this
+    // branch is non-STOP only.
+    if (!isQuestionCurrent(deliberationState, routeDecision.questionId)) {
+      throw new Error(`recordRouteDecision: question ${routeDecision.questionId} is not current`);
+    }
+    const activeForRecord = getActiveRouteDecisionsForQuestion(deliberationState, routeDecision.questionId);
+    if (activeForRecord.length === 1) {
+      throw new Error(`recordRouteDecision: question ${routeDecision.questionId} already has an active deliberation cycle`);
+    }
+    if (activeForRecord.length > 1) {
+      throw new Error(
+        `recordRouteDecision: question ${routeDecision.questionId} has more than one active deliberation cycle -- inconsistent legacy state`
       );
     }
   }
@@ -816,10 +1036,7 @@ export function recordRouteAttemptStart(
   }
   assertNonEmptyString(decisionId, 'recordRouteAttemptStart: decisionId');
 
-  const decision = deliberationState.history.find((d) => d.id === decisionId);
-  if (!decision) {
-    throw new Error(`recordRouteAttemptStart: decisionId ${decisionId} is not a currently recorded RouteDecision`);
-  }
+  const decision = resolveUniqueRouteDecisionById(deliberationState, decisionId, 'recordRouteAttemptStart');
   if (decision.route === 'STOP') {
     throw new Error('recordRouteAttemptStart: STOP has no RouteAttempt, no external execution, and no attempt cost');
   }
@@ -835,6 +1052,24 @@ export function recordRouteAttemptStart(
   if (deliberationState.attempts.some((attempt) => attempt.decisionId === decisionId)) {
     throw new Error(
       `recordRouteAttemptStart: decision ${decisionId} already has a RouteAttempt; retry requires a new RouteDecision`
+    );
+  }
+
+  if (!isQuestionCurrent(deliberationState, decision.questionId)) {
+    throw new Error(`recordRouteAttemptStart: question ${decision.questionId} is not current`);
+  }
+  const activeForStart = getActiveRouteDecisionsForQuestion(deliberationState, decision.questionId);
+  if (activeForStart.length === 0) {
+    throw new Error(`recordRouteAttemptStart: question ${decision.questionId} has no active deliberation cycle`);
+  }
+  if (activeForStart.length > 1) {
+    throw new Error(
+      `recordRouteAttemptStart: question ${decision.questionId} has more than one active deliberation cycle -- inconsistent legacy state`
+    );
+  }
+  if (activeForStart[0].id !== decision.id) {
+    throw new Error(
+      `recordRouteAttemptStart: question ${decision.questionId}'s active deliberation cycle is a different RouteDecision than ${decisionId}`
     );
   }
 
@@ -901,12 +1136,7 @@ function validateAttemptProvenanceForOutcome(
     throw new Error('recordRouteOutcome: attempt.startedAt is not a valid parseable timestamp');
   }
 
-  const decision = deliberationState.history.find((d) => d.id === attempt.decisionId);
-  if (!decision) {
-    throw new Error(
-      `recordRouteOutcome: attempt ${attempt.attemptId}'s decisionId ${attempt.decisionId} is not a currently recorded RouteDecision`
-    );
-  }
+  const decision = resolveUniqueRouteDecisionById(deliberationState, attempt.decisionId, 'recordRouteOutcome');
   if (decision.route === 'STOP') {
     throw new Error('recordRouteOutcome: STOP has no RouteAttempt/RouteOutcome');
   }
@@ -1003,6 +1233,24 @@ export function recordRouteOutcome(
   }
 
   const decision = validateAttemptProvenanceForOutcome(session, deliberationState, attempt);
+
+  if (!isQuestionCurrent(deliberationState, attempt.questionId)) {
+    throw new Error(`recordRouteOutcome: question ${attempt.questionId} is not current`);
+  }
+  const activeForOutcome = getActiveRouteDecisionsForQuestion(deliberationState, attempt.questionId);
+  if (activeForOutcome.length === 0) {
+    throw new Error(`recordRouteOutcome: question ${attempt.questionId} has no active deliberation cycle`);
+  }
+  if (activeForOutcome.length > 1) {
+    throw new Error(
+      `recordRouteOutcome: question ${attempt.questionId} has more than one active deliberation cycle -- inconsistent legacy state`
+    );
+  }
+  if (activeForOutcome[0].id !== decision.id) {
+    throw new Error(
+      `recordRouteOutcome: question ${attempt.questionId}'s active deliberation cycle is a different RouteDecision than the one being terminalized`
+    );
+  }
 
   let allowedKeys: readonly string[];
   if (input.status === 'FAILED') {
@@ -1141,6 +1389,160 @@ export function recordRouteOutcome(
   return { ...withLatency, outcomes: [...withLatency.outcomes, outcome] };
 }
 
+/** The caller-suppliable shape for `recordQuestionDisposition`. Every derived/generated field (questionId, sessionId, artifactHash, authorContextHash, createdAt) is deliberately absent -- `assertExactKeys` independently rejects any of them if supplied, regardless of what TypeScript's own shape implies. */
+export interface RecordQuestionDispositionInput {
+  attemptId: string;
+  disposition: RecordableQuestionDispositionKind;
+  reason: string;
+}
+
+/**
+ * Records the immutable fact of one semantic re-evaluation of a terminal
+ * `RouteOutcome` — offline audit bookkeeping only; never computes the
+ * disposition itself, never executes a route, never touches
+ * `HumanAdjudication`/`RevisionAction`/`ReviewFinding`/`SemanticIssue`/the
+ * frozen artifact or context
+ * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9, §28).
+ *
+ * `attemptId` resolves the full chain — `RouteOutcome` -> `RouteAttempt` ->
+ * `RouteDecision` (via `resolveUniqueRouteDecisionById`, never a blind
+ * first match) -> registered `UnresolvedQuestion` — with every link
+ * independently re-checked, exactly the "never trust an upstream check for
+ * pre-existing state" posture this module takes everywhere else. The
+ * target question must already be current (an intrinsic precondition of
+ * this operation, not a retrofit onto a pre-existing API), and must have
+ * **exactly one** active deliberation cycle, which must be the exact
+ * `RouteDecision` this outcome terminates — `0`, `>1`, or a
+ * different-cycle result all reject; a legacy-inconsistent `>1` is never
+ * automatically reconciled. `ONE RouteOutcome -> AT MOST ONE
+ * QuestionDisposition`: a second disposition for an already-disposed
+ * outcome is rejected outright.
+ *
+ * Slice 2D-B2-A records only `STILL_OPEN`/`RESOLVED`; `SUPERSEDED_RECLASSIFIED`
+ * and `CROSS_SESSION` are rejected outright, not yet authorized.
+ */
+export function recordQuestionDisposition(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  input: RecordQuestionDispositionInput
+): DeliberationState {
+  verifyDeliberationBinding(session, deliberationState);
+  if (deliberationState.stopReason !== null) {
+    throw new Error('recordQuestionDisposition: deliberation has already stopped; no further QuestionDisposition may be recorded');
+  }
+  if (input === null || typeof input !== 'object') {
+    throw new Error('recordQuestionDisposition: input must be an object');
+  }
+  assertExactKeys(input, ['attemptId', 'disposition', 'reason'], 'recordQuestionDisposition');
+  assertNonEmptyString(input.attemptId, 'recordQuestionDisposition: attemptId');
+  if (!RECORDABLE_QUESTION_DISPOSITION_KINDS.includes(input.disposition)) {
+    throw new Error(`recordQuestionDisposition: invalid or unsupported disposition ${JSON.stringify(input.disposition)}`);
+  }
+  assertNonEmptyString(input.reason, 'recordQuestionDisposition: reason');
+
+  const matchingOutcomes = deliberationState.outcomes.filter((o) => o.attemptId === input.attemptId);
+  if (matchingOutcomes.length === 0) {
+    throw new Error(`recordQuestionDisposition: attemptId ${input.attemptId} does not resolve to any recorded RouteOutcome`);
+  }
+  if (matchingOutcomes.length > 1) {
+    throw new Error(
+      `recordQuestionDisposition: attemptId ${input.attemptId} resolves to more than one RouteOutcome -- inconsistent state`
+    );
+  }
+  const outcome = matchingOutcomes[0];
+
+  if (deliberationState.questionDispositions.some((d) => d.attemptId === outcome.attemptId)) {
+    throw new Error(`recordQuestionDisposition: the RouteOutcome for attemptId ${input.attemptId} already has a QuestionDisposition`);
+  }
+
+  const matchingAttempts = deliberationState.attempts.filter((a) => a.attemptId === outcome.attemptId);
+  if (matchingAttempts.length !== 1) {
+    throw new Error(`recordQuestionDisposition: outcome.attemptId ${outcome.attemptId} does not resolve to exactly one RouteAttempt`);
+  }
+  const attempt = matchingAttempts[0];
+
+  const decision = resolveUniqueRouteDecisionById(deliberationState, attempt.decisionId, 'recordQuestionDisposition');
+  if (decision.route === 'STOP') {
+    throw new Error('recordQuestionDisposition: STOP has no RouteAttempt/RouteOutcome/QuestionDisposition');
+  }
+  if (decision.questionId !== attempt.questionId) {
+    throw new Error('recordQuestionDisposition: recorded decision questionId does not match the attempt questionId');
+  }
+  if (outcome.decisionId !== decision.id) {
+    throw new Error('recordQuestionDisposition: outcome.decisionId does not match the resolved decision');
+  }
+  if (outcome.originatingQuestionId !== decision.questionId) {
+    throw new Error('recordQuestionDisposition: outcome.originatingQuestionId does not match the resolved decision questionId');
+  }
+  if (outcome.route !== attempt.route || attempt.route !== decision.route) {
+    throw new Error('recordQuestionDisposition: route is inconsistent across outcome/attempt/decision');
+  }
+
+  const questionId = decision.questionId;
+  if (typeof questionId !== 'string' || questionId.length === 0) {
+    throw new Error('recordQuestionDisposition: resolved decision has no non-empty questionId');
+  }
+  const matchingQuestions = deliberationState.unresolvedQuestions.filter((q) => q.id === questionId);
+  if (matchingQuestions.length !== 1) {
+    throw new Error(
+      `recordQuestionDisposition: questionId ${questionId} does not resolve to exactly one registered UnresolvedQuestion`
+    );
+  }
+
+  if (attempt.sessionId !== deliberationState.sessionId || attempt.sessionId !== session.id) {
+    throw new Error('recordQuestionDisposition: attempt.sessionId does not match the current session/DeliberationState binding');
+  }
+  if (attempt.artifactHash !== deliberationState.artifactHash || attempt.artifactHash !== session.artifactHash) {
+    throw new Error('recordQuestionDisposition: attempt.artifactHash does not match the current session/DeliberationState binding');
+  }
+  if (attempt.authorContextHash !== deliberationState.authorContextHash || attempt.authorContextHash !== session.authorContextHash) {
+    throw new Error('recordQuestionDisposition: attempt.authorContextHash does not match the current session/DeliberationState binding');
+  }
+  if (
+    outcome.sessionId !== attempt.sessionId ||
+    outcome.artifactHash !== attempt.artifactHash ||
+    outcome.authorContextHash !== attempt.authorContextHash
+  ) {
+    throw new Error("recordQuestionDisposition: outcome's session/hash binding does not match the attempt it terminates");
+  }
+
+  if (!isQuestionCurrent(deliberationState, questionId)) {
+    throw new Error(`recordQuestionDisposition: question ${questionId} is not current`);
+  }
+  const activeForDisposition = getActiveRouteDecisionsForQuestion(deliberationState, questionId);
+  if (activeForDisposition.length === 0) {
+    throw new Error(`recordQuestionDisposition: question ${questionId} has no active deliberation cycle`);
+  }
+  if (activeForDisposition.length > 1) {
+    throw new Error(
+      `recordQuestionDisposition: question ${questionId} has more than one active deliberation cycle -- inconsistent legacy state`
+    );
+  }
+  if (activeForDisposition[0].id !== decision.id) {
+    throw new Error(
+      `recordQuestionDisposition: question ${questionId}'s active deliberation cycle is a different RouteDecision than the one this outcome terminates`
+    );
+  }
+
+  verifyDeliberationBinding(session, deliberationState);
+
+  const newDisposition: QuestionDisposition = {
+    attemptId: outcome.attemptId,
+    questionId,
+    sessionId: attempt.sessionId,
+    artifactHash: attempt.artifactHash,
+    authorContextHash: attempt.authorContextHash,
+    disposition: input.disposition,
+    reason: input.reason,
+    createdAt: nowIso(),
+  };
+
+  return {
+    ...deliberationState,
+    questionDispositions: [...deliberationState.questionDispositions, newDisposition],
+  };
+}
+
 /**
  * Pure logical-call accounting — never a transport-retry primitive.
  * transportMaxRetries is deliberately not imported or referenced anywhere
@@ -1224,6 +1626,18 @@ export function createContextRequest(
   }
   if (registered.inputRefs.length === 0) {
     throw new Error(`createContextRequest: registered question ${input.questionId} has no inputRefs`);
+  }
+  if (!isQuestionCurrent(deliberationState, input.questionId)) {
+    throw new Error(`createContextRequest: question ${input.questionId} is not current`);
+  }
+  // ContextRequest -> RouteAttempt binding remains deferred (not designed
+  // here), so 0 or 1 active cycles both remain allowed; only a
+  // legacy-inconsistent >1 is rejected.
+  const activeForContextRequest = getActiveRouteDecisionsForQuestion(deliberationState, input.questionId);
+  if (activeForContextRequest.length > 1) {
+    throw new Error(
+      `createContextRequest: question ${input.questionId} has more than one active deliberation cycle -- inconsistent legacy state`
+    );
   }
   if (!AUTHOR_CONTEXT_CATEGORIES.includes(input.category)) {
     throw new Error(`createContextRequest: unknown category ${JSON.stringify(input.category)}`);
