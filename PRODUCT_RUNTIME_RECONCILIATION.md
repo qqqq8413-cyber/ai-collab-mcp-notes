@@ -10,23 +10,25 @@ Refs inspected:
 
 `merge-base(A, B) == A` — B is a linear 98-commit descendant of A, never rebased. C is a separate, unrelated descendant of A (the Stress Test MVP domain layer); C and B share no commits beyond A.
 
+This document was amended after GPT (Architecture / Decision Owner) reviewed the Phase 1 draft and issued final architecture disposition decisions. The amendments are recorded throughout; §3 carries the authoritative disposition matrix and supersedes the draft's separate PORT_CANDIDATE / RESEARCH_ONLY / REQUIRES_REDESIGN tables.
+
 ---
 
 ## 1. Executive architecture conclusion
 
-**The core finding of this inventory reframes the question the packet asks.** The packet asks what should be *ported from* the M2-A runtime *into* the product line. But inspection of `src/**` shows the M2-A collaboration mechanism — the gate, targeted Round 2, decision synthesis, neutrality guard, deterministic chunk map, replay/frozen-Round1 helpers, call ceilings — **is already on `main`**, already compiled into the same `src/agents/collaboration.ts` and `src/modes/orchestrator.ts` that the Stress Test branch (C) was cut from, and already covered by 105 passing tests in `test-collaboration.mjs` that run on every `npm test` today, on both A and C. It is reachable right now through the MCP tool schema (`src/index.ts`, the `experimental.collaboration` input) by any caller of the `ai-collab-mcp` tool.
+**Two separate questions must not be collapsed into one.** The first is *where a capability's code currently lives* — already on `main`, or only on `experimental/m2a-peer-challenge`. The second is *what architecture disposition that capability has in the future CHIEF/Stress Test convergence* — whether the underlying concept is wanted, and separately, whether any concrete implementation is authorized to move anywhere right now. **"Already on `main`" answers only the first question and settles nothing about the second.** This document previously blurred that line by treating "already shipped, already tested" as if it implied "no further architecture decision needed" for some items, and by treating "new on experimental" as if it implied "portable" for others. Both were wrong, and §3 corrects it with a single authoritative matrix that scores every material capability on architecture disposition independent of where its code happens to sit today.
 
-So this is not a research-to-product migration. It is a **narrower reconciliation of a small delta** that experimental/m2a-peer-challenge (B) accumulated on top of an already-shared foundation, plus a large, clearly-bounded body of M2-B/CBRP research that never touched `src/` at all and was never meant to.
+The empirical finding about code location stands and is worth preserving: the M2-A collaboration mechanism — the gate, targeted Round 2, decision synthesis, neutrality guard, deterministic chunk map, replay/frozen-Round1 helpers, call ceilings — **is already on `main`**, compiled into the same `src/agents/collaboration.ts` and `src/modes/orchestrator.ts` that the Stress Test branch (C) was cut from, and already covered by 105 passing tests in `test-collaboration.mjs` that run on every `npm test` today, on both A and C. It is reachable right now through the MCP tool schema (`src/index.ts`, the `experimental.collaboration` input) by any caller of the `ai-collab-mcp` tool, default OFF.
 
 The actual `src/**` delta between A and B is 6 files, 189 changed lines, three independent changes:
 
-1. **A pure refactor** (`runPlanningStage` / `runRound1Stage` extracted out of `runOrchestrator` in `orchestrator.ts`) — documented and tested as zero behavior change, existing purely so a caller can obtain a genuine production Round 1 without triggering synthesis.
-2. **A small opt-in transport primitive** (`transportMaxRetries` on `CallOptions`, implemented in `claude.ts`/`openai.ts`, explicitly a no-op on `gemini.ts`) — forbids SDK-level retries for a caller that needs "one logical call" to mean "one HTTP attempt." Default (`undefined`) leaves every existing caller's behavior untouched.
-3. **A prompt-wording refinement** to the peer-challenge eligibility rule inside `buildGateAppendix()` in `collaboration.ts` — not a new mechanism, a correction to the already-shipped one's instructions, validated by 4 new tests and by one round of live evidence (Controlled Replay #4, §10).
+1. A refactor (`runPlanningStage` / `runRound1Stage` extracted out of `runOrchestrator` in `orchestrator.ts`) — documented and tested as zero behavior change, existing purely so a caller can obtain a genuine production Round 1 without triggering synthesis. **The stage-boundary concept is architecturally endorsed (§3, §7); no concrete implementation move is authorized in this phase.**
+2. An opt-in transport primitive (`transportMaxRetries` on `CallOptions`, implemented in `claude.ts`/`openai.ts`, explicitly a no-op on `gemini.ts`) — forbids SDK-level retries for a caller that needs "one logical call" to mean "one HTTP attempt." **This concrete API is RESEARCH_ONLY (§3) — it was built specifically for M2-B capture accounting and is not recommended for product/`main`.** The general principle it embodies — that logical-deliberation-call accounting and transport-retry accounting are distinguishable concerns — is preserved as a design note, separate from the API itself.
+3. A prompt-wording refinement to the peer-challenge eligibility rule inside `buildGateAppendix()` in `collaboration.ts` — validated by 4 new tests and by one round of live evidence (Controlled Replay #4, §9). **This wording is retained as validated reference material on `experimental/m2a-peer-challenge`. It is explicitly not recommended for `main` now (§6): the next phase redesigns deliberation eligibility from scratch under Minimum Necessary Deliberation, and freezing the old CHIEF gate policy into `main` immediately beforehand would pre-empt that redesign.**
 
-Everything else that makes the 98-commit history look large — `experiments/m2b/**` (CBRP census, duplicate-audit, acquisition harness, four evaluation arms, hundreds of fixture/capture files) and six large prose documents (`CURRENT_STATE.md`, `HANDOFF.md`, `M2_EFFECTIVENESS_EXPERIMENT.md`, two `GEMINI_M2B_REVIEW_PACKET*.md`, `WAVE1_PREFLIGHT_REVIEW.md`, 14,338 inserted lines combined) — is research scaffolding that, **by its own design documents' explicit mandate** (`M2_EFFECTIVENESS_EXPERIMENT.md` §23.4: *"harness 維持 `src/` zero-change,全部放 `experiments/m2b/`"*), never touches production source and was never live-authorized.
+Everything else that makes the 98-commit history look large — `experiments/m2b/**` (CBRP census, duplicate-audit, acquisition harness, four evaluation arms, hundreds of fixture/capture files) and six large prose documents (`CURRENT_STATE.md`, `HANDOFF.md`, `M2_EFFECTIVENESS_EXPERIMENT.md`, two `GEMINI_M2B_REVIEW_PACKET*.md`, `WAVE1_PREFLIGHT_REVIEW.md`, 14,338 inserted lines combined) — is research scaffolding that, by its own design documents' explicit mandate (`M2_EFFECTIVENESS_EXPERIMENT.md` §23.4: *"harness 維持 `src/` zero-change,全部放 `experiments/m2b/`"*), never touches production source and was never live-authorized. Its disposition is unchanged by this amendment: RESEARCH_ONLY or DO_NOT_PORT (§3), and the CBRP acquisition path specifically is TERMINAL/CLOSED (§8) — a status distinct from, and not to be confused with, the still-unanswered scientific question the M2-B experiment was designed to investigate (§8).
 
-**Recommendation in one sentence:** treat the orchestrator refactor and the transport primitive as low-risk, immediately portable mechanism; treat the collaboration-gate wording fix and the entire question of whether decision-synthesis-style collaboration belongs in the Stress Test product line as one open architecture question for GPT (§11); treat everything under `experiments/m2b/` and the six prose documents as research, not to be revived or ported, per §11 of the governing packet.
+**No concrete code, test, or prompt is authorized to move to `main` or anywhere else in this phase.** This document performs no port.
 
 ---
 
@@ -45,102 +47,172 @@ Everything else that makes the 98-commit history look large — `experiments/m2b
 
 Note on `diagnostics/m2a-live/controlled-replay/` (no `-4` suffix): this is an earlier replay (`#3`) already present on `main`. `experimental/m2a-peer-challenge` reuses its five fixtures byte-for-byte for Replay #4 rather than authoring new ones (`README.md` line 19: *"五份 fixture 直接取自 Replay #3,沒有修改"*) — one more point of evidence that the collaboration/replay mechanism itself predates this branch's delta.
 
-**Source-of-truth discipline note:** `CURRENT_STATE.md`'s own `stateVerifiedThrough` field pins it to `ffbe0b26e5a8ddd927d0ff936d16fccee18dcbeb` — a commit *before* the collaboration-wording change, the `transportMaxRetries` primitive, and Controlled Replay #4 all landed. The document says so itself: *"CURRENT_STATE.md 對 live branch HEAD 不具權威性"* (not authoritative for the live branch HEAD). This inventory's classification is built from `git diff`, test files, and the `diagnostics/m2a-live/controlled-replay-4/` artifacts — never from that stale prose — exactly per the packet's §3 source-of-truth rule. This is worth flagging because it is a concrete, present-tense instance of the failure mode §3 warns against, not a hypothetical one.
+**Source-of-truth discipline note:** `CURRENT_STATE.md`'s own `stateVerifiedThrough` field pins it to `ffbe0b26e5a8ddd927d0ff936d16fccee18dcbeb` — a commit *before* the collaboration-wording change, the `transportMaxRetries` primitive, and Controlled Replay #4 all landed. The document says so itself: *"CURRENT_STATE.md 對 live branch HEAD 不具權威性"* (not authoritative for the live branch HEAD). This inventory's classification is built from `git diff`, test files, and the `diagnostics/m2a-live/controlled-replay-4/` artifacts — never from that stale prose. This is worth flagging because it is a concrete, present-tense instance of the failure mode the governing packet's source-of-truth rule warns against, not a hypothetical one.
 
 ---
 
-## 3. Runtime capability inventory
+## 3. Authoritative capability disposition matrix
 
-Evaluated against every item in the packet's §5 checklist. "Status" records where the capability actually lives today, established from code, not prose.
+This is GPT's final Phase 1 disposition. It is applied literally, not reinterpreted. Two columns are kept separate throughout this document: **current code location** (a fact about this repository today) and **architecture disposition** (GPT's decision about the concept's future). A row can be `PORT_CANDIDATE` at the concept level while its concrete implementation remains unauthorized to move — that distinction is preserved explicitly wherever it applies, most importantly for the two items marked `NOT AUTHORIZED IN THIS PHASE`.
 
-| Capability | Already on `main`? | New in B beyond `main`? | Notes |
-|---|---|---|---|
-| Pre-synthesis / synthesis collaboration gate (`synthesis_gate` stage, `runSynthesisStage`) | Yes | No | Full implementation, prompt construction, and 105 tests already on `main` |
-| Provisional answer handling (`provisionalAnswer`, `AnswerSource`) | Yes | No | — |
-| Deterministic chunk map / `sourceRef` resolution (`segmentAll`, `resolveSourceRef`) | Yes | No | — |
-| Targeted peer-context construction (`buildPeerExcerpt`, `buildRound2Prompt`) | Yes | No | — |
-| Round2 max-one selection (`selectIssue`, `isRound2Eligible`) | Yes | No | — |
-| Round2 provider execution (`round2_worker` stage) | Yes | No | — |
-| Round2 retrieval-OFF invariant | Yes | No | Verified again live in Replay #4 (§10) |
-| Decision Synthesis (`decision_synthesis` stage) | Yes | No | — |
-| Neutrality guard (no forced consensus) | Yes | No | Verified again live in Replay #4 |
-| Collaboration reporting (`CollaborationReport`, timings) | Yes | No | — |
-| Fallback semantics (gate/R2/decision failure paths) | Yes | No | — |
-| Call ceilings (`N + 4` for DEEP) | Yes | No | Enforced in `policy.ts`/`collaboration.ts`, unchanged by B |
-| Replay / frozen-Round1 helpers (`replaySynthesis`, `Round1Snapshot`, `toRound1Snapshot`) | Yes | No | Reused verbatim by Replay #4's harness |
-| **Round1-stage extraction** (`runPlanningStage`, `runRound1Stage`) | **No** | **Yes** | The one genuinely new orchestrator capability; pure refactor, documented zero-behavior-change |
-| **`transportMaxRetries` transport primitive** | **No** | **Yes** | Opt-in, default no-op, isolated to `claude.ts`/`openai.ts` |
-| **Peer-challenge eligibility wording** (`buildGateAppendix()` text) | prior wording on `main` | **refined wording on B** | Same mechanism, corrected instructions; not a new gate |
-| Diagnostic harnesses (`diagnostics/m2a-live/controlled-replay-4/*`) | No | Yes (evidence only) | One-shot captured evidence + a sealed offline verifier; not runtime |
-| M2-B experiment arms (B/B′/C/D, `experiments/m2b/harness/arms.mjs`) | No | Yes | Explicitly harness-only, explicitly forbidden from entering `src/` by its own protocol (§23.4) |
-| Acquisition fixtures / candidate pools (`experiments/m2b/fixtures*/`, `candidates*/`) | No | Yes | Data, not code; ~40% of the raw diff by line count |
-| CBRP census / duplicate audit (`experiments/m2b/census/**`) | No | Yes | Already formally closed this session (CWP-12H); no bearing on this inventory beyond confirming it never touched `src/` |
-| Prompt/schema changes made only to make M2-A testable | No | One instance (see below) | — |
-
-**The one "testability-only" schema change worth naming precisely:** `CallOptions.transportMaxRetries` exists *only* because the M2-B capture path needed a guarantee that one logical call costs at most one HTTP attempt when a real budget is on the line. It is documented as such in `types.ts` itself. It is a legitimate, narrow, opt-in primitive — not a schema contortion — but its only current caller is research code (`experiments/m2b/capture/*`).
-
----
-
-## 4. PORT_CANDIDATE
-
-| Capability | Source | Why |
+| Capability (concept) | Current code location | Architecture disposition |
 |---|---|---|
-| `runPlanningStage` / `runRound1Stage` extraction | `src/modes/orchestrator.ts` | Pure refactor of already-shipped code; the diff's own docstrings assert and the parity tests in `test-planning-stage.mjs` (26 tests) and the bulk of `experiments/m2b/test-round1-boundary.mjs` prove zero behavior change, including clock-read parity. Reusable outside any experiment: any future caller needing "a genuine Round 1 without committing to synthesis" — which is exactly the shape a future Stress Test "acquire one reviewer pass" primitive would need — benefits from this being one function instead of an inline half of a larger one. Makes no provider-call-count or evidence/retrieval change. |
-| `transportMaxRetries` on `CallOptions` | `src/providers/types.ts`, `claude.ts`, `openai.ts` | Small, isolated, opt-in, default-inert primitive. Reusable outside M2-B: any future live acquisition path in the Stress Test product (§9) that needs an auditable "N logical calls = N HTTP attempts" guarantee would want this rather than reinventing it. Does not touch evidence/retrieval semantics. |
-| The 26 tests in `test-planning-stage.mjs` | root | Deterministic, offline, stub-only; validates the mechanism above; no reason to leave behind if the mechanism ports |
+| Collaboration gate mechanism | Already on `main` (`synthesis_gate` stage, `runSynthesisStage`) | **PORT_CANDIDATE** |
+| Current eligibility policy (DEEP + SUCCESS + N≥2) | Already on `main` / exercised as-is in Replay #4 | **REQUIRES_REDESIGN** |
+| Provisional answer / "last defensible checkpoint" | Already on `main` (`provisionalAnswer`, `AnswerSource`) | **PORT_CANDIDATE** |
+| Deterministic provenance / source-reference principle | Already on `main` (`segmentAll`, `resolveSourceRef`) | **PORT_CANDIDATE** |
+| Current paragraph-based `p1`/`p2`/... source identity | Already on `main` | **REQUIRES_REDESIGN** |
+| Targeted peer context | Already on `main` (`buildPeerExcerpt`, `buildRound2Prompt`) | **PORT_CANDIDATE** |
+| Bounded Round2 / prohibition on unbounded autonomous deliberation loops | Already on `main` | **PORT_CANDIDATE** |
+| Universal/permanent max-one Round2 policy | Already on `main` (`selectIssue`, "at most one `peer_challenge`") | **REQUIRES_REDESIGN** |
+| Round2 execution capability | Already on `main` (`round2_worker` stage) | **PORT_CANDIDATE** |
+| Per-stage retrieval control | Already on `main` (`retrieval` on `CallOptions`, evidence-capable gating) | **PORT_CANDIDATE** |
+| M2-A unconditional Round2 retrieval-OFF policy | Already on `main`; re-verified live in Replay #4 | **RESEARCH_ONLY / REQUIRES_REDESIGN** |
+| Post-challenge Decision Synthesis mechanism | Already on `main` (`decision_synthesis` stage) | **PORT_CANDIDATE** |
+| Decision Synthesis as final decision authority | Already on `main`'s current wiring (nothing downstream re-gates it against a human) | **REQUIRES_REDESIGN** — see §5 for the binding boundary |
+| Neutrality principle (no forced consensus) | Already on `main` | **PORT_CANDIDATE** |
+| Prompt-only neutrality enforcement | Already on `main` (the guarantee is instructional text, not a structural check) | **REQUIRES_REDESIGN** |
+| Collaboration reporting / observability concepts | Already on `main` (`CollaborationReport`, timings) | **PORT_CANDIDATE** |
+| Fallback semantics (gate/R2/decision failure paths) | Already on `main` | **PORT_CANDIDATE** |
+| Bounded call / termination ceiling principle | Already on `main` | **PORT_CANDIDATE** |
+| Fixed `N + 4` as a universal, product-wide policy | Already on `main` (`policy.ts`) | **REQUIRES_REDESIGN** |
+| `runPlanningStage` / `runRound1Stage` stage-boundary concept | New on B (`orchestrator.ts`) | **PORT_CANDIDATE** (concept) |
+| Concrete implementation port of `runPlanningStage` / `runRound1Stage` | New on B, not on `main` or C | **NOT AUTHORIZED IN THIS PHASE** |
+| `transportMaxRetries` | New on B (`types.ts`, `claude.ts`, `openai.ts`) | **RESEARCH_ONLY** |
+| `Round1Snapshot` / `replaySynthesis` / frozen experimental replay helpers | Already on `main` | **RESEARCH_ONLY** |
+| Controlled replay diagnostics and evidence artifacts (`diagnostics/m2a-live/controlled-replay-4/*`) | New on B, evidence only | **RESEARCH_ONLY** |
+| M2-B arms B / B′ / C / D1 (`experiments/m2b/harness/arms.mjs` and dependents) | New on B | **RESEARCH_ONLY** |
+| CBRP / duplicate-audit / acquisition / replacement machinery (`experiments/m2b/census/**`) | New on B | **DO_NOT_PORT** |
 
-Both of the above are **mechanism**, not policy: neither changes what the product does today, both are inert until a caller opts in, and porting them requires no decision about collaboration, peer challenge, or M2-A as a feature.
-
----
-
-## 5. RESEARCH_ONLY / DO_NOT_PORT
-
-| Item | Classification | Why |
-|---|---|---|
-| `experiments/m2b/harness/arms.mjs` (B/B′/C/D arm runners) | RESEARCH_ONLY | Explicitly a harness over the *existing* production gate/R2/decision-synthesis mechanism; measures it, does not extend it. Its own header pins it to protocol §3.1 and forbids entering `src/` |
-| `experiments/m2b/harness/a2-acquisition.mjs`, `fixtures.mjs`, `invariants.mjs`, `prompts.mjs` | RESEARCH_ONLY | Fixture/acquisition/invariant machinery for the arms above; `prompts.mjs`'s own header: *"arm D is a control, not a candidate feature, so it must not enter the production code path"* |
-| `experiments/m2b/capture/run-live.mjs`, `runner.mjs`, `capture-verify.mjs`, `parity.mjs` | RESEARCH_ONLY / DO_NOT_PORT | Real Round-1 capture path for M2-B; spends money by design; gated behind an explicit confirmation flag; not part of `npm test` |
-| `experiments/m2b/census/**` (CBRP duplicate-audit, structural review, authoring rounds) | RESEARCH_ONLY, formally closed | Closed this session via CWP-12H; explicitly not to be reopened per this packet's §11 and §15 |
-| `experiments/m2b/fixtures*/`, `candidates*/` (raw data) | DO_NOT_PORT | Data, not runtime; ~50%+ of the raw diff's line count; no code dependency from `src/**` |
-| `diagnostics/m2a-live/controlled-replay-4/artifact.json`, `attempt.json`, `control-before.json`, `control-after.json`, `hashes.json`, `preflight.json`, `npm-test-*.log` | RESEARCH_ONLY (frozen evidence) | Captured data from one live run; valuable as evidence (§10), not as runtime |
-| `diagnostics/m2a-live/controlled-replay-4/control.mjs`, `harness.mjs`, `verify.mjs` | RESEARCH_ONLY | Diagnostic scripts specific to replaying and verifying that one capture; `harness.mjs` is a one-shot recorder wrapping the *already-shipped* `replaySynthesis`, adding nothing new to runtime |
-| `CURRENT_STATE.md`, `HANDOFF.md` (extension), `M2_EFFECTIVENESS_EXPERIMENT.md`, `GEMINI_M2B_REVIEW_PACKET.md`, `GEMINI_M2B_REVIEW_PACKET_2.md`, `WAVE1_PREFLIGHT_REVIEW.md` | RESEARCH_ONLY (methodology/governance prose) | Lowest priority per §3; useful for narrative context only; `CURRENT_STATE.md` is demonstrably stale relative to B's own HEAD (§2 note) |
-
-## 6. REQUIRES_REDESIGN
-
-| Item | Issue | What redesign would mean |
-|---|---|---|
-| `experiments/m2b/test-round1-boundary.mjs` | Structurally split: ~90% of its tests (Round 1 boundary, production-object identity, failure semantics, timing contract, planning/Round1 parity) are genuine acceptance tests of the now-`main`-eligible `runPlanningStage`/`runRound1Stage` extraction and belong beside `test-planning-stage.mjs` at the repository root. Its final test ("Historical control integrity") pulls in `experiments/m2b/capture/control-recheck.mjs` and the sealed `controlled-replay-4/control.mjs` — a legitimate but M2-B-specific regression fingerprint that should stay research-side. | A future port would split the file rather than move or leave it whole: production-boundary tests move to root; the historical-control test and its dependency stay under `experiments/m2b/`, decoupled from whatever ships |
-| The gate-eligibility wording change in `buildGateAppendix()` | Technically a strict improvement to an already-shipped prompt, validated by 4 tests and one live replay — but "port the wording fix" implicitly reopens "is collaboration/peer-challenge part of this product line at all," which is not a wording question. See open question in §11. | Not a redesign of the code itself (it is a two-paragraph prompt diff); the redesign question is architectural: whether the surrounding feature belongs in the product, which the wording fix cannot answer by itself |
-| The "hash-pinned control regression" pattern (`control-recheck.mjs` / `HISTORICAL_CONTROL_SHA256`) | The specific implementation is M2-B-coupled (sealed to one historical capture), but the underlying idea — freeze a byte-identical fingerprint of a disabled/control path so a refactor can prove it did not move the behavior — is a sound general regression-safety pattern | Worth noting, not adopting as-is. The Stress Test domain layer already independently arrived at an analogous but distinct pattern this session (`verifyFrozenInputIntegrity` — a runtime tamper-check, not a build-time regression fingerprint) for a different problem (frozen input integrity, not behavior-preservation across a refactor). No import is needed; flagged only so the convergence is visible to GPT. |
-
----
-
-## 7. Dependency graph (PORT_CANDIDATEs only)
-
-**`runPlanningStage` / `runRound1Stage`** (`src/modes/orchestrator.ts`)
-- Depends on: `enforceConstraints`, `buildRunReport`, `callProvider` (all already on `main`, unchanged)
-- Depends on other experimental changes: none — the extraction is self-contained within `orchestrator.ts`
-- Already on `main`: the code it wraps (planning call, worker dispatch, `buildRunReport`) — yes, everything except the two new exported functions themselves
-- Isolable cleanly: yes — it is additive; `runOrchestrator`'s external behavior and signature are unchanged (confirmed by `test-collaboration.mjs` passing unmodified on both A and, hypothetically, after this port)
-- Requires modifying the Stress Test Slice-1 contract: no — `src/stress-test/**` does not import `src/modes/orchestrator.ts` at all today
-- Makes provider calls: no by itself — it calls the injected `call` parameter exactly as `runOrchestrator` already did; porting it makes zero new calls
-- Touches evidence/retrieval semantics: no — retrieval attachment logic (`worker.evidenceCapable ? { retrieval: ... } : {}`) is copied verbatim, not altered
-
-**`transportMaxRetries`** (`src/providers/types.ts`, `claude.ts`, `openai.ts`)
-- Depends on: nothing beyond the provider SDKs already in `package.json`
-- Depends on other experimental changes: none
-- Already on `main`: the `CallOptions` interface and the two provider functions it extends — yes, in unmodified form
-- Isolable cleanly: yes — a single optional field with a documented default of "leave the SDK alone"
-- Requires modifying the Stress Test Slice-1 contract: no
-- Makes provider calls: no — it changes retry behavior of calls a caller already makes, not whether a call happens
-- Touches evidence/retrieval semantics: no
-
-Both port candidates have an **empty dependency edge into `experiments/m2b/**`** — neither requires anything from the research tree to compile, type-check, or pass its own tests. This is the single clearest signal that they are mechanism, not experiment scaffolding.
+Notes on scope, per the governing packet:
+- Tests are not scored as independent capabilities. `test-planning-stage.mjs` (26 tests) and the majority of `experiments/m2b/test-round1-boundary.mjs` are verification payload for the `runPlanningStage`/`runRound1Stage` concept row above, not separate matrix entries. The 4 new `test-collaboration.mjs` tests are verification payload for the eligibility-wording change (§6), not a separate entry.
+- `experiments/m2b/fixtures*/`, `candidates*/`, and the raw census data under `experiments/m2b/census/**` are data, not capabilities, and carry the same **DO_NOT_PORT** disposition as the CBRP row above; they are the majority of the raw diff's line count and have no code dependency from `src/**`.
+- `CURRENT_STATE.md`, the `HANDOFF.md` extension, `M2_EFFECTIVENESS_EXPERIMENT.md`, both `GEMINI_M2B_REVIEW_PACKET*.md`, and `WAVE1_PREFLIGHT_REVIEW.md` are methodology/governance prose, not runtime capabilities. They remain useful narrative context (lowest priority per the source-of-truth rule) and are not part of this disposition matrix.
+- The `experiments/m2b/capture/` live-spend scripts (`run-live.mjs`, `runner.mjs`) and their verification counterparts (`capture-verify.mjs`, `parity.mjs`) fall under the same RESEARCH_ONLY disposition as the M2-B arms row: they exist to acquire and verify data for arms B/B′/C/D and are gated behind an explicit confirmation flag, outside `npm test`.
 
 ---
 
-## 8. Product mapping to Stress Test
+## 4. Product convergence decision
+
+Recorded as an architecture decision, not a proposal:
+
+- The **original CHIEF runtime** (planning, worker dispatch, the collaboration/gate/Round2/decision-synthesis machinery already on `main`) is the **underlying deliberation engine** — a substrate, not a product.
+- **Pre-Submission Stress Test** is the **first concrete product use case** built on that substrate.
+- The product value proposition is explicitly **not** "multi-agent collaboration." It remains, unchanged from `PRE_SUBMISSION_STRESS_TEST_MVP.md`: *"Before you send this artifact, know which parts you cannot defend."*
+- Targeted Peer Challenge is **one possible route** inside a larger concept — **Minimum Necessary Deliberation** — not the product itself, and not something to be resolved by asking whether it "belongs entirely" in Stress Test or should be "superseded." That binary framing is rejected: the correct frame is that Targeted Peer Challenge is a candidate route among several, to be selected only when it is the minimum deliberation necessary, never a default mode of operation.
+
+The conceptual future routing set (conceptual architecture only — **not implemented in this phase**):
+
+```
+STOP
+ADD_CONTEXT
+ADD_REVIEWER
+REPLICATE
+SEEK_EVIDENCE
+TARGETED_PEER_CHALLENGE
+```
+
+This routing set is the charter for Phase 2 (§13). No eligibility rule, state machine, or schema for it is defined here.
+
+---
+
+## 5. Decision Synthesis authority boundary
+
+The existing `decision_synthesis` mechanism (already on `main`) is architecturally useful and is scored `PORT_CANDIDATE` at the mechanism level (§3). But its *current wiring as final decision authority* is scored `REQUIRES_REDESIGN`, and the boundary below is binding on any future integration, not a suggestion.
+
+A future Decision Synthesis step **may**:
+- reconcile review information across sources,
+- qualify a `SemanticIssue` (e.g. narrow, sharpen, or contextualize it),
+- preserve unresolved disagreement rather than force consensus,
+- compare competing reviewer claims,
+- update evidence/provenance interpretation.
+
+A future Decision Synthesis step **may not**:
+- create `HumanAdjudication` authority,
+- authorize artifact edits,
+- bypass `actionChange=YES`,
+- independently authorize a `RevisionAction`,
+- replace the product `DecisionRecord`'s human-grounded audit meaning.
+
+The authoritative product boundary, unchanged and non-negotiable, is:
+
+```
+HumanAdjudication.actionChange = YES
+  →  RevisionAction
+```
+
+Reviewer or model output — including a Decision Synthesis output, however well-reconciled — never by itself authorizes revision. This is the same boundary Slice 1's `planRevisionAction` already enforces in code (`src/stress-test/session.ts`, hardened this session): at least one `RevisionSourceRef` must resolve to a `HumanAdjudication` with `actionChange=YES`, and `judgment` values are explicitly not wired to authorize anything by themselves. Nothing in this reconciliation weakens that gate, and nothing proposed for Phase 2 is permitted to weaken it either.
+
+---
+
+## 6. Gate wording decision
+
+The refined peer-challenge eligibility wording on `experimental/m2a-peer-challenge` (the `buildGateAppendix()` diff validated by 4 tests and by Controlled Replay #4, §9) is **retained as validated reference material and evidence source**.
+
+**It is not recommended for `main` now.** Reason: the next architecture phase (§13) redesigns deliberation routing and eligibility from scratch under Minimum Necessary Deliberation. Porting the old CHIEF gate's eligibility wording into `main` immediately before that redesign would freeze a policy that Phase 2 is expected to replace, not refine further. `experimental/m2a-peer-challenge` remains the validated reference implementation and evidence source for whatever Phase 2 designs next; it is not merged, cherry-picked, or otherwise modified by this decision.
+
+---
+
+## 7. `runPlanningStage` / `runRound1Stage` decision
+
+**Architecture concept: `PORT_CANDIDATE`.**
+
+Reason: explicit stage boundaries — the ability to perform one stage, inspect the resulting state, decide whether more deliberation is justified, and stop without forcing synthesis — are exactly the shape a future adaptive routing layer (§4's routing set) needs. A monolithic `runOrchestrator` that always continues into synthesis cannot support `STOP`, `ADD_REVIEWER`, or any of the other routes as first-class outcomes; a caller needs to be able to hold a completed Round 1 in hand and decide.
+
+**Concrete implementation: `NOT AUTHORIZED IN THIS PHASE`.** No port of `runPlanningStage`/`runRound1Stage` (or their accompanying `test-planning-stage.mjs`) into `main`, C, or anywhere else is performed or recommended as an immediate next step by this document. Implementation remains deferred until a later, explicitly authorized integration phase — most naturally the phase that actually builds the routing layer described in §4/§13, at which point the stage boundary's shape can be validated against real routing requirements rather than assumed in advance.
+
+Supporting technical facts (retained from the original inventory, offered as reference for whenever a future phase does authorize this port — not as a recommendation to act now):
+- Depends on: `enforceConstraints`, `buildRunReport`, `callProvider` (all already on `main`, unchanged); no dependency on anything under `experiments/m2b/`.
+- Isolable: additive to `orchestrator.ts`; `runOrchestrator`'s external behavior and signature are unchanged, per the diff's own docstrings and the parity tests in `test-planning-stage.mjs` and the bulk of `experiments/m2b/test-round1-boundary.mjs`.
+- Does not require modifying the Stress Test Slice-1 contract: `src/stress-test/**` does not import `src/modes/orchestrator.ts` today.
+- Does not itself change provider-call counts or evidence/retrieval semantics — it calls the same injected dispatcher `runOrchestrator` already did.
+
+---
+
+## 8. M2-B / CBRP status
+
+Two distinct things must not be conflated: the acquisition **path's** status, and the **scientific question** the path was built to investigate.
+
+**CBRP duplicate-audit acquisition path: TERMINAL / CLOSED.**
+- Protocol-1: FAILED CLOSED / TERMINAL.
+- Protocol-2: FAILED CLOSED / TERMINAL.
+- No Protocol-3 recovery is authorized.
+- The candidate pool is not frozen.
+- No retention or replacement of pool material is authorized.
+- `M-ACQ-01` remains **OPEN** — an unresolved acquisition item, not a decision to revisit it.
+
+This reconciliation does not reopen CBRP, does not characterize anything in this document as recovery authorization, and performs no acquisition, retention, or replacement action.
+
+**The scientific question — "does peer information provide incremental value beyond extra reasoning?" — is PARKED / UNANSWERED / NOT AUTHORIZED**, and is not resolved by the CBRP closure above, by Controlled Replay #4 (§9), or by this document. Replay #4 demonstrates the mechanism runs; it does not and cannot answer whether peer information helps, because the fixture's provisional answer was produced before Round 2 ran (§9). No M2-B effectiveness execution (B/B′/C/D1 or any successor design) is authorized by this document.
+
+---
+
+## 9. Controlled Replay #4 claim boundary
+
+Bounded to what the evidence actually supports.
+
+**Established (allowed claims):**
+- Under the one validated fixture/runtime condition exercised, the full downstream mechanism — gate → issue parsing → deterministic selection → `sourceRef` resolution → targeted Round 2 → decision synthesis — executed successfully once, end to end, against real `openai`/`gpt-5` provider calls (3 live calls: `synthesis_gate`, `round2_worker`, `decision_synthesis`; Planning and Round 1 were replayed from Replay #3's frozen, byte-verified snapshot, not re-run live).
+- The one authorized production change under test (the gate-eligibility wording in `buildGateAppendix()`) produced its intended effect: a `peer_challenge` was emitted even though the provisional synthesis had already proposed a compromise — the specific behavior the wording change was written to fix.
+- 16 offline before/after control captures (disabled/omitted collaboration path, across SIMPLE/NORMAL/DEEP × SUCCESS/DEGRADED/FAILED, minus impossible combinations) were byte-identical (`f50a7b2e...`), evidencing that the wording change did not alter the default-OFF path.
+- Offline suite grew 208 → 212 passed, 0 failed, with no existing assertion weakened.
+- Evidence/retrieval isolation held: all three live calls had `retrieval` null on both request and result.
+- The frozen Round 1 snapshot and its derived report were confirmed unchanged after the live run (`snapshotUnchanged`, `reportUnchanged`, `recomputedReportUnchanged` all true in the harness's own invariant block).
+- This supports, specifically: live reachability of the mechanism; issue parsing; deterministic `sourceRef` resolution; targeted Round 2; Decision Synthesis execution; the retrieval-OFF invariant under this one experiment; and fallback/reporting/evidence invariants where tested.
+
+**Not established, and not claimed by the evidence itself** (the source document is explicit on this point — `evaluation.md`'s own closing line: *"PASS 僅表示完整 downstream mechanism 在真實 provider calls 下跑通一次...不宣稱優於 baseline、品質提高、多模型優於單模型或應 productionize"*):
+- M2-A does not improve answer quality.
+- Multi-agent collaboration is not shown to be better than single-agent.
+- Peer information is not shown to add incremental value (the replay's own provisional-answer choice differed between #3 and #4 for reasons the document explicitly declines to attribute to peer interaction, since Round 2 had not yet run when the provisional answer was produced) — this is the same scientific question §8 records as PARKED.
+- M2-A is not recommended for default-ON.
+- M2-A is not recommended to run for `NORMAL` complexity as a matter of this evidence.
+- M2-A is not asserted production-ready.
+
+One live run, one fixture, one provider (`openai`/`gpt-5` for all three calls — the document notes cross-provider live collaboration was not exercised this round).
+
+---
+
+## 10. Product mapping to Stress Test
 
 ```
 StressTestSession                (src/stress-test/session.ts — exists today)
@@ -155,84 +227,63 @@ ReviewFinding[]                   (src/stress-test/types.ts — exists today, pr
 Semantic Consolidation             (createSemanticIssue — exists today, manual/test-authored clustering only)
  |
  v
-Incremental-value decision         (MISSING — no mechanism decides "is another pass worth it")
+Incremental-value decision         (MISSING — no mechanism decides "is another pass justified")
  |
  v
-optional additional reviewer / peer challenge   (mechanism EXISTS on main, in a different shape — see caution below)
+one of: STOP / ADD_CONTEXT / ADD_REVIEWER / REPLICATE / SEEK_EVIDENCE / TARGETED_PEER_CHALLENGE   (conceptual only — §4, §13; not implemented)
  |
  v
 Human Adjudication                 (src/stress-test/session.ts::adjudicate — exists today, exactly-one-per-target)
  |
  v
-RevisionAction                     (src/stress-test/session.ts::planRevisionAction — exists today, human-authorized only)
+RevisionAction                     (src/stress-test/session.ts::planRevisionAction — exists today, human-authorized only, bound by §5)
 ```
 
-**Where existing M2-A primitives could fit:**
-- `runPlanningStage`/`runRound1Stage`, if ported, is the closest existing analog to a future **Review Acquisition** primitive: "dispatch N independent workers against a task, get back N raw outputs, stop." A Stress Test acquisition step would still need its own adapter layer to turn a `WorkerRunResult` into a `ReviewFinding` (title, `artifactLocation`, `evidenceState`, `whyMaterial`, etc.) — that adapter does not exist anywhere in this repository today, on any branch.
-- `transportMaxRetries` would matter the moment Review Acquisition makes real provider calls under any per-session call budget worth auditing precisely.
+**Where existing M2-A concepts could eventually fit**, subject to the concrete-implementation gate in §7 and the authority boundary in §5:
+- The `runPlanningStage`/`runRound1Stage` stage-boundary concept is the closest existing analog to a future **Review Acquisition** primitive: "dispatch N independent workers against a task, get back N raw outputs, stop." A Stress Test acquisition step would still need its own adapter layer to turn a `WorkerRunResult` into a `ReviewFinding` (title, `artifactLocation`, `evidenceState`, `whyMaterial`, etc.) — that adapter does not exist anywhere in this repository today, on any branch.
+- Targeted Peer Challenge, Decision Synthesis, and the collaboration reporting concepts are candidate implementations of the `TARGETED_PEER_CHALLENGE` route in the conceptual routing set (§4) — one option among six, never the default, and always subordinate to §5's authority boundary. They are not "the optional additional reviewer step" by default; which route (if any) a given session takes is exactly what Phase 2 is charged with defining.
 
-**Where existing M2-A primitives do *not* fit without a real redesign decision, not just wiring:**
-- The **peer-challenge / Round2 / Decision Synthesis** chain is model-adjudicated: the synthesizer, not a human, decides whether disagreement is material and what the final answer says. Slice 1's `HumanAdjudication` is deliberately the opposite: a human judgment is the only thing that can authorize a `RevisionAction` (`planRevisionAction`'s `actionChange=YES` gate, added this session), and `judgment` values like `NEW_MATERIAL` are explicitly *not* wired to authorize anything by themselves. Reusing Decision Synthesis as "the optional additional reviewer / peer challenge" step would import model-adjudicated consensus into a product whose whole premise is that a human decides what is defensible. This is not a wiring problem; it is the open question in §11 below.
-- **Incremental-value decision** ("is a second pass worth it") has no code anywhere — not in `experiments/m2b/` (its arms are pre-registered fixed protocols, not an adaptive decision procedure) and not in `src/` (the DEEP-vs-normal-vs-simple complexity classification in `policy.ts` decides *specialist count*, not *whether to acquire a second review*). This is a genuinely missing product-specific primitive, not something to port from anywhere.
-
----
-
-## 9. Minimal recommended port set
-
-1. `runPlanningStage` / `runRound1Stage` extraction (`src/modes/orchestrator.ts`) — zero behavior change, no policy decision required, no dependency on anything under `experiments/m2b/`.
-2. `transportMaxRetries` (`src/providers/types.ts`, `claude.ts`, `openai.ts`) — same profile.
-3. The 26 offline tests in `test-planning-stage.mjs`, ported alongside #1 so the mechanism does not ship untested.
-4. (Conditional on the split in §6) the production-boundary majority of `experiments/m2b/test-round1-boundary.mjs`, once separated from its historical-control tail.
-
-Nothing above requires deciding whether collaboration/peer-challenge belongs in the product. That is deliberate: it is the smallest set that is uncontroversial on the evidence alone.
+**Genuinely missing, not a port from anywhere:**
+- **Incremental-value decision** ("is another pass justified") has no code anywhere — not in `experiments/m2b/` (its arms are pre-registered fixed protocols, not an adaptive decision procedure) and not in `src/` (the DEEP-vs-normal-vs-simple complexity classification in `policy.ts` decides *specialist count*, not *whether to acquire a second review*). This is a genuinely missing product-specific primitive that Phase 2 must define, not something to import.
 
 ---
 
-## 10. M2-A live evidence (Controlled Replay #4)
+## 11. Remaining items not decided by this amendment
 
-Bounded to what the evidence actually supports, per the packet's §10 constraints.
+Most of the draft's original open questions are resolved by the decisions above (§4, §5, §6, §7, §8). What remains genuinely undecided:
 
-**Established (allowed claims):**
-- Under the one validated fixture/runtime condition exercised, the full downstream mechanism — gate → issue parsing → deterministic selection → `sourceRef` resolution → targeted Round 2 → decision synthesis — executed successfully once, end to end, against real `openai`/`gpt-5` provider calls (3 live calls: `synthesis_gate`, `round2_worker`, `decision_synthesis`; Planning and Round 1 were replayed from Replay #3's frozen, byte-verified snapshot, not re-run live).
-- The one authorized production change under test (the gate-eligibility wording in `buildGateAppendix()`) produced its intended effect: a `peer_challenge` was emitted even though the provisional synthesis had already proposed a compromise — the specific behavior the wording change was written to fix.
-- 16 offline before/after control captures (disabled/omitted collaboration path, across SIMPLE/NORMAL/DEEP × SUCCESS/DEGRADED/FAILED, minus impossible combinations) were byte-identical (`f50a7b2e...`), evidencing that the wording change did not alter the default-OFF path.
-- Offline suite grew 208 → 212 passed, 0 failed, with no existing assertion weakened.
-- Evidence/retrieval isolation held: all three live calls had `retrieval` null on both request and result.
-- The frozen Round 1 snapshot and its derived report were confirmed unchanged after the live run (`snapshotUnchanged`, `reportUnchanged`, `recomputedReportUnchanged` all true in the harness's own invariant block).
-
-**Not established, and not claimed by the evidence itself** (the source document is explicit on this point — `evaluation.md`'s own closing line: *"PASS 僅表示完整 downstream mechanism 在真實 provider calls 下跑通一次...不宣稱優於 baseline、品質提高、多模型優於單模型或應 productionize"*):
-- M2-A does not improve answer quality.
-- Multi-agent collaboration is not shown to be better than single-agent.
-- Peer information is not shown to add incremental value (the replay's own provisional-answer choice differed between #3 and #4 for reasons the document explicitly declines to attribute to peer interaction, since Round 2 had not yet run when the provisional answer was produced).
-- M2-A is not recommended for default-ON.
-- M2-A is not recommended to run for `NORMAL` complexity as a matter of this evidence.
-- M2-A is not asserted production-ready.
-
-One live run, one fixture, one provider (`openai`/`gpt-5` for all three calls — the document notes cross-provider live collaboration was not exercised this round).
+1. **Timing/trigger for concrete-port authorization.** §7 endorses the stage-boundary *concept* but authorizes no implementation move. This document does not propose when or under what condition that authorization would be granted — most naturally alongside whatever phase actually builds the routing layer, but that linkage is not itself decided here.
+2. **`M-ACQ-01` disposition.** Recorded in §8 as remaining OPEN. Whether it is ever pursued again, superseded, or formally closed is not addressed by this document.
+3. **Coexistence of the existing `experimental.collaboration` MCP surface with a future Phase 2 routing layer.** `main`'s MCP tool schema already exposes `experimental.collaboration.*` today, default OFF (§1, §2). Whether Phase 2's routing contract subsumes that surface, deprecates it, or runs alongside it is not decided here.
 
 ---
 
-## 11. Open architecture questions for GPT
+## 12. Not implemented, not started, not authorized by this document
 
-1. **Does collaboration/peer-challenge/decision-synthesis belong in the Stress Test product line at all?** It is already shipped on `main`, already MCP-reachable, already opt-in/default-OFF — but it is model-adjudicated (§8), and the Stress Test thesis (§4 of `PRE_SUBMISSION_STRESS_TEST_MVP.md`, already architecture-accepted) is human-adjudicated. Is this a separate, still-valid product line running alongside Stress Test, or a predecessor direction to be formally superseded?
-2. If the answer to (1) is "not now, but keep it live": should the gate-eligibility wording fix (§10) still be accepted into `main` on its own merits (it is a strict improvement to already-shipped behavior, fully tested), independent of any Stress Test decision?
-3. Should `runPlanningStage`/`runRound1Stage` and `transportMaxRetries` be ported to `main` now, given they are zero-risk and answer (1) does not gate them? (This inventory's recommendation is yes — see §9 — but the port itself was explicitly out of scope for this phase.)
-4. Should `experiments/m2b/test-round1-boundary.mjs` be split now (§6), independent of (1), since its majority content tests mechanism already on `main`?
-5. Is the CBRP/M2-B research track (already formally closed this session via CWP-12H for the duplicate-audit sub-track specifically) to be considered fully closed end-to-end, or does GPT want the four-arm (B/B′/C/D) effectiveness experiment kept open as a parked, not-yet-authorized track for later?
-6. Does GPT want a concrete design slice opened for the two primitives §8 identifies as genuinely missing — a Review-Acquisition adapter (`WorkerRunResult` → `ReviewFinding`) and an Incremental-Value decision procedure — or is that explicitly deferred until after this reconciliation is itself decided?
+Stress Test Slice 2; Phase 2 (Minimum Necessary Deliberation Contract, §13); any concrete port of `runPlanningStage`/`runRound1Stage` or `transportMaxRetries`; porting the gate-wording change to `main`; M2-A productionization; an experimental-branch merge or cherry-pick; any `main` modification; any CASE-001 change or re-review of CASE-001 Proposal V1; CBRP or M2-B execution or Protocol-3 recovery; planner redesign; NORMAL-complexity or default-ON collaboration enablement; peer-challenge productionization; any weakening of `HumanAdjudication.actionChange=YES`; treating Decision Synthesis as revision authority; UI; a database.
 
 ---
 
-## 12. Proposed implementation slices (no implementation performed)
+## 13. Next phase (not started)
 
-- **Slice R1 — mechanical port.** Port `runPlanningStage`/`runRound1Stage` and `transportMaxRetries` (plus `test-planning-stage.mjs`) to `main`. No behavior change to any existing caller; no policy decision required; answers none of §11 by itself.
-- **Slice R2 — test reorganization.** Split `experiments/m2b/test-round1-boundary.mjs`: move its production-boundary majority to the repository root (beside the file Slice R1 adds); leave the historical-control-integrity test and its `capture/control-recheck.mjs` dependency under `experiments/m2b/`. Depends on R1 only for a stable landing spot; does not depend on §11's decisions.
-- **Slice R3 — gate-wording reconciliation (conditional on §11.2).** Accept the `buildGateAppendix()` eligibility wording fix and its 4 tests into `main`, independent of whether collaboration ships as a Stress Test feature.
-- **Slice R4 — product-line decision (conditional on §11.1).** Whatever GPT decides about collaboration's place relative to Stress Test — formally supersede, keep parallel, or defer — recorded as a decision document before any further Stress Test slice touches provider calls.
-- **Future Stress Test Slice 2 (not this phase, not authorized here) — Review Acquisition design.** A new primitive, not a port: an adapter from a dispatch mechanism (potentially `runRound1Stage`, pending R1) to `ReviewFinding[]`, plus whatever Incremental-Value decision procedure GPT wants (§11.6). No implementation, no schema change, is proposed or performed here.
+**PRODUCT RUNTIME RECONCILIATION — PHASE 2: MINIMUM NECESSARY DELIBERATION CONTRACT.**
 
-No code, test, or schema change is included in this document or this phase.
+To begin only after this amendment is remotely verified and Phase 1 is formally ACCEPTED by GPT. **Not authorized by this packet. Not started by this document.**
 
----
+Phase 2 must define architecture for the six routes in §4 (`STOP`, `ADD_CONTEXT`, `ADD_REVIEWER`, `REPLICATE`, `SEEK_EVIDENCE`, `TARGETED_PEER_CHALLENGE`), at minimum covering:
 
-**Not implemented, not started, not restarted by this document:** Stress Test Slice 2, M2-A productionization, an experimental-branch merge or cherry-pick, any `main` modification, any CASE-001 change, CBRP or M2-B execution, planner redesign, NORMAL-complexity collaboration enablement, peer-challenge productionization, UI, or a database.
+- eligibility for each route,
+- material issue state,
+- missing Author Context,
+- evidence gaps,
+- reviewer disagreement,
+- marginal information value,
+- cost ceiling,
+- latency ceiling,
+- stopping conditions,
+- provenance,
+- unresolved disagreement representation,
+- the `HumanAdjudication` boundary (§5, non-negotiable),
+- `DecisionRecord` audit mapping.
+
+No part of Phase 2's contract is designed, implemented, or started in this document.
