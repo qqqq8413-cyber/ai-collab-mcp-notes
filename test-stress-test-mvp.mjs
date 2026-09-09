@@ -155,19 +155,26 @@ check('frozen artifact hash changes if the artifact text differs', () => {
   assert.notEqual(a.artifactHash, b.artifactHash);
 });
 
-check('author context hash is stable regardless of insertion order within a category', () => {
-  let s1 = createSession(ARTIFACT_TEXT);
-  s1 = addAuthorContextItem(s1, 'constraints', { text: 'alpha', sourceType: 'ARTIFACT' });
-  s1 = addAuthorContextItem(s1, 'constraints', { text: 'beta', sourceType: 'ARTIFACT' });
-  // Same two items, independently constructed in the opposite call order.
-  let s2 = createSession(ARTIFACT_TEXT);
-  s2 = addAuthorContextItem(s2, 'constraints', { text: 'beta', sourceType: 'ARTIFACT' });
-  s2 = addAuthorContextItem(s2, 'constraints', { text: 'alpha', sourceType: 'ARTIFACT' });
-  // Hash is over (id, text, sourceType, status, createdAt) sorted by id, and ids are
-  // randomly generated per item, so this only proves the sort key is applied, not that
-  // unrelated sessions collide -- checked instead via a same-session round trip below.
-  assert.equal(typeof sha256AuthorContext(s1.authorContext), 'string');
-  assert.equal(typeof sha256AuthorContext(s2.authorContext), 'string');
+check('canonical AuthorContext hash is equal for the same exact item records in different array order', () => {
+  // Same item VALUES (identical id/text/sourceType/status/createdAt), not
+  // independently constructed sessions -- addAuthorContextItem assigns a
+  // fresh random id/createdAt per call, so comparing two independently-built
+  // sessions never actually proves order-independence, only that both
+  // hashes are strings. Constructing the AuthorContext directly is the only
+  // way to hold every field constant except array order.
+  const itemA = { id: 'aaa-fixed-id', text: 'alpha', sourceType: 'ARTIFACT', status: 'CURRENT', createdAt: '2026-01-01T00:00:00.000Z' };
+  const itemB = { id: 'bbb-fixed-id', text: 'beta', sourceType: 'ARTIFACT', status: 'CURRENT', createdAt: '2026-01-01T00:00:01.000Z' };
+  const context1 = { confirmedFacts: [], knownRisks: [], openQuestions: [], constraints: [itemA, itemB] };
+  const context2 = { confirmedFacts: [], knownRisks: [], openQuestions: [], constraints: [itemB, itemA] };
+  assert.equal(sha256AuthorContext(context1), sha256AuthorContext(context2));
+});
+
+check('canonical AuthorContext hash changes when an item value differs', () => {
+  const itemA = { id: 'aaa-fixed-id', text: 'alpha', sourceType: 'ARTIFACT', status: 'CURRENT', createdAt: '2026-01-01T00:00:00.000Z' };
+  const itemAModified = { ...itemA, text: 'alpha, but modified' };
+  const context1 = { confirmedFacts: [], knownRisks: [], openQuestions: [], constraints: [itemA] };
+  const context2 = { confirmedFacts: [], knownRisks: [], openQuestions: [], constraints: [itemAModified] };
+  assert.notEqual(sha256AuthorContext(context1), sha256AuthorContext(context2));
 });
 
 check('prohibition against silently changing frozen input: mutating helpers refuse to run once frozen', () => {
@@ -505,15 +512,33 @@ check('planRevisionAction accepts a SEMANTIC_ISSUE-kind source ref', () => {
   assert.deepEqual(withAction.revisionActions[actionId].sourceRefs, [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }]);
 });
 
-check('planRevisionAction accepts a FINDING-kind source ref', () => {
-  const { session, budgetFindingId } = buildAdjudicatedFixtureSession();
+check('planRevisionAction accepts a FINDING-kind source ref backed by a HumanAdjudication with actionChange=YES', () => {
+  let session = freezeInput(createSession(ARTIFACT_TEXT));
+  session = addFinding(session, {
+    reviewerRunId: 'run-1',
+    type: 'CLAIM',
+    title: 'x',
+    artifactLocation: 'x',
+    evidenceState: 'NOT_APPLICABLE',
+    whyMaterial: 'x',
+    likelyRecipientChallenge: 'x',
+    minimumBeforeSendAction: 'NONE',
+  });
+  const findingId = Object.keys(session.findings)[0];
+  // KNOWN_PRE_DISPATCH -- judgment is deliberately not what gates authorization; actionChange=YES is.
+  session = adjudicate(session, {
+    findingId,
+    judgment: 'KNOWN_PRE_DISPATCH',
+    actionChange: 'YES',
+    note: 'Already known, but the author wants it fixed anyway.',
+  });
   const withAction = planRevisionAction(session, {
-    sourceRefs: [{ kind: 'FINDING', id: budgetFindingId }],
+    sourceRefs: [{ kind: 'FINDING', id: findingId }],
     description: 'x',
     targetLocation: 'x',
   });
   const actionId = Object.keys(withAction.revisionActions)[0];
-  assert.deepEqual(withAction.revisionActions[actionId].sourceRefs, [{ kind: 'FINDING', id: budgetFindingId }]);
+  assert.deepEqual(withAction.revisionActions[actionId].sourceRefs, [{ kind: 'FINDING', id: findingId }]);
 });
 
 check('planRevisionAction rejects an unrecognized source ref kind', () => {
@@ -646,6 +671,263 @@ check('renderDecisionRecordMarkdown produces readable markdown covering the summ
   assert.match(md, /Standalone finding adjudications/);
   assert.match(md, /rollback plan/);
   assert.match(md, /IMPLEMENTED/);
+});
+
+console.log('\nFrozen-input tamper detection');
+
+const probeFinding = {
+  reviewerRunId: 'run-1',
+  type: 'CLAIM',
+  title: 'x',
+  artifactLocation: 'x',
+  evidenceState: 'NOT_APPLICABLE',
+  whyMaterial: 'x',
+  likelyRecipientChallenge: 'x',
+  minimumBeforeSendAction: 'NONE',
+};
+
+check('direct post-freeze artifactText tampering is detected', () => {
+  const frozen = freezeInput(buildFixtureSession());
+  const tampered = { ...frozen, artifactText: frozen.artifactText + ' TAMPERED' };
+  assert.throws(() => addFinding(tampered, probeFinding), /no longer matches its frozen artifactHash/);
+});
+
+check('direct post-freeze authorContext tampering is detected', () => {
+  const frozen = freezeInput(buildFixtureSession());
+  const sneakedItem = { id: 'x', text: 'sneaked in', sourceType: 'AUTHOR', status: 'CURRENT', createdAt: new Date().toISOString() };
+  const tampered = {
+    ...frozen,
+    authorContext: { ...frozen.authorContext, constraints: [...frozen.authorContext.constraints, sneakedItem] },
+  };
+  assert.throws(() => addFinding(tampered, probeFinding), /no longer matches its frozen authorContextHash/);
+});
+
+check('stored hashes are never silently refreshed after tampering', () => {
+  const frozen = freezeInput(buildFixtureSession());
+  const tampered = { ...frozen, artifactText: frozen.artifactText + ' TAMPERED' };
+  const storedHashBefore = tampered.artifactHash;
+  try {
+    addFinding(tampered, probeFinding);
+  } catch {
+    // expected
+  }
+  assert.equal(tampered.artifactHash, storedHashBefore);
+  assert.notEqual(tampered.artifactHash, sha256Text(tampered.artifactText));
+});
+
+check('the integrity check applies to every audit-trail operation, not just addFinding', () => {
+  const session = buildCompletedFixtureSession();
+  const tampered = { ...session, artifactText: session.artifactText + ' TAMPERED' };
+  assert.throws(() => generateDecisionRecord(tampered), /no longer matches its frozen artifactHash/);
+});
+
+console.log('\nState machine enforcement');
+
+check('addFinding is rejected once the session has moved past REVIEWED', () => {
+  const attempt = (s) => addFinding(s, probeFinding);
+
+  const { session: adjudicated } = buildAdjudicatedFixtureSession();
+  assert.throws(() => attempt(adjudicated), /not permitted in state=ADJUDICATED/);
+
+  const { session: forPlanning, itIssueId } = buildAdjudicatedFixtureSession();
+  const revisionPlanned = planRevisionAction(forPlanning, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+    description: 'x',
+    targetLocation: 'x',
+  });
+  assert.throws(() => attempt(revisionPlanned), /not permitted in state=REVISION_PLANNED/);
+
+  const completed = buildCompletedFixtureSession();
+  assert.throws(() => attempt(completed), /not permitted in state=COMPLETED/);
+});
+
+check('adjudicate is rejected before REVIEWED and after COMPLETED', () => {
+  const frozenOnly = freezeInput(buildFixtureSession());
+  assert.throws(
+    () => adjudicate(frozenOnly, { findingId: 'whatever', judgment: 'WRONG', actionChange: 'NO' }),
+    /not permitted in state=INPUT_FROZEN/
+  );
+
+  const completed = buildCompletedFixtureSession();
+  const anyFindingId = Object.keys(completed.findings)[0];
+  assert.throws(
+    () => adjudicate(completed, { findingId: anyFindingId, judgment: 'WRONG', actionChange: 'NO' }),
+    /not permitted in state=COMPLETED/
+  );
+});
+
+check('planRevisionAction is rejected before ADJUDICATED', () => {
+  const session = buildReviewedFixtureSession();
+  const findingId = Object.keys(session.findings)[0];
+  assert.throws(
+    () =>
+      planRevisionAction(session, {
+        sourceRefs: [{ kind: 'FINDING', id: findingId }],
+        description: 'x',
+        targetLocation: 'x',
+      }),
+    /not permitted in state=REVIEWED/
+  );
+});
+
+check('COMPLETED is terminal: no operation can append to or reopen a completed session', () => {
+  const completed = buildCompletedFixtureSession();
+  const anyFindingId = Object.keys(completed.findings)[0];
+  const anyIssueId = Object.keys(completed.semanticIssues)[0];
+  const anyActionId = Object.keys(completed.revisionActions)[0];
+
+  assert.throws(() => addFinding(completed, probeFinding), /not permitted in state=COMPLETED/);
+  assert.throws(
+    () => createSemanticIssue(completed, { title: 'x', description: 'x', findingIds: [anyFindingId], evidenceState: 'NOT_APPLICABLE' }),
+    /not permitted in state=COMPLETED/
+  );
+  assert.throws(
+    () => adjudicate(completed, { findingId: anyFindingId, judgment: 'WRONG', actionChange: 'NO' }),
+    /not permitted in state=COMPLETED/
+  );
+  assert.throws(
+    () => planRevisionAction(completed, { sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: anyIssueId }], description: 'x', targetLocation: 'x' }),
+    /not permitted in state=COMPLETED/
+  );
+  assert.throws(() => implementRevisionAction(completed, anyActionId), /not permitted in state=COMPLETED/);
+  assert.throws(() => rejectRevisionAction(completed, anyActionId), /not permitted in state=COMPLETED/);
+  assert.throws(() => completeSession(completed), /must be ADJUDICATED or REVISION_PLANNED/);
+});
+
+console.log('\nHuman change authorization gate');
+
+check('planRevisionAction rejects when no referenced adjudication has actionChange=YES', () => {
+  const { session, rollbackFindingId, budgetFindingId } = buildAdjudicatedFixtureSession();
+  assert.throws(
+    () => planRevisionAction(session, { sourceRefs: [{ kind: 'FINDING', id: rollbackFindingId }], description: 'x', targetLocation: 'x' }),
+    /actionChange=YES/
+  );
+  assert.throws(
+    () => planRevisionAction(session, { sourceRefs: [{ kind: 'FINDING', id: budgetFindingId }], description: 'x', targetLocation: 'x' }),
+    /actionChange=YES/
+  );
+});
+
+check('planRevisionAction succeeds once at least one referenced adjudication has actionChange=YES, even mixed with a NO', () => {
+  const { session, itIssueId, budgetFindingId } = buildAdjudicatedFixtureSession();
+  const withAction = planRevisionAction(session, {
+    sourceRefs: [
+      { kind: 'SEMANTIC_ISSUE', id: itIssueId },
+      { kind: 'FINDING', id: budgetFindingId },
+    ],
+    description: 'x',
+    targetLocation: 'x',
+  });
+  assert.equal(Object.keys(withAction.revisionActions).length, 1);
+});
+
+console.log('\nDuplicate human adjudication');
+
+check('duplicate adjudication of the same semantic issue is rejected', () => {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  assert.throws(
+    () => adjudicate(session, { semanticIssueId: itIssueId, judgment: 'WRONG', actionChange: 'NO' }),
+    /already has a HumanAdjudication/
+  );
+});
+
+check('duplicate adjudication of the same finding is rejected', () => {
+  const { session, rollbackFindingId } = buildAdjudicatedFixtureSession();
+  assert.throws(
+    () => adjudicate(session, { findingId: rollbackFindingId, judgment: 'WRONG', actionChange: 'NO' }),
+    /already has a HumanAdjudication/
+  );
+});
+
+console.log('\nRevision source kind discrimination in DecisionRecord projection');
+
+check('DecisionRecord matches revision actions by kind AND id, never by id alone, even under an id collision', () => {
+  const sharedId = 'shared-id-collision-test';
+  const emptyContext = { confirmedFacts: [], knownRisks: [], openQuestions: [], constraints: [] };
+  const session = {
+    id: 'sess-1',
+    state: 'COMPLETED',
+    createdAt: new Date().toISOString(),
+    artifactText: 'x',
+    authorContext: emptyContext,
+    frozenAt: new Date().toISOString(),
+    artifactHash: sha256Text('x'),
+    authorContextHash: sha256AuthorContext(emptyContext),
+    findings: {
+      [sharedId]: {
+        id: sharedId,
+        reviewerRunId: 'run-1',
+        type: 'CLAIM',
+        title: 'Finding with a colliding id',
+        artifactLocation: 'x',
+        evidenceState: 'NOT_APPLICABLE',
+        whyMaterial: 'x',
+        likelyRecipientChallenge: 'x',
+        minimumBeforeSendAction: 'NONE',
+        createdAt: new Date().toISOString(),
+      },
+    },
+    semanticIssues: {
+      [sharedId]: {
+        id: sharedId,
+        title: 'Issue with a colliding id',
+        description: 'x',
+        findingIds: [],
+        evidenceState: 'NOT_APPLICABLE',
+        status: 'ADJUDICATED',
+      },
+    },
+    adjudications: {
+      'adj-1': {
+        id: 'adj-1',
+        findingId: sharedId,
+        judgment: 'KNOWN_PRE_DISPATCH',
+        actionChange: 'YES',
+        note: '',
+        adjudicatedAt: new Date().toISOString(),
+      },
+    },
+    revisionActions: {
+      'rev-1': {
+        id: 'rev-1',
+        sourceRefs: [{ kind: 'FINDING', id: sharedId }],
+        description: 'x',
+        targetLocation: 'x',
+        status: 'IMPLEMENTED',
+        createdAt: new Date().toISOString(),
+      },
+    },
+  };
+
+  const record = generateDecisionRecord(session);
+  // rev-1's ref is kind:FINDING -- it must attribute only to the standalone finding...
+  assert.equal(record.standaloneFindingAdjudications.length, 1);
+  assert.deepEqual(record.standaloneFindingAdjudications[0].revisionActionIds, ['rev-1']);
+  // ...and never to the semantic issue that merely happens to share the same id string.
+  assert.equal(record.issues.length, 1);
+  assert.deepEqual(record.issues[0].revisionActionIds, []);
+});
+
+console.log('\nOpen question lifecycle in DecisionRecord');
+
+check('DecisionRecord.openQuestions includes only CURRENT items; RESOLVED/SUPERSEDED stay in context but are excluded from "remaining open"', () => {
+  let session = createSession(ARTIFACT_TEXT);
+  session = addAuthorContextItem(session, 'openQuestions', { text: 'Still open question', sourceType: 'AUTHOR', status: 'CURRENT' });
+  session = addAuthorContextItem(session, 'openQuestions', { text: 'Resolved question', sourceType: 'AUTHOR', status: 'RESOLVED' });
+  session = addAuthorContextItem(session, 'openQuestions', { text: 'Superseded question', sourceType: 'AUTHOR', status: 'SUPERSEDED' });
+  session = freezeInput(session);
+  const record = generateDecisionRecord(session);
+
+  assert.deepEqual(record.openQuestions, ['Still open question']);
+  // The structural count stays the total, unfiltered, like the other authorKnownSummary fields.
+  assert.equal(record.authorKnownSummary.openQuestions, 3);
+  // Nothing is deleted from authorContext itself -- RESOLVED/SUPERSEDED remain for provenance.
+  assert.equal(session.authorContext.openQuestions.length, 3);
+
+  const md = renderDecisionRecordMarkdown(record);
+  assert.match(md, /Still open question/);
+  assert.equal(md.includes('Resolved question'), false);
+  assert.equal(md.includes('Superseded question'), false);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

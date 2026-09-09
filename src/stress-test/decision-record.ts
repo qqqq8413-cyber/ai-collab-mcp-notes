@@ -4,6 +4,7 @@ import type {
   RevisionActionStatus,
   StressTestSession,
 } from './types.js';
+import { verifyFrozenInputIntegrity } from './session.js';
 
 export interface DecisionRecordIssueEntry {
   semanticIssueId: string;
@@ -64,6 +65,7 @@ export interface DecisionRecord {
  * drop any judgment recorded directly on a finding that was never clustered.
  */
 export function generateDecisionRecord(session: StressTestSession): DecisionRecord {
+  verifyFrozenInputIntegrity(session);
   const issueAdjudications = new Map<string, { judgment: Judgment; actionChange: ActionChange }>();
   const findingAdjudications = new Map<string, { judgment: Judgment; actionChange: ActionChange }>();
   for (const adjudication of Object.values(session.adjudications)) {
@@ -80,14 +82,23 @@ export function generateDecisionRecord(session: StressTestSession): DecisionReco
     }
   }
 
-  const revisionActionsFor = (issueOrFindingId: string) =>
+  // Matched by BOTH kind and id -- a SemanticIssue and a ReviewFinding could
+  // in principle share an id-shaped string, and the discriminator on
+  // RevisionSourceRef exists precisely so that case is never ambiguous. Do
+  // not collapse this back to matching on `ref.id` alone.
+  const revisionActionsForIssue = (semanticIssueId: string) =>
     Object.values(session.revisionActions).filter((action) =>
-      action.sourceRefs.some((ref) => ref.id === issueOrFindingId)
+      action.sourceRefs.some((ref) => ref.kind === 'SEMANTIC_ISSUE' && ref.id === semanticIssueId)
+    );
+
+  const revisionActionsForFinding = (findingId: string) =>
+    Object.values(session.revisionActions).filter((action) =>
+      action.sourceRefs.some((ref) => ref.kind === 'FINDING' && ref.id === findingId)
     );
 
   const issues: DecisionRecordIssueEntry[] = Object.values(session.semanticIssues).map((issue) => {
     const adjudication = issueAdjudications.get(issue.id) ?? null;
-    const revisionActions = revisionActionsFor(issue.id);
+    const revisionActions = revisionActionsForIssue(issue.id);
     return {
       semanticIssueId: issue.id,
       title: issue.title,
@@ -103,7 +114,7 @@ export function generateDecisionRecord(session: StressTestSession): DecisionReco
   const standaloneFindingAdjudications: DecisionRecordFindingAdjudicationEntry[] = [];
   for (const [findingId, adjudication] of findingAdjudications) {
     const finding = session.findings[findingId];
-    const revisionActions = revisionActionsFor(findingId);
+    const revisionActions = revisionActionsForFinding(findingId);
     standaloneFindingAdjudications.push({
       findingId,
       findingTitle: finding ? finding.title : '(finding missing)',
@@ -136,7 +147,10 @@ export function generateDecisionRecord(session: StressTestSession): DecisionReco
       openQuestions: session.authorContext.openQuestions.length,
       constraints: session.authorContext.constraints.length,
     },
-    openQuestions: session.authorContext.openQuestions.map((q) => q.text),
+    // Only CURRENT items are "remaining" open questions -- RESOLVED and
+    // SUPERSEDED items stay in authorContext for provenance but must not be
+    // reported as still outstanding.
+    openQuestions: session.authorContext.openQuestions.filter((q) => q.status === 'CURRENT').map((q) => q.text),
     totalFindings: Object.keys(session.findings).length,
     totalSemanticIssues: issues.length,
     newMaterialCount: allJudgments.filter((j) => j === 'NEW_MATERIAL').length,

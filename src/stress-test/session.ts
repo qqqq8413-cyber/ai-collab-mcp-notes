@@ -11,6 +11,7 @@ import type {
   RevisionAction,
   RevisionSourceRef,
   SemanticIssue,
+  SessionState,
   StressTestSession,
 } from './types.js';
 import { emptyAuthorContext } from './types.js';
@@ -114,6 +115,43 @@ function assertFrozenOrLater(session: StressTestSession, action: string): void {
 }
 
 /**
+ * Runtime (not just type-level) proof that a session's frozen input has not
+ * been tampered with since freezeInput ran. TypeScript cannot stop a
+ * caller — including a plain-JS caller with no type checking at all — from
+ * mutating `session.artifactText` / `session.authorContext` directly after
+ * freeze while leaving the stored hashes untouched. Every post-freeze domain
+ * operation whose result feeds the audit trail calls this first and fails
+ * closed on any mismatch; it never refreshes the stored hash or silently
+ * accepts the modified input. A caller who needs different input must
+ * create a new StressTestSession — see freezeInput's own contract.
+ */
+export function verifyFrozenInputIntegrity(session: StressTestSession): void {
+  if (session.state === 'DRAFT') return;
+  if (!session.artifactHash || !session.authorContextHash) {
+    throw new Error(
+      'verifyFrozenInputIntegrity: session is frozen or later but is missing its stored artifactHash/authorContextHash'
+    );
+  }
+  if (sha256Text(session.artifactText) !== session.artifactHash) {
+    throw new Error(
+      'verifyFrozenInputIntegrity: artifactText no longer matches its frozen artifactHash — frozen input was modified after freeze; create a new StressTestSession instead of mutating this one'
+    );
+  }
+  if (sha256AuthorContext(session.authorContext) !== session.authorContextHash) {
+    throw new Error(
+      'verifyFrozenInputIntegrity: authorContext no longer matches its frozen authorContextHash — frozen input was modified after freeze; create a new StressTestSession instead of mutating this one'
+    );
+  }
+}
+
+/** Throws unless the session's current state is one of `allowed` — enforces the documented state machine precisely, not just "frozen or later". */
+function assertStateIn(session: StressTestSession, action: string, allowed: SessionState[]): void {
+  if (!allowed.includes(session.state)) {
+    throw new Error(`${action}: not permitted in state=${session.state} (requires one of: ${allowed.join(', ')})`);
+  }
+}
+
+/**
  * Records one reviewer finding. Requires input to already be frozen — a
  * finding is meaningless without a fixed artifact/context to have reviewed.
  * The session advances to REVIEWED on its first finding.
@@ -132,7 +170,9 @@ export function addFinding(
     rawText?: string;
   }
 ): StressTestSession {
+  verifyFrozenInputIntegrity(session);
   assertFrozenOrLater(session, 'addFinding');
+  assertStateIn(session, 'addFinding', ['INPUT_FROZEN', 'REVIEWED']);
   const finding: ReviewFinding = {
     id: randomUUID(),
     reviewerRunId: input.reviewerRunId,
@@ -164,7 +204,9 @@ export function createSemanticIssue(
   session: StressTestSession,
   input: { title: string; description: string; findingIds: string[]; evidenceState: EvidenceState }
 ): StressTestSession {
+  verifyFrozenInputIntegrity(session);
   assertFrozenOrLater(session, 'createSemanticIssue');
+  assertStateIn(session, 'createSemanticIssue', ['REVIEWED']);
   if (input.findingIds.length === 0) {
     throw new Error('createSemanticIssue: findingIds must be non-empty');
   }
@@ -204,7 +246,9 @@ export function adjudicate(
     note?: string;
   }
 ): StressTestSession {
+  verifyFrozenInputIntegrity(session);
   assertFrozenOrLater(session, 'adjudicate');
+  assertStateIn(session, 'adjudicate', ['REVIEWED', 'ADJUDICATED']);
   const hasIssue = input.semanticIssueId !== undefined;
   const hasFinding = input.findingId !== undefined;
   if (hasIssue === hasFinding) {
@@ -215,6 +259,17 @@ export function adjudicate(
   }
   if (hasFinding && !session.findings[input.findingId as string]) {
     throw new Error(`adjudicate: unknown findingId ${input.findingId}`);
+  }
+  // Slice 1 has no amendment/supersession model -- at most one HumanAdjudication per target.
+  if (hasIssue && Object.values(session.adjudications).some((a) => a.semanticIssueId === input.semanticIssueId)) {
+    throw new Error(
+      `adjudicate: semantic issue ${input.semanticIssueId} already has a HumanAdjudication; Slice 1 does not support amendment — implicit last-write-wins is refused`
+    );
+  }
+  if (hasFinding && Object.values(session.adjudications).some((a) => a.findingId === input.findingId)) {
+    throw new Error(
+      `adjudicate: finding ${input.findingId} already has a HumanAdjudication; Slice 1 does not support amendment — implicit last-write-wins is refused`
+    );
   }
   const record: HumanAdjudication = {
     id: randomUUID(),
@@ -254,7 +309,9 @@ export function planRevisionAction(
   session: StressTestSession,
   input: { sourceRefs: RevisionSourceRef[]; description: string; targetLocation: string }
 ): StressTestSession {
+  verifyFrozenInputIntegrity(session);
   assertFrozenOrLater(session, 'planRevisionAction');
+  assertStateIn(session, 'planRevisionAction', ['ADJUDICATED', 'REVISION_PLANNED']);
   if (input.sourceRefs.length === 0) {
     throw new Error('planRevisionAction: sourceRefs must be non-empty');
   }
@@ -270,6 +327,23 @@ export function planRevisionAction(
     } else {
       throw new Error(`planRevisionAction: invalid source ref kind ${JSON.stringify((ref as { kind: unknown }).kind)}`);
     }
+  }
+  // A reviewer finding never authorizes a revision by itself -- a human must
+  // have recorded actionChange=YES against at least one of the refs used
+  // here. judgment is deliberately not consulted: NEW_MATERIAL is an
+  // experiment metric, not the product's authorization rule, and a human may
+  // choose to change something already categorized as known.
+  const isAuthorized = input.sourceRefs.some((ref) =>
+    Object.values(session.adjudications).some((a) => {
+      if (a.actionChange !== 'YES') return false;
+      if (ref.kind === 'SEMANTIC_ISSUE') return a.semanticIssueId === ref.id;
+      return a.findingId === ref.id;
+    })
+  );
+  if (!isAuthorized) {
+    throw new Error(
+      'planRevisionAction: no sourceRef resolves to a HumanAdjudication with actionChange=YES; a revision may only be planned once a human has explicitly authorized a change'
+    );
   }
   const action: RevisionAction = {
     id: randomUUID(),
@@ -292,6 +366,8 @@ function setRevisionStatus(
   status: RevisionAction['status'],
   action: string
 ): StressTestSession {
+  verifyFrozenInputIntegrity(session);
+  assertStateIn(session, action, ['REVISION_PLANNED']);
   const existing = session.revisionActions[revisionActionId];
   if (!existing) throw new Error(`${action}: unknown revisionActionId ${revisionActionId}`);
   if (existing.status !== 'PLANNED') {
@@ -313,6 +389,7 @@ export function rejectRevisionAction(session: StressTestSession, revisionActionI
 
 /** Marks the session COMPLETED. Requires every planned revision action to have been resolved (implemented or rejected) first. */
 export function completeSession(session: StressTestSession): StressTestSession {
+  verifyFrozenInputIntegrity(session);
   if (session.state !== 'ADJUDICATED' && session.state !== 'REVISION_PLANNED') {
     throw new Error(`completeSession: session must be ADJUDICATED or REVISION_PLANNED (state=${session.state})`);
   }

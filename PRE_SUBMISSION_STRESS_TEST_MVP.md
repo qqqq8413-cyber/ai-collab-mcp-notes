@@ -70,6 +70,12 @@ into `npm test`.
   material, what was meant to change, what actually changed, what was
   rejected, and what evidence state supported each issue. Available as JSON
   (`generateDecisionRecord`) or Markdown (`renderDecisionRecordMarkdown`).
+  `openQuestions` (the "remaining open" list) includes only `AuthorContext`
+  `openQuestions` items whose `status` is `CURRENT` — `RESOLVED` and
+  `SUPERSEDED` items stay in `authorContext` for provenance but are not
+  reported as still outstanding. `authorKnownSummary.openQuestions` is a
+  separate, unfiltered count of the whole category, matching the other
+  `authorKnownSummary` fields.
 
 ## State transitions
 
@@ -77,25 +83,94 @@ into `npm test`.
 DRAFT → INPUT_FROZEN → REVIEWED → ADJUDICATED → REVISION_PLANNED → COMPLETED
 ```
 
-- `createSession` starts a session in `DRAFT`. Author-context items may only
-  be added in `DRAFT` (`addAuthorContextItem`).
-- `freezeInput` requires `DRAFT`, computes and stores `artifactHash` /
-  `authorContextHash`, and moves to `INPUT_FROZEN`. It is not re-runnable
-  (attempting to freeze an already-frozen session throws).
-- `addFinding` requires the session to already be frozen (`INPUT_FROZEN` or
-  later); the first finding advances the state to `REVIEWED`.
+Each operation is gated to an explicit, operation-specific set of allowed
+states — not merely "frozen or later" — so no operation can run in a state
+where it would produce a nonsensical or unauditable result:
+
+| Operation | Allowed states |
+|---|---|
+| `addAuthorContextItem` | `DRAFT` only |
+| `freezeInput` | `DRAFT` only |
+| `addFinding` | `INPUT_FROZEN`, `REVIEWED` |
+| `createSemanticIssue` | `REVIEWED` only |
+| `adjudicate` | `REVIEWED`, `ADJUDICATED` |
+| `planRevisionAction` | `ADJUDICATED`, `REVISION_PLANNED` |
+| `implementRevisionAction` | `REVISION_PLANNED` only |
+| `rejectRevisionAction` | `REVISION_PLANNED` only |
+| `completeSession` | `ADJUDICATED`, `REVISION_PLANNED` |
+
+- `createSession` starts a session in `DRAFT`.
+- `freezeInput` computes and stores `artifactHash` / `authorContextHash`,
+  and moves to `INPUT_FROZEN`. It is not re-runnable (attempting to freeze
+  an already-frozen session throws).
+- `addFinding`'s first call advances `INPUT_FROZEN` → `REVIEWED`. It is
+  refused once the session has moved past `REVIEWED` (i.e. once any
+  adjudication has been recorded) — a finding added after adjudication
+  began would not be reflected in any prior judgment.
 - `createSemanticIssue` clusters existing `findingIds` (which must already
-  exist) into a new issue; it does not change session state by itself.
+  exist) into a new issue while the session is `REVIEWED`; it does not
+  change session state by itself.
 - `adjudicate` requires exactly one of `semanticIssueId` / `findingId`; the
   first adjudication advances `REVIEWED` → `ADJUDICATED`. Adjudicating a
   semantic issue marks that issue `ADJUDICATED`; the underlying findings are
-  left exactly as recorded.
-- `planRevisionAction` requires the target issue/finding ids to exist; the
-  first one advances `ADJUDICATED` → `REVISION_PLANNED`.
+  left exactly as recorded. At most one `HumanAdjudication` may target a
+  given semantic issue or finding — see "Duplicate adjudication" below.
+- `planRevisionAction` requires every source ref's id to exist, and requires
+  at least one referenced adjudication to carry `actionChange=YES` — see
+  "Human change authorization" below. The first call advances
+  `ADJUDICATED` → `REVISION_PLANNED`.
 - `implementRevisionAction` / `rejectRevisionAction` resolve a `PLANNED`
-  action; re-resolving an already-resolved action throws.
+  action and require the session itself to be `REVISION_PLANNED`;
+  re-resolving an already-resolved action throws.
 - `completeSession` requires `ADJUDICATED` or `REVISION_PLANNED`, and
   refuses if any revision action is still `PLANNED`.
+- **`COMPLETED` is terminal.** No operation's allowed-state list includes
+  `COMPLETED`, so nothing can append review/adjudication/revision data to,
+  or otherwise reopen, a completed session. There is deliberately no
+  uncomplete/reopen operation.
+
+## Frozen-input runtime integrity
+
+`freezeInput` storing `artifactHash` / `authorContextHash` only proves the
+input matched the hash *at freeze time*. `StressTestSession` is a plain JS
+object, so nothing at the type level stops a caller — including a caller
+with no TypeScript checking at all — from mutating `session.artifactText`
+or `session.authorContext` directly afterward while leaving the stored
+hashes untouched. `verifyFrozenInputIntegrity(session)` closes that gap at
+runtime: for any state past `DRAFT` it recomputes both hashes and throws if
+either no longer matches what was stored at freeze time. It never
+refreshes the stored hash and never silently accepts modified input — it
+fails closed. Every post-freeze operation whose result feeds the audit
+trail (`addFinding`, `createSemanticIssue`, `adjudicate`,
+`planRevisionAction`, `implementRevisionAction`, `rejectRevisionAction`,
+`completeSession`, `generateDecisionRecord`) calls it before doing anything
+else. A caller who needs different input still creates a new
+`StressTestSession` — this verifier detects tampering, it does not provide
+a repair path.
+
+## Human change authorization
+
+A `ReviewFinding` or `SemanticIssue` existing — even one a reviewer marked
+severe — never by itself authorizes an artifact edit. `planRevisionAction`
+requires that at least one of its `sourceRefs` resolve (by `kind` and `id`
+together) to a recorded `HumanAdjudication` with `actionChange=YES`;
+otherwise it throws rather than planning the action. `judgment` is
+deliberately not consulted for this gate — `NEW_MATERIAL` is an experiment
+metric from the CASE-001-style pilot design, not this product's
+authorization rule, and a human is allowed to choose to change something
+already categorized `KNOWN_PRE_DISPATCH` or any other judgment. Other,
+unauthorized `sourceRefs` may still be included on the same action for
+provenance; only one of them needs `actionChange=YES`.
+
+## Duplicate adjudication
+
+Slice 1 has no decision-amendment or supersession model. `adjudicate`
+therefore allows at most one `HumanAdjudication` per target: a second
+`adjudicate` call naming the same `semanticIssueId` or the same `findingId`
+throws rather than silently overwriting the first (no implicit
+last-write-wins). A future slice may introduce explicit adjudication
+supersession if a real need for amendment emerges; it is not implemented
+here.
 
 ## Provenance rules
 
@@ -116,6 +191,11 @@ DRAFT → INPUT_FROZEN → REVIEWED → ADJUDICATED → REVISION_PLANNED → COM
   motivated it, each tagged with an explicit `kind`, so a `DecisionRecord`
   can always trace an implemented change back to the judgment that
   authorized it without guessing what kind of id it is looking at.
+  `generateDecisionRecord` matches a ref to a semantic issue or finding by
+  `kind` **and** `id` together, never by `id` alone — the discriminator is
+  meant to survive projection, not just storage, so it is not treated as
+  redundant just because id collisions between a `SemanticIssue` and a
+  `ReviewFinding` are practically improbable with random ids.
 - `HumanAdjudication`'s `semanticIssueId?` / `findingId?` pair is already an
   unambiguous discriminated target (exactly one is ever set, and the caller
   names which by the field itself) — it was deliberately left as-is during
