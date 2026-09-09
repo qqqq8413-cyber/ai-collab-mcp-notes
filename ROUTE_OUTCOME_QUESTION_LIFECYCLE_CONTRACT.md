@@ -604,6 +604,18 @@ A `QuestionDisposition` must resolve `attemptId` to exactly one existing, termin
 
 A `QuestionDisposition` may only be recorded against an existing, terminal `RouteOutcome`. An open/unterminated `RouteAttempt` — one with no recorded outcome yet (§5) — cannot receive a disposition. There is no path `RouteAttempt -> QuestionDisposition` that skips `RouteOutcome`; the chain is always `RouteAttempt -> RouteOutcome -> QuestionDisposition`, never shorter.
 
+#### `recordQuestionDisposition` — complete precondition list
+
+Consolidating every precondition this conceptual operation must independently enforce, gathered here in one place rather than left implicit across the sections above and below:
+
+1. `deliberationState.stopReason === null` — no disposition may be recorded once machine deliberation has stopped (§"Post-`STOP` rule," below).
+2. The targeted question must be **current** before this call — the same currentness gate every other routing operation gets (§"Current gates," above), required here as an intrinsic precondition of this specific operation, not because it is a sixth pre-existing API being retrofitted.
+3. Resolve the full `RouteOutcome` -> `RouteAttempt` -> `RouteDecision` -> `UnresolvedQuestion` chain (§"Outcome binding," above) — fail closed on any break.
+4. Require **exactly one** active cycle for that question (§"Legacy / permissive-state integrity," below), and require that active cycle to be the *exact* decision represented by the supplied outcome's `attemptId` — not merely *an* active cycle for the question, but specifically the one this disposition is closing.
+5. Reject if the targeted `RouteOutcome` already has a `QuestionDisposition` (invariant 27, already-established `ONE RouteOutcome -> AT MOST ONE QuestionDisposition`).
+
+This closes the legacy parallel-cycle ambiguity at the disposition boundary: even a session with historically-inconsistent parallel decisions cannot have a disposition recorded against the *wrong* one of them.
+
 #### Legal disposition combinations after `FAILED` / `SUCCEEDED`
 
 `AttemptStatus` never mechanically determines `QuestionDisposition` (§10, invariant 4 — restated and extended here to the failure direction too). The legal-combination table:
@@ -616,7 +628,7 @@ A `QuestionDisposition` may only be recorded against an existing, terminal `Rout
 
 **`CROSS_SESSION` after `FAILED` is illegal, closed explicitly.** `CROSS_SESSION` requires an actual new `StressTestSession` version carrying supplied context forward (§13.A); a failed attempt produced no supplied context and cannot have caused a version transition — there is nothing to carry across. This holds regardless of route.
 
-**`RESOLVED` after `FAILED` is legal, closed explicitly — not left implicit.** The materiality/resolution decision is made by an *externally supplied* semantic re-evaluation, never by the attempt's own mechanical status (§14) — the same separation invariant 4 already establishes in the success direction (`SUCCEEDED` never mechanically implies `RESOLVED`) must hold symmetrically in the failure direction (`FAILED` must not mechanically forbid `RESOLVED`). A concrete, legitimate case: `SEEK_EVIDENCE` fails (retrieval outright unavailable), and an independent re-evaluation determines the underlying claim is no longer material for reasons unrelated to the failed lookup (e.g. the claim's context changed, or it was never as material as first classified) — that is a genuine `RESOLVED`, not a misattribution, *provided* `reason` states the independent rationale rather than citing the failure itself as the resolving fact. Forbidding this structurally would force a caller into an artificial `SUPERSEDED_RECLASSIFIED` detour merely to close a legitimately-resolved question, which is a worse, more convoluted answer than simply allowing the disposition value the semantics were always meant to carry. The misattribution risk the governing packet names is real but is a **reason-quality** concern, not a **structural-legality** one: this runtime validates that `reason` is a non-empty, explicit rationale (above); it does not, and architecturally should not, attempt to verify that the rationale is *good* — exactly the same boundary `materialityReason` already draws everywhere else in this contract.
+**`RESOLVED` after `FAILED` is legal, closed explicitly — not left implicit.** The materiality/resolution decision is made by an *externally supplied* semantic re-evaluation, never by the attempt's own mechanical status (§14) — the same separation invariant 4 already establishes in the success direction (`SUCCEEDED` never mechanically implies `RESOLVED`) must hold symmetrically in the failure direction (`FAILED` must not mechanically forbid `RESOLVED`). A concrete, legitimate case, corrected to stay consistent with frozen-input integrity (an earlier version of this example wrongly implied the frozen artifact/context could change in place, which it never can, §5 of the routing contract, `verifyFrozenInputIntegrity`): `SEEK_EVIDENCE` fails (retrieval outright unavailable), and an independent semantic re-evaluation determines, from the *same* frozen input, that the underlying claim was over-classified as material in the first place — the failed route proved nothing either way, but re-evaluation independently concludes the deficit no longer needs to remain current. That is a genuine `RESOLVED`, not a misattribution, *provided* `reason` states that independent rationale rather than citing the failure itself as the resolving fact. If genuinely new author context were required to resolve the question, that is an `ADD_CONTEXT` / new-session-boundary matter (§13.A), never a `RESOLVED`-in-place claim that the frozen input itself changed. Forbidding `RESOLVED`-after-`FAILED` structurally would force a caller into an artificial `SUPERSEDED_RECLASSIFIED` detour merely to close a legitimately-resolved question, which is a worse, more convoluted answer than simply allowing the disposition value the semantics were always meant to carry. The misattribution risk the governing packet names is real but is a **reason-quality** concern, not a **structural-legality** one: this runtime validates that `reason` is a non-empty, explicit rationale (above); it does not, and architecturally should not, attempt to verify that the rationale is *good* — exactly the same boundary `materialityReason` already draws everywhere else in this contract.
 
 #### `SUCCEEDED` never automatically infers `RESOLVED`
 
@@ -704,6 +716,8 @@ No redundant `current: true/false` field is ever stored on `UnresolvedQuestion` 
 
 No runtime code is modified by this document; this is the frozen requirement a future implementation phase must satisfy.
 
+`recordQuestionDisposition` itself also requires its target question to still be current *before* it records the very disposition that may make it non-current (full precondition list above). This is **not a sixth entry retrofitted onto the list of five pre-existing APIs above** — those five already existed before `QuestionDisposition` was designed, and each needed this gate added to already-accepted behavior. `recordQuestionDisposition` is a wholly new operation being designed for the first time; requiring currentness is simply an intrinsic precondition of what it does, not a retrofit.
+
 #### Active-cycle semantics
 
 **Closed: at most one ACTIVE deliberation cycle per current question, at a time.** A question's cycle — beginning at a recorded `RouteDecision` for it and ending at a recorded `QuestionDisposition` for that decision's eventual outcome — is **ACTIVE** for the whole span between those two events, regardless of which intermediate stage it is currently in:
@@ -720,9 +734,51 @@ This single definition subsumes every stage the governing packet named separatel
 
 The active-cycle rule above is a **forward-looking gate on future recording**, never a retroactive claim about what the currently-accepted runtime already enforces. Today's `planRouteForQuestion`/`recordRouteDecision` place no check preventing two decisions from being recorded for the same question — the accepted runtime is, and always has been, more permissive than this new rule. No shipped test in `test-stress-test-deliberation.mjs` (Slice 2A through 2D-B1) ever exercises or relies on that permissiveness — none constructs two decisions for one question — so tightening this later is a compatible, non-breaking hardening, not a correction of a bug. No historical record is ever silently deleted, and no migration is invented: if a future implementation phase ever discovers a session with genuinely parallel decisions/attempts for one question (a state nothing in the accepted runtime has ever produced), it must fail closed on that discovery — treat it as an inconsistent state requiring explicit reconciliation — rather than silently picking one decision as authoritative.
 
-#### Where active-cycle enforcement belongs
+#### Where active-cycle *creation* is prevented — and why that is not the whole answer
 
-**Closed: the authoritative gate belongs at `recordRouteDecision`**, for the same reason it is the authoritative gate for currentness (above) — only a recorded decision is audit truth, so that is the one place a second active cycle can actually be *created*. `planRouteForQuestion` should refuse for the same early-fail-fast consistency reason it already gets the currentness gate. `recordRouteAttemptStart` needs no *independent* active-cycle check beyond what it inherits structurally: invariant 9 already fixes one attempt per decision, and once `recordRouteDecision` refuses to ever record a second active decision for the same question, there is no path by which `recordRouteAttemptStart` could encounter two competing active decisions for one question in the first place. Enforcing once, at the point where the second active cycle would actually be created, is the minimum safe enforcement — duplicating it downstream would add no additional safety, only redundant code paths.
+**`recordRouteDecision` remains the authoritative gate that *prevents creation* of a second active cycle.** For a non-`STOP` `RouteDecision`, before recording it, a future runtime must establish (1) the targeted question is current, and (2) zero active non-`STOP` `RouteDecision`s already exist for that question — reject if one already exists; reject, as legacy/inconsistent state, if more than one somehow already exists. `STOP` is exempt from this check entirely: it is session-level termination, not a new question cycle (§"`STOP` interaction," below).
+
+**Corrected — this is not, by itself, sufficient.** An earlier version of this document claimed downstream checks at `recordRouteAttemptStart`/`recordRouteOutcome` would be structurally redundant once `recordRouteDecision` enforces the rule, "since there is no path by which they could encounter two competing active decisions." That reasoning only holds for state created *after* the gate exists. The accepted runtime today (`planRouteForQuestion`/`recordRouteDecision`, Slice 2A/2B) predates this rule entirely and places no check preventing two decisions from being recorded for the same question — so a `DeliberationState` can structurally already contain `Q1 -> Decision A` and `Q1 -> Decision B`, both active, before any active-cycle gate is ever implemented. A downstream operation cannot rely on an upstream gate that did not exist when the state it is now operating on was created. Every downstream operation must therefore **independently** re-derive and validate the active-cycle set for the question it targets — never trust that an upstream gate already guaranteed it, exactly the same "never trust, always re-validate at the boundary" posture this entire contract already takes everywhere else (§7's `validateAttemptProvenanceForOutcome`, §9's outcome-binding chain resolution).
+
+#### Legacy / permissive-state integrity — the structural helper this requires
+
+A future implementation needs a structural helper conceptually equivalent to:
+
+```
+getActiveRouteDecisionsForQuestion(deliberationState, questionId): RouteDecision[]
+  = every non-STOP RouteDecision d in history with d.questionId === questionId
+    such that no QuestionDisposition has yet been recorded for d's eventual outcome
+```
+
+(exact name not frozen; `assertSingleActiveCycleIntegrity(...)` performing the same derivation and throwing is an equally acceptable shape). Its result has exactly three possible sizes, each with a frozen meaning:
+
+| `getActiveRouteDecisionsForQuestion(...).length` | Meaning |
+|---|---|
+| `0` | Valid — no active cycle; starting a new one is permitted (subject to currentness). |
+| `1` | Valid **only** for progressing that exact cycle — the operation must be operating on that one active decision/attempt/outcome, not a different one. |
+| `>1` | **Invalid — legacy/inconsistent state.** Fail closed. |
+
+The `>1` case is **never** automatically reconciled: no "pick the latest," no timestamp-based winner, no silent deletion of the losing decisions. It fails closed, exactly like every other integrity violation in this contract — the same posture already established for "existing historical state" (above).
+
+#### Downstream legacy-integrity gates
+
+Although `recordRouteDecision` is the authoritative *creation* gate, the following operations must **independently** protect against a question whose historical state already violates single-active-cycle integrity — this is not duplicate policy enforcement; it is integrity validation for states that may predate the authoritative gate:
+
+| API | Required independent check |
+|---|---|
+| `recordRouteAttemptStart` | Resolve the question; require exactly one active cycle, and that it is the exact decision being started. `0` active or `>1` active → reject; `1` active belonging to a *different* decision → reject. |
+| `recordRouteOutcome` | Resolve the question; require exactly one active cycle, and that it is the exact decision/attempt being terminalized. Same `0`/`>1`/wrong-cycle rejection. |
+| `recordQuestionDisposition` | Resolve the question; require exactly one active cycle, and that it is the exact decision represented by the supplied outcome/`attemptId` (full precondition list below). |
+
+`planRouteForQuestion` gets the identical check as an early, non-authoritative fail-fast (below) — planning remains ephemeral; `recordRouteDecision` remains the sole authoritative *creation* enforcement, but every operation that *progresses* an existing cycle re-derives and re-checks that cycle's uniqueness independently, rather than trusting a gate that may not have existed when the state it is now touching was created.
+
+#### `planRouteForQuestion`'s active-cycle check
+
+For a non-`STOP` question: the question must be current, and no active cycle may already exist. If exactly one already exists, reject (planning cannot start a second cycle). If more than one already exists, reject as inconsistent historical state — the same `>1` case as every other downstream gate. Planning remains ephemeral and non-authoritative; `recordRouteDecision` remains the authoritative enforcement point for actually *creating* a cycle.
+
+#### `createContextRequest`'s active-cycle check
+
+`createContextRequest` keeps its required current-question gate (§"Current gates," above) and additionally: if the targeted question is found to have more than one active recorded cycle, it rejects as inconsistent historical state — the same integrity check every other downstream operation performs. This document does **not** attempt to solve `ContextRequest` -> `RouteAttempt` binding here (still separately deferred, unchanged), and `createContextRequest` is never required to invent or assume an active cycle for its own operation — it only refuses when the historical state it inspects is already inconsistent.
 
 #### `RouteOutcome` after terminal disposition (stale attempts)
 
@@ -732,17 +788,45 @@ Concrete case, made explicit: a session has (hypothetically, per "existing histo
 
 The same rule extends to `ADD_CONTEXT`: once `Q1` (a `CONTEXT_GAP` question) has any terminal disposition, a new `ContextRequest` against it must reject. `createContextRequest` today checks only that the question is *registered* (`deliberationState.unresolvedQuestions.find`); a future implementation must add the current-question check alongside it.
 
-#### `STOP` interaction with an open attempt — a major decision, closed explicitly
+#### `STOP` interaction with any unfinished active-cycle stage — a major decision, closed explicitly and generalized
+
+An earlier version of this document closed this question only for an open `RouteAttempt`. **Corrected: `ACTIVE` (above) spans all three stages — decision-only, attempt-open, and outcome-recorded-but-undisposed — and `STOP`'s interaction must be closed for every one of them, not merely the middle one.**
 
 Three options were weighed, per the governing packet's own framing:
 
-- **(A) An open attempt at `STOP` time is an acceptable, explicit audit state.**
-- **(B) `STOP` must fail closed while any active attempt is open.**
-- **(C) `STOP` may proceed only after explicit interrupted-attempt handling.**
+- **(A) An unfinished active-cycle stage at `STOP` time is an acceptable, explicit audit state.**
+- **(B) `STOP` must fail closed while any active cycle is unfinished.**
+- **(C) `STOP` may proceed only after explicit interrupted-cycle handling.**
 
-**(A) is adopted.** (B) is rejected because it would make `STOP` unreachable in exactly the situations it is most needed: `budget` and `latency` `StopReason`s (already-accepted vocabulary, restated at §18) are precisely the outcomes of an attempt that is *itself* mid-flight and consuming the exhausted budget — forcing `STOP` to wait for that attempt to close would make the ceiling meaningless, since the one thing exceeding a ceiling is supposed to do is stop the session regardless of what is still running. (C) is rejected because "explicit interrupted-attempt handling" does not exist and is repeatedly, deliberately not designed by this contract (§5's open/unterminated attempt is already accepted as a permanent state with "no automatic retry" and recovery deferred to "an explicitly authorized, fail-closed recovery path," not yet built) — requiring a precondition that has no implementation would make `STOP` just as unreachable as (B), for a different reason.
+**(A) is adopted, for all three stages.** (B) is rejected because it would make `STOP` unreachable in exactly the situations it is most needed: `budget` and `latency` `StopReason`s (already-accepted vocabulary, restated at §18) are precisely the outcomes of a cycle that is *itself* mid-flight and consuming the exhausted budget — forcing `STOP` to wait for that cycle to finish would make the ceiling meaningless, since the one thing exceeding a ceiling is supposed to do is stop the session regardless of what is still running. (C) is rejected because "explicit interrupted-cycle handling" does not exist and is repeatedly, deliberately not designed by this contract (§5's open/unterminated attempt is already accepted as a permanent state with "no automatic retry" and recovery deferred to "an explicitly authorized, fail-closed recovery path," not yet built) — requiring a precondition that has no implementation would make `STOP` just as unreachable as (B), for a different reason.
 
-(A) is also the option every other part of this contract already points toward: an open/unterminated attempt is *already* an accepted permanent audit fact (invariant 22); `STOP` already may hand `STILL_OPEN` questions to `HumanAdjudication` unfiltered (invariant 13, §18) — a human is precisely the right authority to decide what, if anything, to do about an attempt orphaned by `STOP`, exactly as they are already the authority for unresolved questions in general. Concretely: `STOP` may be recorded while a `RouteAttempt` is open. Once recorded, `deliberationState.stopReason !== null`, and `recordRouteOutcome`'s existing "already stopped" check (Slice 2D-B1, accepted) already rejects any later outcome for that attempt — meaning the open attempt becomes **permanently** open in that `DeliberationState`. This is not a gap to close; it is the same accepted permanent-audit-state pattern as every other open/unterminated attempt, just triggered by `STOP` instead of a terminal disposition.
+(A) is also the option every other part of this contract already points toward: an open/unterminated attempt is *already* an accepted permanent audit fact (invariant 22); `STOP` already may hand `STILL_OPEN` questions to `HumanAdjudication` unfiltered (invariant 13, §18) — a human is precisely the right authority to decide what, if anything, to do about a cycle orphaned by `STOP`, exactly as they are already the authority for unresolved questions in general. `STOP` is session-level machine-deliberation termination; it does **not** itself create or need a question cycle, so nothing about any of the three stages below blocks it.
+
+**(1) `STOP` after a decision-only cycle (no `RouteAttempt` yet).** `Q1 -> non-STOP RouteDecision D1 -> no RouteAttempt -> STOP.` Allowed. `D1` remains immutable historical audit truth — "this route had been justified" — but was never attempted. No future `RouteAttempt` may begin for `D1` after `STOP` (§"Post-`STOP` rule," below).
+
+**(2) `STOP` after an open attempt (no `RouteOutcome` yet).** `Q1 -> D1 -> RouteAttempt A1 -> no RouteOutcome -> STOP.` Allowed (the case the earlier version of this document already covered). `A1` remains permanently open/unterminated; no later `RouteOutcome` may be recorded for it.
+
+**(3) `STOP` after a terminal outcome but before disposition — frozen explicitly.** `Q1 -> D1 -> A1 -> RouteOutcome O1 -> no QuestionDisposition yet -> STOP.` Allowed. After `STOP`, `recordQuestionDisposition(O1, ...)` **must reject** (precondition 1 of its complete list, above: `stopReason === null`). `O1` remains an immutable terminal `RouteOutcome` with no `QuestionDisposition` — permanently. `Q1` therefore remains **current / unresolved** at machine-deliberation shutdown, and is handed to `HumanAdjudication` as such. **Nothing fabricates `STILL_OPEN`, `RESOLVED`, or any other disposition merely because `STOP` occurred** — `STOP` ends machine deliberation; it never retroactively completes or resolves what machine deliberation left unfinished.
+
+Concretely, for stage (2) specifically (unchanged from the earlier version): once `STOP` is recorded, `deliberationState.stopReason !== null`, and `recordRouteOutcome`'s existing "already stopped" check (Slice 2D-B1, accepted) already rejects any later outcome for that attempt. This is not a gap to close in any of the three stages; it is the same accepted permanent-audit-state pattern, just triggered by `STOP` instead of (or before) a terminal disposition would otherwise have been reached.
+
+#### Post-`STOP` rule
+
+Once `deliberationState.stopReason !== null`, **no further machine-deliberation mutation is permitted, at minimum**: no new `RouteDecision`, no `RouteAttempt`, no `RouteOutcome`, no `QuestionDisposition`, no `ContextRequest`. Read-only derivation and audit inspection (e.g. computing `isQuestionCurrent`, listing the current-question set for the `HumanAdjudication` handoff) remains allowed — `STOP` ends *machine deliberation*, not the ability to read what it produced.
+
+#### `ACTIVE` cycle after `STOP` — two distinct concepts, never conflated
+
+```
+ACTIVE FOR ROUTING
+  = deliberationState.stopReason === null
+    AND the cycle has not yet received a QuestionDisposition
+
+UNFINISHED HISTORICAL CYCLE AFTER STOP
+  = deliberationState.stopReason !== null
+    AND the pre-STOP cycle never reached a disposition
+```
+
+An unfinished pre-`STOP` cycle may remain, permanently, "without disposition" — that is expected, not an error (above). But it must never be reinterpreted as an *actionable* active cycle once `STOP` has been recorded: after `STOP`, no routing action is permitted regardless of which stage an unfinished cycle sits at (Post-`STOP` rule, above). This distinction exists specifically to avoid a misleading claim that machine deliberation is still "active" after it has terminally stopped — `ACTIVE FOR ROUTING` is a live, actionable state; `UNFINISHED HISTORICAL CYCLE AFTER STOP` is a permanent, inert historical fact for `HumanAdjudication` to see, never for machine deliberation to resume.
 
 #### Snapshot / value semantics (extended)
 
@@ -790,7 +874,9 @@ No governing source-of-truth document contradicts A–O; none required reopening
 
 Not authorized by this document. Two slices, in this order:
 
-**`SLICE 2D-B2-A` — CURRENTNESS CORE:** `QuestionDisposition` type; `questionDispositions[]` ledger; `STILL_OPEN`/`RESOLVED` only; outcome binding; `isQuestionCurrent`; all five current gates; the active-cycle gate at `recordRouteDecision` (+ `planRouteForQuestion`); no `SUPERSEDED_RECLASSIFIED`; no `CROSS_SESSION`. This is the smallest slice that makes currentness and active-cycle enforcement real without touching any already-accepted type's shape.
+**`SLICE 2D-B2-A` — CURRENTNESS CORE:** `QuestionDisposition` type; `questionDispositions[]` ledger; `STILL_OPEN`/`RESOLVED` only; outcome binding; `isQuestionCurrent`; all five current gates; `recordQuestionDisposition`'s own current/`STOP`/active-cycle preconditions (full list above); the authoritative active-cycle *creation* gate at `recordRouteDecision` (+ `planRouteForQuestion`'s early fail-fast); **and** the independent legacy active-cycle *integrity* validation at `recordRouteAttemptStart`/`recordRouteOutcome`/`recordQuestionDisposition`/`createContextRequest` (`getActiveRouteDecisionsForQuestion`-shaped, above); no `SUPERSEDED_RECLASSIFIED`; no `CROSS_SESSION`. This is the smallest slice that makes currentness and active-cycle enforcement real without touching any already-accepted type's shape.
+
+**Reaffirmed as binding sequencing, not merely a recommendation:** currentness and active-cycle enforcement — including the legacy-integrity validation above — **must** land together in `SLICE 2D-B2-A` as one indivisible hardening unit. They must never be split across separate runtime slices. Splitting them would reopen exactly the gap this amendment corrects: an implementation that lands currentness alone, deferring active-cycle (and its legacy-integrity checks) to a later slice, would leave a window in which the same current question could still have two active decisions recorded against it, because the very re-derivation that would catch that inconsistency is what got deferred.
 
 **`SLICE 2D-B2-B` — SUPERSEDED / DERIVED QUESTION LINEAGE** (later, separately authorized): adds `derivedFromQuestionId` to `UnresolvedQuestion` (the one material schema change deferred out of 2D-B2-A), the atomic `recordQuestionDisposition(SUPERSEDED_RECLASSIFIED, replacementQuestion)` operation, and `registerUnresolvedQuestion`'s corresponding rejection of a non-`null` `derivedFromQuestionId` on the ordinary registration path.
 
@@ -1084,6 +1170,10 @@ An open/unterminated attempt (§5) is itself an idempotency concern: while a `Ro
 36. `STOP` may be recorded while a `RouteAttempt` is open; the attempt becomes permanently open/unterminated, never forced closed, never treated as an error caused by stopping (§9).
 37. `registerUnresolvedQuestion` must reject any question whose `derivedFromQuestionId` is non-`null`; a derived question may only ever be registered through the atomic `SUPERSEDED_RECLASSIFIED` transition, never standalone (§9).
 38. `RESOLVED` is a legal `QuestionDisposition` after a `FAILED` `RouteOutcome` when independently justified by `reason`; `CROSS_SESSION` is never legal after `FAILED`, regardless of route (§9).
+39. Every operation that progresses an existing deliberation cycle (`recordRouteAttemptStart`, `recordRouteOutcome`, `recordQuestionDisposition`, `createContextRequest`) must independently re-derive that question's active-cycle set and fail closed if it is not exactly one cycle matching the one being progressed — never trusting that `recordRouteDecision`'s creation-time gate already guaranteed this for state that may predate it (§9).
+40. A question found to have more than one active `RouteDecision` is a legacy-inconsistent state that always fails closed; it is never automatically reconciled, never resolved by picking the latest, and never silently deleted (§9).
+41. `STOP` is exempt from active-cycle blocking at every stage — decision-only, attempt-open, and outcome-recorded-but-undisposed — because it is session-level termination, not a new question cycle; none of the three stages ever blocks it, and none is ever retroactively completed or resolved merely because `STOP` occurred (§9).
+42. Once `deliberationState.stopReason !== null`, no further machine-deliberation mutation is permitted (no new `RouteDecision`, `RouteAttempt`, `RouteOutcome`, `QuestionDisposition`, or `ContextRequest`); read-only derivation/audit inspection remains permitted (§9).
 
 ---
 
@@ -1147,6 +1237,8 @@ No governing source-of-truth document contradicts H–M; none required reopening
 
 **Closed by the Slice 2D-B2-0 schema freeze:** fifteen decisions (A–O, §9's "Schema decisions closed" subsection), covering `QuestionDisposition` identity and generic envelope, legal disposition/status combinations (including `RESOLVED` after `FAILED`, closed explicitly rather than left implicit), `CROSS_SESSION`'s continued runtime block, the `SUPERSEDED_RECLASSIFIED` replacement-question model and its `derivedFromQuestionId` field (confirmed for `UnresolvedQuestion`, deferred to a later slice), the complete five-API current-gate list, active-cycle semantics and where its gate belongs, and — as a major architecture decision — that `STOP` may proceed while a `RouteAttempt` is open, leaving it permanently open/unterminated rather than failing closed or requiring not-yet-built recovery machinery (invariants 34–38). Two prior open items (`ADD_CONTEXT`'s `NO_RESPONSE` and `SEEK_EVIDENCE`'s claim-level provenance) are explicitly left open, unrevisited, per this packet's own instruction not to solve unrelated items merely because this document was open (§24).
 
+**Corrected by the Slice 2D-B2-0 amendment:** two executable-consistency gaps found in remote architecture review are closed, both in §9. First, the earlier claim that `recordRouteAttemptStart`/`recordRouteOutcome` need no independent active-cycle check because `recordRouteDecision`'s gate already prevents the problem is corrected — that gate only prevents *future* creation of a second active cycle; it says nothing about state that predates the gate's existence. `recordRouteAttemptStart`, `recordRouteOutcome`, `recordQuestionDisposition`, and `createContextRequest` must each independently re-derive the question's active-cycle set and fail closed on `0`/`>1`/wrong-cycle results (invariant 39), and a `>1` result is always a legacy-inconsistent state, never automatically reconciled (invariant 40). Second, `STOP`'s interaction with an unfinished cycle — previously closed only for the open-attempt stage — is generalized to all three `ACTIVE` stages, including a decision with no attempt yet and an outcome recorded with no disposition yet (invariant 41), together with an explicit post-`STOP` no-further-mutation rule (invariant 42) and a named distinction between `ACTIVE FOR ROUTING` and an `UNFINISHED HISTORICAL CYCLE AFTER STOP`, so an unresolved pre-`STOP` cycle is never mistaken for one deliberation could still act on. A third, smaller correction replaces the `RESOLVED`-after-`FAILED` worked example, which had implied the frozen artifact/context could change in place — a frozen-input-integrity violation this contract has never permitted — with one consistent with re-evaluating the *same* frozen input. `SLICE 2D-B2-A`'s scope (§9, "Recommended next runtime slices") is reaffirmed as one indivisible unit that must include the legacy-integrity validation above, not merely currentness and decision-time active-cycle creation alone.
+
 ---
 
 ## 23. Relation to accepted Slice 2A/2B runtime
@@ -1165,7 +1257,9 @@ Nothing in this document alters, weakens, or contradicts `src/stress-test/delibe
 
 **Not an open decision, despite being a runtime blocker:** `TARGETED_PEER_CHALLENGE`'s source/target provenance rule *is* closed by this amendment (§7 decisions L–M, invariants 30–31) — two distinct refs, both drawn from the terminated `RouteDecision`'s own `inputRefs`. Its successful-outcome runtime stays blocked only because the routing gate that would *enforce* that closed rule does not exist yet — a sequencing gap, not an unresolved architecture question. The same is true of `SUPERSEDED_RECLASSIFIED` (§9 decisions F–H) and `CROSS_SESSION` (§9 decision E): both are architecturally closed — the replacement-question model, the `derivedFromQuestionId` field, and the exact prerequisites `CROSS_SESSION` still lacks are all frozen — but deliberately sequenced into a later slice rather than left as unresolved questions.
 
-**Neither of the two items above was revisited by the Slice 2D-B2-0 schema freeze**, per that packet's own instruction not to solve unrelated open items merely because this document was open for editing (§29 of that packet). Both remain exactly as recorded: still open, still requiring a separately authorized architecture decision before their respective runtimes can be authorized.
+**Neither of the two items above was revisited by the Slice 2D-B2-0 schema freeze, nor by this amendment.** Both remain exactly as recorded: still open, still requiring a separately authorized architecture decision before their respective runtimes can be authorized.
+
+**This amendment introduces zero new open decisions.** Both executable-consistency gaps it was asked to close — the legacy active-cycle integrity gap and the incomplete `STOP`-interaction closure — were closeable from source-of-truth already accepted in this repository and this contract's own already-established patterns (the "never trust an upstream check for pre-existing state" posture already used everywhere else, and the existing `budget`/`latency` `StopReason` vocabulary), not left open for lack of a clear answer.
 
 Every other decision either governing packet asked to be closed (§22, including the amendment's H–M, the Slice 2D-B0 schema freeze's A–N in §7, and the Slice 2D-B2-0 schema freeze's A–O in §9) is closed, using only source-of-truth material already in this repository (`src/stress-test/deliberation.ts`, `src/stress-test/session.ts`, `src/stress-test/types.ts`, `src/providers/types.ts`, `src/agents/collaboration.ts`, `MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md`) and the packets' own explicit instructions. No contradiction between governing documents was found, so nothing was reported instead of resolved. `ReplicationResult`'s exact vocabulary (§13.C) and the `questionDispositions` migration shape (§15) were closed rather than left open, on the same minimal-closed-enum / purely-additive-field reasoning pattern this repository already uses for `StopReason` and `RootCauseCategory` — both are conceptual-only and implement nothing. The per-route `AttemptStatus` allowlist (§6, decision K of §22) was originally submitted as Engineering Lead advisory input in Slice 2C and has now been explicitly accepted by GPT as binding — recorded here as provenance, not as a decision this document made unilaterally. `ADD_REVIEWER`'s newness-provenance rule (§7 decision D) is closed as a structural, multi-signal check, not as identity equality — GPT's rejection of the prior `reviewerRunId === attemptId` convention is fully incorporated, not merely noted. The `STOP`-while-open-attempt decision (§9 decision N) was explicitly evaluated against all three options the governing packet posed, not assumed by default.
 
