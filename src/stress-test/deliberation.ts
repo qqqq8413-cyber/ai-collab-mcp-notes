@@ -112,6 +112,16 @@ export type StopReason =
   | 'unresolved_but_human_decidable'
   | 'failure_fallback';
 
+/** Runtime allowlist mirroring the StopReason union — a plain-JS caller has no compile-time check, so an unrecognized string must be rejected here, not just at the type level. */
+const STOP_REASONS: readonly StopReason[] = [
+  'successful',
+  'budget',
+  'latency',
+  'no_eligible_route',
+  'unresolved_but_human_decidable',
+  'failure_fallback',
+];
+
 /** Root-cause classification plus the (already-made) materiality justification. This module enforces structure, not classification — no AI classifier, no numeric score, no inference from finding count/evidenceState/complexity. */
 export interface RouteReason {
   rootCause: RootCauseCategory;
@@ -306,8 +316,14 @@ export function planRouteForQuestion(
  * Refuses once the state has already stopped (`stopReason !== null`).
  * Refuses a route/rootCause mismatch outright, so a RouteDecision that
  * claims an incompatible route can never be recorded. `route === 'STOP'`
- * requires an explicit StopReason; every other route requires that none be
- * supplied.
+ * requires an explicit, allowlisted StopReason; every other route requires
+ * that none be supplied.
+ *
+ * A RouteDecision is never trusted to have come from `planRouteForQuestion`
+ * — every structural rule that function enforces (route/rootCause
+ * consistency, non-empty materialityReason, at least one provenance ref for
+ * a non-NONE root cause, valid refs) is re-checked here from scratch
+ * against whatever object was actually passed in.
  */
 export function recordRouteDecision(
   session: StressTestSession,
@@ -326,12 +342,20 @@ export function recordRouteDecision(
     );
   }
   assertNonEmptyMaterialityReason(routeDecision.reason.materialityReason);
+  if (routeDecision.reason.rootCause !== 'NONE' && routeDecision.inputRefs.length === 0) {
+    throw new Error(
+      `recordRouteDecision: at least one inputRef is required for a non-NONE root cause (rootCause=${routeDecision.reason.rootCause})`
+    );
+  }
   for (const ref of routeDecision.inputRefs) validateRouteInputRef(session, ref);
 
   let stopReason: StopReason | null = null;
   if (routeDecision.route === 'STOP') {
     if (!options?.stopReason) {
       throw new Error('recordRouteDecision: route STOP requires an explicit stopReason');
+    }
+    if (!STOP_REASONS.includes(options.stopReason)) {
+      throw new Error(`recordRouteDecision: invalid stopReason ${JSON.stringify(options.stopReason)}`);
     }
     stopReason = options.stopReason;
   } else if (options?.stopReason) {
@@ -416,6 +440,9 @@ export function createContextRequest(
   }
   assertNonEmptyString(input.question, 'createContextRequest: question');
   assertNonEmptyString(input.inferenceReason, 'createContextRequest: inferenceReason');
+  if (input.sourceRefs.length === 0) {
+    throw new Error('createContextRequest: at least one sourceRef is required; a reference is never fabricated');
+  }
   for (const ref of input.sourceRefs) validateRouteInputRef(session, ref);
   if (!session.artifactHash || !session.authorContextHash) {
     throw new Error('createContextRequest: session is missing its frozen artifactHash/authorContextHash');

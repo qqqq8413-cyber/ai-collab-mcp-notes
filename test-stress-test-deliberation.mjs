@@ -699,5 +699,214 @@ check('recordRouteDecision and createContextRequest never touch session.adjudica
   assert.deepEqual(session.revisionActions, {});
 });
 
+// ==================================================================
+// K. Provenance & StopReason runtime hardening (regression)
+// ==================================================================
+console.log('\nProvenance & StopReason runtime hardening (regression)');
+
+check('recordRouteDecision rejects a manually constructed ADD_REVIEWER + COVERAGE_GAP with inputRefs=[]', () => {
+  const { session } = buildFixtureWithIssue();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const sessionBefore = JSON.parse(JSON.stringify(session));
+  const manual = {
+    id: 'manual-add-reviewer',
+    route: 'ADD_REVIEWER',
+    reason: { rootCause: 'COVERAGE_GAP', materialityReason: 'material coverage gap' },
+    inputRefs: [],
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => recordRouteDecision(session, state, manual), /at least one inputRef is required/);
+  assert.deepEqual(session, sessionBefore, 'session must be unchanged after a rejected recordRouteDecision');
+  assert.deepEqual(session.adjudications, {});
+  assert.deepEqual(session.revisionActions, {});
+});
+
+check('recordRouteDecision rejects a manually constructed SEEK_EVIDENCE + EVIDENCE_GAP with inputRefs=[]', () => {
+  const { session } = buildFixtureWithIssue();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const manual = {
+    id: 'manual-seek-evidence',
+    route: 'SEEK_EVIDENCE',
+    reason: { rootCause: 'EVIDENCE_GAP', materialityReason: 'an unverified external claim' },
+    inputRefs: [],
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => recordRouteDecision(session, state, manual), /at least one inputRef is required/);
+});
+
+check('recordRouteDecision accepts STOP + NONE + inputRefs=[] with a valid StopReason', () => {
+  const session = buildReviewedFixtureSession();
+  const state = createDeliberationState(session, { costCeiling: 1, latencyCeiling: 1 });
+  const manual = {
+    id: 'manual-stop',
+    route: 'STOP',
+    reason: { rootCause: 'NONE', materialityReason: 'nothing material remains' },
+    inputRefs: [],
+    createdAt: new Date().toISOString(),
+  };
+  const next = recordRouteDecision(session, state, manual, { stopReason: 'successful' });
+  assert.equal(next.stopReason, 'successful');
+});
+
+check('recordRouteDecision accepts a non-NONE decision with a valid provenance ref', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const manual = {
+    id: 'manual-valid',
+    route: 'ADD_REVIEWER',
+    reason: { rootCause: 'COVERAGE_GAP', materialityReason: 'material coverage gap' },
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    createdAt: new Date().toISOString(),
+  };
+  const next = recordRouteDecision(session, state, manual);
+  assert.equal(next.history.length, 1);
+  assert.equal(next.stopReason, null);
+});
+
+check('createContextRequest rejects sourceRefs=[]', () => {
+  const { session } = buildFixtureWithIssue();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const sessionBefore = JSON.parse(JSON.stringify(session));
+  assert.throws(
+    () =>
+      createContextRequest(session, state, {
+        reason: { rootCause: 'CONTEXT_GAP', materialityReason: 'x' },
+        sourceRefs: [],
+        category: 'constraints',
+        question: 'x?',
+        inferenceReason: 'x',
+      }),
+    /at least one sourceRef is required/
+  );
+  assert.deepEqual(session, sessionBefore);
+});
+
+check('createContextRequest accepts a valid sourceRef', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const request = createContextRequest(session, state, {
+    reason: { rootCause: 'CONTEXT_GAP', materialityReason: 'x' },
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    category: 'constraints',
+    question: 'x?',
+    inferenceReason: 'x',
+  });
+  assert.deepEqual(request.sourceRefs, [{ kind: 'SEMANTIC_ISSUE', id: issueId }]);
+});
+
+check('all six valid StopReason values succeed', () => {
+  const validStopReasons = [
+    'successful',
+    'budget',
+    'latency',
+    'no_eligible_route',
+    'unresolved_but_human_decidable',
+    'failure_fallback',
+  ];
+  for (const stopReason of validStopReasons) {
+    const session = buildReviewedFixtureSession();
+    const state = createDeliberationState(session, { costCeiling: 1, latencyCeiling: 1 });
+    const manual = {
+      id: `manual-stop-${stopReason}`,
+      route: 'STOP',
+      reason: { rootCause: 'NONE', materialityReason: 'nothing material remains' },
+      inputRefs: [],
+      createdAt: new Date().toISOString(),
+    };
+    const next = recordRouteDecision(session, state, manual, { stopReason });
+    assert.equal(next.stopReason, stopReason);
+  }
+});
+
+check('invalid runtime StopReason values are rejected', () => {
+  const invalidValues = ['UNKNOWN', '', 'Success', null];
+  for (const stopReason of invalidValues) {
+    const session = buildReviewedFixtureSession();
+    const state = createDeliberationState(session, { costCeiling: 1, latencyCeiling: 1 });
+    const manual = {
+      id: 'manual-stop-invalid',
+      route: 'STOP',
+      reason: { rootCause: 'NONE', materialityReason: 'nothing material remains' },
+      inputRefs: [],
+      createdAt: new Date().toISOString(),
+    };
+    let threw = false;
+    try {
+      recordRouteDecision(session, state, manual, { stopReason });
+    } catch {
+      threw = true;
+    }
+    assert.equal(threw, true, `expected stopReason ${JSON.stringify(stopReason)} to be rejected`);
+  }
+});
+
+check('a stopReason is still rejected for a non-STOP route', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const manual = {
+    id: 'manual-non-stop',
+    route: 'ADD_REVIEWER',
+    reason: { rootCause: 'COVERAGE_GAP', materialityReason: 'x' },
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(
+    () => recordRouteDecision(session, state, manual, { stopReason: 'successful' }),
+    /only be supplied when route is STOP/
+  );
+});
+
+check('session and DeliberationState remain immutable across the rejected regression cases above', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const sessionBefore = JSON.parse(JSON.stringify(session));
+  const stateBefore = JSON.parse(JSON.stringify(state));
+
+  try {
+    recordRouteDecision(session, state, {
+      id: 'x1',
+      route: 'ADD_REVIEWER',
+      reason: { rootCause: 'COVERAGE_GAP', materialityReason: 'x' },
+      inputRefs: [],
+      createdAt: new Date().toISOString(),
+    });
+  } catch {
+    // expected
+  }
+  try {
+    recordRouteDecision(
+      session,
+      state,
+      {
+        id: 'x2',
+        route: 'STOP',
+        reason: { rootCause: 'NONE', materialityReason: 'x' },
+        inputRefs: [],
+        createdAt: new Date().toISOString(),
+      },
+      { stopReason: 'UNKNOWN' }
+    );
+  } catch {
+    // expected
+  }
+  try {
+    createContextRequest(session, state, {
+      reason: { rootCause: 'CONTEXT_GAP', materialityReason: 'x' },
+      sourceRefs: [],
+      category: 'constraints',
+      question: 'x?',
+      inferenceReason: 'x',
+    });
+  } catch {
+    // expected
+  }
+
+  assert.deepEqual(session, sessionBefore, 'session must be unchanged');
+  assert.deepEqual(state, stateBefore, 'deliberationState must be unchanged');
+  assert.deepEqual(session.adjudications, {});
+  assert.deepEqual(session.revisionActions, {});
+  assert.equal(issueId, session.semanticIssues[issueId].id, 'sanity check: the issue itself is untouched');
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed === 0 ? 0 : 1);
