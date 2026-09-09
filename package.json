@@ -11,7 +11,7 @@
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
-    "test": "npm run build && node test-chief.mjs && node test-run-status.mjs && node test-registry.mjs && node test-mcp-smoke.mjs && node test-execution-policy.mjs && node test-collaboration.mjs"
+    "test": "npm run build && node test-chief.mjs && node test-run-status.mjs && node test-registry.mjs && node test-mcp-smoke.mjs && node test-execution-policy.mjs && node test-collaboration.mjs && node test-stress-test-mvp.mjs"
   },
   "keywords": [],
   "author": "",
