@@ -174,6 +174,223 @@ Every `RouteOutcome` binds to:
 
 `RouteOutcome` is evidence/audit input to re-evaluation (§14) — never itself the fact that a question is resolved (§9, §10).
 
+### Schema freeze (Slice 2D-B0)
+
+The remainder of this section freezes `RouteOutcome`'s exact conceptual envelope and every route-specific payload, so a future implementation phase has one unambiguous schema to build against rather than open questions. Nothing below is implemented; no `src/**` type, function, or test is added by this freeze.
+
+#### Identity: no separate `outcomeId`
+
+`RouteOutcome` does **not** get its own `outcomeId`. `attemptId` is sufficient identity: invariant 10 (§20) already fixes `ONE RouteAttempt -> AT MOST ONE terminal RouteOutcome`, so `attemptId` uniquely identifies both the attempt and the (at most one) outcome that terminates it. A second, redundant identity field would duplicate that cardinality guarantee rather than add one.
+
+#### Generic envelope — derived vs. supplied vs. generated
+
+| Field | Source |
+|---|---|
+| `attemptId` | Caller-supplied — identifies which existing, still-open `RouteAttempt` this outcome terminates. Resolved only against `deliberationState.attempts`; an unknown `attemptId` is rejected (no free-floating outcome, mirroring `recordRouteAttemptStart`'s own `decisionId` resolution rule). |
+| `decisionId`, `originatingQuestionId`, `route` | Derived/copied from the resolved `RouteAttempt`. Never independently caller-supplied — a caller can never restate these inconsistently with the attempt they claim to terminate; any mismatch is rejected. |
+| `sessionId`, `artifactHash`, `authorContextHash` | Derived/copied from the resolved `RouteAttempt`, and re-verified against the current `DeliberationState` binding before the outcome is recorded (fail-closed, mirroring `recordRouteAttemptStart`'s own re-check, §5). |
+| `completedAt` | **Runtime-generated at record time.** Never a caller-supplied timestamp — an arbitrary caller timestamp would let a delayed or replayed recording claim a false completion time. |
+| `status` (`AttemptStatus`) | Caller-supplied — this is the one fact only the external mechanism can know. Validated against the per-route allowlist (§6) and against result/status consistency (below). |
+| `logicalCost` | Derived/copied from the resolved `RouteAttempt.logicalCost` — see "Logical cost is never re-charged," below. |
+| `latencyConsumed` | Caller-supplied/measured — the one other fact only knowable at completion. See "Latency," below. |
+| Route-specific result payload OR `FailureInfo` | Caller-supplied, structurally validated per the frozen per-route schemas below and required to be consistent with `status`. |
+
+#### Logical cost is never re-charged
+
+`RouteAttempt` already owns `logicalCost`, and that cost was already accounted **at attempt start** (Slice 2D-A, `recordRouteAttemptStart` -> `applyCostSpend`, already implemented and shipped). `RouteOutcome.logicalCost` is therefore a **copied audit mirror** of `RouteAttempt.logicalCost` for the same `attemptId` — never an independent value, never caller-suppliable to something different. If a caller supplies a `logicalCost` on the outcome that does not exactly equal the resolved attempt's own `logicalCost`, the outcome is rejected outright. **Recording a `RouteOutcome` must never call `applyCostSpend()` again for the same attempt** — there is exactly one cost charge per attempt, made at start, full stop. This also resolves an ambiguity in §12's `FAILED`/`INCONCLUSIVE`-attempts-still-consume-cost language: that cost was already consumed at attempt start, before the outcome existed; recording the outcome does not spend it a second time.
+
+#### Latency
+
+`latencyConsumed` must be finite, numeric, `>= 0`, and measured/supplied at terminalization — never fabricated for an attempt that never completed (§5, §12, open/unterminated attempts). It is accounted **exactly once**, through the latency budget, at the moment the outcome is recorded. Exceeding the latency ceiling fails closed: no outcome is recorded if its latency cannot be accounted under the existing finite ceiling — mirroring exactly how `applyCostSpend` already fails closed on the cost ceiling today. Latency is never accounted at attempt start (§12): there is nothing to measure yet.
+
+#### `FailureInfo` — generic, provider-neutral failure payload
+
+```
+FailureCategory =
+  | 'TRANSPORT'              -- the call/request itself could not complete
+  | 'VALIDATION'              -- the mechanism returned output, but it fails
+                                structural/runtime validation
+  | 'REFERENCE_RESOLUTION'    -- a required domain reference could not be
+                                resolved (mirrors validateRouteInputRef's
+                                existing fail-closed posture)
+  | 'EXECUTION'               -- the mechanism ran and reached a terminal
+                                state but could not complete its designed
+                                function, for a reason not covered above
+
+FailureInfo (conceptual):
+{
+  category: FailureCategory,
+  message: string,   -- sanitized, bounded prose; a human-readable
+                         explanation, never a raw SDK error object, stack
+                         trace, request header, API key, or other secret
+}
+```
+
+Each category is justified by an existing named failure mode in the already-accepted fallback table (`MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §13): route-planning/reference failures -> `REFERENCE_RESOLUTION`; acquisition/retrieval/challenge-call failures -> `TRANSPORT` or `EXECUTION` depending on whether the call itself failed or ran to an unusable end; malformed mechanism output -> `VALIDATION`. `FailureCategory` is a closed runtime allowlist, mirroring the existing `StopReason`/`RootCauseCategory` pattern — no arbitrary string is accepted. **`status = FAILED` requires a `FailureInfo`; every other status forbids one** — a non-`FAILED` outcome carrying failure information, or a `FAILED` outcome missing it, is structurally invalid.
+
+#### Status / result consistency (binding)
+
+| Route | Result value | Required `AttemptStatus` |
+|---|---|---|
+| `ADD_CONTEXT` | `SUPPLIED` / `DECLINED` / `NO_RESPONSE` | `SUCCEEDED` |
+| `ADD_REVIEWER` | finding batch (`findingIds`, possibly empty) | `SUCCEEDED` |
+| `REPLICATE` | `REPRODUCED` / `NOT_REPRODUCED` / `PARTIAL` | `SUCCEEDED` |
+| `SEEK_EVIDENCE` | `SUPPORTIVE` / `CONTRADICTORY` | `SUCCEEDED` |
+| `SEEK_EVIDENCE` | `INCONCLUSIVE` | `INCONCLUSIVE` |
+| `TARGETED_PEER_CHALLENGE` | `REBUTTAL` / `CONCESSION` / `QUALIFICATION` / `REFUSAL_TO_YIELD` | `SUCCEEDED` |
+| any route | — (failure) | `FAILED` (`FailureInfo` required, no result payload) |
+
+A `RouteOutcome`'s `status` must exactly equal the value this table specifies for its result; any other pairing is a structural inconsistency and must be rejected, never silently coerced. Concretely, both examples the governing packet named are invalid: `SEEK_EVIDENCE` with `result: INCONCLUSIVE` paired with `status: SUCCEEDED` — invalid, `INCONCLUSIVE` is the one result this table maps to `AttemptStatus.INCONCLUSIVE`. `REPLICATE` with `result: PARTIAL` paired with `status: INCONCLUSIVE` — invalid, `PARTIAL` is a determinate `ReplicationResult` category (§6, §13.C) and maps only to `SUCCEEDED`; `REPLICATE` never produces `INCONCLUSIVE` at all (§6's per-route allowlist).
+
+#### A. `ADD_CONTEXT` payload
+
+```
+AddContextResult = 'SUPPLIED' | 'DECLINED' | 'NO_RESPONSE'
+
+SUPPLIED:     { result: 'SUPPLIED', responseText: string }   -- responseText non-empty
+DECLINED:     { result: 'DECLINED' }                          -- no responseText field
+NO_RESPONSE:  { result: 'NO_RESPONSE' }                        -- no responseText field
+```
+
+All three map to `AttemptStatus = SUCCEEDED` (§6's allowlist) — asking a human and recording what happened completes determinately in every case. A genuine delivery/mechanism failure (the request itself could not be presented) is the one path to `status = FAILED` + `FailureInfo` (typically `TRANSPORT`).
+
+Recording this outcome does **not** mutate `AuthorContext`, does **not** create a new `StressTestSession`, and does **not** implement any lineage record — it is an outcome fact only. A later, separately-authorized session-version runtime may consume `responseText` through explicit provenance (the `ContextRequest` this outcome terminates); that consumption is not designed or authorized here.
+
+#### B. `ADD_REVIEWER` payload
+
+```
+{ reviewerRunId: string, findingIds: string[] }
+```
+
+Closed:
+- `findingIds` **may be empty** — a reviewer pass that finds nothing material is still `SUCCEEDED` (§13.B).
+- Every `findingId` **must** resolve in `StressTestSession.findings` — the same fail-closed resolution `validateRouteInputRef` already applies to a `FINDING`-kind `RouteInputRef`.
+- Every referenced finding's `reviewerRunId` **must** equal the payload's own `reviewerRunId` — internal batch consistency.
+
+**Newness provenance — the key open architecture question, closed here.** `ReviewFinding` (`src/stress-test/types.ts`) carries no field binding it to a `RouteAttempt`: `reviewerRunId` is a free-form, caller-supplied string, and `createdAt` is not causally bound to any attempt's `startedAt`. Inspected directly (`src/stress-test/types.ts`, `src/stress-test/session.ts::addFinding`): nothing in today's accepted domain layer can prove, from a finding's own stored fields alone, that it was produced specifically by one exact attempt rather than being an older finding whose `reviewerRunId` happens to match.
+
+Resolution, requiring no schema change and no new field: the reviewer-acquisition mechanism must call `addFinding` with `reviewerRunId` set **exactly equal to the triggering `RouteAttempt.attemptId`**. Because `attemptId` is an unguessable `randomUUID()` generated only once `recordRouteAttemptStart` has already run, a finding whose `reviewerRunId` equals a given `attemptId` cannot have existed before that attempt began without the caller deliberately fabricating it in advance — the same trust boundary this offline domain layer already accepts everywhere (nothing stops a caller from directly constructing an invalid domain object; the system defends against structural inconsistency, never against a caller with direct object-construction access). This is checkable purely from fields that already exist.
+
+Residual, non-blocking: this convention gives no defense-in-depth timestamp check. A future `RouteOutcome`-recording implementation *should* additionally verify `finding.createdAt >= attempt.startedAt` for every referenced finding as a cheap extra consistency signal — a recommended hardening, not a precondition for implementing `ADD_REVIEWER`.
+
+#### C. `REPLICATE` payload
+
+```
+{ result: ReplicationResult, targetRef: RouteInputRef }
+```
+
+`ReplicationResult` (`REPRODUCED` | `NOT_REPRODUCED` | `PARTIAL`, already frozen §3/§13.C) — all three map to `AttemptStatus = SUCCEEDED` (§6's allowlist; `REPLICATE` never produces `INCONCLUSIVE`).
+
+`targetRef`: the exact `RouteInputRef` under replication; must exactly match one of the recorded `RouteDecision`'s own `inputRefs` — never independently supplied, never a free-floating reference. Restated explicitly here (rather than left implicit in the attempt/decision chain) for the same reason every other `RouteOutcome` binding field is restated: a terminal audit record should be self-contained, not require a full chain-walk to understand what happened.
+
+No new `ReviewFinding` is ever produced or referenced by this payload: the already-accepted routing contract's output contract for `REPLICATE` is explicit — "a `ReplicationOutcome` attached to the original finding/issue's provenance chain — not a new, independently-competing `ReviewFinding`" (`MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §4). This closes the packet's question of whether a produced finding should be referenced by id: there is no produced finding to reference.
+
+#### D. `SEEK_EVIDENCE` payload
+
+```
+SeekEvidenceResult = 'SUPPORTIVE' | 'CONTRADICTORY' | 'INCONCLUSIVE'
+```
+
+`SUPPORTIVE` / `CONTRADICTORY` -> `AttemptStatus = SUCCEEDED`. `INCONCLUSIVE` -> `AttemptStatus = INCONCLUSIVE` (§6). `FAILED` -> `FailureInfo`, no result payload.
+
+Provider-neutral evidence citation, reused as a principle from `main`'s already-validated retrieval shape (`src/providers/types.ts::RetrievalSource { title?: string; url: string }` and `RetrievalResult`) — inspected directly, read-only, per §4 of this packet:
+
+```
+EvidenceCitation (conceptual):
+{
+  sourceIdentifier: string,  -- a URL, or another stable, re-locatable
+                                identifier for a non-URL source (e.g. a
+                                retrieved document's own citation key) --
+                                never a raw page dump
+  title?: string,
+  excerpt: string,            -- short, bounded quotation/paraphrase of the
+                                specific evidence relied upon -- never the
+                                full source text
+}
+
+SUPPORTIVE / CONTRADICTORY:  { result, citations: EvidenceCitation[] }  -- citations MUST be non-empty
+INCONCLUSIVE:                 { result: 'INCONCLUSIVE', citations: EvidenceCitation[] }  -- citations MAY be empty
+```
+
+`RetrievalSource`'s bounded `{title?, url}` shape and `RetrievalResult`'s documented rationale ("provider metadata... kept so a claim can be traced back to its source") are reused as principle only — never the type itself, never imported into this module. `RetrievalResult.raw?: unknown` is deliberately **not** reused: it is exactly the kind of unbounded, provider-specific metadata this contract excludes (§8 of the governing packet: no raw SDK objects, no huge raw pages). No retrieval mechanism, provider, or SDK is chosen or implemented here.
+
+#### E. `TARGETED_PEER_CHALLENGE` payload
+
+```
+TargetedPeerChallengeResult = 'REBUTTAL' | 'CONCESSION' | 'QUALIFICATION' | 'REFUSAL_TO_YIELD'
+```
+
+All four map to `AttemptStatus = SUCCEEDED` (§6's allowlist). `FAILED` -> `FailureInfo`, no result payload.
+
+```
+{
+  targetRef: RouteInputRef,     -- the position being challenged
+  sourceRef: RouteInputRef,     -- the position doing the challenging
+  boundedExcerpt: { text: string, truncated: boolean, charLimit: number },
+  response: string,              -- the target's actual reply
+  result: TargetedPeerChallengeResult,
+}
+```
+
+`targetRef`/`sourceRef` bind to product-domain identities only (`RouteInputRef` — `ReviewFinding.id`/`SemanticIssue.id`), never paragraph-local chunk ids as authority — already binding (`MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §9). `boundedExcerpt` reuses, as a principle only, the shape already validated by `main`'s `buildPeerExcerpt` (`src/agents/collaboration.ts`, inspected directly, read-only) — a length-limited excerpt with an explicit truncation flag — while dropping its paragraph/chunk identity fields (`agentId`, `chunkId`, `chunkIndex`, `startChar`, `endChar`), which are exactly the kind of identity this contract forbids as product authority (§9 of that same contract). No consensus mechanism, decision synthesis, or automatic resolution is implied: a `REBUTTAL` is still just one attempt's outcome, subordinate to re-evaluation (§14) and, ultimately, `HumanAdjudication` (§17).
+
+#### F. `STOP`
+
+No `RouteOutcome` exists for `STOP` at all (§5, §6) — not applicable, restated here only for completeness.
+
+#### Session domain truth — RouteOutcome never silently mutates it
+
+`RouteOutcome` never mutates `StressTestSession.findings`, `.semanticIssues`, `AuthorContext`, `HumanAdjudication`, or `RevisionAction`. Where a payload references a domain object (`ADD_REVIEWER`'s `findingIds`), that object must already exist through its own, separate domain operation performed **before** the `RouteOutcome` is recorded:
+
+```
+reviewer mechanism produces output
+  -> addFinding(...)                        [an ordinary, already-accepted session.ts call]
+  -> record RouteOutcome referencing the resulting finding ids
+
+never:
+
+record RouteOutcome
+  -> secretly add findings
+```
+
+This sequencing is viable against the current state machine — inspected directly, `src/stress-test/session.ts` and `PRE_SUBMISSION_STRESS_TEST_MVP.md`, "State transitions": `addFinding` is allowed in `INPUT_FROZEN` and `REVIEWED`, and a `DeliberationState` only exists once a session is `REVIEWED` and stays there for as long as no `HumanAdjudication` has yet been recorded — exactly the window during which Minimum Necessary Deliberation operates. No conflict with `addFinding`'s existing state gate was found.
+
+#### Snapshot / value semantics (extended)
+
+Every new type this schema freeze defines follows the same independent-snapshot discipline the Slice 2B amendment already hardened for `RouteInputRef`/`UnresolvedQuestion`/`RouteDecision`: `FailureInfo`, `findingIds` arrays, `EvidenceCitation` arrays, `targetRef`/`sourceRef`, `boundedExcerpt`, and every route-specific result payload object must be independently cloned when a `RouteOutcome` is recorded — a caller-owned mutable reference must never be able to silently rewrite `DeliberationState`'s outcome history after the fact. This is not new policy; it is invariant 20 (§20) applied to every field this freeze adds.
+
+#### Schema decisions closed (Slice 2D-B0)
+
+**A. Does `RouteOutcome` need its own `outcomeId`?** No — `attemptId` is sufficient identity, given the already-fixed `ONE RouteAttempt -> AT MOST ONE RouteOutcome` cardinality (invariant 10).
+
+**B. Exact generic `FailureInfo` vocabulary.** `TRANSPORT` / `VALIDATION` / `REFERENCE_RESOLUTION` / `EXECUTION` + a sanitized, bounded `message`; a closed runtime allowlist. `FAILED` requires it; every other status forbids it.
+
+**C. Exact `ADD_CONTEXT` payload.** `SUPPLIED` (with `responseText`) / `DECLINED` / `NO_RESPONSE`, all `SUCCEEDED`; no session mutation, no lineage.
+
+**D. Exact `ADD_REVIEWER` payload/provenance.** `{ reviewerRunId, findingIds }`; newness proven by the `reviewerRunId === attemptId` convention (no schema change required); `findingIds` may be empty.
+
+**E. Exact `REPLICATE` payload/provenance.** `{ result, targetRef }`; no produced finding exists to reference, per the already-accepted output contract.
+
+**F. Exact `SEEK_EVIDENCE` payload/provenance.** `{ result, citations: EvidenceCitation[] }`; `EvidenceCitation` reused as principle from `main`'s `RetrievalSource`, deliberately excluding its unbounded `raw` field.
+
+**G. Exact `TARGETED_PEER_CHALLENGE` payload/provenance.** `{ targetRef, sourceRef, boundedExcerpt, response, result }`; `boundedExcerpt` reused as principle from `main`'s `buildPeerExcerpt`, stripped of chunk/paragraph identity.
+
+**H. Which fields are derived vs. caller-supplied.** See the generic-envelope table above; `logicalCost` is always derived, never independently caller-supplied.
+
+**I. Exact status/result consistency rules.** See the table above; a mismatched pair (e.g. `SEEK_EVIDENCE` `INCONCLUSIVE` + `status: SUCCEEDED`, or `REPLICATE` `PARTIAL` + `status: INCONCLUSIVE`) is structurally invalid and must be rejected.
+
+**J. Is any route blocked by insufficient accepted domain provenance?** No route is blocked. `ADD_CONTEXT` and `REPLICATE` are direct restatements of already-explicit contract text. `TARGETED_PEER_CHALLENGE` and `SEEK_EVIDENCE` are closed via principles reused from already-validated `main` mechanisms (`buildPeerExcerpt`, `RetrievalSource`). `ADD_REVIEWER` is closed via a documented convention (`reviewerRunId === attemptId`) rather than a structural type guarantee — safe to implement, but the convention itself is new enough to warrant explicit acknowledgment before code is written (see the sequencing recommendation below).
+
+#### Implementation sequencing recommendation
+
+Not a blocking distinction — every route above is architecturally safe to implement — but the routes differ in how much of their design is a direct restatement of already-accepted text versus a new convention this freeze introduces:
+
+1. **Simplest first — direct restatements, no new convention:** `ADD_CONTEXT`, `REPLICATE` (and `STOP`, trivially, since it has no `RouteOutcome` at all).
+2. **Next — principle-reused from an already-validated `main` mechanism:** `TARGETED_PEER_CHALLENGE` (`buildPeerExcerpt`).
+3. **Last — depend on a new convention this document introduces, worth explicit GPT sign-off before code is written even though nothing here is left open:** `ADD_REVIEWER` (`reviewerRunId === attemptId`), `SEEK_EVIDENCE` (`EvidenceCitation`, reused from `RetrievalSource`).
+
+No route needs to be forced into the same implementation slice merely for symmetry with the others.
+
 ---
 
 ## 8. Question lifecycle: append-only, not in-place reclassification
@@ -562,6 +779,8 @@ No governing source-of-truth document contradicts any of these seven closures; n
 
 No governing source-of-truth document contradicts H–M; none required reopening an already-accepted Slice 2A/2B/2C invariant to close.
 
+**Closed by the Slice 2D-B0 schema freeze:** ten further decisions (A–J), covering `RouteOutcome` identity, the generic envelope, `FailureInfo`, and every route-specific payload — recorded in full in §7's "Schema decisions closed" subsection rather than repeated here, to keep the payload reasoning next to the schema it closes. Summary: no `outcomeId`; a four-category `FailureInfo`; frozen payloads for all five non-`STOP` routes; `logicalCost` always derived, never re-charged; binding status/result consistency; no route blocked by insufficient domain provenance, though `ADD_REVIEWER` and `SEEK_EVIDENCE` rest on a documented convention/principle-reuse rather than a direct restatement of already-explicit text.
+
 ---
 
 ## 23. Relation to accepted Slice 2A/2B runtime
@@ -572,7 +791,7 @@ Nothing in this document alters, weakens, or contradicts `src/stress-test/delibe
 
 ## 24. Open GPT decisions
 
-None. Every decision either governing packet asked to be closed (§22, including the amendment's H–M) is closed, using only source-of-truth material already in this repository (`src/stress-test/deliberation.ts`, `src/stress-test/session.ts`, `MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md`) and the packets' own explicit instructions. No contradiction between governing documents was found, so nothing was reported instead of resolved. `ReplicationResult`'s exact vocabulary (§13.C) and the `questionDispositions` migration shape (§15) were closed rather than left open, on the same minimal-closed-enum / purely-additive-field reasoning pattern this repository already uses for `StopReason` and `RootCauseCategory` — both are conceptual-only and implement nothing. The per-route `AttemptStatus` allowlist (§6, decision K) was originally submitted as Engineering Lead advisory input in Slice 2C and has now been explicitly accepted by GPT as binding — recorded here as provenance, not as a decision this document made unilaterally.
+None. Every decision every governing packet asked to be closed (§22, including the amendment's H–M and the Slice 2D-B0 schema freeze's A–J in §7) is closed, using only source-of-truth material already in this repository (`src/stress-test/deliberation.ts`, `src/stress-test/session.ts`, `src/stress-test/types.ts`, `src/providers/types.ts`, `src/agents/collaboration.ts`, `MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md`) and the packets' own explicit instructions. No contradiction between governing documents was found, so nothing was reported instead of resolved. `ReplicationResult`'s exact vocabulary (§13.C) and the `questionDispositions` migration shape (§15) were closed rather than left open, on the same minimal-closed-enum / purely-additive-field reasoning pattern this repository already uses for `StopReason` and `RootCauseCategory` — both are conceptual-only and implement nothing. The per-route `AttemptStatus` allowlist (§6, decision K) was originally submitted as Engineering Lead advisory input in Slice 2C and has now been explicitly accepted by GPT as binding — recorded here as provenance, not as a decision this document made unilaterally. The Slice 2D-B0 `ADD_REVIEWER` newness-provenance answer (`reviewerRunId === attemptId`, §7 decision D) is likewise closed by this document's own reasoning against already-existing fields, not left open — but it is flagged explicitly, both there and in the implementation-sequencing recommendation (§7), as a new convention warranting explicit acknowledgment before it is relied upon in code, which is a sequencing caution, not an open decision.
 
 ---
 
