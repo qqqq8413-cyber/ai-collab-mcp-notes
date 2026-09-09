@@ -14,6 +14,7 @@ import {
   routeForRootCause,
   validateRouteInputRef,
   createUnresolvedQuestion,
+  registerUnresolvedQuestion,
   planRouteForQuestion,
   recordRouteDecision,
   applyCostSpend,
@@ -130,6 +131,13 @@ function buildCompletedFixture() {
   const { session } = buildRevisionPlannedFixture();
   const actionId = Object.keys(session.revisionActions)[0];
   return completeSession(implementRevisionAction(session, actionId));
+}
+
+/** Convenience: build+register an UnresolvedQuestion in one step, returning the new state and the registered question. */
+function buildRegisteredQuestion(session, state, input) {
+  const question = createUnresolvedQuestion(session, input);
+  const registered = registerUnresolvedQuestion(session, state, question);
+  return { state: registered, question };
 }
 
 // ==================================================================
@@ -328,14 +336,130 @@ check('an invalid ref kind is rejected', () => {
 });
 
 // ==================================================================
-// E. RouteDecision
+// E. Question registration
 // ==================================================================
-console.log('\nRouteDecision planning');
+console.log('\nQuestion registration');
 
-check('route is derived correctly from rootCause', () => {
+check('a valid non-NONE question registers', () => {
   const { session, issueId } = buildFixtureWithIssue();
   const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
   const question = createUnresolvedQuestion(session, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'No reviewer has checked whether the vendor contracts allow early termination.',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const next = registerUnresolvedQuestion(session, state, question);
+  assert.equal(next.unresolvedQuestions.length, 1);
+  assert.deepEqual(next.unresolvedQuestions[0], question);
+});
+
+check('registration is immutable -- the original DeliberationState is unchanged', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const question = createUnresolvedQuestion(session, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const before = JSON.parse(JSON.stringify(state));
+  const next = registerUnresolvedQuestion(session, state, question);
+  assert.deepEqual(state, before, 'original state must be unchanged');
+  assert.notEqual(next, state, 'a new object must be returned');
+  assert.equal(state.unresolvedQuestions.length, 0);
+  assert.equal(next.unresolvedQuestions.length, 1);
+});
+
+check('a duplicate question id is rejected, not replaced or merged', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const question = createUnresolvedQuestion(session, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const registered = registerUnresolvedQuestion(session, state, question);
+  assert.throws(() => registerUnresolvedQuestion(session, registered, question), /already registered/);
+  assert.equal(registered.unresolvedQuestions.length, 1);
+});
+
+check('rootCause NONE is rejected at registration', () => {
+  const session = buildReviewedFixtureSession();
+  const state = createDeliberationState(session, { costCeiling: 1, latencyCeiling: 1 });
+  const question = {
+    id: 'q-none',
+    rootCause: 'NONE',
+    materialityReason: 'nothing material remains',
+    inputRefs: [],
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => registerUnresolvedQuestion(session, state, question), /rootCause NONE cannot be registered/);
+});
+
+check('an invalid rootCause string from a plain-JS caller is rejected', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const question = {
+    id: 'q-invalid',
+    rootCause: 'NOT_A_ROOT_CAUSE',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => registerUnresolvedQuestion(session, state, question), /invalid rootCause/);
+});
+
+check('an invalid ref is rejected at registration', () => {
+  const session = buildReviewedFixtureSession();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const question = {
+    id: 'q-bad-ref',
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: 'not-a-real-id' }],
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => registerUnresolvedQuestion(session, state, question), /unknown SEMANTIC_ISSUE id/);
+});
+
+check('a non-NONE question with empty refs is rejected at registration', () => {
+  const session = buildReviewedFixtureSession();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const question = {
+    id: 'q-empty-refs',
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [],
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => registerUnresolvedQuestion(session, state, question), /at least one inputRef is required/);
+});
+
+check('registration is rejected once the deliberation has stopped', () => {
+  const session = buildReviewedFixtureSession();
+  const state = createDeliberationState(session, { costCeiling: 1, latencyCeiling: 1 });
+  const stopQuestion = createUnresolvedQuestion(session, { rootCause: 'NONE', materialityReason: 'x', inputRefs: [] });
+  const stopDecision = planRouteForQuestion(session, state, stopQuestion);
+  const stopped = recordRouteDecision(session, state, stopDecision, { stopReason: 'successful' });
+
+  const question = {
+    id: 'q-after-stop',
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [],
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => registerUnresolvedQuestion(session, stopped, question), /already stopped/);
+});
+
+// ==================================================================
+// F. RouteDecision planning (registered-question binding)
+// ==================================================================
+console.log('\nRouteDecision planning');
+
+check('a registered question plans successfully; route is derived and questionId is set', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
     rootCause: 'DECISION_SENSITIVE_CONFLICT',
     materialityReason: 'Two findings conflict on timeline feasibility, and the answer changes whether the memo can be sent as-is.',
     inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
@@ -343,47 +467,96 @@ check('route is derived correctly from rootCause', () => {
   const decision = planRouteForQuestion(session, state, question);
   assert.equal(decision.route, 'TARGETED_PEER_CHALLENGE');
   assert.equal(decision.reason.rootCause, 'DECISION_SENSITIVE_CONFLICT');
+  assert.equal(decision.questionId, question.id);
   assert.deepEqual(decision.inputRefs, [{ kind: 'SEMANTIC_ISSUE', id: issueId }]);
 });
 
-check('an incompatible route/rootCause pairing is rejected by recordRouteDecision', () => {
-  const { session, issueId } = buildFixtureWithIssue();
-  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
-  const incompatible = {
-    id: 'manual-1',
-    route: 'ADD_REVIEWER',
-    reason: { rootCause: 'EVIDENCE_GAP', materialityReason: 'x' },
-    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
-    createdAt: new Date().toISOString(),
-  };
-  assert.throws(() => recordRouteDecision(session, state, incompatible), /inconsistent with rootCause/);
-});
-
-check('an empty materialityReason is rejected', () => {
-  const { session, issueId } = buildFixtureWithIssue();
-  assert.throws(
-    () =>
-      createUnresolvedQuestion(session, {
-        rootCause: 'COVERAGE_GAP',
-        materialityReason: '   ',
-        inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
-      }),
-    /materialityReason must be a non-empty/
-  );
-});
-
-check('a non-NONE question with no refs is rejected', () => {
-  const { session } = buildFixtureWithIssue();
-  assert.throws(
-    () => createUnresolvedQuestion(session, { rootCause: 'COVERAGE_GAP', materialityReason: 'x', inputRefs: [] }),
-    /at least one inputRef is required/
-  );
-});
-
-check('planRouteForQuestion makes zero provider calls -- a pure function with no observable side effects', () => {
+check('an unregistered question is rejected', () => {
   const { session, issueId } = buildFixtureWithIssue();
   const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
   const question = createUnresolvedQuestion(session, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  assert.throws(() => planRouteForQuestion(session, state, question), /not a currently registered unresolved question/);
+});
+
+check('same id + changed rootCause is rejected', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const tampered = { ...question, rootCause: 'EVIDENCE_GAP' };
+  assert.throws(() => planRouteForQuestion(session, state, tampered), /has rootCause .* not the supplied/);
+});
+
+check('same id + changed materialityReason is rejected', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'original reason',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const tampered = { ...question, materialityReason: 'a different reason' };
+  assert.throws(() => planRouteForQuestion(session, state, tampered), /different materialityReason/);
+});
+
+check('same id + changed refs is rejected', () => {
+  const { session, issueId, findingIds } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const tampered = { ...question, inputRefs: [{ kind: 'FINDING', id: findingIds[0] }] };
+  assert.throws(() => planRouteForQuestion(session, state, tampered), /different inputRefs/);
+});
+
+check('reordered refs are rejected -- ref comparison is order-sensitive', () => {
+  const { session, findingIds } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [
+      { kind: 'FINDING', id: findingIds[0] },
+      { kind: 'FINDING', id: findingIds[1] },
+    ],
+  });
+  const reordered = { ...question, inputRefs: [question.inputRefs[1], question.inputRefs[0]] };
+  assert.throws(() => planRouteForQuestion(session, state, reordered), /different inputRefs/);
+});
+
+check('planning is rejected once the deliberation has stopped', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const stopQuestion = createUnresolvedQuestion(session, { rootCause: 'NONE', materialityReason: 'x', inputRefs: [] });
+  const stopDecision = planRouteForQuestion(session, state, stopQuestion);
+  const stopped = recordRouteDecision(session, state, stopDecision, { stopReason: 'successful' });
+
+  const anotherQuestion = createUnresolvedQuestion(session, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  assert.throws(() => planRouteForQuestion(session, stopped, anotherQuestion), /already stopped/);
+});
+
+check('planRouteForQuestion still makes zero provider calls -- pure, no observable side effects', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
     rootCause: 'COVERAGE_GAP',
     materialityReason: 'No reviewer has checked whether the vendor contracts allow early termination.',
     inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
@@ -397,7 +570,202 @@ check('planRouteForQuestion makes zero provider calls -- a pure function with no
 });
 
 // ==================================================================
-// F. Terminal STOP behavior
+// G. STOP identity
+// ==================================================================
+console.log('\nSTOP identity');
+
+check('NONE plans STOP with questionId=null', () => {
+  const session = buildReviewedFixtureSession();
+  const state = createDeliberationState(session, { costCeiling: 1, latencyCeiling: 1 });
+  const question = createUnresolvedQuestion(session, {
+    rootCause: 'NONE',
+    materialityReason: 'nothing material remains',
+    inputRefs: [],
+  });
+  const decision = planRouteForQuestion(session, state, question);
+  assert.equal(decision.route, 'STOP');
+  assert.equal(decision.questionId, null);
+});
+
+check('STOP records with questionId=null and a valid StopReason', () => {
+  const session = buildReviewedFixtureSession();
+  const state = createDeliberationState(session, { costCeiling: 1, latencyCeiling: 1 });
+  const question = createUnresolvedQuestion(session, { rootCause: 'NONE', materialityReason: 'x', inputRefs: [] });
+  const decision = planRouteForQuestion(session, state, question);
+  const next = recordRouteDecision(session, state, decision, { stopReason: 'successful' });
+  assert.equal(next.stopReason, 'successful');
+  assert.equal(next.history[0].questionId, null);
+});
+
+check('a STOP decision with a non-null questionId is rejected', () => {
+  const session = buildReviewedFixtureSession();
+  const state = createDeliberationState(session, { costCeiling: 1, latencyCeiling: 1 });
+  const manual = {
+    id: 'manual-stop-bad',
+    route: 'STOP',
+    reason: { rootCause: 'NONE', materialityReason: 'x' },
+    inputRefs: [],
+    questionId: 'some-question-id',
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => recordRouteDecision(session, state, manual, { stopReason: 'successful' }), /questionId=null/);
+});
+
+check('a non-STOP decision with a null questionId is rejected', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const manual = {
+    id: 'manual-nonstop-bad',
+    route: 'ADD_REVIEWER',
+    reason: { rootCause: 'COVERAGE_GAP', materialityReason: 'x' },
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    questionId: null,
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => recordRouteDecision(session, state, manual), /requires a non-empty questionId/);
+});
+
+// ==================================================================
+// H. Recording binding
+// ==================================================================
+console.log('\nRecording binding');
+
+check('a valid registered-question decision records successfully', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const decision = planRouteForQuestion(session, state, question);
+  const next = recordRouteDecision(session, state, decision);
+  assert.equal(next.history.length, 1);
+  assert.equal(next.history[0].questionId, question.id);
+});
+
+check('an unknown questionId is rejected', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const manual = {
+    id: 'manual-unknown-q',
+    route: 'ADD_REVIEWER',
+    reason: { rootCause: 'COVERAGE_GAP', materialityReason: 'x' },
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    questionId: 'not-a-registered-id',
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => recordRouteDecision(session, state, manual), /not a currently registered unresolved question/);
+});
+
+check("a decision whose rootCause disagrees with the registered question's is rejected", () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const manual = {
+    id: 'manual-wrong-rootcause',
+    route: 'SEEK_EVIDENCE',
+    reason: { rootCause: 'EVIDENCE_GAP', materialityReason: 'x' },
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    questionId: question.id,
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => recordRouteDecision(session, state, manual), /has rootCause .* not/);
+});
+
+check("a decision whose materialityReason disagrees with the registered question's is rejected", () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'original reason',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const manual = {
+    id: 'manual-wrong-materiality',
+    route: 'ADD_REVIEWER',
+    reason: { rootCause: 'COVERAGE_GAP', materialityReason: 'a different reason' },
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    questionId: question.id,
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => recordRouteDecision(session, state, manual), /different materialityReason/);
+});
+
+check("a decision whose inputRefs disagree with the registered question's is rejected", () => {
+  const { session, issueId, findingIds } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const manual = {
+    id: 'manual-wrong-refs',
+    route: 'ADD_REVIEWER',
+    reason: { rootCause: 'COVERAGE_GAP', materialityReason: 'x' },
+    inputRefs: [{ kind: 'FINDING', id: findingIds[0] }],
+    questionId: question.id,
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => recordRouteDecision(session, state, manual), /different inputRefs/);
+});
+
+check('a decision whose ref shares the registered id but claims the wrong kind is rejected, never coerced', () => {
+  const { session, findingIds } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'STABILITY_QUESTION',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'FINDING', id: findingIds[0] }],
+  });
+  const manual = {
+    id: 'manual-wrong-kind',
+    route: 'REPLICATE',
+    reason: { rootCause: 'STABILITY_QUESTION', materialityReason: 'x' },
+    inputRefs: [{ kind: 'AUTHOR_CONTEXT_ITEM', id: findingIds[0] }],
+    questionId: question.id,
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => recordRouteDecision(session, state, manual), /unknown AUTHOR_CONTEXT_ITEM id|different inputRefs/);
+});
+
+check('reordered inputRefs are rejected when recording', () => {
+  const { session, findingIds } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [
+      { kind: 'FINDING', id: findingIds[0] },
+      { kind: 'FINDING', id: findingIds[1] },
+    ],
+  });
+  const manual = {
+    id: 'manual-reordered',
+    route: 'ADD_REVIEWER',
+    reason: { rootCause: 'COVERAGE_GAP', materialityReason: 'x' },
+    inputRefs: [
+      { kind: 'FINDING', id: findingIds[1] },
+      { kind: 'FINDING', id: findingIds[0] },
+    ],
+    questionId: question.id,
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => recordRouteDecision(session, state, manual), /different inputRefs/);
+});
+
+// ==================================================================
+// I. Terminal STOP behavior
 // ==================================================================
 console.log('\nTerminal STOP behavior');
 
@@ -431,19 +799,23 @@ check('no RouteDecision may be appended once stopped', () => {
   const stopDecision = planRouteForQuestion(session, state, stopQuestion);
   const stopped = recordRouteDecision(session, state, stopDecision, { stopReason: 'successful' });
 
-  const anotherQuestion = createUnresolvedQuestion(session, {
-    rootCause: 'COVERAGE_GAP',
-    materialityReason: 'x',
+  // Registration itself is already refused post-stop (Section E); confirm recording is refused too,
+  // even for a decision that would otherwise be structurally valid.
+  const anotherDecision = {
+    id: 'manual-post-stop',
+    route: 'ADD_REVIEWER',
+    reason: { rootCause: 'COVERAGE_GAP', materialityReason: 'x' },
     inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
-  });
-  const anotherDecision = planRouteForQuestion(session, stopped, anotherQuestion);
+    questionId: 'irrelevant-since-already-stopped',
+    createdAt: new Date().toISOString(),
+  };
   assert.throws(() => recordRouteDecision(session, stopped, anotherDecision), /already stopped/);
 });
 
 check('a non-STOP route does not terminate the deliberation', () => {
   const { session, issueId } = buildFixtureWithIssue();
-  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
-  const question = createUnresolvedQuestion(session, {
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
     rootCause: 'STABILITY_QUESTION',
     materialityReason: 'x',
     inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
@@ -456,8 +828,8 @@ check('a non-STOP route does not terminate the deliberation', () => {
 
 check('a stopReason may only be supplied when route is STOP', () => {
   const { session, issueId } = buildFixtureWithIssue();
-  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
-  const question = createUnresolvedQuestion(session, {
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
     rootCause: 'COVERAGE_GAP',
     materialityReason: 'x',
     inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
@@ -470,24 +842,30 @@ check('a stopReason may only be supplied when route is STOP', () => {
 });
 
 // ==================================================================
-// G. Immutability
+// J. Immutability
 // ==================================================================
 console.log('\nImmutability');
 
 check('the original StressTestSession is never mutated by any deliberation function', () => {
   const { session, issueId } = buildFixtureWithIssue();
   const before = JSON.parse(JSON.stringify(session));
-  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
-  const question = createUnresolvedQuestion(session, {
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
     rootCause: 'COVERAGE_GAP',
     materialityReason: 'x',
     inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
   });
   const decision = planRouteForQuestion(session, state, question);
   recordRouteDecision(session, state, decision);
-  createContextRequest(session, state, {
-    reason: { rootCause: 'CONTEXT_GAP', materialityReason: 'x' },
-    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+
+  const itemId = session.authorContext.constraints[0].id;
+  const { state: stateWithContext, question: contextQuestion } = buildRegisteredQuestion(session, state, {
+    rootCause: 'CONTEXT_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'AUTHOR_CONTEXT_ITEM', id: itemId }],
+  });
+  createContextRequest(session, stateWithContext, {
+    questionId: contextQuestion.id,
     category: 'constraints',
     question: 'What is the actual contractor budget ceiling?',
     inferenceReason: 'This cannot be inferred from the artifact text alone.',
@@ -497,8 +875,8 @@ check('the original StressTestSession is never mutated by any deliberation funct
 
 check('the previous DeliberationState is never mutated -- recordRouteDecision returns a new object', () => {
   const { session, issueId } = buildFixtureWithIssue();
-  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
-  const question = createUnresolvedQuestion(session, {
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
     rootCause: 'COVERAGE_GAP',
     materialityReason: 'x',
     inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
@@ -524,7 +902,7 @@ check('applyCostSpend/applyLatencySpend return new objects without mutating the 
 });
 
 // ==================================================================
-// H. Budget accounting
+// K. Budget accounting
 // ==================================================================
 console.log('\nBudget accounting');
 
@@ -564,84 +942,164 @@ check('negative/NaN/Infinity spend amounts are rejected', () => {
 });
 
 // ==================================================================
-// I. ContextRequest (ADD_CONTEXT output)
+// L. ContextRequest (ADD_CONTEXT output, bound to a registered question)
 // ==================================================================
 console.log('\nContextRequest (ADD_CONTEXT output)');
 
-check('captures the originating session id and frozen hashes', () => {
-  const { session, issueId } = buildFixtureWithIssue();
+check('requires a registered question', () => {
+  const session = buildReviewedFixtureSession();
   const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  assert.throws(
+    () =>
+      createContextRequest(session, state, {
+        questionId: 'not-registered',
+        category: 'constraints',
+        question: 'x?',
+        inferenceReason: 'x',
+      }),
+    /not a currently registered unresolved question/
+  );
+});
+
+check('captures originatingQuestionId, originatingSessionId, and frozen hashes', () => {
+  const session = buildReviewedFixtureSession();
+  const itemId = session.authorContext.constraints[0].id;
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'CONTEXT_GAP',
+    materialityReason: 'The memo does not say whether the budget figure is a hard ceiling or a planning assumption.',
+    inputRefs: [{ kind: 'AUTHOR_CONTEXT_ITEM', id: itemId }],
+  });
   const request = createContextRequest(session, state, {
-    reason: {
-      rootCause: 'CONTEXT_GAP',
-      materialityReason: 'The memo does not say whether the budget figure is a hard ceiling or a planning assumption.',
-    },
-    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    questionId: question.id,
     category: 'constraints',
     question: 'Is "no additional contractor budget" a hard constraint or a planning assumption that could change?',
     inferenceReason: "This cannot be inferred from the artifact text alone -- it depends on the author's actual authority.",
   });
+  assert.equal(request.originatingQuestionId, question.id);
   assert.equal(request.originatingSessionId, session.id);
   assert.equal(request.artifactHash, session.artifactHash);
   assert.equal(request.authorContextHash, session.authorContextHash);
 });
 
-check('validates its sourceRefs', () => {
-  const { session } = buildFixtureWithIssue();
+check('sourceRefs are copied from the registered question, not caller-suppliable', () => {
+  const session = buildReviewedFixtureSession();
+  const itemId = session.authorContext.constraints[0].id;
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'CONTEXT_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'AUTHOR_CONTEXT_ITEM', id: itemId }],
+  });
+  const request = createContextRequest(session, state, {
+    questionId: question.id,
+    category: 'constraints',
+    question: 'x?',
+    inferenceReason: 'x',
+    // The API has no sourceRefs parameter at all -- an attempted override is
+    // simply an extra, ignored key, never reaching request.sourceRefs.
+    sourceRefs: [{ kind: 'FINDING', id: 'attacker-supplied' }],
+  });
+  assert.deepEqual(request.sourceRefs, question.inputRefs);
+});
+
+check('a CONTEXT_GAP question can never be registered with empty refs, so a ContextRequest can never lack provenance', () => {
+  const session = buildReviewedFixtureSession();
   const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const emptyRefQuestion = {
+    id: 'q-context-empty-refs',
+    rootCause: 'CONTEXT_GAP',
+    materialityReason: 'x',
+    inputRefs: [],
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => registerUnresolvedQuestion(session, state, emptyRefQuestion), /at least one inputRef is required/);
+});
+
+check('a non-CONTEXT_GAP registered question is rejected', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'EVIDENCE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
   assert.throws(
     () =>
       createContextRequest(session, state, {
-        reason: { rootCause: 'CONTEXT_GAP', materialityReason: 'x' },
-        sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: 'not-a-real-id' }],
+        questionId: question.id,
         category: 'constraints',
         question: 'x?',
         inferenceReason: 'x',
       }),
-    /unknown SEMANTIC_ISSUE id/
+    /not CONTEXT_GAP/
   );
 });
 
-check('requires rootCause CONTEXT_GAP', () => {
-  const { session, issueId } = buildFixtureWithIssue();
+check('an unknown questionId is rejected', () => {
+  const session = buildReviewedFixtureSession();
   const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
   assert.throws(
     () =>
       createContextRequest(session, state, {
-        reason: { rootCause: 'EVIDENCE_GAP', materialityReason: 'x' },
-        sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+        questionId: 'never-registered',
         category: 'constraints',
         question: 'x?',
         inferenceReason: 'x',
       }),
-    /requires rootCause CONTEXT_GAP/
+    /not a currently registered unresolved question/
   );
 });
 
-check('requires a non-empty question', () => {
-  const { session, issueId } = buildFixtureWithIssue();
-  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+check('is rejected once the deliberation has stopped', () => {
+  const session = buildReviewedFixtureSession();
+  const itemId = session.authorContext.constraints[0].id;
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state: registered, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'CONTEXT_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'AUTHOR_CONTEXT_ITEM', id: itemId }],
+  });
+
+  const stopQuestion = createUnresolvedQuestion(session, { rootCause: 'NONE', materialityReason: 'x', inputRefs: [] });
+  const stopDecision = planRouteForQuestion(session, registered, stopQuestion);
+  const stopped = recordRouteDecision(session, registered, stopDecision, { stopReason: 'successful' });
+
+  assert.throws(
+    () =>
+      createContextRequest(session, stopped, {
+        questionId: question.id,
+        category: 'constraints',
+        question: 'x?',
+        inferenceReason: 'x',
+      }),
+    /already stopped/
+  );
+});
+
+check('requires a non-empty question and inferenceReason', () => {
+  const session = buildReviewedFixtureSession();
+  const itemId = session.authorContext.constraints[0].id;
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'CONTEXT_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'AUTHOR_CONTEXT_ITEM', id: itemId }],
+  });
   assert.throws(
     () =>
       createContextRequest(session, state, {
-        reason: { rootCause: 'CONTEXT_GAP', materialityReason: 'x' },
-        sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+        questionId: question.id,
         category: 'constraints',
         question: '   ',
         inferenceReason: 'x',
       }),
     /question must be a non-empty string/
   );
-});
-
-check('requires a non-empty inferenceReason', () => {
-  const { session, issueId } = buildFixtureWithIssue();
-  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
   assert.throws(
     () =>
       createContextRequest(session, state, {
-        reason: { rootCause: 'CONTEXT_GAP', materialityReason: 'x' },
-        sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+        questionId: question.id,
         category: 'constraints',
         question: 'x?',
         inferenceReason: '',
@@ -651,12 +1109,17 @@ check('requires a non-empty inferenceReason', () => {
 });
 
 check('does not change AuthorContext, session hashes, or create a new session', () => {
-  const { session, issueId } = buildFixtureWithIssue();
-  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const session = buildReviewedFixtureSession();
+  const itemId = session.authorContext.constraints[0].id;
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'CONTEXT_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'AUTHOR_CONTEXT_ITEM', id: itemId }],
+  });
   const before = JSON.parse(JSON.stringify(session));
   createContextRequest(session, state, {
-    reason: { rootCause: 'CONTEXT_GAP', materialityReason: 'x' },
-    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    questionId: question.id,
     category: 'constraints',
     question: 'x?',
     inferenceReason: 'x',
@@ -666,7 +1129,7 @@ check('does not change AuthorContext, session hashes, or create a new session', 
 });
 
 // ==================================================================
-// J. Human authority invariant
+// M. Human authority invariant
 // ==================================================================
 console.log('\nHuman authority invariant');
 
@@ -680,17 +1143,23 @@ await checkAsync('the deliberation module exposes no function that creates or mu
 
 check('recordRouteDecision and createContextRequest never touch session.adjudications or session.revisionActions', () => {
   const { session, issueId } = buildFixtureWithIssue();
-  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
-  const question = createUnresolvedQuestion(session, {
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
     rootCause: 'COVERAGE_GAP',
     materialityReason: 'x',
     inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
   });
   const decision = planRouteForQuestion(session, state, question);
   recordRouteDecision(session, state, decision);
-  createContextRequest(session, state, {
-    reason: { rootCause: 'CONTEXT_GAP', materialityReason: 'x' },
-    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+
+  const itemId = session.authorContext.constraints[0].id;
+  const { state: stateWithContext, question: contextQuestion } = buildRegisteredQuestion(session, state, {
+    rootCause: 'CONTEXT_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'AUTHOR_CONTEXT_ITEM', id: itemId }],
+  });
+  createContextRequest(session, stateWithContext, {
+    questionId: contextQuestion.id,
     category: 'constraints',
     question: 'x?',
     inferenceReason: 'x',
@@ -700,7 +1169,7 @@ check('recordRouteDecision and createContextRequest never touch session.adjudica
 });
 
 // ==================================================================
-// K. Provenance & StopReason runtime hardening (regression)
+// N. Provenance & StopReason runtime hardening (regression, Slice 2A amendment)
 // ==================================================================
 console.log('\nProvenance & StopReason runtime hardening (regression)');
 
@@ -713,6 +1182,7 @@ check('recordRouteDecision rejects a manually constructed ADD_REVIEWER + COVERAG
     route: 'ADD_REVIEWER',
     reason: { rootCause: 'COVERAGE_GAP', materialityReason: 'material coverage gap' },
     inputRefs: [],
+    questionId: 'irrelevant-fails-before-questionId-check',
     createdAt: new Date().toISOString(),
   };
   assert.throws(() => recordRouteDecision(session, state, manual), /at least one inputRef is required/);
@@ -729,12 +1199,13 @@ check('recordRouteDecision rejects a manually constructed SEEK_EVIDENCE + EVIDEN
     route: 'SEEK_EVIDENCE',
     reason: { rootCause: 'EVIDENCE_GAP', materialityReason: 'an unverified external claim' },
     inputRefs: [],
+    questionId: 'irrelevant-fails-before-questionId-check',
     createdAt: new Date().toISOString(),
   };
   assert.throws(() => recordRouteDecision(session, state, manual), /at least one inputRef is required/);
 });
 
-check('recordRouteDecision accepts STOP + NONE + inputRefs=[] with a valid StopReason', () => {
+check('recordRouteDecision accepts STOP + NONE + inputRefs=[] + questionId=null with a valid StopReason', () => {
   const session = buildReviewedFixtureSession();
   const state = createDeliberationState(session, { costCeiling: 1, latencyCeiling: 1 });
   const manual = {
@@ -742,56 +1213,32 @@ check('recordRouteDecision accepts STOP + NONE + inputRefs=[] with a valid StopR
     route: 'STOP',
     reason: { rootCause: 'NONE', materialityReason: 'nothing material remains' },
     inputRefs: [],
+    questionId: null,
     createdAt: new Date().toISOString(),
   };
   const next = recordRouteDecision(session, state, manual, { stopReason: 'successful' });
   assert.equal(next.stopReason, 'successful');
 });
 
-check('recordRouteDecision accepts a non-NONE decision with a valid provenance ref', () => {
+check('recordRouteDecision accepts a non-NONE decision with a valid provenance ref and a matching registered questionId', () => {
   const { session, issueId } = buildFixtureWithIssue();
-  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'material coverage gap',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
   const manual = {
     id: 'manual-valid',
     route: 'ADD_REVIEWER',
     reason: { rootCause: 'COVERAGE_GAP', materialityReason: 'material coverage gap' },
     inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    questionId: question.id,
     createdAt: new Date().toISOString(),
   };
   const next = recordRouteDecision(session, state, manual);
   assert.equal(next.history.length, 1);
   assert.equal(next.stopReason, null);
-});
-
-check('createContextRequest rejects sourceRefs=[]', () => {
-  const { session } = buildFixtureWithIssue();
-  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
-  const sessionBefore = JSON.parse(JSON.stringify(session));
-  assert.throws(
-    () =>
-      createContextRequest(session, state, {
-        reason: { rootCause: 'CONTEXT_GAP', materialityReason: 'x' },
-        sourceRefs: [],
-        category: 'constraints',
-        question: 'x?',
-        inferenceReason: 'x',
-      }),
-    /at least one sourceRef is required/
-  );
-  assert.deepEqual(session, sessionBefore);
-});
-
-check('createContextRequest accepts a valid sourceRef', () => {
-  const { session, issueId } = buildFixtureWithIssue();
-  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
-  const request = createContextRequest(session, state, {
-    reason: { rootCause: 'CONTEXT_GAP', materialityReason: 'x' },
-    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
-    category: 'constraints',
-    question: 'x?',
-    inferenceReason: 'x',
-  });
-  assert.deepEqual(request.sourceRefs, [{ kind: 'SEMANTIC_ISSUE', id: issueId }]);
 });
 
 check('all six valid StopReason values succeed', () => {
@@ -811,6 +1258,7 @@ check('all six valid StopReason values succeed', () => {
       route: 'STOP',
       reason: { rootCause: 'NONE', materialityReason: 'nothing material remains' },
       inputRefs: [],
+      questionId: null,
       createdAt: new Date().toISOString(),
     };
     const next = recordRouteDecision(session, state, manual, { stopReason });
@@ -818,7 +1266,7 @@ check('all six valid StopReason values succeed', () => {
   }
 });
 
-check('invalid runtime StopReason values are rejected', () => {
+check('invalid runtime StopReason values are rejected (reaching the allowlist check itself, not an earlier one)', () => {
   const invalidValues = ['UNKNOWN', '', 'Success', null];
   for (const stopReason of invalidValues) {
     const session = buildReviewedFixtureSession();
@@ -828,26 +1276,31 @@ check('invalid runtime StopReason values are rejected', () => {
       route: 'STOP',
       reason: { rootCause: 'NONE', materialityReason: 'nothing material remains' },
       inputRefs: [],
+      questionId: null,
       createdAt: new Date().toISOString(),
     };
-    let threw = false;
-    try {
-      recordRouteDecision(session, state, manual, { stopReason });
-    } catch {
-      threw = true;
-    }
-    assert.equal(threw, true, `expected stopReason ${JSON.stringify(stopReason)} to be rejected`);
+    assert.throws(
+      () => recordRouteDecision(session, state, manual, { stopReason }),
+      /requires an explicit stopReason|invalid stopReason/,
+      `expected stopReason ${JSON.stringify(stopReason)} to be rejected`
+    );
   }
 });
 
-check('a stopReason is still rejected for a non-STOP route', () => {
+check('a stopReason is still rejected for a non-STOP route (reaching that check, not an earlier one)', () => {
   const { session, issueId } = buildFixtureWithIssue();
-  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
   const manual = {
     id: 'manual-non-stop',
     route: 'ADD_REVIEWER',
     reason: { rootCause: 'COVERAGE_GAP', materialityReason: 'x' },
     inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    questionId: question.id,
     createdAt: new Date().toISOString(),
   };
   assert.throws(
@@ -858,7 +1311,12 @@ check('a stopReason is still rejected for a non-STOP route', () => {
 
 check('session and DeliberationState remain immutable across the rejected regression cases above', () => {
   const { session, issueId } = buildFixtureWithIssue();
-  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'CONTEXT_GAP',
+    materialityReason: 'x',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
   const sessionBefore = JSON.parse(JSON.stringify(session));
   const stateBefore = JSON.parse(JSON.stringify(state));
 
@@ -868,6 +1326,7 @@ check('session and DeliberationState remain immutable across the rejected regres
       route: 'ADD_REVIEWER',
       reason: { rootCause: 'COVERAGE_GAP', materialityReason: 'x' },
       inputRefs: [],
+      questionId: 'irrelevant',
       createdAt: new Date().toISOString(),
     });
   } catch {
@@ -882,6 +1341,7 @@ check('session and DeliberationState remain immutable across the rejected regres
         route: 'STOP',
         reason: { rootCause: 'NONE', materialityReason: 'x' },
         inputRefs: [],
+        questionId: null,
         createdAt: new Date().toISOString(),
       },
       { stopReason: 'UNKNOWN' }
@@ -891,8 +1351,7 @@ check('session and DeliberationState remain immutable across the rejected regres
   }
   try {
     createContextRequest(session, state, {
-      reason: { rootCause: 'CONTEXT_GAP', materialityReason: 'x' },
-      sourceRefs: [],
+      questionId: 'never-registered',
       category: 'constraints',
       question: 'x?',
       inferenceReason: 'x',
@@ -906,6 +1365,7 @@ check('session and DeliberationState remain immutable across the rejected regres
   assert.deepEqual(session.adjudications, {});
   assert.deepEqual(session.revisionActions, {});
   assert.equal(issueId, session.semanticIssues[issueId].id, 'sanity check: the issue itself is untouched');
+  assert.equal(question.rootCause, 'CONTEXT_GAP', 'sanity check: the registered question fixture itself is untouched');
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

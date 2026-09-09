@@ -38,6 +38,16 @@ export type RootCauseCategory =
   | 'COVERAGE_GAP'
   | 'DECISION_SENSITIVE_CONFLICT';
 
+/** Runtime allowlist mirroring the RootCauseCategory union — same rationale as STOP_REASONS below: a plain-JS caller has no compile-time check. */
+const ROOT_CAUSES: readonly RootCauseCategory[] = [
+  'NONE',
+  'CONTEXT_GAP',
+  'EVIDENCE_GAP',
+  'STABILITY_QUESTION',
+  'COVERAGE_GAP',
+  'DECISION_SENSITIVE_CONFLICT',
+];
+
 /** Deterministic, exhaustive root-cause -> route mapping (MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md §5). */
 export function routeForRootCause(rootCause: RootCauseCategory): DeliberationRoute {
   switch (rootCause) {
@@ -104,6 +114,18 @@ export function validateRouteInputRef(session: StressTestSession, ref: RouteInpu
   throw new Error(`validateRouteInputRef: invalid ref kind ${JSON.stringify((exhaustive as { kind: unknown }).kind)}`);
 }
 
+/**
+ * Order-sensitive exact comparison: both length, and each position's
+ * `kind`+`id`, must match. Deliberately no sorting, normalizing, or
+ * deduplication — a reordered or set-equal-but-reordered ref list is
+ * treated as a mismatch, not silently accepted. Set semantics would be a
+ * separate, explicit architecture redesign, not a default here.
+ */
+function refsExactlyMatch(a: RouteInputRef[], b: RouteInputRef[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((ref, index) => ref.kind === b[index].kind && ref.id === b[index].id);
+}
+
 export type StopReason =
   | 'successful'
   | 'budget'
@@ -137,12 +159,22 @@ export interface UnresolvedQuestion {
   createdAt: string;
 }
 
-/** "This is the justified next route" — never "the route has executed". */
+/**
+ * "This is the justified next route" — never "the route has executed".
+ *
+ * `questionId` binds a non-STOP decision to the exact UnresolvedQuestion
+ * it targets, so a decision can never be constructed against domain refs
+ * that merely happen to be valid without proving the corresponding routing
+ * question was actually registered first. STOP is a session-level
+ * terminal decision, not a response to any one question, so its
+ * `questionId` is always `null` — never a fabricated NONE question id.
+ */
 export interface RouteDecision {
   id: string;
   route: DeliberationRoute;
   reason: RouteReason;
   inputRefs: RouteInputRef[];
+  questionId: string | null;
   createdAt: string;
 }
 
@@ -186,6 +218,12 @@ function assertNonEmptyMaterialityReason(reason: string): void {
 function assertNonEmptyString(value: string, label: string): void {
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new Error(`${label} must be a non-empty string`);
+  }
+}
+
+function assertValidRootCause(rootCause: RootCauseCategory, label: string): void {
+  if (!ROOT_CAUSES.includes(rootCause)) {
+    throw new Error(`${label}: invalid rootCause ${JSON.stringify(rootCause)}`);
   }
 }
 
@@ -281,11 +319,60 @@ export function createUnresolvedQuestion(
 }
 
 /**
+ * Registers an already-constructed UnresolvedQuestion into a
+ * DeliberationState's registry, immutably. Never trusts that the question
+ * came from `createUnresolvedQuestion` — every structural rule is
+ * re-validated from scratch against whatever object was actually passed
+ * in. A `rootCause` of `NONE` can never be registered: `NONE` means no
+ * unresolved deficit remains and maps directly to `STOP`, a session-level
+ * terminal decision, not a registered question. Registering the same
+ * question id twice is refused rather than replaced or merged.
+ */
+export function registerUnresolvedQuestion(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  question: UnresolvedQuestion
+): DeliberationState {
+  verifyDeliberationBinding(session, deliberationState);
+  if (deliberationState.stopReason !== null) {
+    throw new Error('registerUnresolvedQuestion: deliberation has already stopped; no further question may be registered');
+  }
+  assertNonEmptyString(question.id, 'registerUnresolvedQuestion: question.id');
+  assertValidRootCause(question.rootCause, 'registerUnresolvedQuestion');
+  if (question.rootCause === 'NONE') {
+    throw new Error(
+      'registerUnresolvedQuestion: rootCause NONE cannot be registered -- NONE means no unresolved deficit remains and maps to STOP'
+    );
+  }
+  assertNonEmptyMaterialityReason(question.materialityReason);
+  for (const ref of question.inputRefs) validateRouteInputRef(session, ref);
+  if (question.inputRefs.length === 0) {
+    throw new Error('registerUnresolvedQuestion: at least one inputRef is required for a non-NONE root cause');
+  }
+  if (deliberationState.unresolvedQuestions.some((q) => q.id === question.id)) {
+    throw new Error(`registerUnresolvedQuestion: question ${question.id} is already registered`);
+  }
+  return {
+    ...deliberationState,
+    unresolvedQuestions: [...deliberationState.unresolvedQuestions, question],
+  };
+}
+
+/**
  * Plans (does not record or execute) a RouteDecision for one already-
  * classified UnresolvedQuestion. Pure and offline — zero provider calls.
  * Deliberately does not rank or select among multiple unresolved
  * questions; autonomous multi-item prioritization is a separate,
  * not-yet-authorized implementation decision (contract §5, §13).
+ *
+ * For a non-NONE root cause, `question` must identify a question already
+ * present in `deliberationState.unresolvedQuestions`, and every field the
+ * registry holds — rootCause, materialityReason, and inputRefs in exact
+ * order — must match the supplied `question` exactly; a same-id-but-
+ * modified question is rejected, not silently accepted. For `NONE`, the
+ * question must NOT be registered (NONE is never registrable — see
+ * `registerUnresolvedQuestion`) and the resulting decision carries
+ * `questionId: null`.
  */
 export function planRouteForQuestion(
   session: StressTestSession,
@@ -293,17 +380,55 @@ export function planRouteForQuestion(
   question: UnresolvedQuestion
 ): RouteDecision {
   verifyDeliberationBinding(session, deliberationState);
+  if (deliberationState.stopReason !== null) {
+    throw new Error('planRouteForQuestion: deliberation has already stopped; no further route may be planned');
+  }
+  assertValidRootCause(question.rootCause, 'planRouteForQuestion');
   assertNonEmptyMaterialityReason(question.materialityReason);
   if (question.rootCause !== 'NONE' && question.inputRefs.length === 0) {
     throw new Error('planRouteForQuestion: at least one inputRef is required for a non-NONE root cause');
   }
   for (const ref of question.inputRefs) validateRouteInputRef(session, ref);
   const route = routeForRootCause(question.rootCause);
+
+  if (question.rootCause === 'NONE') {
+    if (deliberationState.unresolvedQuestions.some((q) => q.id === question.id)) {
+      throw new Error('planRouteForQuestion: a NONE-rootCause question must never be a registered unresolved question');
+    }
+    return {
+      id: randomUUID(),
+      route,
+      reason: { rootCause: question.rootCause, materialityReason: question.materialityReason },
+      inputRefs: [...question.inputRefs],
+      questionId: null,
+      createdAt: nowIso(),
+    };
+  }
+
+  const registered = deliberationState.unresolvedQuestions.find((q) => q.id === question.id);
+  if (!registered) {
+    throw new Error(`planRouteForQuestion: question ${question.id} is not a currently registered unresolved question`);
+  }
+  if (registered.rootCause !== question.rootCause) {
+    throw new Error(
+      `planRouteForQuestion: registered question ${question.id} has rootCause ${registered.rootCause}, not the supplied ${question.rootCause}`
+    );
+  }
+  if (registered.materialityReason !== question.materialityReason) {
+    throw new Error(`planRouteForQuestion: registered question ${question.id} has a different materialityReason than supplied`);
+  }
+  if (!refsExactlyMatch(registered.inputRefs, question.inputRefs)) {
+    throw new Error(
+      `planRouteForQuestion: registered question ${question.id} has different inputRefs (order-sensitive) than supplied`
+    );
+  }
+
   return {
     id: randomUUID(),
     route,
     reason: { rootCause: question.rootCause, materialityReason: question.materialityReason },
     inputRefs: [...question.inputRefs],
+    questionId: question.id,
     createdAt: nowIso(),
   };
 }
@@ -316,14 +441,15 @@ export function planRouteForQuestion(
  * Refuses once the state has already stopped (`stopReason !== null`).
  * Refuses a route/rootCause mismatch outright, so a RouteDecision that
  * claims an incompatible route can never be recorded. `route === 'STOP'`
- * requires an explicit, allowlisted StopReason; every other route requires
- * that none be supplied.
+ * requires an explicit, allowlisted StopReason and `questionId === null`;
+ * every other route requires a `questionId` that identifies a currently
+ * registered unresolved question whose rootCause, materialityReason, and
+ * inputRefs (order-sensitive) exactly match the decision's own — and
+ * forbids any `stopReason` being supplied.
  *
  * A RouteDecision is never trusted to have come from `planRouteForQuestion`
- * — every structural rule that function enforces (route/rootCause
- * consistency, non-empty materialityReason, at least one provenance ref for
- * a non-NONE root cause, valid refs) is re-checked here from scratch
- * against whatever object was actually passed in.
+ * — every structural rule that function enforces is re-checked here from
+ * scratch against whatever object was actually passed in.
  */
 export function recordRouteDecision(
   session: StressTestSession,
@@ -335,6 +461,7 @@ export function recordRouteDecision(
   if (deliberationState.stopReason !== null) {
     throw new Error('recordRouteDecision: deliberation has already stopped; no further RouteDecision may be recorded');
   }
+  assertValidRootCause(routeDecision.reason.rootCause, 'recordRouteDecision');
   const expectedRoute = routeForRootCause(routeDecision.reason.rootCause);
   if (routeDecision.route !== expectedRoute) {
     throw new Error(
@@ -348,6 +475,37 @@ export function recordRouteDecision(
     );
   }
   for (const ref of routeDecision.inputRefs) validateRouteInputRef(session, ref);
+
+  if (routeDecision.route === 'STOP') {
+    if (routeDecision.questionId !== null) {
+      throw new Error('recordRouteDecision: a STOP decision must have questionId=null; STOP is session-level, not a response to any one question');
+    }
+  } else {
+    if (typeof routeDecision.questionId !== 'string' || routeDecision.questionId.length === 0) {
+      throw new Error('recordRouteDecision: a non-STOP decision requires a non-empty questionId');
+    }
+    const registered = deliberationState.unresolvedQuestions.find((q) => q.id === routeDecision.questionId);
+    if (!registered) {
+      throw new Error(
+        `recordRouteDecision: questionId ${routeDecision.questionId} is not a currently registered unresolved question`
+      );
+    }
+    if (registered.rootCause !== routeDecision.reason.rootCause) {
+      throw new Error(
+        `recordRouteDecision: registered question ${routeDecision.questionId} has rootCause ${registered.rootCause}, not ${routeDecision.reason.rootCause}`
+      );
+    }
+    if (registered.materialityReason !== routeDecision.reason.materialityReason) {
+      throw new Error(
+        `recordRouteDecision: registered question ${routeDecision.questionId} has a different materialityReason than the decision`
+      );
+    }
+    if (!refsExactlyMatch(registered.inputRefs, routeDecision.inputRefs)) {
+      throw new Error(
+        `recordRouteDecision: registered question ${routeDecision.questionId} has different inputRefs (order-sensitive) than the decision`
+      );
+    }
+  }
 
   let stopReason: StopReason | null = null;
   if (routeDecision.route === 'STOP') {
@@ -406,10 +564,17 @@ export type AuthorContextCategoryName = (typeof AUTHOR_CONTEXT_CATEGORIES)[numbe
  * unfreezes anything — the version transition this would eventually seed
  * is explicitly out of scope for this slice
  * (MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md §4, §18).
+ *
+ * `sourceRefs` and the implied rootCause are never independently supplied
+ * by the caller — they are always derived from the registered
+ * `originatingQuestionId`, so provenance cannot diverge between the
+ * question that justified the request and the request itself. The audit
+ * chain is StressTestSession -> UnresolvedQuestion -> ContextRequest.
  */
 export interface ContextRequest {
   id: string;
   originatingSessionId: string;
+  originatingQuestionId: string;
   artifactHash: string;
   authorContextHash: string;
   sourceRefs: RouteInputRef[];
@@ -423,36 +588,45 @@ export function createContextRequest(
   session: StressTestSession,
   deliberationState: DeliberationState,
   input: {
-    reason: RouteReason;
-    sourceRefs: RouteInputRef[];
+    questionId: string;
     category: AuthorContextCategoryName;
     question: string;
     inferenceReason: string;
   }
 ): ContextRequest {
   verifyDeliberationBinding(session, deliberationState);
-  if (input.reason.rootCause !== 'CONTEXT_GAP') {
-    throw new Error(`createContextRequest: requires rootCause CONTEXT_GAP (got ${input.reason.rootCause})`);
+  if (deliberationState.stopReason !== null) {
+    throw new Error('createContextRequest: deliberation has already stopped; no further ContextRequest may be created');
   }
-  assertNonEmptyMaterialityReason(input.reason.materialityReason);
+  assertNonEmptyString(input.questionId, 'createContextRequest: questionId');
+  const registered = deliberationState.unresolvedQuestions.find((q) => q.id === input.questionId);
+  if (!registered) {
+    throw new Error(`createContextRequest: questionId ${input.questionId} is not a currently registered unresolved question`);
+  }
+  if (registered.rootCause !== 'CONTEXT_GAP') {
+    throw new Error(
+      `createContextRequest: registered question ${input.questionId} has rootCause ${registered.rootCause}, not CONTEXT_GAP`
+    );
+  }
+  if (registered.inputRefs.length === 0) {
+    throw new Error(`createContextRequest: registered question ${input.questionId} has no inputRefs`);
+  }
   if (!AUTHOR_CONTEXT_CATEGORIES.includes(input.category)) {
     throw new Error(`createContextRequest: unknown category ${JSON.stringify(input.category)}`);
   }
   assertNonEmptyString(input.question, 'createContextRequest: question');
   assertNonEmptyString(input.inferenceReason, 'createContextRequest: inferenceReason');
-  if (input.sourceRefs.length === 0) {
-    throw new Error('createContextRequest: at least one sourceRef is required; a reference is never fabricated');
-  }
-  for (const ref of input.sourceRefs) validateRouteInputRef(session, ref);
+  for (const ref of registered.inputRefs) validateRouteInputRef(session, ref);
   if (!session.artifactHash || !session.authorContextHash) {
     throw new Error('createContextRequest: session is missing its frozen artifactHash/authorContextHash');
   }
   return {
     id: randomUUID(),
     originatingSessionId: session.id,
+    originatingQuestionId: registered.id,
     artifactHash: session.artifactHash,
     authorContextHash: session.authorContextHash,
-    sourceRefs: [...input.sourceRefs],
+    sourceRefs: [...registered.inputRefs],
     category: input.category,
     question: input.question,
     inferenceReason: input.inferenceReason,
