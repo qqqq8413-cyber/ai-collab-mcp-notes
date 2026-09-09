@@ -1407,11 +1407,25 @@ Every other decision either governing packet asked to be closed (§22, including
 
 ## 25. Implementation authorization
 
-Implementation: **NOT AUTHORIZED**
+This ledger records current implementation/authorization status only. It does not reopen, reinterpret, or rewrite any architecture decision closed elsewhere in this document — it corrects a stale status snapshot against decisions that have since been separately, explicitly authorized and accepted.
+
+**IMPLEMENTED / ACCEPTED:**
+
+`RouteAttempt` runtime: **IMPLEMENTED / ACCEPTED**
+`RouteOutcome` runtime — currently accepted subset only (generic `FAILED`; `ADD_REVIEWER` success; `REPLICATE` success; per the route-readiness table, §7): **IMPLEMENTED / ACCEPTED**
+`QuestionDisposition` runtime — `STILL_OPEN` / `RESOLVED` only: **IMPLEMENTED / ACCEPTED**
+Currentness / active-cycle core (`isQuestionCurrent`, all five current gates, the authoritative active-cycle creation gate, and independent legacy active-cycle integrity validation — Slice 2D-B2-A): **IMPLEMENTED / ACCEPTED**
+`QuestionDisposition.SUPERSEDED_RECLASSIFIED` runtime: **AUTHORIZED BY SLICE 2D-B2-B EXECUTION PACKET**
+
+**NOT YET IMPLEMENTED / NOT GENERALLY AUTHORIZED:**
+
 Provider-backed route execution: **NOT AUTHORIZED**
-`RouteAttempt` runtime: **NOT AUTHORIZED**
-`RouteOutcome` runtime: **NOT AUTHORIZED**
-`QuestionDisposition` runtime: **NOT AUTHORIZED**
-Session version runtime: **NOT AUTHORIZED**
-Slice 2D: **NOT AUTHORIZED**
+`ADD_CONTEXT` success: **NOT AUTHORIZED**
+`NO_RESPONSE`: **NOT AUTHORIZED**
+`SEEK_EVIDENCE` result runtime: **NOT AUTHORIZED**
+`TARGETED_PEER_CHALLENGE` success runtime: **NOT AUTHORIZED**
+`CROSS_SESSION`: **NOT AUTHORIZED**
+`SessionVersionLineage` / session version runtime: **NOT AUTHORIZED**
+Route execution generally, and Slice 2D's full/general scope beyond the specific accepted subsets recorded above: **NOT AUTHORIZED**
+
 Provider/model calls: **0**
