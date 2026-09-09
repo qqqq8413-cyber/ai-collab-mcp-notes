@@ -239,6 +239,39 @@ function buildReplicateSuccessCycleFixture(result = 'REPRODUCED', costCeiling = 
   return { session, state: next, decision, question, attempt };
 }
 
+/** Builds two registered questions with one recorded decision each in the same state. */
+function buildTwoQuestionDecisionFixture(costCeiling = 5, latencyCeiling = 5) {
+  const { session, issueId } = buildFixtureWithIssue();
+  let state = createDeliberationState(session, { costCeiling, latencyCeiling });
+
+  const first = buildRegisteredQuestion(session, state, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'first question needs an additional reviewer',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  state = first.state;
+  const second = buildRegisteredQuestion(session, state, {
+    rootCause: 'STABILITY_QUESTION',
+    materialityReason: 'second question needs replication',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  state = second.state;
+
+  const firstDecision = planRouteForQuestion(session, state, first.question);
+  state = recordRouteDecision(session, state, firstDecision);
+  const secondDecision = planRouteForQuestion(session, state, second.question);
+  state = recordRouteDecision(session, state, secondDecision);
+
+  return {
+    session,
+    state,
+    firstQuestion: first.question,
+    secondQuestion: second.question,
+    firstDecision,
+    secondDecision,
+  };
+}
+
 // ==================================================================
 // A. createDeliberationState
 // ==================================================================
@@ -3252,6 +3285,205 @@ check('recording a disposition leaves the original session and state unchanged; 
   assert.deepEqual(next.history, state.history);
   assert.deepEqual(next.attempts, state.attempts);
   assert.deepEqual(next.outcomes, state.outcomes);
+});
+
+// --- Slice 2D-B2-A amendment: global identity & read integrity ---------------
+
+check('active-cycle derivation rejects a RouteDecision id duplicated across different questions', () => {
+  const { session, state, firstQuestion, firstDecision, secondDecision } = buildTwoQuestionDecisionFixture();
+  const corrupted = {
+    ...state,
+    history: state.history.map((decision) =>
+      decision.id === secondDecision.id ? { ...decision, id: firstDecision.id } : decision
+    ),
+  };
+
+  assert.throws(
+    () => planRouteForQuestion(session, corrupted, firstQuestion),
+    /matches more than one recorded RouteDecision/
+  );
+});
+
+check('a cross-question duplicate id cannot make another question\'s attempt belong to the target question', () => {
+  const { session, state, firstQuestion, firstDecision, secondDecision } = buildTwoQuestionDecisionFixture();
+  const started = recordRouteAttemptStart(session, state, secondDecision.id);
+  const secondAttempt = started.attempts.find((attempt) => attempt.decisionId === secondDecision.id);
+  const corrupted = {
+    ...started,
+    history: started.history.map((decision) =>
+      decision.id === secondDecision.id ? { ...decision, id: firstDecision.id } : decision
+    ),
+    attempts: started.attempts.map((attempt) =>
+      attempt.attemptId === secondAttempt.attemptId ? { ...attempt, decisionId: firstDecision.id } : attempt
+    ),
+  };
+
+  const before = JSON.parse(JSON.stringify(corrupted));
+  assert.throws(
+    () => planRouteForQuestion(session, corrupted, firstQuestion),
+    /matches more than one recorded RouteDecision/
+  );
+  assert.deepEqual(corrupted, before);
+});
+
+check('duplicate global decision identity rejects attempt start and outcome recording without spend or append', () => {
+  const first = buildTwoQuestionDecisionFixture();
+  const duplicateHistory = first.state.history.map((decision) =>
+    decision.id === first.secondDecision.id ? { ...decision, id: first.firstDecision.id } : decision
+  );
+  const beforeStart = {
+    ...first.state,
+    history: duplicateHistory,
+  };
+  const beforeStartSnapshot = JSON.parse(JSON.stringify(beforeStart));
+
+  assert.throws(
+    () => recordRouteAttemptStart(first.session, beforeStart, first.firstDecision.id),
+    /matches more than one recorded RouteDecision/
+  );
+  assert.deepEqual(beforeStart, beforeStartSnapshot);
+
+  const started = recordRouteAttemptStart(first.session, first.state, first.secondDecision.id);
+  const attempt = started.attempts.find((entry) => entry.decisionId === first.secondDecision.id);
+  const beforeOutcome = {
+    ...started,
+    history: duplicateHistory,
+    attempts: started.attempts.map((entry) =>
+      entry.attemptId === attempt.attemptId ? { ...entry, decisionId: first.firstDecision.id } : entry
+    ),
+  };
+  const beforeOutcomeSnapshot = JSON.parse(JSON.stringify(beforeOutcome));
+
+  assert.throws(
+    () => recordRouteOutcome(first.session, beforeOutcome, {
+      attemptId: attempt.attemptId,
+      status: 'FAILED',
+      latencyConsumed: 1,
+      failure: VALID_FAILURE_FOR_DISPOSITION,
+    }),
+    /matches more than one recorded RouteDecision/
+  );
+  assert.deepEqual(beforeOutcome, beforeOutcomeSnapshot);
+});
+
+check('duplicate global decision identity rejects disposition recording through the full audit chain', () => {
+  const fixture = buildTwoQuestionDecisionFixture();
+  const started = recordRouteAttemptStart(fixture.session, fixture.state, fixture.secondDecision.id);
+  const attempt = started.attempts.find((entry) => entry.decisionId === fixture.secondDecision.id);
+  const withOutcome = recordRouteOutcome(fixture.session, started, {
+    attemptId: attempt.attemptId,
+    status: 'FAILED',
+    latencyConsumed: 1,
+    failure: VALID_FAILURE_FOR_DISPOSITION,
+  });
+  const corrupted = {
+    ...withOutcome,
+    history: withOutcome.history.map((decision) =>
+      decision.id === fixture.secondDecision.id ? { ...decision, id: fixture.firstDecision.id } : decision
+    ),
+    attempts: withOutcome.attempts.map((entry) =>
+      entry.attemptId === attempt.attemptId ? { ...entry, decisionId: fixture.firstDecision.id } : entry
+    ),
+    outcomes: withOutcome.outcomes.map((outcome) =>
+      outcome.attemptId === attempt.attemptId ? { ...outcome, decisionId: fixture.firstDecision.id } : outcome
+    ),
+  };
+  const before = JSON.parse(JSON.stringify(corrupted));
+
+  assert.throws(
+    () => recordQuestionDisposition(fixture.session, corrupted, {
+      attemptId: attempt.attemptId,
+      disposition: 'STILL_OPEN',
+      reason: 'must not resolve an ambiguous decision identity',
+    }),
+    /matches more than one recorded RouteDecision/
+  );
+  assert.deepEqual(corrupted, before);
+});
+
+check('isQuestionCurrent rejects duplicate STILL_OPEN dispositions for one outcome', () => {
+  const { session, state, question, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+  const disposed = recordQuestionDisposition(session, state, {
+    attemptId: attempt.attemptId,
+    disposition: 'STILL_OPEN',
+    reason: 'first disposition',
+  });
+  const original = disposed.questionDispositions[0];
+  const corrupted = {
+    ...disposed,
+    questionDispositions: [original, { ...original, reason: 'duplicate disposition' }],
+  };
+
+  assert.throws(
+    () => isQuestionCurrent(corrupted, question.id),
+    /has more than one QuestionDisposition/
+  );
+});
+
+check('isQuestionCurrent rejects conflicting STILL_OPEN and RESOLVED dispositions for one outcome', () => {
+  const { session, state, question, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+  const disposed = recordQuestionDisposition(session, state, {
+    attemptId: attempt.attemptId,
+    disposition: 'STILL_OPEN',
+    reason: 'first disposition',
+  });
+  const original = disposed.questionDispositions[0];
+  const corrupted = {
+    ...disposed,
+    questionDispositions: [original, { ...original, disposition: 'RESOLVED', reason: 'conflicting disposition' }],
+  };
+
+  assert.throws(
+    () => isQuestionCurrent(corrupted, question.id),
+    /has more than one QuestionDisposition/
+  );
+});
+
+check('current-gated planning shares duplicate-disposition ledger integrity with isQuestionCurrent', () => {
+  const { session, state, question, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+  const disposed = recordQuestionDisposition(session, state, {
+    attemptId: attempt.attemptId,
+    disposition: 'STILL_OPEN',
+    reason: 'first disposition',
+  });
+  const original = disposed.questionDispositions[0];
+  const corrupted = {
+    ...disposed,
+    questionDispositions: [original, { ...original, reason: 'duplicate disposition' }],
+  };
+
+  assert.throws(
+    () => planRouteForQuestion(session, corrupted, question),
+    /has more than one QuestionDisposition/
+  );
+});
+
+check('two dispositions for one question remain valid when they belong to different attempts', () => {
+  const { session, state, question, attempt: firstAttempt } = buildFailedCycleFixture('COVERAGE_GAP');
+  let next = recordQuestionDisposition(session, state, {
+    attemptId: firstAttempt.attemptId,
+    disposition: 'STILL_OPEN',
+    reason: 'first cycle remains open',
+  });
+  const secondDecision = planRouteForQuestion(session, next, question);
+  next = recordRouteDecision(session, next, secondDecision);
+  next = recordRouteAttemptStart(session, next, secondDecision.id);
+  const secondAttempt = next.attempts.find((attempt) => attempt.decisionId === secondDecision.id);
+  next = recordRouteOutcome(session, next, {
+    attemptId: secondAttempt.attemptId,
+    status: 'FAILED',
+    latencyConsumed: 1,
+    failure: VALID_FAILURE_FOR_DISPOSITION,
+  });
+  next = recordQuestionDisposition(session, next, {
+    attemptId: secondAttempt.attemptId,
+    disposition: 'RESOLVED',
+    reason: 'second cycle resolved the question',
+  });
+
+  assert.equal(next.questionDispositions.length, 2);
+  assert.notEqual(next.questionDispositions[0].attemptId, next.questionDispositions[1].attemptId);
+  assert.equal(isQuestionCurrent(next, question.id), false);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

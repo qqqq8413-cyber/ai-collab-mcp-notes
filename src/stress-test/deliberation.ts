@@ -633,6 +633,27 @@ function assertLedgerQuestionDispositionIntegrity(deliberationState: Deliberatio
 }
 
 /**
+ * Re-validates the complete disposition ledger at every read boundary. A
+ * disposition may be structurally valid by itself while still duplicating
+ * another record for the same RouteOutcome; that cardinality corruption must
+ * never be resolved by first/latest/terminal-wins semantics.
+ */
+function assertQuestionDispositionLedgerIntegrity(deliberationState: DeliberationState): void {
+  const dispositionCountByAttemptId = new Map<string, number>();
+
+  for (const disposition of deliberationState.questionDispositions) {
+    assertLedgerQuestionDispositionIntegrity(deliberationState, disposition);
+    const count = (dispositionCountByAttemptId.get(disposition.attemptId) ?? 0) + 1;
+    dispositionCountByAttemptId.set(disposition.attemptId, count);
+    if (count > 1) {
+      throw new Error(
+        `QuestionDisposition ledger entry: attemptId ${disposition.attemptId} has more than one QuestionDisposition -- inconsistent state`
+      );
+    }
+  }
+}
+
+/**
  * Pure, non-cached, non-memoized: recomputes from `history`/`attempts`/
  * `outcomes`/`questionDispositions` on every call -- never stored, never an
  * `active: boolean` field anywhere. A non-`STOP` `RouteDecision` targeting
@@ -646,6 +667,7 @@ function assertLedgerQuestionDispositionIntegrity(deliberationState: Deliberatio
  * timestamp, or silently repairing it.
  */
 function getActiveRouteDecisionsForQuestion(deliberationState: DeliberationState, questionId: string): RouteDecision[] {
+  assertQuestionDispositionLedgerIntegrity(deliberationState);
   const candidates = deliberationState.history.filter((d) => d.route !== 'STOP' && d.questionId === questionId);
 
   const seenDecisionIds = new Set<string>();
@@ -653,6 +675,11 @@ function getActiveRouteDecisionsForQuestion(deliberationState: DeliberationState
 
   for (const decision of candidates) {
     assertNonEmptyString(decision.id, 'getActiveRouteDecisionsForQuestion: decision.id');
+    const globallyUniqueDecision = resolveUniqueRouteDecisionById(
+      deliberationState,
+      decision.id,
+      'getActiveRouteDecisionsForQuestion'
+    );
     if (seenDecisionIds.has(decision.id)) {
       throw new Error(
         `getActiveRouteDecisionsForQuestion: duplicate RouteDecision.id ${decision.id} in history -- identity-ambiguous legacy/inconsistent state`
@@ -660,7 +687,7 @@ function getActiveRouteDecisionsForQuestion(deliberationState: DeliberationState
     }
     seenDecisionIds.add(decision.id);
 
-    const attemptsForDecision = deliberationState.attempts.filter((a) => a.decisionId === decision.id);
+    const attemptsForDecision = deliberationState.attempts.filter((a) => a.decisionId === globallyUniqueDecision.id);
     if (attemptsForDecision.length === 0) {
       active.push(decision);
       continue;
@@ -715,10 +742,8 @@ export function isQuestionCurrent(deliberationState: DeliberationState, question
   if (!registered) {
     throw new Error(`isQuestionCurrent: questionId ${questionId} is not a currently registered unresolved question`);
   }
+  assertQuestionDispositionLedgerIntegrity(deliberationState);
   const dispositionsForQuestion = deliberationState.questionDispositions.filter((d) => d.questionId === questionId);
-  for (const disposition of dispositionsForQuestion) {
-    assertLedgerQuestionDispositionIntegrity(deliberationState, disposition);
-  }
   return !dispositionsForQuestion.some((d) => d.disposition === 'RESOLVED');
 }
 
