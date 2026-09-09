@@ -298,6 +298,8 @@ The `RouteOutcome` itself is what establishes the audit lineage — `attemptId -
 
 **`reviewerRunId` reuse is prohibited.** One `reviewerRunId` may be claimed by **at most one** successful `ADD_REVIEWER` `RouteOutcome` within the same `StressTestSession` lineage. A second `ADD_REVIEWER` `RouteOutcome` attempting to claim a `reviewerRunId` already claimed by an earlier successful outcome is rejected outright. This is a structural check — the runtime must track which `reviewerRunId` values a session's prior successful `ADD_REVIEWER` outcomes have already claimed — never inferred from timestamp ordering alone; a later `createdAt` does not by itself prove a `reviewerRunId` is being used for the first time. This prevents one historical reviewer batch from being silently reused as if it were a later attempt's own output.
 
+**Implementation-sequencing scope note (Slice 2D-B0 final amendment):** "the same `StressTestSession` lineage" is the invariant's full, intended scope, but `SessionVersionLineage` runtime (§8's `ADD_CONTEXT` cross-session flow) does not exist yet. Before that runtime exists, a first `RouteOutcome` implementation can only enforce `reviewerRunId` uniqueness across the outcomes visible in the **current** `DeliberationState`/`StressTestSession` — which is the complete known lineage at that implementation stage, not a weakening of the invariant. When cross-session lineage runtime is later introduced, the uniqueness check must be extended across the linked lineage if this invariant remains binding at that point; this document does not pretend a first implementation can query lineage records that do not yet exist.
+
 **Newness provenance — the key open architecture question, and its honest limit.** `ReviewFinding` (`src/stress-test/types.ts`) carries no field binding it to a `RouteAttempt`: `reviewerRunId` is a free-form, caller-supplied string, and `createdAt` is not causally bound to any attempt's `startedAt`. Inspected directly (`src/stress-test/types.ts`, `src/stress-test/session.ts::addFinding`): nothing in today's accepted domain layer can prove, from a finding's own stored fields alone, that it was produced specifically by one exact attempt rather than being an older finding whose `reviewerRunId` happens to match.
 
 Stated accurately, without overclaiming: **this offline domain layer cannot cryptographically prove that a malicious caller did not manually fabricate a `ReviewFinding`.** That guarantee is outside the current trust model — the same trust boundary this domain layer already accepts everywhere (nothing stops a caller from directly constructing an invalid domain object; the system defends against structural inconsistency, never against a caller with direct object-construction access). Random-UUID unguessability does **not** prove causal provenance and is not the architecture boundary here — the prior version of this document overstated this and is corrected.
@@ -330,6 +332,24 @@ SeekEvidenceResult = 'SUPPORTIVE' | 'CONTRADICTORY' | 'INCONCLUSIVE'
 ```
 
 `SUPPORTIVE` / `CONTRADICTORY` -> `AttemptStatus = SUCCEEDED`. `INCONCLUSIVE` -> `AttemptStatus = INCONCLUSIVE` (§6). `FAILED` -> `FailureInfo`, no result payload.
+
+##### Claim-identity gap (Slice 2D-B0 final amendment) — corrects the prior readiness claim
+
+The accepted Phase 2 contract requires `SEEK_EVIDENCE` to identify the specific factual claim needing verification, its originating `ReviewFinding`/`SemanticIssue`, and that finding's own `artifactLocation`/provenance (`MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §4). The current product-domain `RouteInputRef` vocabulary identifies only a `FINDING` or `SEMANTIC_ISSUE` as a whole — there is no typed `ClaimId`, `ClaimRef`, or `EvidenceSubject` anywhere in the accepted runtime. The frozen `{ result, citations }` payload therefore cannot, by itself, answer *"which exact claim were these citations evaluating?"* whenever one finding carries more than one factual proposition, or a `SemanticIssue` aggregates multiple findings.
+
+This gap is **not solved here**. In particular, this document does not casually add `claimText`, `claimId`, `claimIndex`, `paragraphId`, or `chunkId` without a separately justified design: paragraph-local identity is not product authority (`MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §9); an arbitrary copied claim-text field can drift from the source it was copied from; a `SemanticIssue` can aggregate multiple findings; and one finding can carry more than one factual proposition, so a single finding/issue reference does not uniquely identify a claim inside it. `SEEK_EVIDENCE`'s claim-level provenance requires a separately authorized architecture decision — recorded as genuinely open (§24), not invented under the pressure of this amendment.
+
+##### Runtime readiness (Slice 2D-B0 final amendment) — corrects the prior readiness claim
+
+Until claim-level `EvidenceSubject` provenance is separately frozen, **no `SEEK_EVIDENCE` result variant may be recorded** by a future RouteOutcome runtime (invariant 32, §20):
+
+| Result | Runtime readiness |
+|---|---|
+| `SUPPORTIVE` | BLOCKED |
+| `CONTRADICTORY` | BLOCKED |
+| `INCONCLUSIVE` | BLOCKED |
+
+A generic `FAILED` `RouteOutcome` + `FailureInfo` may still eventually be recorded — failure only records that the attempt did not produce a valid route result; it does not claim a successful evidence judgment against any claim. Retrieval itself remains **NOT AUTHORIZED** regardless of this readiness question. This corrects the prior version of this document, which marked `SEEK_EVIDENCE` "schema ready, execution/retrieval not authorized" without surfacing the claim-identity gap above — the successful-result schema was not actually complete, only its citation shape was.
 
 Provider-neutral evidence citation, reused as a principle from `main`'s already-validated retrieval shape (`src/providers/types.ts::RetrievalSource { title?: string; url: string }` and `RetrievalResult`) — inspected directly, read-only, per §4 of this packet:
 
@@ -364,6 +384,12 @@ TargetedPeerChallengeResult = 'REBUTTAL' | 'CONCESSION' | 'QUALIFICATION' | 'REF
 
 All four map to `AttemptStatus = SUCCEEDED` (§6's allowlist). `FAILED` -> `FailureInfo`, no result payload.
 
+##### Input cardinality (Slice 2D-B0 final amendment)
+
+`TARGETED_PEER_CHALLENGE` is explicitly a conflict between two identified review claims/positions (`MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §4) — a single provenance reference cannot establish both sides of that conflict. **Frozen architecture invariant (invariant 30, §20):** a registered `UnresolvedQuestion` whose `rootCause = DECISION_SENSITIVE_CONFLICT` must contain **at least two distinct `RouteInputRef`s** — distinct meaning `(kind, id)` is not identical between them. This is a gap in the currently-accepted registration rule discovered while translating this schema into executable requirements: `registerUnresolvedQuestion` (Slice 2B, accepted) today requires only `inputRefs.length >= 1` for any non-`NONE` root cause — sufficient for every other root-cause category, but not for `DECISION_SENSITIVE_CONFLICT` specifically, whose whole premise is two opposing positions.
+
+**Required future enforcement, not implemented here:** before `TARGETED_PEER_CHALLENGE` execution can ever be authorized, a future routing-validation gate (at question registration, planning, or an equivalent boundary — the exact function is not chosen here) must reject a `DECISION_SENSITIVE_CONFLICT` question that cannot supply two distinct source/target provenance refs. No such gate exists in the accepted runtime today, and none is implemented by this document.
+
 ```
 {
   targetRef: RouteInputRef,     -- the position being challenged
@@ -376,7 +402,13 @@ All four map to `AttemptStatus = SUCCEEDED` (§6's allowlist). `FAILED` -> `Fail
 
 `targetRef`/`sourceRef` bind to product-domain identities only (`RouteInputRef` — `ReviewFinding.id`/`SemanticIssue.id`), never paragraph-local chunk ids as authority — already binding (`MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §9). `boundedExcerpt` reuses, as a principle only, the shape already validated by `main`'s `buildPeerExcerpt` (`src/agents/collaboration.ts`, inspected directly, read-only) — a length-limited excerpt with an explicit truncation flag — while dropping its paragraph/chunk identity fields (`agentId`, `chunkId`, `chunkIndex`, `startChar`, `endChar`), which are exactly the kind of identity this contract forbids as product authority (§9 of that same contract). No consensus mechanism, decision synthesis, or automatic resolution is implied: a `REBUTTAL` is still just one attempt's outcome, subordinate to re-evaluation (§14) and, ultimately, `HumanAdjudication` (§17).
 
-Re-reviewed for the Slice 2D-B0 amendment: no contradiction found. `chunkId`/`agentId`/paragraph identity are not reintroduced as product-domain authority; `RouteInputRef`-based source/target identity is unchanged.
+**Target/source binding, frozen this amendment (invariant 31, §20):** `targetRef` and `sourceRef` must (a) each be a structurally valid `RouteInputRef`, (b) be distinct from one another — never the same `(kind, id)` — and (c) each exactly match one of the originating, recorded `RouteDecision.inputRefs`, preserving exact `kind` + `id` identity, with no inference. The outcome may choose which of the recorded inputs plays `target` and which plays `source`, but may not introduce a ref that was absent from the decision's own provenance — no arbitrary new ref introduced only at outcome time.
+
+##### Runtime readiness (Slice 2D-B0 final amendment)
+
+Until the input-cardinality routing gate above exists, **no `TARGETED_PEER_CHALLENGE` successful result variant (`REBUTTAL`/`CONCESSION`/`QUALIFICATION`/`REFUSAL_TO_YIELD`) may be recorded** by a future RouteOutcome runtime — the gate that would guarantee two distinct, decision-bound refs exist does not yet exist, so a successful outcome could not yet be defensibly bound to two provenance-distinct positions. A generic `FAILED` `RouteOutcome` + `FailureInfo` may still eventually be recorded for an already-started historical `TARGETED_PEER_CHALLENGE` attempt — failure only records that the mechanism did not produce a valid result; it does not require two-sided provenance to be meaningful. This blocks *runtime recording of a successful outcome*, not the schema itself: the payload shape and the provenance rules above are closed (§22, §24) — only their execution/recording is gated pending the routing gate.
+
+Re-reviewed for the Slice 2D-B0 amendment: no contradiction found in the previously-frozen shape; `chunkId`/`agentId`/paragraph identity are not reintroduced as product-domain authority, and `RouteInputRef`-based source/target identity is unchanged — this amendment only adds the cardinality and binding requirements above.
 
 #### F. `STOP`
 
@@ -415,38 +447,61 @@ Every new type this schema freeze defines follows the same independent-snapshot 
 
 **E. Exact `REPLICATE` payload/provenance.** `{ result, targetRef }`; no produced finding exists to reference, per the already-accepted output contract.
 
-**F. Exact `SEEK_EVIDENCE` payload/provenance.** `{ result, citations: EvidenceCitation[] }`; `EvidenceCitation` reused as principle from `main`'s `RetrievalSource`, deliberately excluding its unbounded `raw` field. `excerpt` is source-attributable text, never an arbitrary assistant paraphrase (Slice 2D-B0 amendment).
+**F. Exact `SEEK_EVIDENCE` payload/provenance.** `{ result, citations: EvidenceCitation[] }`; `EvidenceCitation` reused as principle from `main`'s `RetrievalSource`, deliberately excluding its unbounded `raw` field; `excerpt` is source-attributable text, never an arbitrary assistant paraphrase. **Corrected by the Slice 2D-B0 final amendment:** this citation shape is closed, but it is not, by itself, sufficient — it does not identify *which claim* the citations evaluate. Claim-level `EvidenceSubject` provenance is a separate, genuinely open decision (§24); `SUPPORTIVE`/`CONTRADICTORY`/`INCONCLUSIVE` are all runtime-blocked until it is closed.
 
-**G. Exact `TARGETED_PEER_CHALLENGE` payload/provenance.** `{ targetRef, sourceRef, boundedExcerpt, response, result }`; `boundedExcerpt` reused as principle from `main`'s `buildPeerExcerpt`, stripped of chunk/paragraph identity. Re-reviewed this amendment; unchanged.
+**G. Exact `TARGETED_PEER_CHALLENGE` payload/provenance.** `{ targetRef, sourceRef, boundedExcerpt, response, result }`; `boundedExcerpt` reused as principle from `main`'s `buildPeerExcerpt`, stripped of chunk/paragraph identity. **Corrected by the Slice 2D-B0 final amendment:** the payload shape and the target/source binding rule (invariant 31) are closed, but a registered `DECISION_SENSITIVE_CONFLICT` question is not yet guaranteed to carry the two distinct refs this payload requires (invariant 30) — no routing gate enforces that yet, so all four successful result variants are runtime-blocked until it exists.
 
 **H. Which fields are derived vs. caller-supplied.** See the generic-envelope table above. **Corrected by the Slice 2D-B0 amendment:** `logicalCost` is not caller input at all — always derived, with no "supply and reject on mismatch" path.
 
 **I. Exact status/result consistency rules.** See the table above; a mismatched pair (e.g. `SEEK_EVIDENCE` `INCONCLUSIVE` + `status: SUCCEEDED`, or `REPLICATE` `PARTIAL` + `status: INCONCLUSIVE`) is structurally invalid and must be rejected.
 
-**J. Is any route blocked by insufficient accepted domain provenance?** No route is blocked outright, but one **result variant** is: `ADD_CONTEXT`'s `NO_RESPONSE` cannot yet be safely terminalized (see "Runtime readiness," above, and §24). `ADD_CONTEXT` (`SUPPLIED`/`DECLINED`) and `REPLICATE` are direct restatements of already-explicit contract text. `TARGETED_PEER_CHALLENGE` and `SEEK_EVIDENCE` are closed via principles reused from already-validated `main` mechanisms (`buildPeerExcerpt`, `RetrievalSource`). `ADD_REVIEWER` is closed via a structural, multi-signal provenance rule rather than the (rejected) identity-equality convention — safe to implement subject to that rule.
+**J. Is any route blocked by insufficient accepted domain provenance?** **Revised by the Slice 2D-B0 final amendment — more is blocked than the prior version claimed.** `ADD_CONTEXT` (`SUPPLIED`/`DECLINED`) and `REPLICATE` are direct restatements of already-explicit contract text and remain unblocked. `ADD_REVIEWER` is closed via a structural, multi-signal provenance rule and remains unblocked, subject to that rule. But `ADD_CONTEXT`'s `NO_RESPONSE`, every `SEEK_EVIDENCE` successful/inconclusive result, and every `TARGETED_PEER_CHALLENGE` successful result are now all runtime-blocked — the first on response-closure architecture, the second on claim-level provenance architecture, the third on an input-cardinality routing gate. See the readiness table below.
 
-**K. (Slice 2D-B0) Is `reviewerRunId` reuse across `ADD_REVIEWER` outcomes permitted?** No. At most one successful `ADD_REVIEWER` `RouteOutcome` per `reviewerRunId` within a `StressTestSession` lineage; a second claim is rejected, checked structurally, never inferred from timestamp alone.
+**K. Is `reviewerRunId` reuse across `ADD_REVIEWER` outcomes permitted?** No. At most one successful `ADD_REVIEWER` `RouteOutcome` per `reviewerRunId` within a `StressTestSession` lineage; a second claim is rejected, checked structurally, never inferred from timestamp alone. A first runtime implementation may only check this across the current `DeliberationState`/session, not a not-yet-existing cross-session lineage (see "Implementation-sequencing scope note," above).
 
-#### Route readiness table (Slice 2D-B0 amendment)
+**L. (Slice 2D-B0 final amendment) Does a `DECISION_SENSITIVE_CONFLICT` question need more than one `RouteInputRef`?** Yes — at least two, and they must be distinct `(kind, id)` pairs (invariant 30). Not yet enforced by any registration gate in the accepted runtime; flagged as required future enforcement, not implemented here.
 
-Not a purely relative sequencing preference — one result variant is an actual architecture blocker, and the table below says so explicitly rather than treating every route/result as equally ready:
+**M. (Slice 2D-B0 final amendment) Must a `TARGETED_PEER_CHALLENGE` outcome's `targetRef`/`sourceRef` originate from the terminated `RouteDecision`'s own `inputRefs`?** Yes, exactly, with no inference and no new ref introduced at outcome time (invariant 31).
 
-**Ready for first `RouteOutcome` runtime:**
-- `REPLICATE`
-- `TARGETED_PEER_CHALLENGE`
+**N. (Slice 2D-B0 final amendment) Is `SEEK_EVIDENCE`'s claim-level provenance closed?** No — genuinely open (§24). This document explicitly declines to invent `claimText`/`claimId`/`claimIndex`/`paragraphId`/`chunkId` without a separately justified design.
+
+#### Route readiness table (Slice 2D-B0 final amendment)
+
+Not a purely relative sequencing preference — several result variants are actual architecture blockers, and the table below says so explicitly rather than treating every route/result as equally ready. This replaces the prior version's readiness table, which under-stated how much was blocked.
+
+**Ready for first, offline `RouteOutcome` runtime:**
+- Generic `FAILED` `RouteOutcome` (+ `FailureInfo`), for any already-started non-`STOP` `RouteAttempt`, regardless of route — see "Generic FAILED outcome," below.
 - `ADD_CONTEXT` — `SUPPLIED`
 - `ADD_CONTEXT` — `DECLINED`
+- `ADD_REVIEWER` — successful finding-batch outcome, subject to every accepted `reviewerRunId`/newness check above
+- `REPLICATE` — `REPRODUCED` / `NOT_REPRODUCED` / `PARTIAL`
 
-**Ready subject to the new `ADD_REVIEWER` provenance rule** (structural, multi-signal — §7 "Newness provenance," above):
-- `ADD_REVIEWER`
+**Not ready:**
+- `ADD_CONTEXT` — `NO_RESPONSE` (no response-window/closure architecture exists yet — genuinely open, §24)
+- `TARGETED_PEER_CHALLENGE` — all successful result variants (`REBUTTAL`/`CONCESSION`/`QUALIFICATION`/`REFUSAL_TO_YIELD`), blocked on the input-cardinality routing gate (invariant 30)
+- `SEEK_EVIDENCE` — `SUPPORTIVE` / `CONTRADICTORY` / `INCONCLUSIVE`, blocked on claim-level `EvidenceSubject` provenance (genuinely open, §24)
 
-**Schema ready, but execution/retrieval still not authorized** (no provider/retrieval mechanism is chosen or implemented anywhere in this contract):
-- `SEEK_EVIDENCE`
+#### Generic `FAILED` outcome remains structurally useful
 
-**Blocked:**
-- `ADD_CONTEXT` — `NO_RESPONSE` (no response-window/closure architecture exists yet; see the open decision in §24)
+A generic `FAILED` `RouteOutcome` stays recordable for **every** route above, including the three whose successful payloads are not yet runtime-ready — `FAILED` means only that the mechanism did not produce a valid route-specific result; it does not require the missing successful-result schema to be complete, and it makes no claim requiring two-sided provenance, claim-level identity, or anything else that the still-open items above would need. This does **not** authorize executing `TARGETED_PEER_CHALLENGE` or `SEEK_EVIDENCE`, or waiting for a `NO_RESPONSE` closure — it only means the generic ledger schema can represent an already-started attempt's defensible failure terminalization, for whichever route that already-started attempt happens to be. Provider execution remains `0` / **NOT AUTHORIZED**, unconditionally, regardless of this readiness question.
 
-No route or result variant is claimed ready merely for symmetry with the others; `NO_RESPONSE` stays blocked until a separate, explicit response-closure architecture decision is made.
+#### Recommended next slice scope (not authorized by this document)
+
+If GPT authorizes further implementation, the next slice should be scoped narrowly to what is actually ready:
+
+**`SLICE 2D-B1` — SAFE ROUTEOUTCOME LEDGER**, limited to:
+- the `RouteOutcome` generic envelope,
+- an `outcomes[]` ledger on `DeliberationState`,
+- `FailureInfo`,
+- latency accounting,
+- the `ONE RouteAttempt -> AT MOST ONE RouteOutcome` cardinality,
+- generic `FAILED`,
+- `ADD_CONTEXT` `SUPPLIED` / `DECLINED`,
+- `ADD_REVIEWER` success,
+- `REPLICATE` success,
+- snapshot/value semantics for every field above.
+
+It should explicitly **not** implement: `NO_RESPONSE`; `SEEK_EVIDENCE` successful/inconclusive outcomes; `TARGETED_PEER_CHALLENGE` successful outcomes; `QuestionDisposition`; current-question gates; route execution; or any provider call. This is a recommendation for a future packet to authorize or not — it is not itself an authorization, and Slice 2D-B1 is **NOT AUTHORIZED** by this document.
 
 ---
 
@@ -783,6 +838,10 @@ An open/unterminated attempt (§5) is itself an idempotency concern: while a `Ro
 27. One `RouteOutcome` produces at most one `QuestionDisposition` for its originating question (§19).
 28. `RouteAttempt.attemptId` and `ReviewFinding.reviewerRunId` are separate identities and are never made equal; one `reviewerRunId` may be claimed by at most one successful `ADD_REVIEWER` `RouteOutcome` within a `StressTestSession` lineage (§7).
 29. `NO_RESPONSE` (an `ADD_CONTEXT` result) may never be caller-declared or runtime-terminalized until architecture separately defines an explicit response-closure mechanism (a response deadline or an externally recorded closure event); absent that, only `SUPPLIED`, `DECLINED`, and `FAILED` are terminalizable for `ADD_CONTEXT` (§7).
+30. A registered `UnresolvedQuestion` whose `rootCause = DECISION_SENSITIVE_CONFLICT` must contain at least two distinct (`kind`, `id`) `RouteInputRef`s; not yet enforced by any registration gate in the accepted runtime (§7).
+31. A `TARGETED_PEER_CHALLENGE` `RouteOutcome`'s `targetRef` and `sourceRef` must be distinct from one another and must each exactly match one of the terminated `RouteDecision`'s own `inputRefs`, with no inference and no new ref introduced at outcome time (§7).
+32. No `SEEK_EVIDENCE` result (`SUPPORTIVE`/`CONTRADICTORY`/`INCONCLUSIVE`) may be recorded until claim-level `EvidenceSubject` provenance is separately, explicitly frozen; only a generic `FAILED` outcome is recordable for `SEEK_EVIDENCE` until then (§7).
+33. `TARGETED_PEER_CHALLENGE`'s successful result variants may not be recorded until the `DECISION_SENSITIVE_CONFLICT` input-cardinality routing gate (invariant 30) exists; only a generic `FAILED` outcome is recordable for `TARGETED_PEER_CHALLENGE` until then (§7).
 
 ---
 
@@ -842,6 +901,8 @@ No governing source-of-truth document contradicts H–M; none required reopening
 
 **Corrected by the Slice 2D-B0 amendment:** GPT reviewed and rejected the schema freeze's `reviewerRunId === attemptId` identity-equality convention for `ADD_REVIEWER` — two distinct domain identities must never be made equal. `ADD_REVIEWER`'s newness provenance is redesigned as a structural, multi-signal check (§7: `startedAt` ordering, a distinct `reviewerRunId`, `finding.createdAt >= attempt.startedAt`, one-`reviewerRunId`-per-successful-outcome, internal batch consistency) that does not claim cryptographic proof, only structural defensibility within this domain layer's already-accepted trust model (invariant 28). `ADD_CONTEXT`'s `NO_RESPONSE` result is corrected from implicitly-ready to explicitly blocked pending a future, separately-authorized response-closure architecture decision (invariant 29, §24). `logicalCost`'s envelope entry is corrected from "caller-suppliable with mismatch rejection" to "not caller input at all." `completedAt` is clarified as the runtime's own recording time, not a claimed provider-side completion time. `SEEK_EVIDENCE`'s `excerpt` is clarified as source-attributable text, never an arbitrary assistant paraphrase. `TARGETED_PEER_CHALLENGE` was re-reviewed and found unchanged.
 
+**Corrected by the Slice 2D-B0 final amendment:** two further provenance gaps, discovered while translating the frozen schemas into executable requirements, are corrected — decisions L–N in §7. `TARGETED_PEER_CHALLENGE` requires two distinct source/target refs (invariant 30), and its `targetRef`/`sourceRef` must both originate from the terminated `RouteDecision`'s own `inputRefs` (invariant 31) — closed decisions, but its successful-outcome *runtime* stays blocked until a routing gate enforces the cardinality requirement, since no such gate exists in the accepted runtime today. `SEEK_EVIDENCE`'s frozen `{result, citations}` payload is confirmed insufficient to identify *which claim* is being evaluated — `SEEK_EVIDENCE`'s claim-level provenance is left genuinely open (§24) rather than solved by inventing an unjustified `claimId`/`claimText`/`paragraphId` field. The route-readiness table (§7) and the reviewerRunId-reuse scope note (§7) are revised accordingly; a recommended, not-authorized `SLICE 2D-B1` scope is proposed (§7) for whatever GPT chooses to authorize next.
+
 ---
 
 ## 23. Relation to accepted Slice 2A/2B runtime
@@ -852,11 +913,15 @@ Nothing in this document alters, weakens, or contradicts `src/stress-test/delibe
 
 ## 24. Open GPT decisions
 
-**One genuinely open item — not hidden, not closed by convenience:**
+**Two genuinely open items — not hidden, not closed by convenience:**
 
-**`NO_RESPONSE` terminalization mechanism: OPEN / deferred to future human-response-lifecycle architecture.** `ADD_CONTEXT`'s `NO_RESPONSE` result cannot be defensibly terminalized without an explicit response-closure mechanism — a `responseDeadlineAt` bound to `ContextRequest`, or an explicit externally recorded request-window-close event (§7, invariant 29). Existing accepted source-of-truth does not clearly dictate which of those two mechanisms is correct, and no timeout duration may be invented to manufacture a closure. This is left open deliberately, not resolved by picking one arbitrarily; a future, separately authorized architecture decision must close it before `NO_RESPONSE` runtime can be authorized.
+**1. `NO_RESPONSE` terminalization mechanism: OPEN / deferred to future human-response-lifecycle architecture.** `ADD_CONTEXT`'s `NO_RESPONSE` result cannot be defensibly terminalized without an explicit response-closure mechanism — a `responseDeadlineAt` bound to `ContextRequest`, or an explicit externally recorded request-window-close event (§7, invariant 29). Existing accepted source-of-truth does not clearly dictate which of those two mechanisms is correct, and no timeout duration may be invented to manufacture a closure. This is left open deliberately, not resolved by picking one arbitrarily; a future, separately authorized architecture decision must close it before `NO_RESPONSE` runtime can be authorized.
 
-Every other decision either governing packet asked to be closed (§22, including the amendment's H–M and the Slice 2D-B0 schema freeze's A–K in §7) is closed, using only source-of-truth material already in this repository (`src/stress-test/deliberation.ts`, `src/stress-test/session.ts`, `src/stress-test/types.ts`, `src/providers/types.ts`, `src/agents/collaboration.ts`, `MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md`) and the packets' own explicit instructions. No contradiction between governing documents was found, so nothing was reported instead of resolved. `ReplicationResult`'s exact vocabulary (§13.C) and the `questionDispositions` migration shape (§15) were closed rather than left open, on the same minimal-closed-enum / purely-additive-field reasoning pattern this repository already uses for `StopReason` and `RootCauseCategory` — both are conceptual-only and implement nothing. The per-route `AttemptStatus` allowlist (§6, decision K of §22) was originally submitted as Engineering Lead advisory input in Slice 2C and has now been explicitly accepted by GPT as binding — recorded here as provenance, not as a decision this document made unilaterally. `ADD_REVIEWER`'s newness-provenance rule (§7 decision D) is closed as a structural, multi-signal check, not as identity equality — GPT's rejection of the prior `reviewerRunId === attemptId` convention is fully incorporated, not merely noted.
+**2. `SEEK_EVIDENCE` claim-level `EvidenceSubject` provenance: OPEN / requires a separately authorized architecture decision.** The frozen `{result, citations}` payload identifies a source, but not which specific factual claim within a `ReviewFinding`/`SemanticIssue` the citations evaluate (§7, invariant 32). This document explicitly declines to invent `claimText`/`claimId`/`claimIndex`/`paragraphId`/`chunkId` to paper over the gap — paragraph-local identity is not product authority, copied claim text can drift, a `SemanticIssue` can aggregate multiple findings, and one finding can carry more than one factual proposition. `SUPPORTIVE`/`CONTRADICTORY`/`INCONCLUSIVE` all stay runtime-blocked until this is closed.
+
+**Not an open decision, despite being a runtime blocker:** `TARGETED_PEER_CHALLENGE`'s source/target provenance rule *is* closed by this amendment (§7 decisions L–M, invariants 30–31) — two distinct refs, both drawn from the terminated `RouteDecision`'s own `inputRefs`. Its successful-outcome runtime stays blocked only because the routing gate that would *enforce* that closed rule does not exist yet — a sequencing gap, not an unresolved architecture question.
+
+Every other decision either governing packet asked to be closed (§22, including the amendment's H–M and the Slice 2D-B0 schema freeze's A–N in §7) is closed, using only source-of-truth material already in this repository (`src/stress-test/deliberation.ts`, `src/stress-test/session.ts`, `src/stress-test/types.ts`, `src/providers/types.ts`, `src/agents/collaboration.ts`, `MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md`) and the packets' own explicit instructions. No contradiction between governing documents was found, so nothing was reported instead of resolved. `ReplicationResult`'s exact vocabulary (§13.C) and the `questionDispositions` migration shape (§15) were closed rather than left open, on the same minimal-closed-enum / purely-additive-field reasoning pattern this repository already uses for `StopReason` and `RootCauseCategory` — both are conceptual-only and implement nothing. The per-route `AttemptStatus` allowlist (§6, decision K of §22) was originally submitted as Engineering Lead advisory input in Slice 2C and has now been explicitly accepted by GPT as binding — recorded here as provenance, not as a decision this document made unilaterally. `ADD_REVIEWER`'s newness-provenance rule (§7 decision D) is closed as a structural, multi-signal check, not as identity equality — GPT's rejection of the prior `reviewerRunId === attemptId` convention is fully incorporated, not merely noted.
 
 ---
 
