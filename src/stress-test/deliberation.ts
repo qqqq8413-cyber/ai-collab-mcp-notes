@@ -636,6 +636,18 @@ function resolveUniqueRouteDecisionById(deliberationState: DeliberationState, de
  * `CROSS_SESSION`, or an unknown string) throws here rather than silently
  * being treated as non-terminal.
  */
+/**
+ * `STILL_OPEN` is the only non-terminal recordable disposition kind; every
+ * other recordable kind (`RESOLVED`, `SUPERSEDED_RECLASSIFIED`) terminates a
+ * question's disposition history (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+ * §9 "Terminality"). Never called with an unsupported/unknown kind --
+ * `assertLedgerQuestionDispositionIntegrity` already rejects those before
+ * this predicate would ever see one.
+ */
+function isTerminalQuestionDispositionKind(kind: RecordableQuestionDispositionKind): boolean {
+  return kind !== 'STILL_OPEN';
+}
+
 function assertLedgerQuestionDispositionIntegrity(deliberationState: DeliberationState, disposition: QuestionDisposition): void {
   assertNonEmptyString(disposition.attemptId, 'QuestionDisposition ledger entry: attemptId');
   assertNonEmptyString(disposition.questionId, 'QuestionDisposition ledger entry: questionId');
@@ -667,13 +679,25 @@ function assertLedgerQuestionDispositionIntegrity(deliberationState: Deliberatio
 }
 
 /**
- * Re-validates the complete disposition ledger at every read boundary. A
- * disposition may be structurally valid by itself while still duplicating
- * another record for the same RouteOutcome; that cardinality corruption must
- * never be resolved by first/latest/terminal-wins semantics.
+ * Re-validates the complete disposition ledger at every read boundary, two
+ * independent cardinality dimensions: (1) `ONE RouteOutcome -> AT MOST ONE
+ * QuestionDisposition` (per-`attemptId`, invariant 27) and (2) per-`questionId`
+ * lifecycle terminality (Slice 2D-B2-B amendment,
+ * ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9 "Terminality," §19) --
+ * any number of `STILL_OPEN` records for a question, but at most one
+ * *terminal* disposition ever, and it must be the last disposition that
+ * question has, in ledger append order (never `createdAt`/timestamp
+ * arbitration: order is `deliberationState.questionDispositions` array
+ * order, exactly the order this module itself appends in). Per-`attemptId`
+ * uniqueness alone is not sufficient: two individually-unique-per-attempt
+ * terminal dispositions for the *same question* (e.g. a tampered `RESOLVED`
+ * on one attempt plus `SUPERSEDED_RECLASSIFIED` on another) must also fail
+ * closed, in either order. Neither corruption is ever resolved by
+ * first/latest/terminal-wins semantics.
  */
 function assertQuestionDispositionLedgerIntegrity(deliberationState: DeliberationState): void {
   const dispositionCountByAttemptId = new Map<string, number>();
+  const terminalKindSeenByQuestionId = new Map<string, RecordableQuestionDispositionKind>();
 
   for (const disposition of deliberationState.questionDispositions) {
     assertLedgerQuestionDispositionIntegrity(deliberationState, disposition);
@@ -684,6 +708,16 @@ function assertQuestionDispositionLedgerIntegrity(deliberationState: Deliberatio
         `QuestionDisposition ledger entry: attemptId ${disposition.attemptId} has more than one QuestionDisposition -- inconsistent state`
       );
     }
+
+    const priorTerminalKind = terminalKindSeenByQuestionId.get(disposition.questionId);
+    if (priorTerminalKind !== undefined) {
+      throw new Error(
+        `QuestionDisposition ledger entry: question ${disposition.questionId} already has a terminal disposition (${priorTerminalKind}) -- no further disposition of any kind may follow it, per ledger append order`
+      );
+    }
+    if (isTerminalQuestionDispositionKind(disposition.disposition)) {
+      terminalKindSeenByQuestionId.set(disposition.questionId, disposition.disposition);
+    }
   }
 }
 
@@ -691,18 +725,25 @@ function assertQuestionDispositionLedgerIntegrity(deliberationState: Deliberatio
  * Validates the COMPLETE derived-lineage graph, never only the one question
  * a caller happens to be asking about
  * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9, "Global lineage
- * read-integrity boundary"): global `UnresolvedQuestion.id` uniqueness
- * first (identity before local derivation), then reverse integrity (every
- * derived child resolves to exactly one existing question with exactly one
- * `SUPERSEDED_RECLASSIFIED` disposition, and is that parent's unique direct
- * child), forward integrity (every `SUPERSEDED_RECLASSIFIED` disposition has
- * exactly one registered direct child), and acyclicity. Pure, non-cached,
- * non-memoized -- never persists anything on `DeliberationState`. Any
- * violation fails closed; none is ever automatically reconciled.
+ * read-integrity boundary"). Exact internal ordering (Slice 2D-B2-B
+ * amendment, corrected to match this order): (1) global
+ * `UnresolvedQuestion.id` non-emptiness/uniqueness -- identity before any
+ * local derivation; (2) structural derived-graph checks -- self-reference,
+ * then acyclicity, so a broken graph *shape* is reported before this
+ * function tries to interpret what a (possibly cyclic) chain's dispositions
+ * mean; (3) `QuestionDisposition` ledger integrity -- per-`attemptId`
+ * cardinality *and* per-`questionId` lifecycle terminality
+ * (`assertQuestionDispositionLedgerIntegrity`), so an individually-
+ * plausible-looking parent with two terminal dispositions (e.g. a tampered
+ * `RESOLVED` + `SUPERSEDED_RECLASSIFIED` pair for the same question) is
+ * already rejected here, before; (4) semantic lineage -- reverse (child ->
+ * parent), fork detection, and forward (parent -> child) integrity, which
+ * can now safely assume every question has at most one terminal
+ * disposition. Pure, non-cached, non-memoized -- never persists anything on
+ * `DeliberationState`. Any violation fails closed; none is ever
+ * automatically reconciled.
  */
 function assertDerivedQuestionLineageIntegrity(deliberationState: DeliberationState): void {
-  assertQuestionDispositionLedgerIntegrity(deliberationState);
-
   const seenQuestionIds = new Set<string>();
   for (const question of deliberationState.unresolvedQuestions) {
     assertNonEmptyString(question.id, 'assertDerivedQuestionLineageIntegrity: question.id');
@@ -716,7 +757,7 @@ function assertDerivedQuestionLineageIntegrity(deliberationState: DeliberationSt
 
   const questionsById = new Map(deliberationState.unresolvedQuestions.map((q) => [q.id, q] as const));
 
-  // Structural checks (self-reference, acyclicity) run before any
+  // Step 2: structural checks (self-reference, acyclicity) run before any
   // disposition-semantic check below -- a broken graph *shape* is reported
   // before this function tries to reason about what a (possibly cyclic)
   // chain's dispositions mean.
@@ -745,7 +786,14 @@ function assertDerivedQuestionLineageIntegrity(deliberationState: DeliberationSt
     }
   }
 
-  // Reverse integrity (child -> parent) and fork detection.
+  // Step 3: QuestionDisposition ledger integrity -- per-attemptId cardinality
+  // AND per-questionId lifecycle terminality. Only once this passes can step
+  // 4 below safely assume every question has at most one terminal
+  // disposition (never two, e.g. a tampered RESOLVED + SUPERSEDED_RECLASSIFIED
+  // pair for the same parent).
+  assertQuestionDispositionLedgerIntegrity(deliberationState);
+
+  // Step 4: reverse integrity (child -> parent) and fork detection.
   const childIdsByParentId = new Map<string, string[]>();
 
   for (const child of deliberationState.unresolvedQuestions) {
@@ -756,12 +804,17 @@ function assertDerivedQuestionLineageIntegrity(deliberationState: DeliberationSt
         `assertDerivedQuestionLineageIntegrity: question ${child.id} claims derivedFromQuestionId ${parentId}, which is not a currently registered question -- orphan derived question`
       );
     }
-    const supersededForParent = deliberationState.questionDispositions.filter(
-      (d) => d.questionId === parentId && d.disposition === 'SUPERSEDED_RECLASSIFIED'
+    // Ledger integrity (step 3, above) already guarantees at most one
+    // terminal disposition per question -- so this is "does the parent have
+    // a terminal disposition, and is it SUPERSEDED_RECLASSIFIED," never
+    // "exactly one disposition total" (a parent may legitimately carry any
+    // number of earlier STILL_OPEN records from prior completed cycles).
+    const terminalForParent = deliberationState.questionDispositions.filter(
+      (d) => d.questionId === parentId && isTerminalQuestionDispositionKind(d.disposition)
     );
-    if (supersededForParent.length !== 1) {
+    if (terminalForParent.length !== 1 || terminalForParent[0].disposition !== 'SUPERSEDED_RECLASSIFIED') {
       throw new Error(
-        `assertDerivedQuestionLineageIntegrity: question ${child.id}'s claimed parent ${parentId} does not have exactly one SUPERSEDED_RECLASSIFIED disposition -- broken lineage`
+        `assertDerivedQuestionLineageIntegrity: question ${child.id}'s claimed parent ${parentId} does not have exactly one terminal SUPERSEDED_RECLASSIFIED disposition -- broken lineage`
       );
     }
     const siblings = childIdsByParentId.get(parentId) ?? [];
@@ -891,7 +944,7 @@ export function isQuestionCurrent(deliberationState: DeliberationState, question
     throw new Error(`isQuestionCurrent: questionId ${questionId} is not a currently registered unresolved question`);
   }
   const dispositionsForQuestion = deliberationState.questionDispositions.filter((d) => d.questionId === questionId);
-  return !dispositionsForQuestion.some((d) => d.disposition !== 'STILL_OPEN');
+  return !dispositionsForQuestion.some((d) => isTerminalQuestionDispositionKind(d.disposition));
 }
 
 /**

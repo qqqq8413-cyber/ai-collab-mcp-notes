@@ -3811,7 +3811,7 @@ check('a derived question whose claimed parent has no disposition, or STILL_OPEN
     const corrupted = { ...withParentDisposition, unresolvedQuestions: [...withParentDisposition.unresolvedQuestions, child] };
     assert.throws(
       () => isQuestionCurrent(corrupted, question.id),
-      /does not have exactly one SUPERSEDED_RECLASSIFIED disposition/
+      /does not have exactly one terminal SUPERSEDED_RECLASSIFIED disposition/
     );
   }
 });
@@ -4008,6 +4008,280 @@ check('CROSS_SESSION remains rejected outright even after SUPERSEDED_RECLASSIFIE
     () => recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition: 'CROSS_SESSION', reason: 'x' }),
     /invalid or unsupported disposition/
   );
+});
+
+// ==================================================================
+// T. Question-terminality ledger integrity (Slice 2D-B2-B amendment)
+// ==================================================================
+console.log('\nQuestion-terminality ledger integrity (Slice 2D-B2-B amendment)');
+
+// --- T1. Valid STILL_OPEN then SUPERSEDED (packet §25) ---------------------
+
+check('a prior STILL_OPEN cycle does not block a later SUPERSEDED_RECLASSIFIED cycle for the same question', () => {
+  const cycle1 = buildFailedCycleFixture('COVERAGE_GAP');
+  const { session, state: state0, question: q1, attempt: attempt1 } = cycle1;
+  const afterStillOpen = recordQuestionDisposition(session, state0, {
+    attemptId: attempt1.attemptId,
+    disposition: 'STILL_OPEN',
+    reason: 'first cycle remains open',
+  });
+
+  const decision2 = planRouteForQuestion(session, afterStillOpen, q1);
+  const state2 = recordRouteDecision(session, afterStillOpen, decision2);
+  const state3 = recordRouteAttemptStart(session, state2, decision2.id);
+  const attempt2 = state3.attempts.find((a) => a.decisionId === decision2.id);
+  const state4 = recordRouteOutcome(session, state3, {
+    attemptId: attempt2.attemptId,
+    status: 'FAILED',
+    latencyConsumed: 1,
+    failure: VALID_FAILURE_FOR_DISPOSITION,
+  });
+  const q2 = createUnresolvedQuestion(session, {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'reclassified after a prior STILL_OPEN cycle',
+    inputRefs: q1.inputRefs.map((ref) => ({ ...ref })),
+    derivedFromQuestionId: q1.id,
+  });
+  const state5 = recordQuestionDisposition(session, state4, {
+    attemptId: attempt2.attemptId,
+    disposition: 'SUPERSEDED_RECLASSIFIED',
+    reason: 'Q1 reclassified into Q2 on its second cycle',
+    replacementQuestion: q2,
+  });
+
+  assert.equal(isQuestionCurrent(state5, q1.id), false);
+  assert.equal(isQuestionCurrent(state5, q2.id), true);
+});
+
+// --- T2. Multiple STILL_OPEN then RESOLVED (packet §26) --------------------
+
+check('multiple prior STILL_OPEN cycles do not block a later RESOLVED', () => {
+  const cycle1 = buildFailedCycleFixture('COVERAGE_GAP');
+  const { session, state: state0, question: q1, attempt: attempt1 } = cycle1;
+  let state = recordQuestionDisposition(session, state0, {
+    attemptId: attempt1.attemptId,
+    disposition: 'STILL_OPEN',
+    reason: 'cycle 1 remains open',
+  });
+
+  for (let i = 0; i < 2; i++) {
+    const decision = planRouteForQuestion(session, state, q1);
+    state = recordRouteDecision(session, state, decision);
+    state = recordRouteAttemptStart(session, state, decision.id);
+    const attempt = state.attempts.find((a) => a.decisionId === decision.id);
+    state = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'FAILED',
+      latencyConsumed: 1,
+      failure: VALID_FAILURE_FOR_DISPOSITION,
+    });
+    const disposition = i === 0 ? 'STILL_OPEN' : 'RESOLVED';
+    state = recordQuestionDisposition(session, state, { attemptId: attempt.attemptId, disposition, reason: `cycle ${i + 2}` });
+  }
+
+  assert.equal(isQuestionCurrent(state, q1.id), false);
+  assert.equal(state.questionDispositions.filter((d) => d.questionId === q1.id).length, 3);
+});
+
+// --- T3/T4. Two-terminal tamper, both orders (packet §27-28) ----------------
+
+check('a tampered RESOLVED + SUPERSEDED_RECLASSIFIED pair for the same question fails closed in both append orders, even with an otherwise-valid Q2 child', () => {
+  for (const order of ['RESOLVED-then-SUPERSEDED', 'SUPERSEDED-then-RESOLVED']) {
+    const cycle1 = buildFailedCycleFixture('COVERAGE_GAP');
+    const { session, state: state0, question: q1, attempt: attempt1 } = cycle1;
+
+    const afterFirst = recordQuestionDisposition(session, state0, {
+      attemptId: attempt1.attemptId,
+      disposition: 'STILL_OPEN',
+      reason: 'first cycle kept open so a second real cycle can be built',
+    });
+    const decision2 = planRouteForQuestion(session, afterFirst, q1);
+    const state2 = recordRouteDecision(session, afterFirst, decision2);
+    const state3 = recordRouteAttemptStart(session, state2, decision2.id);
+    const attempt2 = state3.attempts.find((a) => a.decisionId === decision2.id);
+    const state4 = recordRouteOutcome(session, state3, {
+      attemptId: attempt2.attemptId,
+      status: 'FAILED',
+      latencyConsumed: 1,
+      failure: VALID_FAILURE_FOR_DISPOSITION,
+    });
+
+    const q2 = createUnresolvedQuestion(session, {
+      rootCause: 'DECISION_SENSITIVE_CONFLICT',
+      materialityReason: 'an otherwise-valid derived child of a doubly-terminal Q1',
+      inputRefs: q1.inputRefs.map((ref) => ({ ...ref })),
+      derivedFromQuestionId: q1.id,
+    });
+
+    const resolvedDisposition = {
+      attemptId: attempt1.attemptId,
+      questionId: q1.id,
+      sessionId: state4.sessionId,
+      artifactHash: state4.artifactHash,
+      authorContextHash: state4.authorContextHash,
+      disposition: 'RESOLVED',
+      reason: 'tampered: first terminal',
+      createdAt: new Date().toISOString(),
+    };
+    const supersededDisposition = {
+      attemptId: attempt2.attemptId,
+      questionId: q1.id,
+      sessionId: state4.sessionId,
+      artifactHash: state4.artifactHash,
+      authorContextHash: state4.authorContextHash,
+      disposition: 'SUPERSEDED_RECLASSIFIED',
+      reason: 'tampered: second terminal',
+      createdAt: new Date().toISOString(),
+    };
+    const orderedDispositions =
+      order === 'RESOLVED-then-SUPERSEDED' ? [resolvedDisposition, supersededDisposition] : [supersededDisposition, resolvedDisposition];
+
+    const tampered = {
+      ...state4,
+      unresolvedQuestions: [...state4.unresolvedQuestions, q2],
+      questionDispositions: orderedDispositions,
+    };
+
+    assert.throws(() => isQuestionCurrent(tampered, q1.id), /already has a terminal disposition/, `order ${order}`);
+    assert.throws(
+      () => planRouteForQuestion(session, tampered, q1),
+      /already has a terminal disposition|is not current/,
+      `order ${order}`
+    );
+  }
+});
+
+// --- T5. Terminal then STILL_OPEN (packet §29) ------------------------------
+
+check('a terminal disposition followed by a later STILL_OPEN for the same question fails closed, for both RESOLVED and SUPERSEDED_RECLASSIFIED', () => {
+  for (const terminalKind of ['RESOLVED', 'SUPERSEDED_RECLASSIFIED']) {
+    const cycle1 = buildFailedCycleFixture('COVERAGE_GAP');
+    const { session, state: state0, question, attempt: attempt1 } = cycle1;
+    const afterFirst = recordQuestionDisposition(session, state0, {
+      attemptId: attempt1.attemptId,
+      disposition: 'STILL_OPEN',
+      reason: 'first cycle kept open so a second real cycle can be built',
+    });
+    const decision2 = planRouteForQuestion(session, afterFirst, question);
+    const state2 = recordRouteDecision(session, afterFirst, decision2);
+    const state3 = recordRouteAttemptStart(session, state2, decision2.id);
+    const attempt2 = state3.attempts.find((a) => a.decisionId === decision2.id);
+    const state4 = recordRouteOutcome(session, state3, {
+      attemptId: attempt2.attemptId,
+      status: 'FAILED',
+      latencyConsumed: 1,
+      failure: VALID_FAILURE_FOR_DISPOSITION,
+    });
+
+    const terminalDisposition = {
+      attemptId: attempt1.attemptId,
+      questionId: question.id,
+      sessionId: state4.sessionId,
+      artifactHash: state4.artifactHash,
+      authorContextHash: state4.authorContextHash,
+      disposition: terminalKind,
+      reason: 'terminal, tampered to appear first',
+      createdAt: new Date().toISOString(),
+    };
+    const staleStillOpen = {
+      attemptId: attempt2.attemptId,
+      questionId: question.id,
+      sessionId: state4.sessionId,
+      artifactHash: state4.artifactHash,
+      authorContextHash: state4.authorContextHash,
+      disposition: 'STILL_OPEN',
+      reason: 'stale STILL_OPEN, tampered to appear after a terminal',
+      createdAt: new Date().toISOString(),
+    };
+    const tampered = { ...state4, questionDispositions: [terminalDisposition, staleStillOpen] };
+    assert.throws(() => isQuestionCurrent(tampered, question.id), /already has a terminal disposition/, terminalKind);
+  }
+});
+
+// --- T6. Multiple terminals of the same kind (packet §30) -------------------
+
+check('two terminal dispositions of the SAME kind for one question also reject (per-attempt uniqueness alone is not sufficient)', () => {
+  for (const terminalKind of ['RESOLVED', 'SUPERSEDED_RECLASSIFIED']) {
+    const cycle1 = buildFailedCycleFixture('COVERAGE_GAP');
+    const { session, state: state0, question, attempt: attempt1 } = cycle1;
+    const afterFirst = recordQuestionDisposition(session, state0, {
+      attemptId: attempt1.attemptId,
+      disposition: 'STILL_OPEN',
+      reason: 'first cycle kept open so a second real cycle can be built',
+    });
+    const decision2 = planRouteForQuestion(session, afterFirst, question);
+    const state2 = recordRouteDecision(session, afterFirst, decision2);
+    const state3 = recordRouteAttemptStart(session, state2, decision2.id);
+    const attempt2 = state3.attempts.find((a) => a.decisionId === decision2.id);
+    const state4 = recordRouteOutcome(session, state3, {
+      attemptId: attempt2.attemptId,
+      status: 'FAILED',
+      latencyConsumed: 1,
+      failure: VALID_FAILURE_FOR_DISPOSITION,
+    });
+
+    const makeDisposition = (attemptId) => ({
+      attemptId,
+      questionId: question.id,
+      sessionId: state4.sessionId,
+      artifactHash: state4.artifactHash,
+      authorContextHash: state4.authorContextHash,
+      disposition: terminalKind,
+      reason: `duplicate ${terminalKind}`,
+      createdAt: new Date().toISOString(),
+    });
+    const tampered = {
+      ...state4,
+      questionDispositions: [makeDisposition(attempt1.attemptId), makeDisposition(attempt2.attemptId)],
+    };
+    assert.throws(() => isQuestionCurrent(tampered, question.id), /already has a terminal disposition/, terminalKind);
+  }
+});
+
+// --- T7. Terminality is per-questionId, not global (packet §31) ------------
+
+check('terminality tracking is per-questionId, not global across all questions', () => {
+  const cycleA = buildFailedCycleFixture('COVERAGE_GAP');
+  const { session, state: stateA, question: qA, attempt: attemptA } = cycleA;
+  const resolvedA = recordQuestionDisposition(session, stateA, {
+    attemptId: attemptA.attemptId,
+    disposition: 'RESOLVED',
+    reason: 'A resolved',
+  });
+
+  const extra = buildRegisteredQuestion(session, resolvedA, {
+    rootCause: 'STABILITY_QUESTION',
+    materialityReason: 'question B, unrelated to A',
+    inputRefs: qA.inputRefs.map((ref) => ({ ...ref })),
+  });
+  let state = extra.state;
+  const qB = extra.question;
+  const decisionB = planRouteForQuestion(session, state, qB);
+  state = recordRouteDecision(session, state, decisionB);
+  state = recordRouteAttemptStart(session, state, decisionB.id);
+  const attemptB = state.attempts.find((a) => a.decisionId === decisionB.id);
+  state = recordRouteOutcome(session, state, {
+    attemptId: attemptB.attemptId,
+    status: 'FAILED',
+    latencyConsumed: 1,
+    failure: VALID_FAILURE_FOR_DISPOSITION,
+  });
+  const qC = createUnresolvedQuestion(session, {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'B reclassified into C',
+    inputRefs: qB.inputRefs.map((ref) => ({ ...ref })),
+    derivedFromQuestionId: qB.id,
+  });
+  state = recordQuestionDisposition(session, state, {
+    attemptId: attemptB.attemptId,
+    disposition: 'SUPERSEDED_RECLASSIFIED',
+    reason: 'B reclassified into C',
+    replacementQuestion: qC,
+  });
+
+  assert.equal(isQuestionCurrent(state, qA.id), false);
+  assert.equal(isQuestionCurrent(state, qB.id), false);
+  assert.equal(isQuestionCurrent(state, qC.id), true);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
