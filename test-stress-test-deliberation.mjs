@@ -169,6 +169,13 @@ function buildStartedAttemptFixture(rootCause, costCeiling = 5, latencyCeiling =
   return { session, state: started, decision, question, issueId, findingIds };
 }
 
+/** Convenience: registers a CONTEXT_GAP question, plans+records its ADD_CONTEXT RouteDecision, and starts the RouteAttempt -- ready for createContextRequest({attemptId}). */
+function buildAddContextAttemptFixture(costCeiling = 5, latencyCeiling = 5) {
+  const { session, state, decision, question, issueId, findingIds } = buildStartedAttemptFixture('CONTEXT_GAP', costCeiling, latencyCeiling);
+  const attempt = state.attempts[0];
+  return { session, state, decision, question, issueId, findingIds, attempt };
+}
+
 /** Convenience: adds one new ReviewFinding with the given reviewerRunId via the real addFinding API, returning the updated session and the new finding's id. */
 function addReviewerFinding(session, reviewerRunId, overrides = {}) {
   const before = new Set(Object.keys(session.findings));
@@ -996,8 +1003,12 @@ check('the original StressTestSession is never mutated by any deliberation funct
     materialityReason: 'x',
     inputRefs: [{ kind: 'AUTHOR_CONTEXT_ITEM', id: itemId }],
   });
-  createContextRequest(session, stateWithContext, {
-    questionId: contextQuestion.id,
+  const contextDecision = planRouteForQuestion(session, stateWithContext, contextQuestion);
+  const stateWithContextDecision = recordRouteDecision(session, stateWithContext, contextDecision);
+  const stateWithContextAttempt = recordRouteAttemptStart(session, stateWithContextDecision, contextDecision.id);
+  const contextAttempt = stateWithContextAttempt.attempts.find((a) => a.decisionId === contextDecision.id);
+  createContextRequest(session, stateWithContextAttempt, {
+    attemptId: contextAttempt.attemptId,
     category: 'constraints',
     question: 'What is the actual contractor budget ceiling?',
     inferenceReason: 'This cannot be inferred from the artifact text alone.',
@@ -1078,61 +1089,116 @@ check('negative/NaN/Infinity spend amounts are rejected', () => {
 // ==================================================================
 console.log('\nContextRequest (ADD_CONTEXT output)');
 
-check('requires a registered question', () => {
+// --- Initial state / legacy ledger ------------------------------------------
+
+check('createDeliberationState initializes contextRequests=[]; no cache/index field exists', () => {
   const session = buildReviewedFixtureSession();
   const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
-  assert.throws(
-    () =>
-      createContextRequest(session, state, {
-        questionId: 'not-registered',
-        category: 'constraints',
-        question: 'x?',
-        inferenceReason: 'x',
-      }),
-    /not a currently registered unresolved question/
-  );
+  assert.deepEqual(state.contextRequests, []);
+  assert.equal('contextRequestByAttempt' in state, false);
+  assert.equal('requestIndex' in state, false);
+  assert.equal('currentRequest' in state, false);
 });
 
-check('captures originatingQuestionId, originatingSessionId, and frozen hashes', () => {
-  const session = buildReviewedFixtureSession();
-  const itemId = session.authorContext.constraints[0].id;
-  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
-  const { state, question } = buildRegisteredQuestion(session, state0, {
-    rootCause: 'CONTEXT_GAP',
-    materialityReason: 'The memo does not say whether the budget figure is a hard ceiling or a planning assumption.',
-    inputRefs: [{ kind: 'AUTHOR_CONTEXT_ITEM', id: itemId }],
+check('a legacy state missing contextRequests reads as []; a successful create returns a NEW state with the field materialized, leaving the original untouched', () => {
+  const { session, state, attempt } = buildAddContextAttemptFixture();
+  const legacyState = { ...state };
+  delete legacyState.contextRequests;
+
+  const result = createContextRequest(session, legacyState, {
+    attemptId: attempt.attemptId,
+    category: 'constraints',
+    question: 'x?',
+    inferenceReason: 'x',
   });
-  const request = createContextRequest(session, state, {
-    questionId: question.id,
+  assert.equal(result.deliberationState.contextRequests.length, 1);
+  assert.equal('contextRequests' in legacyState, false);
+});
+
+// --- Happy path --------------------------------------------------------------
+
+check('happy path: captures originatingAttemptId/originatingQuestionId/originatingSessionId/hashes/sourceRefs; ledger records exactly one request', () => {
+  const { session, state, question, attempt } = buildAddContextAttemptFixture();
+  const result = createContextRequest(session, state, {
+    attemptId: attempt.attemptId,
     category: 'constraints',
     question: 'Is "no additional contractor budget" a hard constraint or a planning assumption that could change?',
     inferenceReason: "This cannot be inferred from the artifact text alone -- it depends on the author's actual authority.",
   });
-  assert.equal(request.originatingQuestionId, question.id);
-  assert.equal(request.originatingSessionId, session.id);
-  assert.equal(request.artifactHash, session.artifactHash);
-  assert.equal(request.authorContextHash, session.authorContextHash);
+  assert.equal(result.contextRequest.originatingAttemptId, attempt.attemptId);
+  assert.equal(result.contextRequest.originatingQuestionId, question.id);
+  assert.equal(result.contextRequest.originatingSessionId, session.id);
+  assert.equal(result.contextRequest.artifactHash, session.artifactHash);
+  assert.equal(result.contextRequest.authorContextHash, session.authorContextHash);
+  assert.deepEqual(result.contextRequest.sourceRefs, question.inputRefs);
+  assert.equal(typeof result.contextRequest.createdAt, 'string');
+  assert.ok(!Number.isNaN(Date.parse(result.contextRequest.createdAt)));
+  assert.equal(result.deliberationState.contextRequests.length, 1);
+  assert.equal(result.deliberationState.contextRequests[0].id, result.contextRequest.id);
 });
 
-check('sourceRefs are copied from the registered question, not caller-suppliable', () => {
-  const session = buildReviewedFixtureSession();
-  const itemId = session.authorContext.constraints[0].id;
-  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
-  const { state, question } = buildRegisteredQuestion(session, state0, {
-    rootCause: 'CONTEXT_GAP',
-    materialityReason: 'x',
-    inputRefs: [{ kind: 'AUTHOR_CONTEXT_ITEM', id: itemId }],
-  });
-  const request = createContextRequest(session, state, {
-    questionId: question.id,
-    category: 'constraints',
-    question: 'x?',
-    inferenceReason: 'x',
-    // The API has no sourceRefs parameter at all -- an attempted override is
-    // simply an extra, ignored key, never reaching request.sourceRefs.
-    sourceRefs: [{ kind: 'FINDING', id: 'attacker-supplied' }],
-  });
-  assert.deepEqual(request.sourceRefs, question.inputRefs);
+// --- Attempt binding / input shape -------------------------------------------
+
+check('an unknown, blank, whitespace-only, null, or missing attemptId is rejected', () => {
+  const { session, state } = buildAddContextAttemptFixture();
+  for (const attemptId of ['not-a-real-attempt', '', '   ', null, undefined]) {
+    assert.throws(
+      () => createContextRequest(session, state, { attemptId, category: 'constraints', question: 'x?', inferenceReason: 'x' }),
+      /must be a non-empty string|is not a currently recorded RouteAttempt/,
+      `expected attemptId ${JSON.stringify(attemptId)} to be rejected`
+    );
+  }
+});
+
+check('a RouteDecision.id is not accepted in place of a RouteAttempt.attemptId', () => {
+  const { session, state, decision } = buildAddContextAttemptFixture();
+  assert.throws(
+    () => createContextRequest(session, state, { attemptId: decision.id, category: 'constraints', question: 'x?', inferenceReason: 'x' }),
+    /is not a currently recorded RouteAttempt/
+  );
+});
+
+check('an attempt whose route is not ADD_CONTEXT is rejected', () => {
+  for (const rootCause of ['COVERAGE_GAP', 'STABILITY_QUESTION', 'EVIDENCE_GAP', 'DECISION_SENSITIVE_CONFLICT']) {
+    const { session, state, decision } = buildStartedAttemptFixture(rootCause);
+    const attempt = state.attempts.find((a) => a.decisionId === decision.id);
+    assert.throws(
+      () => createContextRequest(session, state, { attemptId: attempt.attemptId, category: 'constraints', question: 'x?', inferenceReason: 'x' }),
+      /not ADD_CONTEXT/,
+      `expected rootCause ${rootCause} to be rejected`
+    );
+  }
+});
+
+check('the old questionId input and every derived/forbidden field are rejected as unexpected keys, never silently ignored', () => {
+  const { session, state, attempt } = buildAddContextAttemptFixture();
+  const forbiddenExtras = [
+    { questionId: 'x' },
+    { originatingAttemptId: 'x' },
+    { originatingQuestionId: 'x' },
+    { sourceRefs: [{ kind: 'FINDING', id: 'attacker-supplied' }] },
+    { sessionId: 'x' },
+    { artifactHash: 'x' },
+    { authorContextHash: 'x' },
+    { requestId: 'x' },
+    { id: 'x' },
+    { createdAt: new Date().toISOString() },
+    { arbitraryField: 1 },
+  ];
+  for (const extra of forbiddenExtras) {
+    assert.throws(
+      () =>
+        createContextRequest(session, state, {
+          attemptId: attempt.attemptId,
+          category: 'constraints',
+          question: 'x?',
+          inferenceReason: 'x',
+          ...extra,
+        }),
+      /unexpected field/,
+      `expected extra field ${JSON.stringify(Object.keys(extra))} to be rejected`
+    );
+  }
 });
 
 check('a CONTEXT_GAP question can never be registered with empty refs, so a ContextRequest can never lack provenance', () => {
@@ -1148,116 +1214,242 @@ check('a CONTEXT_GAP question can never be registered with empty refs, so a Cont
   assert.throws(() => registerUnresolvedQuestion(session, state, emptyRefQuestion), /at least one inputRef is required/);
 });
 
-check('a non-CONTEXT_GAP registered question is rejected', () => {
-  const { session, issueId } = buildFixtureWithIssue();
-  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
-  const { state, question } = buildRegisteredQuestion(session, state0, {
-    rootCause: 'EVIDENCE_GAP',
-    materialityReason: 'x',
-    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
-  });
-  assert.throws(
-    () =>
-      createContextRequest(session, state, {
-        questionId: question.id,
-        category: 'constraints',
-        question: 'x?',
-        inferenceReason: 'x',
-      }),
-    /not CONTEXT_GAP/
-  );
-});
-
-check('an unknown questionId is rejected', () => {
-  const session = buildReviewedFixtureSession();
-  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
-  assert.throws(
-    () =>
-      createContextRequest(session, state, {
-        questionId: 'never-registered',
-        category: 'constraints',
-        question: 'x?',
-        inferenceReason: 'x',
-      }),
-    /not a currently registered unresolved question/
-  );
-});
-
-check('is rejected once the deliberation has stopped', () => {
-  const session = buildReviewedFixtureSession();
-  const itemId = session.authorContext.constraints[0].id;
-  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
-  const { state: registered, question } = buildRegisteredQuestion(session, state0, {
-    rootCause: 'CONTEXT_GAP',
-    materialityReason: 'x',
-    inputRefs: [{ kind: 'AUTHOR_CONTEXT_ITEM', id: itemId }],
-  });
-
-  const stopQuestion = createUnresolvedQuestion(session, { rootCause: 'NONE', materialityReason: 'x', inputRefs: [] });
-  const stopDecision = planRouteForQuestion(session, registered, stopQuestion);
-  const stopped = recordRouteDecision(session, registered, stopDecision, { stopReason: 'successful' });
-
-  assert.throws(
-    () =>
-      createContextRequest(session, stopped, {
-        questionId: question.id,
-        category: 'constraints',
-        question: 'x?',
-        inferenceReason: 'x',
-      }),
-    /already stopped/
-  );
-});
-
 check('requires a non-empty question and inferenceReason', () => {
-  const session = buildReviewedFixtureSession();
-  const itemId = session.authorContext.constraints[0].id;
-  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
-  const { state, question } = buildRegisteredQuestion(session, state0, {
-    rootCause: 'CONTEXT_GAP',
-    materialityReason: 'x',
-    inputRefs: [{ kind: 'AUTHOR_CONTEXT_ITEM', id: itemId }],
-  });
+  const { session, state, attempt } = buildAddContextAttemptFixture();
   assert.throws(
-    () =>
-      createContextRequest(session, state, {
-        questionId: question.id,
-        category: 'constraints',
-        question: '   ',
-        inferenceReason: 'x',
-      }),
+    () => createContextRequest(session, state, { attemptId: attempt.attemptId, category: 'constraints', question: '   ', inferenceReason: 'x' }),
     /question must be a non-empty string/
   );
   assert.throws(
-    () =>
-      createContextRequest(session, state, {
-        questionId: question.id,
-        category: 'constraints',
-        question: 'x?',
-        inferenceReason: '',
-      }),
+    () => createContextRequest(session, state, { attemptId: attempt.attemptId, category: 'constraints', question: 'x?', inferenceReason: '' }),
     /inferenceReason must be a non-empty string/
   );
 });
 
+check('is rejected once the deliberation has stopped; existing contextRequests remain unchanged', () => {
+  const { session, state, attempt } = buildAddContextAttemptFixture();
+  const stopQuestion = createUnresolvedQuestion(session, { rootCause: 'NONE', materialityReason: 'x', inputRefs: [] });
+  const stopDecision = planRouteForQuestion(session, state, stopQuestion);
+  const stopped = recordRouteDecision(session, state, stopDecision, { stopReason: 'successful' });
+  assert.throws(
+    () => createContextRequest(session, stopped, { attemptId: attempt.attemptId, category: 'constraints', question: 'x?', inferenceReason: 'x' }),
+    /already stopped/
+  );
+  assert.deepEqual(stopped.contextRequests, []);
+});
+
 check('does not change AuthorContext, session hashes, or create a new session', () => {
-  const session = buildReviewedFixtureSession();
-  const itemId = session.authorContext.constraints[0].id;
-  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
-  const { state, question } = buildRegisteredQuestion(session, state0, {
-    rootCause: 'CONTEXT_GAP',
-    materialityReason: 'x',
-    inputRefs: [{ kind: 'AUTHOR_CONTEXT_ITEM', id: itemId }],
-  });
+  const { session, state, attempt } = buildAddContextAttemptFixture();
   const before = JSON.parse(JSON.stringify(session));
-  createContextRequest(session, state, {
-    questionId: question.id,
-    category: 'constraints',
-    question: 'x?',
-    inferenceReason: 'x',
-  });
+  createContextRequest(session, state, { attemptId: attempt.attemptId, category: 'constraints', question: 'x?', inferenceReason: 'x' });
   assert.deepEqual(session, before, 'session must be byte-for-byte unchanged');
   assert.equal(session.authorContext.constraints.length, before.authorContext.constraints.length);
+});
+
+// --- ONE attempt <= ONE request; ledger read integrity -----------------------
+
+check('ONE attempt -> AT MOST ONE ContextRequest: a second request for the same attemptId is rejected, even with different category/question/inferenceReason', () => {
+  const { session, state, attempt } = buildAddContextAttemptFixture();
+  const first = createContextRequest(session, state, { attemptId: attempt.attemptId, category: 'constraints', question: 'first?', inferenceReason: 'x' });
+  assert.throws(
+    () =>
+      createContextRequest(session, first.deliberationState, {
+        attemptId: attempt.attemptId,
+        category: 'knownRisks',
+        question: 'second, different question?',
+        inferenceReason: 'a different reason entirely',
+      }),
+    /already has a recorded ContextRequest/
+  );
+});
+
+check('a tampered ledger with two ContextRequests sharing one id (for different attempts) fails closed at the next read/create boundary', () => {
+  const { session, state, attempt } = buildAddContextAttemptFixture();
+  const first = createContextRequest(session, state, { attemptId: attempt.attemptId, category: 'constraints', question: 'x?', inferenceReason: 'x' });
+  const duplicateIdEntry = { ...first.contextRequest, originatingAttemptId: 'a-different-attempt-id-entirely' };
+  const tampered = { ...first.deliberationState, contextRequests: [first.contextRequest, duplicateIdEntry] };
+  assert.throws(
+    () =>
+      createContextRequest(session, tampered, {
+        attemptId: attempt.attemptId,
+        category: 'constraints',
+        question: 'irrelevant, should reject before reaching this',
+        inferenceReason: 'x',
+      }),
+    /duplicate ContextRequest\.id/
+  );
+});
+
+check('a tampered ledger with two different ContextRequests for the SAME attemptId fails closed', () => {
+  const { session, state, attempt } = buildAddContextAttemptFixture();
+  const first = createContextRequest(session, state, { attemptId: attempt.attemptId, category: 'constraints', question: 'x?', inferenceReason: 'x' });
+  const secondForSameAttempt = { ...first.contextRequest, id: 'second-request-id-for-same-attempt' };
+  const tampered = { ...first.deliberationState, contextRequests: [first.contextRequest, secondForSameAttempt] };
+  assert.throws(
+    () =>
+      createContextRequest(session, tampered, {
+        attemptId: attempt.attemptId,
+        category: 'constraints',
+        question: 'irrelevant',
+        inferenceReason: 'x',
+      }),
+    /more than one ContextRequest for attemptId/
+  );
+});
+
+check('individually tampered originatingAttemptId/originatingQuestionId/originatingSessionId/artifactHash/authorContextHash/sourceRefs each fail closed on ledger validation', () => {
+  const { session, state, attempt } = buildAddContextAttemptFixture();
+  const first = createContextRequest(session, state, { attemptId: attempt.attemptId, category: 'constraints', question: 'x?', inferenceReason: 'x' });
+  const base = first.deliberationState;
+
+  const tamperCases = [
+    ['originatingAttemptId', 'nonexistent-attempt', /does not resolve to exactly one RouteAttempt/],
+    ['originatingQuestionId', 'nonexistent-question', /originatingQuestionId does not match/],
+    ['originatingSessionId', 'wrong-session', /originatingSessionId does not match/],
+    ['artifactHash', 'wrong-hash', /artifactHash does not match/],
+    ['authorContextHash', 'wrong-hash', /authorContextHash does not match/],
+    ['sourceRefs', [{ kind: 'FINDING', id: 'wrong-ref' }], /sourceRefs do not exactly match/],
+  ];
+  for (const [field, badValue, expected] of tamperCases) {
+    const tamperedRequest = { ...first.contextRequest, [field]: badValue };
+    const tamperedState = { ...base, contextRequests: [tamperedRequest] };
+    assert.throws(
+      () =>
+        createContextRequest(session, tamperedState, {
+          attemptId: attempt.attemptId,
+          category: 'constraints',
+          question: 'irrelevant',
+          inferenceReason: 'x',
+        }),
+      expected,
+      `expected field ${field} to be rejected`
+    );
+  }
+});
+
+// --- Active-cycle / currentness -----------------------------------------------
+
+check('active-cycle binding: exactly one active cycle for the exact decision is required; 0, >1, or a different decision are all rejected', () => {
+  // 0 active for A1: A1's own cycle is closed (STILL_OPEN disposed), and no fresh D2 exists yet.
+  {
+    const { session, state, attempt } = buildAddContextAttemptFixture();
+    const outcome = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'FAILED',
+      latencyConsumed: 1,
+      failure: VALID_FAILURE_FOR_DISPOSITION,
+    });
+    const afterStillOpen = recordQuestionDisposition(session, outcome, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'x' });
+    assert.throws(
+      () => createContextRequest(session, afterStillOpen, { attemptId: attempt.attemptId, category: 'constraints', question: 'x?', inferenceReason: 'x' }),
+      /has no active deliberation cycle/
+    );
+  }
+  // >1 active for the question (legacy corruption): a second, unattempted decision injected directly into history.
+  {
+    const { session, state, question, attempt } = buildAddContextAttemptFixture();
+    const d2 = planRouteForQuestionSafely(session, state, question);
+    const corrupted = { ...state, history: [...state.history, d2] };
+    assert.throws(
+      () => createContextRequest(session, corrupted, { attemptId: attempt.attemptId, category: 'constraints', question: 'x?', inferenceReason: 'x' }),
+      /more than one active deliberation cycle/
+    );
+  }
+  // One active cycle exists, but it belongs to a fresh D2, not the decision attempt A1 belongs to.
+  {
+    const { session, state, question, attempt: attempt1 } = buildAddContextAttemptFixture();
+    const outcome1 = recordRouteOutcome(session, state, {
+      attemptId: attempt1.attemptId,
+      status: 'FAILED',
+      latencyConsumed: 1,
+      failure: VALID_FAILURE_FOR_DISPOSITION,
+    });
+    const afterStillOpen = recordQuestionDisposition(session, outcome1, { attemptId: attempt1.attemptId, disposition: 'STILL_OPEN', reason: 'x' });
+    const decision2 = planRouteForQuestion(session, afterStillOpen, question);
+    const state2 = recordRouteDecision(session, afterStillOpen, decision2);
+    assert.throws(
+      () => createContextRequest(session, state2, { attemptId: attempt1.attemptId, category: 'constraints', question: 'x?', inferenceReason: 'x' }),
+      /different RouteDecision than the one attempt/
+    );
+  }
+});
+
+check('a historical ADD_CONTEXT attempt belonging to a now-terminal question is rejected', () => {
+  const { session, state, attempt } = buildAddContextAttemptFixture();
+  const outcome = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'FAILED',
+    latencyConsumed: 1,
+    failure: VALID_FAILURE_FOR_DISPOSITION,
+  });
+  const resolved = recordQuestionDisposition(session, outcome, { attemptId: attempt.attemptId, disposition: 'RESOLVED', reason: 'x' });
+  assert.throws(
+    () => createContextRequest(session, resolved, { attemptId: attempt.attemptId, category: 'constraints', question: 'x?', inferenceReason: 'x' }),
+    /is not current/
+  );
+});
+
+check('createContextRequest rejects a CONTEXT_GAP question with more than one active legacy cycle (regression)', () => {
+  const { session, state, question, attempt } = buildAddContextAttemptFixture();
+  const d2 = planRouteForQuestionSafely(session, state, question);
+  const corrupted = { ...state, history: [...state.history, d2] };
+  assert.throws(
+    () => createContextRequest(session, corrupted, { attemptId: attempt.attemptId, category: 'constraints', question: 'x?', inferenceReason: 'x' }),
+    /more than one active deliberation cycle/
+  );
+});
+
+// --- Snapshot semantics; FAILED compatibility; success still blocked --------
+
+check('the returned contextRequest is independently snapshotted from the stored ledger entry and from the caller input', () => {
+  const { session, state, attempt, question } = buildAddContextAttemptFixture();
+  const callerInput = { attemptId: attempt.attemptId, category: 'constraints', question: 'original text', inferenceReason: 'x' };
+  const result = createContextRequest(session, state, callerInput);
+
+  callerInput.question = 'mutated after the call, on the caller-owned input object';
+  result.contextRequest.question = 'mutated on the returned object';
+  result.contextRequest.sourceRefs[0].id = 'mutated-ref-id';
+  result.contextRequest.sourceRefs[0].kind = 'FINDING';
+
+  const stored = result.deliberationState.contextRequests[0];
+  assert.equal(stored.question, 'original text');
+  assert.deepEqual(stored.sourceRefs, question.inputRefs);
+  assert.deepEqual(state.unresolvedQuestions[0].inputRefs[0], question.inputRefs[0]);
+});
+
+check('generic FAILED remains legal for ADD_CONTEXT both with zero and with one recorded ContextRequest', () => {
+  {
+    const { session, state, attempt } = buildAddContextAttemptFixture();
+    const outcome = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'FAILED',
+      latencyConsumed: 1,
+      failure: VALID_FAILURE_FOR_DISPOSITION,
+    });
+    assert.equal(outcome.outcomes.length, 1);
+    assert.equal(outcome.contextRequests.length, 0);
+  }
+  {
+    const { session, state, attempt } = buildAddContextAttemptFixture();
+    const result = createContextRequest(session, state, { attemptId: attempt.attemptId, category: 'constraints', question: 'x?', inferenceReason: 'x' });
+    const outcome = recordRouteOutcome(session, result.deliberationState, {
+      attemptId: attempt.attemptId,
+      status: 'FAILED',
+      latencyConsumed: 1,
+      failure: VALID_FAILURE_FOR_DISPOSITION,
+    });
+    assert.equal(outcome.outcomes.length, 1);
+    assert.equal(outcome.contextRequests.length, 1);
+  }
+});
+
+check('ADD_CONTEXT SUCCEEDED remains rejected even after a ContextRequest is recorded (C1 does not enable C2)', () => {
+  const { session, state, attempt } = buildAddContextAttemptFixture();
+  const result = createContextRequest(session, state, { attemptId: attempt.attemptId, category: 'constraints', question: 'x?', inferenceReason: 'x' });
+  assert.throws(
+    () => recordRouteOutcome(session, result.deliberationState, { attemptId: attempt.attemptId, status: 'SUCCEEDED', latencyConsumed: 1 }),
+    /not authorized/
+  );
 });
 
 // ==================================================================
@@ -1290,8 +1482,12 @@ check('recordRouteDecision and createContextRequest never touch session.adjudica
     materialityReason: 'x',
     inputRefs: [{ kind: 'AUTHOR_CONTEXT_ITEM', id: itemId }],
   });
-  createContextRequest(session, stateWithContext, {
-    questionId: contextQuestion.id,
+  const contextDecision = planRouteForQuestion(session, stateWithContext, contextQuestion);
+  const stateWithContextDecision = recordRouteDecision(session, stateWithContext, contextDecision);
+  const stateWithContextAttempt = recordRouteAttemptStart(session, stateWithContextDecision, contextDecision.id);
+  const contextAttempt = stateWithContextAttempt.attempts.find((a) => a.decisionId === contextDecision.id);
+  createContextRequest(session, stateWithContextAttempt, {
+    attemptId: contextAttempt.attemptId,
     category: 'constraints',
     question: 'x?',
     inferenceReason: 'x',
@@ -1483,7 +1679,7 @@ check('session and DeliberationState remain immutable across the rejected regres
   }
   try {
     createContextRequest(session, state, {
-      questionId: 'never-registered',
+      attemptId: 'never-recorded',
       category: 'constraints',
       question: 'x?',
       inferenceReason: 'x',
@@ -1639,24 +1835,18 @@ check('mutating a recorded STOP decision does not alter DeliberationState histor
 });
 
 check('mutating a returned ContextRequest.sourceRefs does not alter the registered question', () => {
-  const { session, issueId } = buildFixtureWithIssue();
-  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
-  const { state, question } = buildRegisteredQuestion(session, state0, {
-    rootCause: 'CONTEXT_GAP',
-    materialityReason: 'x',
-    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
-  });
-  const request = createContextRequest(session, state, {
-    questionId: question.id,
+  const { session, state, question, attempt } = buildAddContextAttemptFixture();
+  const result = createContextRequest(session, state, {
+    attemptId: attempt.attemptId,
     category: 'constraints',
     question: 'What is the actual notice period?',
     inferenceReason: 'x',
   });
 
-  request.sourceRefs[0].id = 'mutated-id';
-  request.sourceRefs[0].kind = 'FINDING';
+  result.contextRequest.sourceRefs[0].id = 'mutated-id';
+  result.contextRequest.sourceRefs[0].kind = 'FINDING';
 
-  assert.deepEqual(state.unresolvedQuestions[0].inputRefs[0], { kind: 'SEMANTIC_ISSUE', id: issueId });
+  assert.deepEqual(state.unresolvedQuestions[0].inputRefs[0], question.inputRefs[0]);
 });
 
 check('createUnresolvedQuestion rejects an invalid rootCause at construction time (plain-JS runtime guard)', () => {
@@ -3055,16 +3245,6 @@ check('a legacy fixture with two unfinished decisions for the same question reje
   assert.deepEqual(corrupted.history.map((d) => d.id).sort(), [d1.id, d2.id].sort());
 });
 
-check('createContextRequest rejects a CONTEXT_GAP question with more than one active legacy cycle', () => {
-  const { session, state: state0, question } = buildRecordedDecisionFixture('CONTEXT_GAP');
-  const d2 = planRouteForQuestionSafely(session, state0, question);
-  const corrupted = { ...state0, history: [...state0.history, d2] };
-  assert.throws(
-    () => createContextRequest(session, corrupted, { questionId: question.id, category: 'constraints', question: 'x?', inferenceReason: 'x' }),
-    /more than one active deliberation cycle/
-  );
-});
-
 // --- R10. RouteDecision identity -------------------------------------------
 
 check('recordRouteDecision rejects an empty, whitespace-only, null, or missing RouteDecision.id', () => {
@@ -3141,7 +3321,7 @@ check('after RESOLVED, every current-gated API rejects: planRouteForQuestion, re
   );
 
   assert.throws(
-    () => createContextRequest(session, resolved, { questionId: question.id, category: 'constraints', question: 'x?', inferenceReason: 'x' }),
+    () => createContextRequest(session, resolved, { attemptId: attempt.attemptId, category: 'constraints', question: 'x?', inferenceReason: 'x' }),
     /is not current/
   );
 
@@ -3956,7 +4136,7 @@ check('the same outcome cannot receive a second disposition of any kind, includi
 // --- S15. Active-cycle re-entry (packet §48) --------------------------------
 
 check('after SUPERSEDED, Q1 rejects every current-gated API while Q2 routes normally, via existing transitive gates', () => {
-  const cycle = buildFailedCycleFixture('COVERAGE_GAP');
+  const cycle = buildFailedCycleFixture('CONTEXT_GAP');
   const { session, state, question: q1, attempt } = cycle;
   const q2 = buildReplacementFor(cycle);
   const disposed = recordQuestionDisposition(session, state, {
@@ -3970,12 +4150,12 @@ check('after SUPERSEDED, Q1 rejects every current-gated API while Q2 routes norm
   assert.throws(
     () =>
       createContextRequest(session, disposed, {
-        questionId: q1.id,
+        attemptId: attempt.attemptId,
         category: 'constraints',
         question: 'still relevant?',
         inferenceReason: 'x',
       }),
-    /is not current|rootCause/
+    /is not current/
   );
 
   const decision2 = planRouteForQuestion(session, disposed, q2);

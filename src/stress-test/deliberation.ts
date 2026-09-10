@@ -417,6 +417,7 @@ export interface DeliberationState {
   attempts: RouteAttempt[];
   outcomes: RouteOutcome[];
   questionDispositions: QuestionDisposition[];
+  contextRequests: ContextRequest[];
   costBudget: DeliberationBudget;
   latencyBudget: DeliberationBudget;
   unresolvedQuestions: UnresolvedQuestion[];
@@ -570,6 +571,7 @@ export function createDeliberationState(session: StressTestSession, budgets: Del
     attempts: [],
     outcomes: [],
     questionDispositions: [],
+    contextRequests: [],
     costBudget: { spent: 0, ceiling: budgets.costCeiling },
     latencyBudget: { spent: 0, ceiling: budgets.latencyCeiling },
     unresolvedQuestions: [],
@@ -1926,6 +1928,8 @@ export interface ContextRequest {
   id: string;
   originatingSessionId: string;
   originatingQuestionId: string;
+  /** The exact ADD_CONTEXT RouteAttempt that caused this request; no reverse field on RouteAttempt, no parallel binding ledger (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7, Slice 2D-C0 freeze). */
+  originatingAttemptId: string;
   artifactHash: string;
   authorContextHash: string;
   sourceRefs: RouteInputRef[];
@@ -1935,64 +1939,253 @@ export interface ContextRequest {
   createdAt: string;
 }
 
+/**
+ * Reads `DeliberationState.contextRequests` tolerating legacy state that
+ * predates the field (missing/`undefined` -- read-time compatibility only,
+ * never a mutation of the stored record, ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+ * §7 "Legacy missing-`contextRequests` compatibility").
+ */
+function effectiveContextRequests(deliberationState: DeliberationState): ContextRequest[] {
+  return (deliberationState as { contextRequests?: ContextRequest[] }).contextRequests ?? [];
+}
+
+/**
+ * Validates the COMPLETE ContextRequest ledger, never only the one request a
+ * caller happens to be creating (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+ * §7, Slice 2D-C0 freeze, decision F): global `id` uniqueness; `ONE
+ * ADD_CONTEXT RouteAttempt -> AT MOST ONE ContextRequest`; every request
+ * resolves to an existing `ADD_CONTEXT` `RouteAttempt` whose recorded
+ * `RouteDecision` is also `ADD_CONTEXT` and whose `questionId` resolves to
+ * exactly one registered `CONTEXT_GAP` question; every derived-and-copied
+ * field (`originatingQuestionId`/`originatingSessionId`/`artifactHash`/
+ * `authorContextHash`/`sourceRefs`) agrees with that resolved chain. Pure,
+ * non-cached, non-memoized. Any violation fails closed; none is ever
+ * automatically reconciled.
+ */
+function assertContextRequestLedgerIntegrity(deliberationState: DeliberationState): void {
+  const seenRequestIds = new Set<string>();
+  const seenAttemptIds = new Set<string>();
+
+  for (const request of effectiveContextRequests(deliberationState)) {
+    assertNonEmptyString(request.id, 'ContextRequest ledger entry: id');
+    if (seenRequestIds.has(request.id)) {
+      throw new Error(`ContextRequest ledger entry: duplicate ContextRequest.id ${request.id} -- identity-ambiguous legacy/inconsistent state`);
+    }
+    seenRequestIds.add(request.id);
+
+    assertNonEmptyString(request.originatingAttemptId, 'ContextRequest ledger entry: originatingAttemptId');
+    if (seenAttemptIds.has(request.originatingAttemptId)) {
+      throw new Error(
+        `ContextRequest ledger entry: more than one ContextRequest for attemptId ${request.originatingAttemptId} -- inconsistent state`
+      );
+    }
+    seenAttemptIds.add(request.originatingAttemptId);
+
+    const matchingAttempts = deliberationState.attempts.filter((a) => a.attemptId === request.originatingAttemptId);
+    if (matchingAttempts.length !== 1) {
+      throw new Error(
+        `ContextRequest ledger entry: originatingAttemptId ${request.originatingAttemptId} does not resolve to exactly one RouteAttempt`
+      );
+    }
+    const attempt = matchingAttempts[0];
+    if (attempt.route !== 'ADD_CONTEXT') {
+      throw new Error(`ContextRequest ledger entry: attempt ${attempt.attemptId} has route ${attempt.route}, not ADD_CONTEXT`);
+    }
+
+    const decision = resolveUniqueRouteDecisionById(deliberationState, attempt.decisionId, 'ContextRequest ledger entry');
+    if (decision.route !== 'ADD_CONTEXT') {
+      throw new Error(
+        `ContextRequest ledger entry: recorded decision for attempt ${attempt.attemptId} has route ${decision.route}, not ADD_CONTEXT`
+      );
+    }
+    if (attempt.questionId !== decision.questionId) {
+      throw new Error('ContextRequest ledger entry: attempt.questionId does not match the resolved decision.questionId');
+    }
+
+    const matchingQuestions = deliberationState.unresolvedQuestions.filter((q) => q.id === attempt.questionId);
+    if (matchingQuestions.length !== 1) {
+      throw new Error(
+        `ContextRequest ledger entry: attempt.questionId ${attempt.questionId} does not resolve to exactly one registered UnresolvedQuestion`
+      );
+    }
+    const question = matchingQuestions[0];
+    if (question.rootCause !== 'CONTEXT_GAP') {
+      throw new Error(`ContextRequest ledger entry: registered question ${question.id} has rootCause ${question.rootCause}, not CONTEXT_GAP`);
+    }
+
+    if (request.originatingQuestionId !== question.id) {
+      throw new Error('ContextRequest ledger entry: originatingQuestionId does not match the resolved question');
+    }
+    if (request.originatingSessionId !== attempt.sessionId) {
+      throw new Error('ContextRequest ledger entry: originatingSessionId does not match the resolved attempt binding');
+    }
+    if (request.artifactHash !== attempt.artifactHash) {
+      throw new Error('ContextRequest ledger entry: artifactHash does not match the resolved attempt binding');
+    }
+    if (request.authorContextHash !== attempt.authorContextHash) {
+      throw new Error('ContextRequest ledger entry: authorContextHash does not match the resolved attempt binding');
+    }
+    if (!refsExactlyMatch(request.sourceRefs, question.inputRefs)) {
+      throw new Error('ContextRequest ledger entry: sourceRefs do not exactly match the registered question inputRefs (order-sensitive)');
+    }
+    if (!AUTHOR_CONTEXT_CATEGORIES.includes(request.category)) {
+      throw new Error(`ContextRequest ledger entry: invalid category ${JSON.stringify(request.category)}`);
+    }
+    assertNonEmptyString(request.question, 'ContextRequest ledger entry: question');
+    assertNonEmptyString(request.inferenceReason, 'ContextRequest ledger entry: inferenceReason');
+    if (Number.isNaN(Date.parse(request.createdAt))) {
+      throw new Error('ContextRequest ledger entry: createdAt is not a valid parseable timestamp');
+    }
+  }
+}
+
+/**
+ * Creates and records a `ContextRequest` for an already-started `ADD_CONTEXT`
+ * `RouteAttempt` -- offline audit bookkeeping only; no provider/human
+ * interaction occurs here (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7,
+ * Slice 2D-C0 freeze). `attemptId` resolves the full chain --
+ * `RouteAttempt` -> `RouteDecision` (via `resolveUniqueRouteDecisionById`,
+ * never a blind first match) -> registered `UnresolvedQuestion` -- with
+ * every link independently re-checked; `questionId` is no longer accepted
+ * as caller input (eliminates caller divergence). The targeted question must
+ * be current, with **exactly one** active deliberation cycle matching the
+ * exact decision the supplied attempt belongs to -- the "0 or 1 allowed"
+ * exception from before attempt binding existed is gone. `ONE ADD_CONTEXT
+ * RouteAttempt -> AT MOST ONE ContextRequest`: a second request for an
+ * attempt that already has one is rejected outright. Returns both the new
+ * `DeliberationState` (with the request atomically appended to
+ * `contextRequests[]`) and an independent snapshot of the same request --
+ * two separate objects, never aliased, so mutating one can never rewrite
+ * the other's history.
+ */
 export function createContextRequest(
   session: StressTestSession,
   deliberationState: DeliberationState,
   input: {
-    questionId: string;
+    attemptId: string;
     category: AuthorContextCategoryName;
     question: string;
     inferenceReason: string;
   }
-): ContextRequest {
+): { deliberationState: DeliberationState; contextRequest: ContextRequest } {
   verifyDeliberationBinding(session, deliberationState);
   if (deliberationState.stopReason !== null) {
     throw new Error('createContextRequest: deliberation has already stopped; no further ContextRequest may be created');
   }
-  assertNonEmptyString(input.questionId, 'createContextRequest: questionId');
-  const registered = deliberationState.unresolvedQuestions.find((q) => q.id === input.questionId);
-  if (!registered) {
-    throw new Error(`createContextRequest: questionId ${input.questionId} is not a currently registered unresolved question`);
+  if (input === null || typeof input !== 'object') {
+    throw new Error('createContextRequest: input must be an object');
   }
-  if (registered.rootCause !== 'CONTEXT_GAP') {
+  assertExactKeys(input, ['attemptId', 'category', 'question', 'inferenceReason'], 'createContextRequest');
+  assertNonEmptyString(input.attemptId, 'createContextRequest: attemptId');
+
+  const matchingAttempts = deliberationState.attempts.filter((a) => a.attemptId === input.attemptId);
+  if (matchingAttempts.length === 0) {
+    throw new Error(`createContextRequest: attemptId ${input.attemptId} is not a currently recorded RouteAttempt`);
+  }
+  if (matchingAttempts.length > 1) {
+    throw new Error(`createContextRequest: attemptId ${input.attemptId} matches more than one recorded RouteAttempt -- inconsistent state`);
+  }
+  const attempt = matchingAttempts[0];
+  if (attempt.route !== 'ADD_CONTEXT') {
+    throw new Error(`createContextRequest: attempt ${attempt.attemptId} has route ${attempt.route}, not ADD_CONTEXT`);
+  }
+
+  const decision = resolveUniqueRouteDecisionById(deliberationState, attempt.decisionId, 'createContextRequest');
+  if (decision.route !== 'ADD_CONTEXT') {
+    throw new Error(`createContextRequest: recorded decision for attempt ${attempt.attemptId} has route ${decision.route}, not ADD_CONTEXT`);
+  }
+  if (attempt.questionId !== decision.questionId) {
+    throw new Error('createContextRequest: attempt.questionId does not match the resolved decision.questionId');
+  }
+
+  const matchingQuestions = deliberationState.unresolvedQuestions.filter((q) => q.id === attempt.questionId);
+  if (matchingQuestions.length !== 1) {
     throw new Error(
-      `createContextRequest: registered question ${input.questionId} has rootCause ${registered.rootCause}, not CONTEXT_GAP`
+      `createContextRequest: attempt.questionId ${attempt.questionId} does not resolve to exactly one registered UnresolvedQuestion`
     );
+  }
+  const registered = matchingQuestions[0];
+  if (registered.rootCause !== 'CONTEXT_GAP') {
+    throw new Error(`createContextRequest: registered question ${registered.id} has rootCause ${registered.rootCause}, not CONTEXT_GAP`);
   }
   if (registered.inputRefs.length === 0) {
-    throw new Error(`createContextRequest: registered question ${input.questionId} has no inputRefs`);
+    throw new Error(`createContextRequest: registered question ${registered.id} has no inputRefs`);
   }
-  if (!isQuestionCurrent(deliberationState, input.questionId)) {
-    throw new Error(`createContextRequest: question ${input.questionId} is not current`);
+
+  if (!isQuestionCurrent(deliberationState, registered.id)) {
+    throw new Error(`createContextRequest: question ${registered.id} is not current`);
   }
-  // ContextRequest -> RouteAttempt binding remains deferred (not designed
-  // here), so 0 or 1 active cycles both remain allowed; only a
-  // legacy-inconsistent >1 is rejected.
-  const activeForContextRequest = getActiveRouteDecisionsForQuestion(deliberationState, input.questionId);
+  // Attempt binding now exists, so this is progressing an already-resolved
+  // cycle, not merely checking in on a question in the abstract -- the
+  // former "0 or 1 active cycles" allowance is gone (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+  // §7, Slice 2D-C0 freeze, decision K).
+  const activeForContextRequest = getActiveRouteDecisionsForQuestion(deliberationState, registered.id);
+  if (activeForContextRequest.length === 0) {
+    throw new Error(`createContextRequest: question ${registered.id} has no active deliberation cycle`);
+  }
   if (activeForContextRequest.length > 1) {
     throw new Error(
-      `createContextRequest: question ${input.questionId} has more than one active deliberation cycle -- inconsistent legacy state`
+      `createContextRequest: question ${registered.id} has more than one active deliberation cycle -- inconsistent legacy state`
     );
   }
+  if (activeForContextRequest[0].id !== decision.id) {
+    throw new Error(
+      `createContextRequest: question ${registered.id}'s active deliberation cycle is a different RouteDecision than the one attempt ${attempt.attemptId} belongs to`
+    );
+  }
+
+  if (attempt.sessionId !== deliberationState.sessionId || attempt.sessionId !== session.id) {
+    throw new Error('createContextRequest: attempt.sessionId does not match the current session/DeliberationState binding');
+  }
+  if (attempt.artifactHash !== deliberationState.artifactHash || attempt.artifactHash !== session.artifactHash) {
+    throw new Error('createContextRequest: attempt.artifactHash does not match the current session/DeliberationState binding');
+  }
+  if (attempt.authorContextHash !== deliberationState.authorContextHash || attempt.authorContextHash !== session.authorContextHash) {
+    throw new Error('createContextRequest: attempt.authorContextHash does not match the current session/DeliberationState binding');
+  }
+  for (const ref of registered.inputRefs) validateRouteInputRef(session, ref);
+
+  // Global ledger integrity is re-validated before this attempt's own
+  // duplicate-request check -- a locally-scoped check alone cannot prove the
+  // rest of the ledger is not already corrupt (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+  // §7, Slice 2D-C0 freeze, decision F).
+  assertContextRequestLedgerIntegrity(deliberationState);
+  if (effectiveContextRequests(deliberationState).some((r) => r.originatingAttemptId === attempt.attemptId)) {
+    throw new Error(`createContextRequest: attempt ${attempt.attemptId} already has a recorded ContextRequest`);
+  }
+
   if (!AUTHOR_CONTEXT_CATEGORIES.includes(input.category)) {
     throw new Error(`createContextRequest: unknown category ${JSON.stringify(input.category)}`);
   }
   assertNonEmptyString(input.question, 'createContextRequest: question');
   assertNonEmptyString(input.inferenceReason, 'createContextRequest: inferenceReason');
-  for (const ref of registered.inputRefs) validateRouteInputRef(session, ref);
   if (!session.artifactHash || !session.authorContextHash) {
     throw new Error('createContextRequest: session is missing its frozen artifactHash/authorContextHash');
   }
-  return {
-    id: randomUUID(),
+  const artifactHash = session.artifactHash;
+  const authorContextHash = session.authorContextHash;
+
+  const id = randomUUID();
+  const createdAt = nowIso();
+  const buildSnapshot = (): ContextRequest => ({
+    id,
     originatingSessionId: session.id,
     originatingQuestionId: registered.id,
-    artifactHash: session.artifactHash,
-    authorContextHash: session.authorContextHash,
+    originatingAttemptId: attempt.attemptId,
+    artifactHash,
+    authorContextHash,
     sourceRefs: cloneRouteInputRefs(registered.inputRefs),
     category: input.category,
     question: input.question,
     inferenceReason: input.inferenceReason,
-    createdAt: nowIso(),
+    createdAt,
+  });
+
+  return {
+    deliberationState: {
+      ...deliberationState,
+      contextRequests: [...effectiveContextRequests(deliberationState), buildSnapshot()],
+    },
+    contextRequest: buildSnapshot(),
   };
 }
