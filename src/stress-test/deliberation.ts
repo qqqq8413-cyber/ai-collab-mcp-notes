@@ -384,9 +384,31 @@ export interface AddContextDeclinedRouteOutcome extends RouteOutcomeCommon {
   contextRequestId: string;
 }
 
-export type AddContextRouteOutcome = AddContextSuppliedRouteOutcome | AddContextDeclinedRouteOutcome;
+/**
+ * The immutable terminal record for an `ADD_CONTEXT` `ContextRequest`
+ * explicitly closed by `closeContextRequestWithoutResponse` (Slice 2D-C4)
+ * without any `SUPPLIED`/`DECLINED` response having been recorded for its
+ * `RouteAttempt` -- an explicit lifecycle closure fact, never an inference
+ * from elapsed time (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.A,
+ * Slice 2D-C4-0 freeze). `status: 'SUCCEEDED'` because the request
+ * mechanism itself reached a determinate closure -- no usable context was
+ * supplied, but that is not a technical failure. No `responseText` (nothing
+ * was supplied); no timeout/deadline/`closureReason`/scheduler field -- the
+ * operation's own semantics are the complete reason (decision G).
+ */
+export interface AddContextNoResponseRouteOutcome extends RouteOutcomeCommon {
+  status: 'SUCCEEDED';
+  route: 'ADD_CONTEXT';
+  result: 'NO_RESPONSE';
+  contextRequestId: string;
+}
 
-/** Slice 2D-C2's complete RouteOutcome vocabulary. SEEK_EVIDENCE/TARGETED_PEER_CHALLENGE successful outcomes, ADD_CONTEXT's NO_RESPONSE result, and any INCONCLUSIVE outcome are not yet representable -- not authorized in this slice. */
+export type AddContextRouteOutcome =
+  | AddContextSuppliedRouteOutcome
+  | AddContextDeclinedRouteOutcome
+  | AddContextNoResponseRouteOutcome;
+
+/** Slice 2D-C4's complete RouteOutcome vocabulary. `SEEK_EVIDENCE`/`TARGETED_PEER_CHALLENGE` successful outcomes and any `INCONCLUSIVE` outcome are not yet representable -- not authorized in this slice. `ADD_CONTEXT`'s `NO_RESPONSE` result is representable, but only through `closeContextRequestWithoutResponse` -- `recordRouteOutcome` never accepts it (§ below). */
 export type RouteOutcome = FailedRouteOutcome | AddReviewerRouteOutcome | ReplicationRouteOutcome | AddContextRouteOutcome;
 
 /** The full accepted architecture vocabulary (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9). `CROSS_SESSION` remains excluded from the recordable subset below -- it is never constructed via the ordinary `recordQuestionDisposition` path; as of Slice 2D-C3, only the atomic `createCrossSessionTransition` operation may ever produce one. */
@@ -1566,7 +1588,7 @@ export function recordRouteOutcome(
     const rawResult = (input as { result?: unknown }).result;
     if (rawResult === 'NO_RESPONSE') {
       throw new Error(
-        'recordRouteOutcome: ADD_CONTEXT result NO_RESPONSE is not authorized -- terminalization mechanism is an unresolved open architecture decision'
+        'recordRouteOutcome: ADD_CONTEXT result NO_RESPONSE is never recordable through recordRouteOutcome -- only the dedicated closeContextRequestWithoutResponse operation may create it (Slice 2D-C4)'
       );
     }
     if (rawResult === 'SUPPLIED') {
@@ -2378,6 +2400,140 @@ export function createContextRequest(
     },
     contextRequest: buildSnapshot(),
   };
+}
+
+/**
+ * Explicitly closes an `ADD_CONTEXT` `ContextRequest` without a `SUPPLIED`/
+ * `DECLINED` response ever having been recorded for its `RouteAttempt` --
+ * the one, dedicated lifecycle operation authorized to produce a
+ * `NO_RESPONSE` `RouteOutcome` (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+ * §13.A, Slice 2D-C4-0 freeze). `recordRouteOutcome` never accepts
+ * `NO_RESPONSE` as a `result` value -- only this operation may create one,
+ * the same "dedicated operation, not a generic branch" boundary
+ * `createCrossSessionTransition` already establishes for `CROSS_SESSION`
+ * (§13.A, Slice 2D-C3-0 freeze).
+ *
+ * `attemptId` resolves the full chain -- `RouteAttempt` -> `RouteDecision`
+ * -> registered `UnresolvedQuestion` -> `ContextRequest` -- with every link
+ * independently re-checked (`validateAttemptProvenanceForOutcome`, the
+ * COMPLETE `ContextRequest` ledger integrity gate, currentness, and
+ * exactly-one-active-cycle), never trusted merely because the attempt is
+ * present in state. `ONE RouteAttempt -> AT MOST ONE RouteOutcome`: an
+ * attempt that already has any terminal outcome (`SUPPLIED`, `DECLINED`,
+ * `FAILED`, or an earlier `NO_RESPONSE`) rejects closure outright -- no
+ * overwrite, no conversion, no late replacement. Records no
+ * `QuestionDisposition` -- `AddContextResult` and `QuestionDisposition`
+ * remain separate domains; the question remains current until a separately
+ * supplied semantic re-evaluation records one. Caller supplies only
+ * `attemptId` and `latencyConsumed`; every derived/generated field is
+ * resolved from the audit chain, never caller-restated.
+ */
+export function closeContextRequestWithoutResponse(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  input: { attemptId: string; latencyConsumed: number }
+): DeliberationState {
+  verifyDeliberationBinding(session, deliberationState);
+  if (deliberationState.stopReason !== null) {
+    throw new Error('closeContextRequestWithoutResponse: deliberation has already stopped; no further closure may be recorded');
+  }
+  if (input === null || typeof input !== 'object') {
+    throw new Error('closeContextRequestWithoutResponse: input must be an object');
+  }
+  assertExactKeys(input, ['attemptId', 'latencyConsumed'], 'closeContextRequestWithoutResponse');
+  assertNonEmptyString(input.attemptId, 'closeContextRequestWithoutResponse: attemptId');
+  assertFiniteNonNegative(input.latencyConsumed, 'closeContextRequestWithoutResponse: latencyConsumed');
+
+  const matchingAttempts = deliberationState.attempts.filter((a) => a.attemptId === input.attemptId);
+  if (matchingAttempts.length !== 1) {
+    throw new Error(`closeContextRequestWithoutResponse: attemptId ${input.attemptId} does not resolve to exactly one RouteAttempt`);
+  }
+  const attempt = matchingAttempts[0];
+  if (attempt.route !== 'ADD_CONTEXT') {
+    throw new Error(`closeContextRequestWithoutResponse: attempt ${attempt.attemptId} has route ${attempt.route}, not ADD_CONTEXT`);
+  }
+  if (deliberationState.outcomes.some((o) => o.attemptId === attempt.attemptId)) {
+    throw new Error(
+      `closeContextRequestWithoutResponse: attempt ${attempt.attemptId} already has a RouteOutcome; one attempt has at most one outcome`
+    );
+  }
+
+  const decision = validateAttemptProvenanceForOutcome(session, deliberationState, attempt);
+
+  if (!isQuestionCurrent(deliberationState, attempt.questionId)) {
+    throw new Error(`closeContextRequestWithoutResponse: question ${attempt.questionId} is not current`);
+  }
+  const activeForClosure = getActiveRouteDecisionsForQuestion(deliberationState, attempt.questionId);
+  if (activeForClosure.length === 0) {
+    throw new Error(`closeContextRequestWithoutResponse: question ${attempt.questionId} has no active deliberation cycle`);
+  }
+  if (activeForClosure.length > 1) {
+    throw new Error(
+      `closeContextRequestWithoutResponse: question ${attempt.questionId} has more than one active deliberation cycle -- inconsistent legacy state`
+    );
+  }
+  if (activeForClosure[0].id !== decision.id) {
+    throw new Error(
+      `closeContextRequestWithoutResponse: question ${attempt.questionId}'s active deliberation cycle is a different RouteDecision than the one being terminalized`
+    );
+  }
+
+  const registered = deliberationState.unresolvedQuestions.find((q) => q.id === attempt.questionId);
+  if (!registered) {
+    throw new Error(
+      `closeContextRequestWithoutResponse: attempt ${attempt.attemptId}'s questionId ${attempt.questionId} is not a currently registered unresolved question`
+    );
+  }
+  if (registered.rootCause !== 'CONTEXT_GAP') {
+    throw new Error(`closeContextRequestWithoutResponse: registered question ${registered.id} has rootCause ${registered.rootCause}, not CONTEXT_GAP`);
+  }
+
+  if (deliberationState.questionDispositions.some((d) => d.attemptId === attempt.attemptId)) {
+    throw new Error(`closeContextRequestWithoutResponse: attempt ${attempt.attemptId} already has a QuestionDisposition -- inconsistent lifecycle state`);
+  }
+
+  // Mandatory: the COMPLETE ContextRequest ledger must be sound before a
+  // single selected request from it is ever trusted (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+  // §13.A, Slice 2D-C4-0 freeze, decision E -- the same "global before local"
+  // gate already required at createContextRequest and recordRouteOutcome's
+  // ADD_CONTEXT branch, Slice 2D-C0/C1/C2).
+  assertContextRequestLedgerIntegrity(deliberationState);
+  const matchingRequests = effectiveContextRequests(deliberationState).filter((r) => r.originatingAttemptId === attempt.attemptId);
+  if (matchingRequests.length !== 1) {
+    throw new Error(
+      `closeContextRequestWithoutResponse: attemptId ${attempt.attemptId} does not resolve to exactly one ContextRequest -- nothing to close`
+    );
+  }
+  const contextRequest = matchingRequests[0];
+  if (
+    contextRequest.originatingQuestionId !== attempt.questionId ||
+    contextRequest.originatingSessionId !== attempt.sessionId ||
+    contextRequest.artifactHash !== attempt.artifactHash ||
+    contextRequest.authorContextHash !== attempt.authorContextHash
+  ) {
+    throw new Error('closeContextRequestWithoutResponse: contextRequest binding does not match the resolved attempt');
+  }
+
+  const withLatency = applyLatencySpend(deliberationState, input.latencyConsumed);
+  verifyDeliberationBinding(session, withLatency);
+
+  const outcome: AddContextNoResponseRouteOutcome = {
+    attemptId: attempt.attemptId,
+    decisionId: attempt.decisionId,
+    originatingQuestionId: attempt.questionId,
+    route: 'ADD_CONTEXT',
+    sessionId: attempt.sessionId,
+    artifactHash: attempt.artifactHash,
+    authorContextHash: attempt.authorContextHash,
+    completedAt: nowIso(),
+    status: 'SUCCEEDED',
+    logicalCost: attempt.logicalCost,
+    latencyConsumed: input.latencyConsumed,
+    result: 'NO_RESPONSE',
+    contextRequestId: contextRequest.id,
+  };
+
+  return { ...withLatency, outcomes: [...withLatency.outcomes, outcome] };
 }
 
 /**

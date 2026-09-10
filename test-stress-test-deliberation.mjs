@@ -26,6 +26,7 @@ import {
   isQuestionCurrent,
   createCrossSessionTransition,
   assertSessionVersionLineageChildIntegrity,
+  closeContextRequestWithoutResponse,
 } from './dist/stress-test/index.js';
 
 let passed = 0;
@@ -4842,7 +4843,7 @@ check('DECLINED rejects a responseText field; its own exact payload passes', () 
   assert.equal(ok.outcomes[0].result, 'DECLINED');
 });
 
-check('NO_RESPONSE is rejected explicitly, even with a perfectly valid ContextRequest present -- no timeout/deadline mechanism is invented', () => {
+check('NO_RESPONSE is rejected explicitly through recordRouteOutcome, even with a perfectly valid ContextRequest present -- only closeContextRequestWithoutResponse may create it (Slice 2D-C4)', () => {
   const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
   assert.throws(
     () =>
@@ -4853,7 +4854,7 @@ check('NO_RESPONSE is rejected explicitly, even with a perfectly valid ContextRe
         result: 'NO_RESPONSE',
         contextRequestId: contextRequest.id,
       }),
-    /NO_RESPONSE is not authorized/
+    /closeContextRequestWithoutResponse/
   );
 });
 
@@ -5515,6 +5516,273 @@ check('createCrossSessionTransition: rejects every caller-derived/forbidden extr
       `expected ${JSON.stringify(Object.keys(extra))} to be rejected`
     );
   }
+});
+
+console.log('\nExplicit NO_RESPONSE closure runtime (Slice 2D-C4)');
+
+check('closeContextRequestWithoutResponse: happy path records an exact AddContextNoResponseRouteOutcome, no responseText field', () => {
+  const { session, state, attempt, decision, question, contextRequest } = buildAddContextRequestedFixture();
+  const next = closeContextRequestWithoutResponse(session, state, { attemptId: attempt.attemptId, latencyConsumed: 3 });
+  assert.equal(next.outcomes.length, 1);
+  const outcome = next.outcomes[0];
+  assert.equal(outcome.attemptId, attempt.attemptId);
+  assert.equal(outcome.decisionId, decision.id);
+  assert.equal(outcome.originatingQuestionId, question.id);
+  assert.equal(outcome.route, 'ADD_CONTEXT');
+  assert.equal(outcome.sessionId, attempt.sessionId);
+  assert.equal(outcome.artifactHash, attempt.artifactHash);
+  assert.equal(outcome.authorContextHash, attempt.authorContextHash);
+  assert.equal(outcome.status, 'SUCCEEDED');
+  assert.equal(outcome.result, 'NO_RESPONSE');
+  assert.equal(outcome.contextRequestId, contextRequest.id);
+  assert.equal(outcome.logicalCost, attempt.logicalCost);
+  assert.equal(outcome.latencyConsumed, 3);
+  assert.equal(Number.isNaN(Date.parse(outcome.completedAt)), false);
+  assert.equal('responseText' in outcome, false);
+});
+
+check('closeContextRequestWithoutResponse: zero ContextRequest for the attempt is rejected -- nothing to close', () => {
+  const { session, state, attempt } = buildAddContextAttemptFixture();
+  assert.throws(() => closeContextRequestWithoutResponse(session, state, { attemptId: attempt.attemptId, latencyConsumed: 1 }));
+});
+
+check('closeContextRequestWithoutResponse: rejects a non-ADD_CONTEXT attempt (ADD_REVIEWER/REPLICATE)', () => {
+  {
+    const { session, state, attempt } = buildStartedAttemptFixture('COVERAGE_GAP');
+    assert.throws(() => closeContextRequestWithoutResponse(session, state, { attemptId: attempt.attemptId, latencyConsumed: 1 }));
+  }
+  {
+    const { session, state, attempt } = buildStartedAttemptFixture('STABILITY_QUESTION');
+    assert.throws(() => closeContextRequestWithoutResponse(session, state, { attemptId: attempt.attemptId, latencyConsumed: 1 }));
+  }
+});
+
+check('closeContextRequestWithoutResponse: rejects when the attempt already has a RouteOutcome (SUPPLIED/DECLINED/FAILED/NO_RESPONSE) -- no second outcome', () => {
+  {
+    const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
+    const supplied = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      result: 'SUPPLIED',
+      contextRequestId: contextRequest.id,
+      responseText: 'x',
+    });
+    assert.throws(() => closeContextRequestWithoutResponse(session, supplied, { attemptId: attempt.attemptId, latencyConsumed: 1 }));
+  }
+  {
+    const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
+    const declined = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      result: 'DECLINED',
+      contextRequestId: contextRequest.id,
+    });
+    assert.throws(() => closeContextRequestWithoutResponse(session, declined, { attemptId: attempt.attemptId, latencyConsumed: 1 }));
+  }
+  {
+    const { session, state, attempt } = buildAddContextRequestedFixture();
+    const failed = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'FAILED',
+      latencyConsumed: 1,
+      failure: VALID_FAILURE_FOR_DISPOSITION,
+    });
+    assert.throws(() => closeContextRequestWithoutResponse(session, failed, { attemptId: attempt.attemptId, latencyConsumed: 1 }));
+  }
+  {
+    const { session, state, attempt } = buildAddContextRequestedFixture();
+    const closed = closeContextRequestWithoutResponse(session, state, { attemptId: attempt.attemptId, latencyConsumed: 1 });
+    assert.throws(() => closeContextRequestWithoutResponse(session, closed, { attemptId: attempt.attemptId, latencyConsumed: 1 }));
+  }
+});
+
+check('closeContextRequestWithoutResponse: rejects when the question is no longer current (already terminally disposed via its own attempt), and rejects an unknown/blank attemptId', () => {
+  {
+    const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
+    const declined = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      result: 'DECLINED',
+      contextRequestId: contextRequest.id,
+    });
+    const resolved = recordQuestionDisposition(session, declined, {
+      attemptId: attempt.attemptId,
+      disposition: 'RESOLVED',
+      reason: 'closed via DECLINED path for this test',
+    });
+    assert.throws(() => closeContextRequestWithoutResponse(session, resolved, { attemptId: attempt.attemptId, latencyConsumed: 1 }));
+  }
+  {
+    const { session, state } = buildAddContextRequestedFixture();
+    assert.throws(() => closeContextRequestWithoutResponse(session, state, { attemptId: 'unknown-attempt', latencyConsumed: 1 }));
+    assert.throws(() => closeContextRequestWithoutResponse(session, state, { attemptId: '', latencyConsumed: 1 }));
+  }
+});
+
+check('closeContextRequestWithoutResponse: mandatory global ContextRequest ledger integrity rejects when an unrelated ledger entry is corrupt', () => {
+  const target = buildAddContextRequestedFixture();
+  const second = extendWithSecondSuppliedCycle(target.session, target.state);
+  const corruptedRequests = second.state.contextRequests.map((r) =>
+    r.originatingAttemptId === second.attempt.attemptId ? { ...r, sourceRefs: [] } : r
+  );
+  const corruptedState = { ...second.state, contextRequests: corruptedRequests };
+  assert.throws(() =>
+    closeContextRequestWithoutResponse(target.session, corruptedState, { attemptId: target.attempt.attemptId, latencyConsumed: 1 })
+  );
+});
+
+check('closeContextRequestWithoutResponse: individually tampered ContextRequest binding fields (originatingQuestionId/originatingSessionId/artifactHash/authorContextHash/sourceRefs) each reject', () => {
+  const fields = [
+    ['originatingQuestionId', 'wrong-question'],
+    ['originatingSessionId', 'wrong-session'],
+    ['artifactHash', 'wrong-hash'],
+    ['authorContextHash', 'wrong-hash'],
+    ['sourceRefs', []],
+  ];
+  for (const [field, value] of fields) {
+    const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
+    const tamperedRequests = state.contextRequests.map((r) => (r.id === contextRequest.id ? { ...r, [field]: value } : r));
+    const tamperedState = { ...state, contextRequests: tamperedRequests };
+    assert.throws(
+      () => closeContextRequestWithoutResponse(session, tamperedState, { attemptId: attempt.attemptId, latencyConsumed: 1 }),
+      undefined,
+      `expected tampering ${field} to be rejected`
+    );
+  }
+});
+
+check('closeContextRequestWithoutResponse: rejects every caller-derived/forbidden extra input key', () => {
+  const { session, state, attempt, question, decision, contextRequest } = buildAddContextRequestedFixture();
+  const forbiddenExtras = [
+    { contextRequestId: contextRequest.id },
+    { questionId: question.id },
+    { decisionId: decision.id },
+    { sessionId: session.id },
+    { artifactHash: session.artifactHash },
+    { authorContextHash: session.authorContextHash },
+    { result: 'NO_RESPONSE' },
+    { status: 'SUCCEEDED' },
+    { responseText: 'x' },
+    { completedAt: new Date().toISOString() },
+    { closureReason: 'x' },
+    { timeoutSeconds: 60 },
+  ];
+  for (const extra of forbiddenExtras) {
+    assert.throws(
+      () => closeContextRequestWithoutResponse(session, state, { attemptId: attempt.attemptId, latencyConsumed: 1, ...extra }),
+      /unexpected field/,
+      `expected ${JSON.stringify(Object.keys(extra))} to be rejected`
+    );
+  }
+});
+
+check('closeContextRequestWithoutResponse: rejects negative/NaN/Infinity latencyConsumed and a budget overflow, with no outcome append or latency mutation', () => {
+  for (const bad of [-1, NaN, Infinity]) {
+    const { session, state, attempt } = buildAddContextRequestedFixture();
+    assert.throws(() => closeContextRequestWithoutResponse(session, state, { attemptId: attempt.attemptId, latencyConsumed: bad }));
+  }
+  {
+    const { session, state, attempt } = buildAddContextRequestedFixture(5, 0);
+    assert.throws(() => closeContextRequestWithoutResponse(session, state, { attemptId: attempt.attemptId, latencyConsumed: 1 }));
+    assert.equal(state.outcomes.length, 0);
+  }
+});
+
+check('closeContextRequestWithoutResponse: happy path spends latency exactly once, no logical-cost double-spend', () => {
+  const { session, state, attempt } = buildAddContextRequestedFixture();
+  const costBefore = state.costBudget.spent;
+  const next = closeContextRequestWithoutResponse(session, state, { attemptId: attempt.attemptId, latencyConsumed: 4 });
+  assert.equal(next.latencyBudget.spent, state.latencyBudget.spent + 4);
+  assert.equal(next.costBudget.spent, costBefore);
+});
+
+check('closeContextRequestWithoutResponse: never automatically creates a QuestionDisposition; Q remains current; a later STILL_OPEN is still structurally legal', () => {
+  const { session, state, attempt, question } = buildAddContextRequestedFixture();
+  const next = closeContextRequestWithoutResponse(session, state, { attemptId: attempt.attemptId, latencyConsumed: 1 });
+  assert.deepEqual(next.questionDispositions, []);
+  assert.equal(isQuestionCurrent(next, question.id), true);
+  const disposed = recordQuestionDisposition(session, next, {
+    attemptId: attempt.attemptId,
+    disposition: 'STILL_OPEN',
+    reason: 'still needs more context after no response',
+  });
+  assert.equal(disposed.questionDispositions.length, 1);
+});
+
+check('closeContextRequestWithoutResponse: createCrossSessionTransition rejects a NO_RESPONSE outcome -- no child session, no lineage, no CROSS_SESSION', () => {
+  const { session, state, attempt } = buildAddContextRequestedFixture();
+  const next = closeContextRequestWithoutResponse(session, state, { attemptId: attempt.attemptId, latencyConsumed: 1 });
+  assert.throws(() => createCrossSessionTransition(session, next, { suppliedOutcomeAttemptId: attempt.attemptId }));
+  assert.deepEqual(next.sessionVersionLineages ?? [], []);
+});
+
+check('closeContextRequestWithoutResponse: after closure, SUPPLIED/DECLINED/FAILED/a second closure for the same attempt all reject (ONE RouteAttempt -> AT MOST ONE RouteOutcome)', () => {
+  const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
+  const closed = closeContextRequestWithoutResponse(session, state, { attemptId: attempt.attemptId, latencyConsumed: 1 });
+  assert.throws(() =>
+    recordRouteOutcome(session, closed, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      result: 'SUPPLIED',
+      contextRequestId: contextRequest.id,
+      responseText: 'late reply',
+    })
+  );
+  assert.throws(() =>
+    recordRouteOutcome(session, closed, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      result: 'DECLINED',
+      contextRequestId: contextRequest.id,
+    })
+  );
+  assert.throws(() =>
+    recordRouteOutcome(session, closed, {
+      attemptId: attempt.attemptId,
+      status: 'FAILED',
+      latencyConsumed: 1,
+      failure: VALID_FAILURE_FOR_DISPOSITION,
+    })
+  );
+  assert.throws(() => closeContextRequestWithoutResponse(session, closed, { attemptId: attempt.attemptId, latencyConsumed: 1 }));
+  assert.equal(closed.outcomes.length, 1);
+});
+
+check('closeContextRequestWithoutResponse: parent session and every other state field are unchanged except outcomes/latencyBudget', () => {
+  const { session, state, attempt } = buildAddContextRequestedFixture();
+  const sessionSnapshot = JSON.parse(JSON.stringify(session));
+  const stateSnapshot = JSON.parse(JSON.stringify(state));
+  const next = closeContextRequestWithoutResponse(session, state, { attemptId: attempt.attemptId, latencyConsumed: 2 });
+  assert.deepEqual(session, sessionSnapshot);
+  assert.deepEqual(next.contextRequests, stateSnapshot.contextRequests);
+  assert.deepEqual(next.unresolvedQuestions, stateSnapshot.unresolvedQuestions);
+  assert.deepEqual(next.history, stateSnapshot.history);
+  assert.deepEqual(next.attempts, stateSnapshot.attempts);
+  assert.deepEqual(next.questionDispositions, stateSnapshot.questionDispositions);
+  assert.deepEqual(next.sessionVersionLineages ?? [], stateSnapshot.sessionVersionLineages ?? []);
+  assert.deepEqual(next.costBudget, stateSnapshot.costBudget);
+  assert.equal(next.outcomes.length, stateSnapshot.outcomes.length + 1);
+  assert.equal(next.latencyBudget.spent, stateSnapshot.latencyBudget.spent + 2);
+});
+
+check('recordRouteOutcome: NO_RESPONSE remains rejected through the generic path -- only closeContextRequestWithoutResponse may create it', () => {
+  const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        result: 'NO_RESPONSE',
+        contextRequestId: contextRequest.id,
+      }),
+    /NO_RESPONSE/
+  );
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
