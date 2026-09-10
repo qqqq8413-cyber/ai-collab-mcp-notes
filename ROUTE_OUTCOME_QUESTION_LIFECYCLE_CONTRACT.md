@@ -270,13 +270,13 @@ The three-value `AddContextResult` enum stays as the conceptual lifecycle vocabu
 |---|---|
 | `SUPPLIED` | READY |
 | `DECLINED` | READY |
-| `NO_RESPONSE` | **NOT READY** |
+| `NO_RESPONSE` | **SCHEMA FROZEN — RUNTIME NOT YET AUTHORIZED** |
 
-`SUPPLIED` and `DECLINED` are both *positive, human-initiated* facts — a human actively responded, one way or the other, and that fact can be terminalized the moment it happens. `NO_RESPONSE` is different in kind: it is a claim about an *absence* over some span of time, and no accepted architecture in this repository currently defines a response deadline, a response window, a waiting period, or any explicit human-request-closure event. Without one of those, nothing tells the runtime *when* "no response" becomes a defensible terminal fact rather than merely "not yet." A caller must never be able to declare `NO_RESPONSE` arbitrarily — that would let a caller terminalize an `ADD_CONTEXT` attempt as "no response" the instant after asking, which is not a defensible audit fact.
+`SUPPLIED` and `DECLINED` are both *positive, human-initiated* facts — a human actively responded, one way or the other, and that fact can be terminalized the moment it happens. `NO_RESPONSE` is different in kind: it is not an observation of what a human did, but an affirmative lifecycle decision that waiting for a response has ended. **Corrected by the Slice 2D-C4-0 freeze:** the earlier framing below, that this decision depends on *how long* to wait, was the wrong question — see the "Schema freeze (Slice 2D-C4-0)" subsection later in this section for the closed answer: `NO_RESPONSE` is authorized by an explicit closure action, never by elapsed time. A caller must never be able to declare `NO_RESPONSE` merely by asserting the result on an ordinary `RouteOutcome` payload — that boundary is now enforced by requiring a dedicated closure operation rather than a `recordRouteOutcome` branch (§ below, decision C).
 
-**First-runtime subset, until response-window architecture is separately frozen:** a future first `RouteOutcome` implementation for `ADD_CONTEXT` may support `SUPPLIED -> SUCCEEDED`, `DECLINED -> SUCCEEDED`, and `FAILED -> FailureInfo`. It must **not** support `NO_RESPONSE`. The conceptual enum retains `NO_RESPONSE` as a future lifecycle state; runtime support for it remains explicitly **NOT AUTHORIZED / BLOCKED BY RESPONSE-WINDOW POLICY**. No timeout duration is invented by this amendment.
+**First-runtime subset, until `NO_RESPONSE` runtime is separately authorized:** the currently accepted `RouteOutcome` implementation for `ADD_CONTEXT` supports `SUPPLIED -> SUCCEEDED`, `DECLINED -> SUCCEEDED`, and `FAILED -> FailureInfo` (Slice 2D-C2, accepted). It does **not yet** support `NO_RESPONSE` in runtime — the closure *mechanism* is now architecturally closed (Slice 2D-C4-0, below), but implementing it is a separate, not-yet-authorized runtime slice. No timeout duration is invented anywhere in this document.
 
-**Future `NO_RESPONSE` requirement (open architecture dependency, §24):** before `NO_RESPONSE` runtime can be authorized, architecture must define one defensible closure mechanism — for example, a `responseDeadlineAt` bound to the `ContextRequest`, or an explicit, externally recorded request-window-close event. This document does **not** choose between those two mechanisms now, and does **not** add a deadline field to any runtime type — existing source-of-truth does not yet clearly dictate one over the other. This is marked as a future architecture dependency, not resolved here.
+**Formerly an open architecture dependency (§24) — now closed by the Slice 2D-C4-0 freeze, later in this section.** The dependency was resolved in favor of an explicit closure event, never a `responseDeadlineAt`/deadline field of any kind; see the freeze subsection for the complete closed answer.
 
 #### B. `ADD_REVIEWER` payload
 
@@ -1199,7 +1199,7 @@ Rules, unchanged from the routing contract: no unfreeze; no mutation of Session 
 **Corrected by the Slice 2D-C3-0 amendment — `DECLINED`/`NO_RESPONSE` disposition semantics.** The prior statement that `DECLINED` and `NO_RESPONSE` both mechanically leave `Q1`'s disposition `STILL_OPEN` was wrong: `AddContextResult` and `QuestionDisposition` are, and remain, separate domains (§10 above) — an attempt result never itself computes or defaults to a disposition.
 
 - **`DECLINED`:** produces no `SessionVersionLineage` and no Session B. It does **not** mechanically determine `QuestionDisposition`. `Q1` remains current under Session A until a separately supplied semantic re-evaluation records a valid disposition for it — which may legitimately be `STILL_OPEN`, `RESOLVED`, or `SUPERSEDED_RECLASSIFIED`, subject to the same rules that already govern every other route's re-evaluation (§10's table). Nothing in this document computes that disposition automatically from `result: 'DECLINED'`.
-- **`NO_RESPONSE`:** runtime remains **BLOCKED** (§24, open decision 1). No terminal `RouteOutcome` exists yet for this result — therefore no `QuestionDisposition` may be inferred from it, and no lineage/session transition exists either. The response-window/closure mechanism that would make `NO_RESPONSE` a defensible terminal fact remains an open GPT decision; this amendment does not solve it.
+- **`NO_RESPONSE`:** runtime remains **NOT AUTHORIZED** — the closure *mechanism* is now architecturally closed by the Slice 2D-C4-0 freeze (below: an explicit closure action, never elapsed time), but implementing it is a separate, not-yet-authorized runtime slice. No terminal `RouteOutcome` exists in the accepted runtime yet for this result — therefore no `QuestionDisposition` may be inferred from it, and no lineage/session transition exists either. Exactly like `SUPPLIED`/`DECLINED`, `NO_RESPONSE` will never mechanically determine `QuestionDisposition` once its runtime is authorized (§ below, decision K).
 
 #### Schema freeze (Slice 2D-C3-0): `CROSS_SESSION` / `SessionVersionLineage`
 
@@ -1395,6 +1395,113 @@ Under either option, **no future packet may authorize, and no report may claim c
 
 `NO_RESPONSE` and `SEEK_EVIDENCE` claim-level provenance remain excluded from all of the above — neither dependency is built by any of it.
 
+#### Schema freeze (Slice 2D-C4-0): `ADD_CONTEXT` `NO_RESPONSE` closure
+
+`NO_RESPONSE` has been named, unscheduled, since the Slice 2D-B0 amendment first blocked it (§7, "Runtime readiness," invariant 29) for exactly one reason: nothing in this contract defined *when* an absence of response becomes a defensible terminal fact. This freeze closes that gap — not by inventing a duration, but by replacing the entire "how long is long enough" question with an explicit, auditable closure action. Nothing below is implemented; no `src/**` type, function, or test is added.
+
+**Core architecture question, answered:** the defensible terminal fact is not elapsed time; it is an explicit closure event. `NO_RESPONSE` means "the system explicitly closed this `ContextRequest` without a `SUPPLIED` or `DECLINED` response ever having been recorded for its `RouteAttempt`" — a domain closure fact, not an inference from silence. Nothing about *when* that closure should happen is decided here; only *what it means* once it happens.
+
+##### A. Exact semantic meaning
+
+Closed: `NO_RESPONSE` records that this specific, already-created `ContextRequest` was explicitly closed by an affirmative lifecycle action, without a `SUPPLIED`/`DECLINED` response ever being recorded first. It does **not** mean, and must never be read to mean: a fixed duration elapsed; an SLA expired; the recipient definitely never replied anywhere in the real world; a network/provider timeout occurred; or any other externally-inferred fact. `AddContextResult` and real-world response truth are not the same thing — this ledger proves only what the domain runtime itself did.
+
+##### B. Explicit closure vs. timeout inference
+
+Closed: no automatic elapsed-time inference is introduced. `responseDeadlineAt`, `timeoutSeconds`, a default response window, a scheduler, polling, or cron are all explicitly rejected as mechanisms this document defines or authorizes. The prior open decision's framing ("a `responseDeadlineAt` ... or an explicit ... closure event," §7 "Runtime readiness," as it read before this freeze) is resolved in favor of the second option alone — an explicit closure event, never a deadline field. A future product policy may decide *when* to invoke the closure operation below; this domain runtime does not invent, store, or enforce that policy (§O).
+
+##### C. Dedicated operation vs. generic `recordRouteOutcome`
+
+Closed: a dedicated operation, not a `recordRouteOutcome` branch. `SUPPLIED`/`DECLINED` are externally-observed response facts — a human actively did something, and `recordRouteOutcome` already exists to record an externally-observed fact for a route. `NO_RESPONSE` is not an observation of what a human did; it is an affirmative decision by the caller that waiting for this request has ended. Routing it through `recordRouteOutcome`'s generic `result` field would let a caller disguise that lifecycle decision as an ordinary response payload, with no distinguishable API signal that anything different just happened. A dedicated operation makes the authority boundary explicit in the API surface itself, not merely in a comment.
+
+##### D. Operation input shape
+
+Closed, conceptually:
+
+```
+closeContextRequestWithoutResponse(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  input: { attemptId: string, latencyConsumed: number }
+): DeliberationState
+```
+
+No other key. The caller never restates `contextRequestId`, `questionId`, `decisionId`, `sessionId`/hash fields, `result`, `status`, `completedAt`, or `responseText` — every one of those is derived from the audit chain `attemptId` already identifies, exactly the same "caller supplies only the identity, the runtime resolves everything else" discipline `createContextRequest` (§7, Slice 2D-C0) and `createCrossSessionTransition` (§13.A, Slice 2D-C3-0) already established. `latencyConsumed` is the one genuinely caller-supplied accounting fact, under the same discipline every other terminal `RouteOutcome` already uses (§12).
+
+##### E. `ContextRequest` preconditions
+
+Closed: exactly one `ContextRequest` must already exist, bound to the exact `ADD_CONTEXT` `RouteAttempt` named by `attemptId` — resolved only after the COMPLETE `ContextRequest` ledger passes `assertContextRequestLedgerIntegrity`-equivalent validation (§7, Slice 2D-C0/C1/C2's now-repeated "global before local" posture, applied a fourth time). Zero requests: closure rejected outright — there is nothing to close. The selected request is derived from the resolved attempt, never caller-restated (§D above). Also required before closure: exactly one `ADD_CONTEXT` `RouteAttempt` resolves for `attemptId`; its decision/question provenance is fully valid; its question is current, with exactly one active cycle matching the exact decision this attempt belongs to; no `RouteOutcome` already exists for this attempt; no `QuestionDisposition` already exists for it; and `deliberationState.stopReason === null`. `SUPPLIED`/`DECLINED` already recorded for this attempt, or a `FAILED` outcome already recorded, both reject the closure outright — `ONE RouteAttempt -> AT MOST ONE RouteOutcome` (invariant 10) is never an exception for this operation.
+
+##### F. `AttemptStatus`
+
+Closed: `SUCCEEDED`. The `ADD_CONTEXT` request mechanism reached an explicit, determinate lifecycle closure — no usable context was ever supplied, but the mechanism itself did not technically fail, exactly the same reasoning already frozen for `DECLINED` (§7.A above). `FAILED` remains reserved exclusively for a genuine acquisition/technical failure — the mechanism could not even present the request. `INCONCLUSIVE` remains illegal for `ADD_CONTEXT` under the already-binding per-route `AttemptStatus` allowlist (§6, invariant 25) — unchanged by this freeze.
+
+##### G. `RouteOutcome` shape
+
+Closed, minimal, no additional field found necessary:
+
+```
+AddContextNoResponseRouteOutcome extends RouteOutcomeCommon {
+  status: 'SUCCEEDED';
+  route: 'ADD_CONTEXT';
+  result: 'NO_RESPONSE';
+  contextRequestId: string;
+}
+```
+
+No `responseText` (nothing was supplied). No `timeoutSeconds`/deadline field (§B — no duration is ever computed or stored). No caller-supplied `closureReason` — the operation's own semantics *are* the reason; inventing a second, independently-caller-suppliable text field to explain a decision the operation itself already fully expresses would be exactly the unjustified invention this contract has refused everywhere else (`FailureInfo`'s message cap, §7; `CROSS_SESSION`'s deterministic `reason`, §13.A). No scheduler identity — no scheduler is designed or authorized here (§O below). `AddContextRouteOutcome` extends to `AddContextSuppliedRouteOutcome | AddContextDeclinedRouteOutcome | AddContextNoResponseRouteOutcome`.
+
+##### H. Separate closure entity
+
+Closed: NO. The immutable `AddContextNoResponseRouteOutcome` record itself is the terminal closure fact; `RouteAttempt` already supplies its identity, and `ContextRequest.originatingAttemptId` already supplies the binding back to the request being closed. A second `ContextRequestClosure`/`ContextResponseClosure` entity would duplicate `attemptId`, `contextRequestId`, and `completedAt` without carrying any independent authority or provenance this outcome record cannot already express — the same "no second ledger without justification" refusal already applied to `QuestionDisposition`'s replacement-question model (§9) and to `SessionVersionLineage`'s decision against a second response-fact field (§13.A, decision C).
+
+##### I. `completedAt` semantics
+
+Closed: the runtime-generated time at which the explicit closure operation itself recorded the outcome — unchanged from every other `RouteOutcome`'s `completedAt` (§7, "`completedAt` semantics"). It is **not** proof of how long the recipient had to answer, not a provider timestamp, and not a claimed response deadline; no duration may ever be derived from it by subtracting it from `RouteAttempt.startedAt` or any other timestamp to argue how long the system "waited."
+
+##### J. Latency accounting
+
+Closed: `latencyConsumed` is caller-supplied, finite, non-negative accounting input, under the exact same discipline `recordRouteOutcome` already applies to every other terminal outcome (§12, "Latency accounted at completion") — accounted once, at successful closure, never reversed. It is accounting input only; it must never be interpreted as evidence that a particular elapsed duration proves `NO_RESPONSE` is the correct result (§B). A rejected closure attempt spends no latency and charges no logical cost a second time — `logicalCost` was already accounted in full when the `ADD_CONTEXT` `RouteAttempt` itself started (§12).
+
+##### K. `QuestionDisposition` relationship
+
+Closed: unchanged from the posture already frozen for `SUPPLIED`/`DECLINED` (above). `NO_RESPONSE` does not mechanically produce `STILL_OPEN`, `RESOLVED`, `SUPERSEDED_RECLASSIFIED`, or `CROSS_SESSION`. `AddContextResult` and `QuestionDisposition` remain separate domains (§10); the question remains current under its session until a separately supplied semantic re-evaluation records a valid disposition for it.
+
+##### L. `CROSS_SESSION` relationship
+
+Closed: `NO_RESPONSE` can never authorize `createCrossSessionTransition`. Only a `SUPPLIED` outcome supplies the one fact (`responseText`) that operation's entire contract depends on (§13.A, decision N step 6, already explicit: "not `DECLINED`; `DECLINED` structurally cannot authorize this transition" — the identical reasoning excludes `NO_RESPONSE`, which has no `responseText` at all). No Session B, no `SessionVersionLineage`, no `CROSS_SESSION` disposition may ever result from a `NO_RESPONSE` outcome.
+
+##### M. Read-time provenance
+
+Closed: a future stored `AddContextNoResponseRouteOutcome` is never trusted merely because it is present in `deliberationState.outcomes` — the same "never trust, always re-validate at the boundary" posture this contract has required at every terminal-outcome boundary since `validateAttemptProvenanceForOutcome` (§7) and reaffirmed for `SUPPLIED` at `assertContextRequestLedgerIntegrity`'s every call site (§7, Slice 2D-C1/C2) and at `revalidateSuppliedOutcomeProvenance` (§13.A). At any future boundary that trusts a stored `NO_RESPONSE` outcome: it must resolve to exactly one `RouteAttempt`; that attempt's decision/question provenance must be fully re-derived, never assumed; the COMPLETE `ContextRequest` ledger must independently pass integrity validation before the one named request is trusted; the named `contextRequestId` must resolve to exactly one request, bound to the same attempt/question/session/hash; `result`/`status` must be exactly `NO_RESPONSE`/`SUCCEEDED`; no `responseText` field may be present; `logicalCost` must match the resolved attempt's own; `latencyConsumed` must be finite/non-negative; `completedAt` must be a parseable timestamp. No step may be skipped because it "already passed once when written."
+
+##### N. Late-response posture
+
+Closed as explicitly out of scope for this freeze, not as a new open architecture decision: `ONE RouteAttempt -> AT MOST ONE RouteOutcome` (invariant 10) is unchanged and unweakened — once an attempt is closed as `NO_RESPONSE`, a later `SUPPLIED`, `DECLINED`, or `FAILED` outcome for that same attempt is rejected outright, exactly as a second outcome of any kind already is for every other route. This freeze does **not** design a workflow for "the human replies after closure" — it does not silently reopen the terminal attempt, does not mutate the `NO_RESPONSE` outcome, and does not auto-create a new attempt on the closed question's behalf. A future, separately authorized product policy would need its own explicit new `RouteDecision`/`RouteAttempt` cycle (the question's normal re-evaluation path, §10's table, already available once *some* `QuestionDisposition` reopens routing for it) or another, separately-designed mechanism — neither is designed or authorized here. This is a closed scope boundary, not a deferred question: nothing about it requires a future architecture decision before `NO_RESPONSE` runtime itself can be authorized.
+
+##### O. Future scheduler/policy boundary
+
+Closed: this freeze defines only the domain transition — what closing a request without a response means, once closure happens. It does not decide, design, or authorize *when* a caller should invoke `closeContextRequestWithoutResponse` — a configured deadline elapsing, a human operator's explicit action, or an external workflow's own expiry decision are all equally plausible future callers of this one operation, and choosing among them (or building any of the infrastructure to automate the choice) is a separate, future, explicitly-authorized architecture decision this document does not make. No scheduler, poller, or cron architecture is designed or implied by this freeze.
+
+##### Failure fallback (restated)
+
+If the closure operation itself cannot structurally complete — unknown/blank `attemptId`, zero or ambiguous `ContextRequest`, an attempt that is not `ADD_CONTEXT`, a question that is not current, an attempt that already has a `RouteOutcome`, a stopped deliberation, or any other precondition failure — it throws and mutates nothing. `NO_RESPONSE` is never a fallback result for a validation failure; a validation failure is never silently reinterpreted as `FAILED`, `NO_RESPONSE`, or any other route's outcome.
+
+##### Legacy compatibility
+
+Closed: no new legacy-compatibility concern is introduced. No new ledger is added (§H), so no new "missing field reads as `[]`" rule is needed. Every existing pre-`NO_RESPONSE` `RouteOutcome` remains exactly as valid as it always was. The historical absence of any `RouteOutcome` for an attempt is never reinterpreted as an implicit `NO_RESPONSE` — absence remains absence, exactly the already-accepted "open/unterminated attempt" reading (invariant 22); only an explicit, successfully-recorded `AddContextNoResponseRouteOutcome` ever means `NO_RESPONSE`.
+
+#### Schema decisions closed (Slice 2D-C4-0)
+
+**A-O map exactly to the lettered subsections immediately above.** No governing source-of-truth document contradicts A–O; none required reopening an already-accepted Slice 2A/2B/2C/2D-B0/2D-B1/2D-B2-0/2D-B2-A/2D-B2-B/2D-C0/2D-C1/2D-C2/2D-C3-0/2D-C3 invariant to close.
+
+#### Recommended next runtime slice (Slice 2D-C4-0 freeze)
+
+Not authorized by this document.
+
+**`SLICE 2D-C4` — EXPLICIT `NO_RESPONSE` CLOSURE RUNTIME:** `AddContextNoResponseRouteOutcome` type; `closeContextRequestWithoutResponse` itself (§D), including the complete precondition chain (§E/§F), the mandatory global `ContextRequest` ledger gate, and latency accounting (§J); no new ledger, no new legacy-compatibility field (§H, §"Legacy compatibility" above — nothing to add); tests covering the happy path, every rejection precondition (§E), the `ONE RouteAttempt -> AT MOST ONE RouteOutcome` late-closure/late-response rejection (§N), no automatic `QuestionDisposition` (§K), `CROSS_SESSION` remaining unreachable from a `NO_RESPONSE` outcome (§L), and no cost/latency double-spend (§J). This is a single, small, self-contained slice — there is no atomicity split to consider here the way `CROSS_SESSION` required one (§13.A, Slice 2D-C3-0/2D-C3 amendment): `closeContextRequestWithoutResponse` produces exactly one fact (the outcome record), never a multi-fact bundle, so the "primitive vs. persisted half-transition" distinction that governed the `CROSS_SESSION` slice split does not apply here.
+
+`SEEK_EVIDENCE` claim-level provenance remains excluded — this slice does not build it, and closing `NO_RESPONSE` does not narrow that separate open decision (§24).
+
 ### B. ADD_REVIEWER
 
 Route output: new `ReviewFinding[]` from one reviewer pass (accepted, unchanged shape). `AttemptStatus`: `SUCCEEDED` (findings produced, possibly zero) or `FAILED` (acquisition/technical failure, invalid output). No `INCONCLUSIVE` category — "found nothing material" is itself a determinate answer, not an indeterminate one. Append-only review evidence; no automatic materiality authority; no automatic question resolution — re-evaluation (§14) decides the coverage gap's disposition.
@@ -1576,7 +1683,7 @@ An open/unterminated attempt (§5) is itself an idempotency concern: while a `Ro
 26. A question with a terminal `QuestionDisposition` (`RESOLVED`/`SUPERSEDED_RECLASSIFIED`/`CROSS_SESSION`) may never again be targeted by a `RouteDecision`, `RouteAttempt`, `RouteOutcome`, or further `QuestionDisposition` in that session (§9).
 27. One `RouteOutcome` produces at most one `QuestionDisposition` for its originating question (§19).
 28. `RouteAttempt.attemptId` and `ReviewFinding.reviewerRunId` are separate identities and are never made equal; one `reviewerRunId` may be claimed by at most one successful `ADD_REVIEWER` `RouteOutcome` within a `StressTestSession` lineage (§7).
-29. `NO_RESPONSE` (an `ADD_CONTEXT` result) may never be caller-declared or runtime-terminalized until architecture separately defines an explicit response-closure mechanism (a response deadline or an externally recorded closure event); absent that, only `SUPPLIED`, `DECLINED`, and `FAILED` are terminalizable for `ADD_CONTEXT` (§7).
+29. `NO_RESPONSE` (an `ADD_CONTEXT` result) is authorized only through the dedicated `closeContextRequestWithoutResponse` operation's explicit closure action — never through `recordRouteOutcome`, never inferred from elapsed time, and never runtime-authorized until that operation's own slice is separately accepted; until then, only `SUPPLIED`, `DECLINED`, and `FAILED` are terminalizable for `ADD_CONTEXT` (§7, §13.A Slice 2D-C4-0 freeze).
 30. A registered `UnresolvedQuestion` whose `rootCause = DECISION_SENSITIVE_CONFLICT` must contain at least two distinct (`kind`, `id`) `RouteInputRef`s; not yet enforced by any registration gate in the accepted runtime (§7).
 31. A `TARGETED_PEER_CHALLENGE` `RouteOutcome`'s `targetRef` and `sourceRef` must be distinct from one another and must each exactly match one of the terminated `RouteDecision`'s own `inputRefs`, with no inference and no new ref introduced at outcome time (§7).
 32. No `SEEK_EVIDENCE` result (`SUPPORTIVE`/`CONTRADICTORY`/`INCONCLUSIVE`) may be recorded until claim-level `EvidenceSubject` provenance is separately, explicitly frozen; only a generic `FAILED` outcome is recordable for `SEEK_EVIDENCE` until then (§7).
@@ -1609,6 +1716,14 @@ An open/unterminated attempt (§5) is itself an idempotency concern: while a `Ro
 59. A `SUPPLIED` `RouteOutcome` is never trusted as `CROSS_SESSION` authorization merely because its stored `result` discriminant says so -- the complete attempt/decision/question chain and the complete `ContextRequest` ledger are independently re-validated at the moment of transition (§13.A, Slice 2D-C3-0 freeze).
 60. `childArtifactHash === parentArtifactHash` deterministically, because `artifactHash` is a pure function of `artifactText` alone and `ADD_CONTEXT` never revises the artifact; `childAuthorContextHash` is independently and correctly recomputed over Session B's own, content-differing `AuthorContext` (§13.A, Slice 2D-C3-0 freeze).
 61. A missing `DeliberationState.sessionVersionLineages` array (state predating this field) is read as its legal equivalent, `[]`, without mutating the stored record (§13.A, Slice 2D-C3-0 freeze).
+62. `NO_RESPONSE`'s terminal fact is an explicit closure action, never an elapsed-time inference; no `responseDeadlineAt`, `timeoutSeconds`, default response window, scheduler, poller, or cron is ever authorized by this contract to manufacture that closure automatically (§13.A, Slice 2D-C4-0 freeze).
+63. `NO_RESPONSE` is recordable only through `closeContextRequestWithoutResponse`'s own dedicated, minimal-input operation (`attemptId`, `latencyConsumed`) — never as a `result` value accepted by `recordRouteOutcome`, which remains reserved for externally-observed response facts (`SUPPLIED`/`DECLINED`) (§13.A, Slice 2D-C4-0 freeze).
+64. `closeContextRequestWithoutResponse` requires exactly one already-recorded `ContextRequest` bound to the exact `ADD_CONTEXT` `RouteAttempt` named, resolved only after the COMPLETE `ContextRequest` ledger independently passes integrity validation; zero requests, an already-terminated attempt (any existing `RouteOutcome`), or an already-disposed question all reject closure outright (§13.A, Slice 2D-C4-0 freeze).
+65. `NO_RESPONSE` maps to `AttemptStatus = SUCCEEDED`; the request mechanism reaching a determinate closure without usable context is never itself a technical failure (§6, §13.A, Slice 2D-C4-0 freeze).
+66. `AddContextNoResponseRouteOutcome` carries no `responseText`, no timeout/deadline field, no caller-supplied closure reason, and no scheduler identity; no separate `ContextRequestClosure`/`ContextResponseClosure` entity is introduced — the outcome record itself is the complete terminal closure fact (§13.A, Slice 2D-C4-0 freeze).
+67. `NO_RESPONSE` never mechanically produces a `QuestionDisposition` of any kind, and never authorizes `createCrossSessionTransition` — only a `SUPPLIED` outcome's `responseText` can ever supply that transition's required fact (§13.A, Slice 2D-C4-0 freeze).
+68. Once an attempt is closed `NO_RESPONSE`, no later `SUPPLIED`, `DECLINED`, or `FAILED` outcome may be recorded for it (invariant 10 unweakened); a human reply after explicit closure is out of scope for this freeze and never silently reopens the terminal attempt or auto-creates a new one (§13.A, Slice 2D-C4-0 freeze).
+69. The historical absence of any `RouteOutcome` for an attempt is never reinterpreted as an implicit `NO_RESPONSE`; only an explicit, successfully-recorded `AddContextNoResponseRouteOutcome` ever means `NO_RESPONSE` (§13.A, Slice 2D-C4-0 freeze).
 
 ---
 
@@ -1680,6 +1795,8 @@ No governing source-of-truth document contradicts H–M; none required reopening
 
 **Closed by the Slice 2D-C3-0 schema freeze:** nineteen decisions (A–S, §13.A's "Schema decisions closed (Slice 2D-C3-0)" subsection), covering whether `SessionVersionLineage` is required (yes — `QuestionDisposition = CROSS_SESSION` alone cannot identify Session B, the causing outcome, the hashes, or the new item); its own fresh `lineageId` (never overloaded onto `childSessionId`, even though the two are always 1:1 in accepted usage); the complete field set, closing which fields are load-bearing versus derived-and-copied convenience versus deliberately excluded (`responseText`, already authoritative elsewhere); ledger ownership resolved as one answer across §13/§36 of the governing packet (`DeliberationState.sessionVersionLineages[]`, both returned at transition time and persisted for later read-time re-validation); the three independent cardinality rules; Session B's construction as a wholly new session (never copy-then-mutate); the artifact/hash equations, confirmed against the actual `sha256Text`/`sha256AuthorContext` implementation rather than assumed; the exact `AuthorContext`-copy-plus-one-new-item construction and its `category`/`text` provenance; Session B ending the transition already `INPUT_FROZEN` (a point the governing packet left open, closed here); the explicit non-copy list from Session A; the atomic `createCrossSessionTransition` operation shape (rejecting a standalone `recordQuestionDisposition(CROSS_SESSION, {childSessionId})` extension outright); the three-fact atomic write; `QuestionDisposition`'s stored shape staying unchanged; the eleven-step mandatory `SUPPLIED`-outcome read validation, naming the "authoritative-upstream" principle explicitly rather than leaving it implicit; an executable response-reuse write-time gate; the read-integrity helper; legacy compatibility; cost/latency semantics; and question/review-reset behavior (invariants 54–61). `NO_RESPONSE` and `SEEK_EVIDENCE` claim-level provenance remain untouched, unrevisited (§24).
 
+**Closed by the Slice 2D-C4-0 schema freeze:** fifteen decisions (A–O, §13.A's "Schema decisions closed (Slice 2D-C4-0)" subsection), resolving the last genuinely open half of the two-item list this document has carried since the Slice 2D-B0 amendment. The defensible terminal fact for `NO_RESPONSE` is an explicit closure action, never an elapsed-time inference — resolving the open dependency in favor of an auditable closure event over any `responseDeadlineAt`/timeout mechanism, and requiring a dedicated `closeContextRequestWithoutResponse` operation rather than a `recordRouteOutcome` branch, so the authority boundary is explicit in the API surface itself; the operation's minimal input shape (`attemptId`, `latencyConsumed` only); the complete `ContextRequest`/attempt precondition chain; `AttemptStatus = SUCCEEDED`; the minimal `AddContextNoResponseRouteOutcome` shape with no additional field found necessary; the decision against a separate closure entity; `completedAt`/latency semantics unchanged from every other terminal outcome; `QuestionDisposition` and `CROSS_SESSION` both remaining structurally unreachable from a `NO_RESPONSE` outcome; the complete read-time re-validation rule; the late-response posture closed as an explicit scope boundary rather than left open; and the future scheduler/policy question deliberately left to a separate, later architecture decision (invariants 62–69). `SEEK_EVIDENCE` claim-level provenance is the sole remaining open item (§24).
+
 ---
 
 ## 23. Relation to accepted Slice 2A/2B runtime
@@ -1690,15 +1807,17 @@ Nothing in this document alters, weakens, or contradicts `src/stress-test/delibe
 
 ## 24. Open GPT decisions
 
-**Two genuinely open items — not hidden, not closed by convenience:**
+**One genuinely open item remains — not hidden, not closed by convenience:**
 
-**1. `NO_RESPONSE` terminalization mechanism: OPEN / deferred to future human-response-lifecycle architecture.** `ADD_CONTEXT`'s `NO_RESPONSE` result cannot be defensibly terminalized without an explicit response-closure mechanism — a `responseDeadlineAt` bound to `ContextRequest`, or an explicit externally recorded request-window-close event (§7, invariant 29). Existing accepted source-of-truth does not clearly dictate which of those two mechanisms is correct, and no timeout duration may be invented to manufacture a closure. This is left open deliberately, not resolved by picking one arbitrarily; a future, separately authorized architecture decision must close it before `NO_RESPONSE` runtime can be authorized.
+**1. `SEEK_EVIDENCE` claim-level `EvidenceSubject` provenance: OPEN / requires a separately authorized architecture decision.** The frozen `{result, citations}` payload identifies a source, but not which specific factual claim within a `ReviewFinding`/`SemanticIssue` the citations evaluate (§7, invariant 32). This document explicitly declines to invent `claimText`/`claimId`/`claimIndex`/`paragraphId`/`chunkId` to paper over the gap — paragraph-local identity is not product authority, copied claim text can drift, a `SemanticIssue` can aggregate multiple findings, and one finding can carry more than one factual proposition. `SUPPORTIVE`/`CONTRADICTORY`/`INCONCLUSIVE` all stay runtime-blocked until this is closed.
 
-**2. `SEEK_EVIDENCE` claim-level `EvidenceSubject` provenance: OPEN / requires a separately authorized architecture decision.** The frozen `{result, citations}` payload identifies a source, but not which specific factual claim within a `ReviewFinding`/`SemanticIssue` the citations evaluate (§7, invariant 32). This document explicitly declines to invent `claimText`/`claimId`/`claimIndex`/`paragraphId`/`chunkId` to paper over the gap — paragraph-local identity is not product authority, copied claim text can drift, a `SemanticIssue` can aggregate multiple findings, and one finding can carry more than one factual proposition. `SUPPORTIVE`/`CONTRADICTORY`/`INCONCLUSIVE` all stay runtime-blocked until this is closed.
+**Closed by the Slice 2D-C4-0 schema freeze, formerly the other genuinely open item:** `ADD_CONTEXT`'s `NO_RESPONSE` terminalization mechanism (formerly item 2 of this section, prior to the Slice 2D-C4-0 freeze). The prior framing — a `responseDeadlineAt` bound to `ContextRequest`, or an explicit externally recorded request-window-close event, with existing source-of-truth said not to dictate which — is resolved: the second option alone, an explicit closure action via the dedicated `closeContextRequestWithoutResponse` operation, never a deadline field or any elapsed-time inference (§13.A, "Schema freeze (Slice 2D-C4-0)," decisions A–O; invariants 62–69). `NO_RESPONSE` *runtime* remains **NOT AUTHORIZED** (§25) — only the architecture/mechanism is closed here, not implemented.
 
 **Not an open decision, despite being a runtime blocker:** `TARGETED_PEER_CHALLENGE`'s source/target provenance rule *is* closed by this amendment (§7 decisions L–M, invariants 30–31) — two distinct refs, both drawn from the terminated `RouteDecision`'s own `inputRefs`. Its successful-outcome runtime stays blocked only because the routing gate that would *enforce* that closed rule does not exist yet — a sequencing gap, not an unresolved architecture question. The same is true of `SUPERSEDED_RECLASSIFIED` (§9 decisions F–H) and `CROSS_SESSION` (§9 decision E): both are architecturally closed — the replacement-question model, the `derivedFromQuestionId` field, and the exact prerequisites `CROSS_SESSION` still lacks are all frozen — but deliberately sequenced into a later slice rather than left as unresolved questions.
 
-**Neither of the two items above was revisited by the Slice 2D-B2-0 schema freeze, by the Slice 2D-B2-A amendment, by the Slice 2D-B2-B0 schema freeze, by the Slice 2D-B2-B amendment, by the Slice 2D-C0 schema freeze, by Slices 2D-C1/C1-amendment/C2, nor by the Slice 2D-C3-0 schema freeze.** Both remain exactly as recorded: still open, still requiring a separately authorized architecture decision before their respective runtimes can be authorized. `NO_RESPONSE`'s entry, specifically, is directly relevant to — but not solved by — the Slice 2D-C0 freeze: `ContextRequest` now has an identity link precise enough to someday carry a `responseDeadlineAt` if that mechanism is ever chosen, but this freeze does not choose it, add it, or otherwise narrow the open decision (§9 above; per §22/§26 of the Slice 2D-C0 governing packet). The Slice 2D-C3-0 freeze names a third genuine prerequisite of `NO_RESPONSE`'s eventual closure — `ContextRequest` now also has an atomic-transition mechanism precise enough to someday consume a `responseDeadlineAt` if that mechanism is chosen — without itself choosing, adding, or narrowing it.
+**The `SEEK_EVIDENCE` item above was not revisited by the Slice 2D-B2-0 schema freeze, by the Slice 2D-B2-A amendment, by the Slice 2D-B2-B0 schema freeze, by the Slice 2D-B2-B amendment, by the Slice 2D-C0 schema freeze, by Slices 2D-C1/C1-amendment/C2, by the Slice 2D-C3-0 schema freeze, nor by the Slice 2D-C4-0 schema freeze.** It remains exactly as recorded: still open, still requiring a separately authorized architecture decision before its runtime can be authorized. Per the Slice 2D-C4-0 governing packet's own instruction (§27), closing `NO_RESPONSE` was not treated as license to also solve `EvidenceSubject` provenance merely because this document was open.
+
+**The Slice 2D-C4-0 schema freeze introduces zero new open decisions.** All fifteen items its governing packet asked to be closed (§13.A's "Schema decisions closed (Slice 2D-C4-0)," A–O) were closeable from source-of-truth already accepted in this document — principally the observation, already available since the Slice 2D-C0/C3-0 freezes, that `ContextRequest`'s identity link and `createCrossSessionTransition`'s atomic-transition mechanism were both *precise enough* to someday carry a `responseDeadlineAt` if that mechanism were ever chosen, but that neither freeze chose it. This freeze makes the choice: no deadline field, ever: an explicit closure action instead. Not left open for lack of a clear answer.
 
 **The Slice 2D-C3-0 schema freeze introduces zero new open decisions.** All nineteen items its governing packet asked to be closed (§13.A's "Schema decisions closed (Slice 2D-C3-0)," A–S) were closeable from source-of-truth already accepted in this document, `MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §8/§9 (which already named `SessionVersionLineage`'s conceptual field set and deliberately deferred its exact type/name to this freeze), and this repository's existing runtime (`src/stress-test/session.ts`'s `createSession`/`addAuthorContextItem`/`freezeInput`/`verifyFrozenInputIntegrity` and the actual `sha256Text`/`sha256AuthorContext` hash implementations, inspected directly rather than assumed) — not left open for lack of a clear answer. The one point the governing packet explicitly left open for evaluation (§26, Session B's lifecycle state at the end of the transition) is closed here (§I) with the reasoning the packet itself asked for, not deferred further; the point the packet asked to be resolved together with another (§13/§36, lineage ownership) is closed as one coherent answer rather than two independent, potentially-conflicting ones (§D).
 
@@ -1725,12 +1844,12 @@ Currentness / active-cycle core (`isQuestionCurrent`, all five current gates, th
 `QuestionDisposition.SUPERSEDED_RECLASSIFIED` runtime, including `derivedFromQuestionId` and the derived-lineage/question-terminality read-integrity hardening — Slice 2D-B2-B, accepted per the Slice 2D-B2-B amendment and the Slice 2D-C0 packet's own "Previous status" (§0): **IMPLEMENTED / ACCEPTED**
 `ContextRequest` <-> `RouteAttempt` attempt-binding runtime (`originatingAttemptId`, `contextRequests[]` ledger, attempt-bound `createContextRequest`) — Slice 2D-C1, accepted per the Slice 2D-C1 amendment and the Slice 2D-C2/2D-C3-0 packets' own "Previous status" fields: **IMPLEMENTED / ACCEPTED**
 `ADD_CONTEXT` `SUPPLIED`/`DECLINED` success (`AddContextRouteOutcome`, mandatory `ContextRequest`-ledger provenance validation) — Slice 2D-C2, accepted per the Slice 2D-C3-0 packet's own "Previous status" (§0): **IMPLEMENTED / ACCEPTED**
+`CROSS_SESSION` / `SessionVersionLineage` runtime (`SessionVersionLineage` type, `sessionVersionLineages[]` ledger, parent-side and child-side lineage integrity, the atomic `createCrossSessionTransition` operation, and the bidirectional `CROSS_SESSION` <-> `SessionVersionLineage` read-time bijection) — Slice 2D-C3, accepted per the Slice 2D-C3 amendment and the Slice 2D-C4-0 packet's own "Slice 2D-C3 is: ACCEPTED / CLOSED" status (§1): **IMPLEMENTED / ACCEPTED**
 
 **NOT YET IMPLEMENTED / NOT GENERALLY AUTHORIZED:**
 
 Provider-backed route execution: **NOT AUTHORIZED**
-`CROSS_SESSION` / `SessionVersionLineage` runtime (schema frozen only by the Slice 2D-C3-0 freeze, §13.A): **NOT AUTHORIZED**
-`NO_RESPONSE`: **NOT AUTHORIZED**
+`NO_RESPONSE` (closure mechanism/architecture schema-frozen only by the Slice 2D-C4-0 freeze, §13.A — `closeContextRequestWithoutResponse` and `AddContextNoResponseRouteOutcome` are not implemented): **NOT AUTHORIZED**
 `SEEK_EVIDENCE` result runtime: **NOT AUTHORIZED**
 `TARGETED_PEER_CHALLENGE` success runtime: **NOT AUTHORIZED**
 Route execution generally, and Slice 2D's full/general scope beyond the specific accepted subsets recorded above: **NOT AUTHORIZED**
