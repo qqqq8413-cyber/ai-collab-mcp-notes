@@ -482,6 +482,7 @@ export interface DeliberationState {
   questionDispositions: QuestionDisposition[];
   contextRequests: ContextRequest[];
   sessionVersionLineages: SessionVersionLineage[];
+  evidenceSubjects: EvidenceSubject[];
   costBudget: DeliberationBudget;
   latencyBudget: DeliberationBudget;
   unresolvedQuestions: UnresolvedQuestion[];
@@ -637,6 +638,7 @@ export function createDeliberationState(session: StressTestSession, budgets: Del
     questionDispositions: [],
     contextRequests: [],
     sessionVersionLineages: [],
+    evidenceSubjects: [],
     costBudget: { spent: 0, ceiling: budgets.costCeiling },
     latencyBudget: { spent: 0, ceiling: budgets.latencyCeiling },
     unresolvedQuestions: [],
@@ -1181,6 +1183,16 @@ export function planRouteForQuestion(
     );
   }
 
+  // Gate 1 of 3 (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.D decision
+  // O, Slice 2D-C5-A): a SEEK_EVIDENCE route may not even be planned for an
+  // EVIDENCE_GAP question until exactly one valid EvidenceSubject is already
+  // registered for it. Fails closed as early as possible, before a
+  // RouteDecision object is ever minted -- causal-order enforcement, never
+  // trusted by the later authoritative/independent gates below.
+  if (route === 'SEEK_EVIDENCE') {
+    assertSeekEvidenceSubjectReady(session, deliberationState, question.id);
+  }
+
   // Derived from the already-validated registry entry, not the caller-owned
   // `question` argument, so the returned decision cannot alias anything the
   // caller still holds a mutable reference to.
@@ -1287,6 +1299,16 @@ export function recordRouteDecision(
         `recordRouteDecision: question ${routeDecision.questionId} has more than one active deliberation cycle -- inconsistent legacy state`
       );
     }
+
+    // Gate 2 of 3 (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.D
+    // decision O, Slice 2D-C5-A): the authoritative persistence gate -- never
+    // trusts that `routeDecision` actually came from `planRouteForQuestion`
+    // or that its gate 1 check ran; a manually/legacy-constructed
+    // SEEK_EVIDENCE decision with no registered subject is rejected here
+    // independently.
+    if (routeDecision.route === 'SEEK_EVIDENCE') {
+      assertSeekEvidenceSubjectReady(session, deliberationState, routeDecision.questionId);
+    }
   }
 
   let stopReason: StopReason | null = null;
@@ -1387,6 +1409,15 @@ export function recordRouteAttemptStart(
     throw new Error(
       `recordRouteAttemptStart: question ${decision.questionId}'s active deliberation cycle is a different RouteDecision than ${decisionId}`
     );
+  }
+
+  // Gate 3 of 3 (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.D decision
+  // O, Slice 2D-C5-A): legacy/tampered-state execution-start protection --
+  // never trusts that a historical SEEK_EVIDENCE RouteDecision passed gate 1
+  // or gate 2, which may not have existed when it was recorded, or could
+  // have been bypassed by directly-constructed legacy/tampered state.
+  if (decision.route === 'SEEK_EVIDENCE') {
+    assertSeekEvidenceSubjectReady(session, deliberationState, decision.questionId);
   }
 
   const logicalCost = logicalAttemptCostForRoute(decision.route);
@@ -3152,5 +3183,400 @@ export function createCrossSessionTransition(
     deliberationState: provisionalDeliberationState,
     childSession,
     lineage: buildLineageSnapshot(),
+  };
+}
+
+/**
+ * The immutable claim-identity audit fact answering "which exact factual
+ * proposition does a SEEK_EVIDENCE attempt evaluate?"
+ * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.D, Slice 2D-C5-0
+ * freeze). `id` is its own fresh identity -- never `originatingQuestionId`
+ * reused, never a copied/derived value from `ReviewFinding`/`SemanticIssue`,
+ * never `paragraphId`/`chunkId`/`claimIndex`/array position/text offset
+ * (decision B). No `artifactLocation` -- always derived by walking
+ * `originatingFindingId -> ReviewFinding.artifactLocation`, never duplicated
+ * (decision G). No `attemptId` -- `EvidenceSubject` is question-scoped and
+ * exists *before* route planning, reused unchanged across every re-attempt
+ * cycle for the same question (decisions K, N). `sessionId`/`artifactHash`/
+ * `authorContextHash` are derived-and-copied convenience fields,
+ * independently re-verified against the authoritative session at every read
+ * boundary, never independently caller-authoritative (decision C).
+ */
+export interface EvidenceSubject {
+  id: string;
+  originatingQuestionId: string;
+  sourceRef: RouteInputRef;
+  originatingFindingId: string;
+  claimText: string;
+  sessionId: string;
+  artifactHash: string;
+  authorContextHash: string;
+  createdAt: string;
+}
+
+const EVIDENCE_SUBJECT_STORED_KEYS = [
+  'id',
+  'originatingQuestionId',
+  'sourceRef',
+  'originatingFindingId',
+  'claimText',
+  'sessionId',
+  'artifactHash',
+  'authorContextHash',
+  'createdAt',
+] as const;
+
+/**
+ * Reads `DeliberationState.evidenceSubjects` tolerating legacy state that
+ * predates the field (missing/`undefined` -- read-time compatibility only,
+ * never a mutation of the stored record, the same posture already used for
+ * `effectiveContextRequests`/`effectiveSessionVersionLineages`). Unlike
+ * those two, an explicit non-array value (not merely missing) fails closed
+ * rather than being silently treated as empty -- ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+ * §13.D decision J, Slice 2D-C5-A's own hardening of the legacy-compat
+ * posture.
+ */
+function effectiveEvidenceSubjects(deliberationState: DeliberationState): EvidenceSubject[] {
+  const raw = (deliberationState as { evidenceSubjects?: unknown }).evidenceSubjects;
+  if (raw === undefined) {
+    return [];
+  }
+  if (!Array.isArray(raw)) {
+    throw new Error('effectiveEvidenceSubjects: evidenceSubjects is present but not an array -- malformed state');
+  }
+  return raw as EvidenceSubject[];
+}
+
+/**
+ * Validates the COMPLETE `evidenceSubjects[]` ledger, never only the one
+ * subject a caller happens to be creating or resolving -- the same "global
+ * before local" posture required at every other ledger boundary since the
+ * Slice 2D-B2-0 amendment. Session-aware
+ * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.D decision U, corrected
+ * by the Slice 2D-C5-0 amendment): `ReviewFinding`/`SemanticIssue` leaf
+ * provenance is `StressTestSession` domain truth this helper cannot resolve
+ * from `DeliberationState` alone, so `session` is a required, load-bearing
+ * parameter, not optional context. `verifyDeliberationBinding` at entry
+ * already proves `deliberationState.sessionId`/`artifactHash`/
+ * `authorContextHash` equal `session.id`/`artifactHash`/`authorContextHash`
+ * -- so every subsequent check of a stored subject's own `sessionId`/
+ * `artifactHash`/`authorContextHash` against the `DeliberationState`'s own
+ * binding is transitively a three-way match against the authoritative
+ * session too, never state-internal agreement alone.
+ *
+ * Storage cardinality only: at most one `EvidenceSubject` per
+ * `originatingQuestionId` (decision M) -- zero is a legitimate,
+ * not-yet-registered state, never treated as corruption. The separate,
+ * stricter route-readiness cardinality (exactly one, before SEEK_EVIDENCE
+ * routing) is independently owned by `assertSeekEvidenceSubjectReady` and
+ * the three gates it backs (decision O), not by this helper.
+ */
+function assertEvidenceSubjectLedgerIntegrity(session: StressTestSession, deliberationState: DeliberationState): void {
+  verifyDeliberationBinding(session, deliberationState);
+
+  const seenIds = new Set<string>();
+  const countByQuestionId = new Map<string, number>();
+
+  for (const subject of effectiveEvidenceSubjects(deliberationState)) {
+    assertExactKeys(subject, EVIDENCE_SUBJECT_STORED_KEYS, 'EvidenceSubject ledger entry');
+
+    assertNonEmptyString(subject.id, 'EvidenceSubject ledger entry: id');
+    if (seenIds.has(subject.id)) {
+      throw new Error(
+        `EvidenceSubject ledger entry: duplicate EvidenceSubject.id ${subject.id} -- identity-ambiguous legacy/inconsistent state`
+      );
+    }
+    seenIds.add(subject.id);
+
+    assertNonEmptyString(subject.originatingQuestionId, 'EvidenceSubject ledger entry: originatingQuestionId');
+    const matchingQuestions = deliberationState.unresolvedQuestions.filter((q) => q.id === subject.originatingQuestionId);
+    if (matchingQuestions.length !== 1) {
+      throw new Error(
+        `EvidenceSubject ledger entry: originatingQuestionId ${subject.originatingQuestionId} does not resolve to exactly one registered UnresolvedQuestion`
+      );
+    }
+    const question = matchingQuestions[0];
+    if (question.rootCause !== 'EVIDENCE_GAP') {
+      throw new Error(
+        `EvidenceSubject ledger entry: question ${question.id} has rootCause ${question.rootCause}, not EVIDENCE_GAP`
+      );
+    }
+
+    // Storage cardinality (decision M): zero-or-one per question. Zero for
+    // some other EVIDENCE_GAP question in the same state is never checked
+    // here -- only "does *this* subject's question already have another
+    // subject" is a violation.
+    const count = (countByQuestionId.get(subject.originatingQuestionId) ?? 0) + 1;
+    countByQuestionId.set(subject.originatingQuestionId, count);
+    if (count > 1) {
+      throw new Error(
+        `EvidenceSubject ledger entry: question ${subject.originatingQuestionId} has more than one EvidenceSubject -- inconsistent state`
+      );
+    }
+
+    if (subject.sourceRef === null || typeof subject.sourceRef !== 'object') {
+      throw new Error('EvidenceSubject ledger entry: sourceRef must be an object');
+    }
+    assertExactKeys(subject.sourceRef, ['kind', 'id'], 'EvidenceSubject ledger entry: sourceRef');
+    if (subject.sourceRef.kind !== 'FINDING' && subject.sourceRef.kind !== 'SEMANTIC_ISSUE') {
+      throw new Error(
+        `EvidenceSubject ledger entry: sourceRef.kind must be FINDING or SEMANTIC_ISSUE (got ${JSON.stringify(
+          (subject.sourceRef as { kind: unknown }).kind
+        )}) -- AUTHOR_CONTEXT_ITEM has no backing ReviewFinding to resolve to`
+      );
+    }
+    assertNonEmptyString(subject.sourceRef.id, 'EvidenceSubject ledger entry: sourceRef.id');
+    validateRouteInputRef(session, subject.sourceRef);
+
+    const matchesQuestionRef = question.inputRefs.some(
+      (ref) => ref.kind === subject.sourceRef.kind && ref.id === subject.sourceRef.id
+    );
+    if (!matchesQuestionRef) {
+      throw new Error(
+        `EvidenceSubject ledger entry: sourceRef does not exactly match any of question ${question.id}'s own inputRefs`
+      );
+    }
+
+    assertNonEmptyString(subject.originatingFindingId, 'EvidenceSubject ledger entry: originatingFindingId');
+    if (subject.sourceRef.kind === 'FINDING') {
+      if (subject.originatingFindingId !== subject.sourceRef.id) {
+        throw new Error(
+          'EvidenceSubject ledger entry: originatingFindingId must equal sourceRef.id when sourceRef.kind is FINDING'
+        );
+      }
+    } else {
+      // sourceRef.kind === 'SEMANTIC_ISSUE'. `.includes()` is unambiguous
+      // regardless of duplicate entries in `findingIds` -- a duplicated
+      // occurrence of the same id is still one target finding, never two,
+      // so no additional disambiguation is needed beyond membership itself.
+      const issue = session.semanticIssues[subject.sourceRef.id];
+      if (!issue) {
+        throw new Error(`EvidenceSubject ledger entry: unknown SEMANTIC_ISSUE id ${subject.sourceRef.id}`);
+      }
+      if (!Array.isArray(issue.findingIds) || !issue.findingIds.includes(subject.originatingFindingId)) {
+        throw new Error(
+          `EvidenceSubject ledger entry: originatingFindingId ${subject.originatingFindingId} is not a member of SemanticIssue ${issue.id}'s findingIds`
+        );
+      }
+    }
+    const resolvedFinding = session.findings[subject.originatingFindingId];
+    if (!resolvedFinding) {
+      throw new Error(
+        `EvidenceSubject ledger entry: originatingFindingId ${subject.originatingFindingId} does not resolve to a ReviewFinding in the current session`
+      );
+    }
+    if (resolvedFinding.id !== subject.originatingFindingId) {
+      throw new Error(
+        `EvidenceSubject ledger entry: resolved ReviewFinding's own id does not agree with originatingFindingId ${subject.originatingFindingId} -- map-key/stored-id mismatch`
+      );
+    }
+
+    assertNonEmptyString(subject.claimText, 'EvidenceSubject ledger entry: claimText');
+    if (Number.isNaN(Date.parse(subject.createdAt))) {
+      throw new Error('EvidenceSubject ledger entry: createdAt is not a valid parseable timestamp');
+    }
+
+    if (subject.sessionId !== deliberationState.sessionId) {
+      throw new Error('EvidenceSubject ledger entry: sessionId does not match the current DeliberationState/session binding');
+    }
+    if (subject.artifactHash !== deliberationState.artifactHash) {
+      throw new Error('EvidenceSubject ledger entry: artifactHash does not match the current DeliberationState/session binding');
+    }
+    if (subject.authorContextHash !== deliberationState.authorContextHash) {
+      throw new Error(
+        'EvidenceSubject ledger entry: authorContextHash does not match the current DeliberationState/session binding'
+      );
+    }
+  }
+}
+
+/**
+ * Shared route-readiness rule (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+ * §13.D decision O): before a SEEK_EVIDENCE route may be planned, recorded,
+ * or attempted for an EVIDENCE_GAP question, exactly one valid
+ * EvidenceSubject must already be registered for it. One shared
+ * implementation, called independently at all three gates below, so the
+ * rule is never duplicated three subtly different ways. Global ledger
+ * integrity is re-validated on every call, never skipped in favor of a
+ * local-only lookup (global-before-local).
+ */
+function assertSeekEvidenceSubjectReady(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  questionId: string
+): void {
+  assertEvidenceSubjectLedgerIntegrity(session, deliberationState);
+
+  const question = deliberationState.unresolvedQuestions.find((q) => q.id === questionId);
+  if (!question) {
+    throw new Error(`assertSeekEvidenceSubjectReady: questionId ${questionId} is not a currently registered unresolved question`);
+  }
+  if (question.rootCause !== 'EVIDENCE_GAP') {
+    throw new Error(`assertSeekEvidenceSubjectReady: question ${questionId} has rootCause ${question.rootCause}, not EVIDENCE_GAP`);
+  }
+
+  const matching = effectiveEvidenceSubjects(deliberationState).filter((s) => s.originatingQuestionId === questionId);
+  if (matching.length === 0) {
+    throw new Error(
+      `assertSeekEvidenceSubjectReady: question ${questionId} has no registered EvidenceSubject -- SEEK_EVIDENCE may not be planned, recorded, or attempted until registerEvidenceSubject is called for it`
+    );
+  }
+  if (matching.length > 1) {
+    throw new Error(
+      `assertSeekEvidenceSubjectReady: question ${questionId} has more than one EvidenceSubject -- inconsistent state`
+    );
+  }
+}
+
+/**
+ * Registers the immutable EvidenceSubject claim-identity fact for one
+ * already-registered, current EVIDENCE_GAP question -- offline audit
+ * bookkeeping only; no provider/retrieval call occurs here
+ * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.D, Slice 2D-C5-0 freeze,
+ * decision K). `questionId`-bound, not `attemptId`-bound: a precondition for
+ * planning a SEEK_EVIDENCE route to even exist, not the output of one
+ * (decision K's own resolution of the apparent tension with
+ * `createContextRequest`'s opposite, attempt-bound choice).
+ *
+ * `sourceRef` must exactly match one of the question's own `inputRefs` and
+ * be `FINDING`/`SEMANTIC_ISSUE` only -- `AUTHOR_CONTEXT_ITEM` is rejected
+ * outright, having no backing `ReviewFinding` to resolve to (decision E).
+ * `originatingFindingId` is mandatory leaf provenance, resolved against the
+ * actual `StressTestSession`, never merely a plausible-looking id (decision
+ * F). `ONE EVIDENCE_GAP question -> AT MOST ONE EvidenceSubject`: a second
+ * registration for a question that already has one is rejected outright --
+ * never overwritten, merged, or returned as an idempotent substitute
+ * (decision M).
+ *
+ * Returns two independent snapshots -- the appended `DeliberationState` and
+ * a freestanding `evidenceSubject` -- mirroring `createContextRequest`'s
+ * `buildSnapshot()`-called-twice discipline, so mutating one can never
+ * rewrite the other's stored history (decision W).
+ */
+export function registerEvidenceSubject(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  input: {
+    questionId: string;
+    sourceRef: RouteInputRef;
+    originatingFindingId: string;
+    claimText: string;
+  }
+): { deliberationState: DeliberationState; evidenceSubject: EvidenceSubject } {
+  verifyDeliberationBinding(session, deliberationState);
+  if (deliberationState.stopReason !== null) {
+    throw new Error('registerEvidenceSubject: deliberation has already stopped; no further EvidenceSubject may be registered');
+  }
+  if (input === null || typeof input !== 'object') {
+    throw new Error('registerEvidenceSubject: input must be an object');
+  }
+  assertExactKeys(input, ['questionId', 'sourceRef', 'originatingFindingId', 'claimText'], 'registerEvidenceSubject');
+  assertNonEmptyString(input.questionId, 'registerEvidenceSubject: questionId');
+
+  // Global before local: the COMPLETE existing ledger is proven sound before
+  // this registration trusts any local subject/question relationship.
+  assertEvidenceSubjectLedgerIntegrity(session, deliberationState);
+
+  const question = deliberationState.unresolvedQuestions.find((q) => q.id === input.questionId);
+  if (!question) {
+    throw new Error(`registerEvidenceSubject: questionId ${input.questionId} is not a currently registered unresolved question`);
+  }
+  if (question.rootCause !== 'EVIDENCE_GAP') {
+    throw new Error(`registerEvidenceSubject: question ${input.questionId} has rootCause ${question.rootCause}, not EVIDENCE_GAP`);
+  }
+  if (!isQuestionCurrent(deliberationState, input.questionId)) {
+    throw new Error(`registerEvidenceSubject: question ${input.questionId} is not current`);
+  }
+
+  if (input.sourceRef === null || typeof input.sourceRef !== 'object') {
+    throw new Error('registerEvidenceSubject: sourceRef must be an object');
+  }
+  assertExactKeys(input.sourceRef, ['kind', 'id'], 'registerEvidenceSubject: sourceRef');
+  if (input.sourceRef.kind !== 'FINDING' && input.sourceRef.kind !== 'SEMANTIC_ISSUE') {
+    throw new Error(
+      `registerEvidenceSubject: sourceRef.kind must be FINDING or SEMANTIC_ISSUE (got ${JSON.stringify(
+        (input.sourceRef as { kind: unknown }).kind
+      )}) -- AUTHOR_CONTEXT_ITEM has no backing ReviewFinding to resolve to`
+    );
+  }
+  assertNonEmptyString(input.sourceRef.id, 'registerEvidenceSubject: sourceRef.id');
+  validateRouteInputRef(session, input.sourceRef);
+
+  const matchesQuestionRef = question.inputRefs.some(
+    (ref) => ref.kind === input.sourceRef.kind && ref.id === input.sourceRef.id
+  );
+  if (!matchesQuestionRef) {
+    throw new Error(`registerEvidenceSubject: sourceRef does not exactly match any of question ${question.id}'s own inputRefs`);
+  }
+
+  assertNonEmptyString(input.originatingFindingId, 'registerEvidenceSubject: originatingFindingId');
+  if (input.sourceRef.kind === 'FINDING') {
+    if (input.originatingFindingId !== input.sourceRef.id) {
+      throw new Error('registerEvidenceSubject: originatingFindingId must equal sourceRef.id when sourceRef.kind is FINDING');
+    }
+  } else {
+    const issue = session.semanticIssues[input.sourceRef.id];
+    if (!issue) {
+      throw new Error(`registerEvidenceSubject: unknown SEMANTIC_ISSUE id ${input.sourceRef.id}`);
+    }
+    if (!Array.isArray(issue.findingIds) || !issue.findingIds.includes(input.originatingFindingId)) {
+      throw new Error(
+        `registerEvidenceSubject: originatingFindingId ${input.originatingFindingId} is not a member of SemanticIssue ${issue.id}'s findingIds`
+      );
+    }
+  }
+  const resolvedFinding = session.findings[input.originatingFindingId];
+  if (!resolvedFinding) {
+    throw new Error(
+      `registerEvidenceSubject: originatingFindingId ${input.originatingFindingId} does not resolve to a ReviewFinding in the current session`
+    );
+  }
+  if (resolvedFinding.id !== input.originatingFindingId) {
+    throw new Error(
+      `registerEvidenceSubject: resolved ReviewFinding's own id does not agree with originatingFindingId ${input.originatingFindingId} -- map-key/stored-id mismatch`
+    );
+  }
+
+  assertNonEmptyString(input.claimText, 'registerEvidenceSubject: claimText');
+
+  // Cardinality (decision M): zero currently registered for this question.
+  // Never overwritten, merged, or returned as an idempotent substitute.
+  if (effectiveEvidenceSubjects(deliberationState).some((s) => s.originatingQuestionId === input.questionId)) {
+    throw new Error(
+      `registerEvidenceSubject: question ${input.questionId} already has a registered EvidenceSubject; it is never overwritten or re-registered`
+    );
+  }
+
+  if (!session.artifactHash || !session.authorContextHash) {
+    throw new Error('registerEvidenceSubject: session is missing its frozen artifactHash/authorContextHash');
+  }
+
+  const id = randomUUID();
+  const createdAt = nowIso();
+  const sessionId = session.id;
+  const artifactHash = session.artifactHash;
+  const authorContextHash = session.authorContextHash;
+  const questionId = question.id;
+  const originatingFindingId = input.originatingFindingId;
+  const claimText = input.claimText;
+  const sourceRefSnapshot = cloneRouteInputRef(input.sourceRef);
+  const buildSnapshot = (): EvidenceSubject => ({
+    id,
+    originatingQuestionId: questionId,
+    sourceRef: cloneRouteInputRef(sourceRefSnapshot),
+    originatingFindingId,
+    claimText,
+    sessionId,
+    artifactHash,
+    authorContextHash,
+    createdAt,
+  });
+
+  return {
+    deliberationState: {
+      ...deliberationState,
+      evidenceSubjects: [...effectiveEvidenceSubjects(deliberationState), buildSnapshot()],
+    },
+    evidenceSubject: buildSnapshot(),
   };
 }

@@ -27,6 +27,7 @@ import {
   createCrossSessionTransition,
   assertSessionVersionLineageChildIntegrity,
   closeContextRequestWithoutResponse,
+  registerEvidenceSubject,
 } from './dist/stress-test/index.js';
 
 let passed = 0;
@@ -147,7 +148,15 @@ function buildRegisteredQuestion(session, state, input) {
   return { state: registered, question };
 }
 
-/** Convenience: register a question for the given rootCause, then plan+record its RouteDecision via the real API (never a raw history insert). */
+/**
+ * Convenience: register a question for the given rootCause, then plan+record
+ * its RouteDecision via the real API (never a raw history insert). For
+ * EVIDENCE_GAP, an EvidenceSubject is registered first via the real
+ * `registerEvidenceSubject` API -- required as of Slice 2D-C5-A's routing
+ * gates (planRouteForQuestion/recordRouteDecision both now reject a
+ * SEEK_EVIDENCE route with no registered subject); every other rootCause is
+ * unaffected.
+ */
 function buildRecordedDecisionFixture(rootCause, costCeiling = 5, latencyCeiling = 5) {
   const { session, issueId, findingIds } = buildFixtureWithIssue();
   const state0 = createDeliberationState(session, { costCeiling, latencyCeiling });
@@ -156,8 +165,17 @@ function buildRecordedDecisionFixture(rootCause, costCeiling = 5, latencyCeiling
     materialityReason: `material ${rootCause}`,
     inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
   });
-  const decision = planRouteForQuestion(session, state1, question);
-  const state2 = recordRouteDecision(session, state1, decision);
+  const state1b =
+    rootCause === 'EVIDENCE_GAP'
+      ? registerEvidenceSubject(session, state1, {
+          questionId: question.id,
+          sourceRef: { kind: 'SEMANTIC_ISSUE', id: issueId },
+          originatingFindingId: findingIds[0],
+          claimText: 'The platform team can absorb the migration work without additional contractor budget.',
+        }).deliberationState
+      : state1;
+  const decision = planRouteForQuestion(session, state1b, question);
+  const state2 = recordRouteDecision(session, state1b, decision);
   return { session, state: state2, decision, question, issueId, findingIds };
 }
 
@@ -5783,6 +5801,707 @@ check('recordRouteOutcome: NO_RESPONSE remains rejected through the generic path
       }),
     /NO_RESPONSE/
   );
+});
+
+// ==================================================================
+console.log('\nEvidenceSubject registry, integrity & routing gates (Slice 2D-C5-A)');
+// ==================================================================
+
+const VALID_CLAIM_TEXT = 'The platform team can absorb the migration work without additional contractor budget.';
+
+/** Convenience: a REVIEWED session + fresh DeliberationState + a registered, current EVIDENCE_GAP question whose inputRefs include a FINDING ref (findingIds[0]) and a SEMANTIC_ISSUE ref (issueId). No EvidenceSubject registered yet. */
+function buildEvidenceGapFixture(costCeiling = 5, latencyCeiling = 5) {
+  const { session, issueId, findingIds } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling, latencyCeiling });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'EVIDENCE_GAP',
+    materialityReason: 'material EVIDENCE_GAP',
+    inputRefs: [
+      { kind: 'FINDING', id: findingIds[0] },
+      { kind: 'SEMANTIC_ISSUE', id: issueId },
+    ],
+  });
+  return { session, state, question, issueId, findingIds };
+}
+
+/** Convenience: buildEvidenceGapFixture, plus exactly one registered EvidenceSubject (FINDING-sourced) for that question -- route-ready. */
+function buildEvidenceSubjectFixture(costCeiling = 5, latencyCeiling = 5) {
+  const base = buildEvidenceGapFixture(costCeiling, latencyCeiling);
+  const { deliberationState, evidenceSubject } = registerEvidenceSubject(base.session, base.state, {
+    questionId: base.question.id,
+    sourceRef: { kind: 'FINDING', id: base.findingIds[0] },
+    originatingFindingId: base.findingIds[0],
+    claimText: VALID_CLAIM_TEXT,
+  });
+  return { ...base, state: deliberationState, evidenceSubject };
+}
+
+/** Convenience: buildEvidenceSubjectFixture, plus a SECOND, independent, registered-but-not-yet-subject EVIDENCE_GAP question -- used as an unrelated ledger-integrity probe target for corruption tests. */
+function buildTwoQuestionEvidenceFixture(costCeiling = 5, latencyCeiling = 5) {
+  const base = buildEvidenceSubjectFixture(costCeiling, latencyCeiling);
+  const { state: withQ2, question: question2 } = buildRegisteredQuestion(base.session, base.state, {
+    rootCause: 'EVIDENCE_GAP',
+    materialityReason: 'material EVIDENCE_GAP (probe)',
+    inputRefs: [{ kind: 'FINDING', id: base.findingIds[1] }],
+  });
+  return { ...base, state: withQ2, question2 };
+}
+
+/** Replaces fixture.evidenceSubject with `corruptedSubject` in fixture.state, then proves the corruption is caught by attempting an unrelated, otherwise-valid registerEvidenceSubject for fixture.question2 -- exercising the global read-integrity boundary rather than exporting the private helper merely for test convenience. */
+function assertLedgerCorruptionRejected(fixture, corruptedSubject, expectedPattern) {
+  const corruptedState = {
+    ...fixture.state,
+    evidenceSubjects: fixture.state.evidenceSubjects.map((s) => (s.id === fixture.evidenceSubject.id ? corruptedSubject : s)),
+  };
+  assert.throws(
+    () =>
+      registerEvidenceSubject(fixture.session, corruptedState, {
+        questionId: fixture.question2.id,
+        sourceRef: { kind: 'FINDING', id: fixture.findingIds[1] },
+        originatingFindingId: fixture.findingIds[1],
+        claimText: 'probe claim',
+      }),
+    expectedPattern
+  );
+}
+
+check('createDeliberationState initializes evidenceSubjects to [], independent per call (no shared singleton)', () => {
+  const session = buildReviewedFixtureSession();
+  const state1 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const state2 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  assert.deepEqual(state1.evidenceSubjects, []);
+  assert.deepEqual(state2.evidenceSubjects, []);
+  assert.notEqual(state1.evidenceSubjects, state2.evidenceSubjects);
+});
+
+check('registerEvidenceSubject: happy path with a FINDING sourceRef', () => {
+  const { session, state, question, findingIds } = buildEvidenceGapFixture();
+  const { deliberationState: next, evidenceSubject } = registerEvidenceSubject(session, state, {
+    questionId: question.id,
+    sourceRef: { kind: 'FINDING', id: findingIds[0] },
+    originatingFindingId: findingIds[0],
+    claimText: VALID_CLAIM_TEXT,
+  });
+  assert.equal(typeof evidenceSubject.id, 'string');
+  assert.ok(evidenceSubject.id.length > 0);
+  assert.equal(evidenceSubject.originatingQuestionId, question.id);
+  assert.deepEqual(evidenceSubject.sourceRef, { kind: 'FINDING', id: findingIds[0] });
+  assert.equal(evidenceSubject.originatingFindingId, findingIds[0]);
+  assert.equal(evidenceSubject.claimText, VALID_CLAIM_TEXT);
+  assert.equal(evidenceSubject.sessionId, session.id);
+  assert.equal(evidenceSubject.artifactHash, session.artifactHash);
+  assert.equal(evidenceSubject.authorContextHash, session.authorContextHash);
+  assert.equal(typeof evidenceSubject.createdAt, 'string');
+  assert.ok(!Number.isNaN(Date.parse(evidenceSubject.createdAt)));
+  assert.equal(next.evidenceSubjects.length, 1);
+  assert.deepEqual(next.evidenceSubjects[0], evidenceSubject);
+  assert.notEqual(next.evidenceSubjects, state.evidenceSubjects);
+  assert.notEqual(next.evidenceSubjects[0], evidenceSubject, 'stored and returned snapshots must be independent objects');
+});
+
+check('registerEvidenceSubject: happy path with a SEMANTIC_ISSUE sourceRef -- leaf provenance is the named finding, never the whole issue', () => {
+  const { session, state, question, issueId, findingIds } = buildEvidenceGapFixture();
+  const { evidenceSubject } = registerEvidenceSubject(session, state, {
+    questionId: question.id,
+    sourceRef: { kind: 'SEMANTIC_ISSUE', id: issueId },
+    originatingFindingId: findingIds[1],
+    claimText: VALID_CLAIM_TEXT,
+  });
+  assert.deepEqual(evidenceSubject.sourceRef, { kind: 'SEMANTIC_ISSUE', id: issueId });
+  assert.equal(evidenceSubject.originatingFindingId, findingIds[1]);
+});
+
+check('registerEvidenceSubject: an AUTHOR_CONTEXT_ITEM sourceRef is rejected even when present in question.inputRefs', () => {
+  const { session, issueId, findingIds } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const authorItemId = session.authorContext.confirmedFacts[0].id;
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'EVIDENCE_GAP',
+    materialityReason: 'material EVIDENCE_GAP',
+    inputRefs: [{ kind: 'AUTHOR_CONTEXT_ITEM', id: authorItemId }],
+  });
+  const before = JSON.parse(JSON.stringify(state));
+  assert.throws(
+    () =>
+      registerEvidenceSubject(session, state, {
+        questionId: question.id,
+        sourceRef: { kind: 'AUTHOR_CONTEXT_ITEM', id: authorItemId },
+        originatingFindingId: findingIds[0],
+        claimText: VALID_CLAIM_TEXT,
+      }),
+    /FINDING or SEMANTIC_ISSUE/
+  );
+  assert.deepEqual(state, before, 'no mutation on rejection');
+});
+
+check('registerEvidenceSubject: rejects every non-EVIDENCE_GAP rootCause', () => {
+  for (const rootCause of ['CONTEXT_GAP', 'STABILITY_QUESTION', 'COVERAGE_GAP', 'DECISION_SENSITIVE_CONFLICT']) {
+    const { session, issueId } = buildFixtureWithIssue();
+    const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+    const { state, question } = buildRegisteredQuestion(session, state0, {
+      rootCause,
+      materialityReason: `material ${rootCause}`,
+      inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    });
+    assert.throws(
+      () =>
+        registerEvidenceSubject(session, state, {
+          questionId: question.id,
+          sourceRef: { kind: 'SEMANTIC_ISSUE', id: issueId },
+          originatingFindingId: Object.keys(session.findings)[0],
+          claimText: VALID_CLAIM_TEXT,
+        }),
+      /not EVIDENCE_GAP/,
+      `expected rootCause ${rootCause} to be rejected`
+    );
+  }
+});
+
+check('registerEvidenceSubject: rejects an unknown questionId', () => {
+  const { session, state } = buildEvidenceGapFixture();
+  assert.throws(
+    () =>
+      registerEvidenceSubject(session, state, {
+        questionId: 'not-a-real-question',
+        sourceRef: { kind: 'FINDING', id: Object.keys(session.findings)[0] },
+        originatingFindingId: Object.keys(session.findings)[0],
+        claimText: VALID_CLAIM_TEXT,
+      }),
+    /not a currently registered unresolved question/
+  );
+});
+
+check('registerEvidenceSubject: rejects once the question is no longer current (terminally disposed via a FAILED+RESOLVED cycle)', () => {
+  const { session, state, question, findingIds } = buildEvidenceGapFixture();
+  const { deliberationState: withSubject } = registerEvidenceSubject(session, state, {
+    questionId: question.id,
+    sourceRef: { kind: 'FINDING', id: findingIds[0] },
+    originatingFindingId: findingIds[0],
+    claimText: VALID_CLAIM_TEXT,
+  });
+  const decision = planRouteForQuestion(session, withSubject, question);
+  const recorded = recordRouteDecision(session, withSubject, decision);
+  const started = recordRouteAttemptStart(session, recorded, decision.id);
+  const attempt = started.attempts[0];
+  const withOutcome = recordRouteOutcome(session, started, {
+    attemptId: attempt.attemptId,
+    status: 'FAILED',
+    latencyConsumed: 1,
+    failure: VALID_FAILURE,
+  });
+  const disposed = recordQuestionDisposition(session, withOutcome, { attemptId: attempt.attemptId, disposition: 'RESOLVED', reason: 'x' });
+  assert.throws(
+    () =>
+      registerEvidenceSubject(session, disposed, {
+        questionId: question.id,
+        sourceRef: question.inputRefs.find((ref) => ref.kind === 'SEMANTIC_ISSUE'),
+        originatingFindingId: findingIds[1],
+        claimText: 'a different, later claim',
+      }),
+    /not current/
+  );
+});
+
+check('registerEvidenceSubject: rejects once the deliberation has already stopped', () => {
+  const { session, state, question, findingIds } = buildEvidenceGapFixture();
+  const stopDecision = planRouteForQuestion(session, state, {
+    id: 'stop-q',
+    rootCause: 'NONE',
+    materialityReason: 'nothing material remains',
+    inputRefs: [],
+    createdAt: new Date().toISOString(),
+  });
+  const stopped = recordRouteDecision(session, state, stopDecision, { stopReason: 'successful' });
+  assert.throws(
+    () =>
+      registerEvidenceSubject(session, stopped, {
+        questionId: question.id,
+        sourceRef: { kind: 'FINDING', id: findingIds[0] },
+        originatingFindingId: findingIds[0],
+        claimText: VALID_CLAIM_TEXT,
+      }),
+    /already stopped/
+  );
+});
+
+check('registerEvidenceSubject: rejects a sourceRef that is valid in the session but not a member of the question inputRefs', () => {
+  const { session, state, question, findingIds } = buildEvidenceGapFixture();
+  const before = JSON.parse(JSON.stringify(state));
+  assert.throws(
+    () =>
+      registerEvidenceSubject(session, state, {
+        questionId: question.id,
+        sourceRef: { kind: 'FINDING', id: findingIds[1] },
+        originatingFindingId: findingIds[1],
+        claimText: VALID_CLAIM_TEXT,
+      }),
+    /does not exactly match any of question/
+  );
+  assert.deepEqual(state, before, 'no mutation on rejection');
+});
+
+check('registerEvidenceSubject: FINDING sourceRef requires originatingFindingId to equal sourceRef.id exactly', () => {
+  const { session, issueId, findingIds } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'EVIDENCE_GAP',
+    materialityReason: 'material EVIDENCE_GAP',
+    inputRefs: [
+      { kind: 'FINDING', id: findingIds[0] },
+      { kind: 'FINDING', id: findingIds[1] },
+    ],
+  });
+  assert.throws(
+    () =>
+      registerEvidenceSubject(session, state, {
+        questionId: question.id,
+        sourceRef: { kind: 'FINDING', id: findingIds[0] },
+        originatingFindingId: findingIds[1],
+        claimText: VALID_CLAIM_TEXT,
+      }),
+    /originatingFindingId must equal sourceRef.id/
+  );
+});
+
+check('registerEvidenceSubject: rejects a sourceRef pointing at an unknown FINDING id', () => {
+  const { session, state, question } = buildEvidenceGapFixture();
+  assert.throws(
+    () =>
+      registerEvidenceSubject(session, state, {
+        questionId: question.id,
+        sourceRef: { kind: 'FINDING', id: 'unknown-finding-id' },
+        originatingFindingId: 'unknown-finding-id',
+        claimText: VALID_CLAIM_TEXT,
+      }),
+    /unknown FINDING id/
+  );
+});
+
+check('registerEvidenceSubject: SEMANTIC_ISSUE rejects an originatingFindingId that is not a member of issue.findingIds', () => {
+  const { session, state, question, issueId } = buildEvidenceGapFixture();
+  assert.throws(
+    () =>
+      registerEvidenceSubject(session, state, {
+        questionId: question.id,
+        sourceRef: { kind: 'SEMANTIC_ISSUE', id: issueId },
+        originatingFindingId: 'not-a-member-finding',
+        claimText: VALID_CLAIM_TEXT,
+      }),
+    /is not a member of SemanticIssue/
+  );
+});
+
+check('registerEvidenceSubject: SEMANTIC_ISSUE rejects an originatingFindingId present in a tampered findingIds array but absent from the session', () => {
+  const { session, state, question, issueId } = buildEvidenceGapFixture();
+  const tamperedSession = {
+    ...session,
+    semanticIssues: {
+      ...session.semanticIssues,
+      [issueId]: { ...session.semanticIssues[issueId], findingIds: [...session.semanticIssues[issueId].findingIds, 'ghost-finding'] },
+    },
+  };
+  assert.throws(
+    () =>
+      registerEvidenceSubject(tamperedSession, state, {
+        questionId: question.id,
+        sourceRef: { kind: 'SEMANTIC_ISSUE', id: issueId },
+        originatingFindingId: 'ghost-finding',
+        claimText: VALID_CLAIM_TEXT,
+      }),
+    /does not resolve to a ReviewFinding/
+  );
+});
+
+check('registerEvidenceSubject: a duplicated originatingFindingId entry inside SemanticIssue.findingIds is NOT treated as ambiguous -- membership alone is decisive, never rejected merely for appearing twice', () => {
+  const { session, state, question, issueId, findingIds } = buildEvidenceGapFixture();
+  const tamperedSession = {
+    ...session,
+    semanticIssues: {
+      ...session.semanticIssues,
+      [issueId]: { ...session.semanticIssues[issueId], findingIds: [findingIds[0], findingIds[0], findingIds[1]] },
+    },
+  };
+  const { evidenceSubject } = registerEvidenceSubject(tamperedSession, state, {
+    questionId: question.id,
+    sourceRef: { kind: 'SEMANTIC_ISSUE', id: issueId },
+    originatingFindingId: findingIds[0],
+    claimText: VALID_CLAIM_TEXT,
+  });
+  assert.equal(evidenceSubject.originatingFindingId, findingIds[0]);
+});
+
+check('registerEvidenceSubject: rejects every caller-derived/forbidden extra input key', () => {
+  const { session, state, question, findingIds } = buildEvidenceGapFixture();
+  const validInput = {
+    questionId: question.id,
+    sourceRef: { kind: 'FINDING', id: findingIds[0] },
+    originatingFindingId: findingIds[0],
+    claimText: VALID_CLAIM_TEXT,
+  };
+  const forbiddenExtras = [
+    { id: 'x' },
+    { sessionId: 'x' },
+    { artifactHash: 'x' },
+    { authorContextHash: 'x' },
+    { createdAt: new Date().toISOString() },
+    { artifactLocation: 'x' },
+    { attemptId: 'x' },
+    { decisionId: 'x' },
+    { evidenceSubjectId: 'x' },
+  ];
+  for (const extra of forbiddenExtras) {
+    assert.throws(
+      () => registerEvidenceSubject(session, state, { ...validInput, ...extra }),
+      /unexpected field/,
+      `expected ${JSON.stringify(Object.keys(extra))} to be rejected`
+    );
+  }
+});
+
+check('registerEvidenceSubject: rejects a malformed sourceRef shape or unsupported kind', () => {
+  const { session, state, question, findingIds } = buildEvidenceGapFixture();
+  const badSourceRefs = [
+    { kind: 'FINDING', id: findingIds[0], extra: 'x' },
+    { kind: 'FINDING' },
+    { id: findingIds[0] },
+  ];
+  for (const sourceRef of badSourceRefs) {
+    assert.throws(
+      () =>
+        registerEvidenceSubject(session, state, {
+          questionId: question.id,
+          sourceRef,
+          originatingFindingId: findingIds[0],
+          claimText: VALID_CLAIM_TEXT,
+        }),
+      undefined,
+      `expected sourceRef ${JSON.stringify(sourceRef)} to be rejected`
+    );
+  }
+});
+
+check('registerEvidenceSubject: a second registration for the same question is rejected regardless of same/different claim or source -- never overwritten, merged, or returned as an idempotent substitute', () => {
+  const { session, state, question, issueId, findingIds } = buildEvidenceGapFixture();
+  const { deliberationState: withFirst } = registerEvidenceSubject(session, state, {
+    questionId: question.id,
+    sourceRef: { kind: 'FINDING', id: findingIds[0] },
+    originatingFindingId: findingIds[0],
+    claimText: VALID_CLAIM_TEXT,
+  });
+  const secondAttempts = [
+    { sourceRef: { kind: 'FINDING', id: findingIds[0] }, originatingFindingId: findingIds[0], claimText: VALID_CLAIM_TEXT },
+    { sourceRef: { kind: 'FINDING', id: findingIds[0] }, originatingFindingId: findingIds[0], claimText: 'A different claim entirely.' },
+    { sourceRef: { kind: 'SEMANTIC_ISSUE', id: issueId }, originatingFindingId: findingIds[1], claimText: VALID_CLAIM_TEXT },
+  ];
+  for (const attemptInput of secondAttempts) {
+    assert.throws(
+      () => registerEvidenceSubject(session, withFirst, { questionId: question.id, ...attemptInput }),
+      /already has a registered EvidenceSubject/
+    );
+  }
+  assert.equal(withFirst.evidenceSubjects.length, 1);
+});
+
+check('registerEvidenceSubject: a DeliberationState predating evidenceSubjects is read as [] without mutating the source; the first registration returns an explicit canonical ledger', () => {
+  const { session, state, question, findingIds } = buildEvidenceGapFixture();
+  const legacyState = { ...state };
+  delete legacyState.evidenceSubjects;
+  const { deliberationState: next, evidenceSubject } = registerEvidenceSubject(session, legacyState, {
+    questionId: question.id,
+    sourceRef: { kind: 'FINDING', id: findingIds[0] },
+    originatingFindingId: findingIds[0],
+    claimText: VALID_CLAIM_TEXT,
+  });
+  assert.equal('evidenceSubjects' in legacyState, false);
+  assert.deepEqual(next.evidenceSubjects, [evidenceSubject]);
+});
+
+check('EvidenceSubject global integrity: an explicit non-array evidenceSubjects value fails closed, unlike a merely-missing field', () => {
+  const { session, state, question, findingIds } = buildEvidenceGapFixture();
+  const malformedState = { ...state, evidenceSubjects: 'not-an-array' };
+  assert.throws(
+    () =>
+      registerEvidenceSubject(session, malformedState, {
+        questionId: question.id,
+        sourceRef: { kind: 'FINDING', id: findingIds[0] },
+        originatingFindingId: findingIds[0],
+        claimText: VALID_CLAIM_TEXT,
+      }),
+    /not an array -- malformed state/
+  );
+});
+
+check('EvidenceSubject global integrity: a blank or duplicate EvidenceSubject.id in the ledger is rejected at the next read/write boundary', () => {
+  const fixture = buildTwoQuestionEvidenceFixture();
+
+  assertLedgerCorruptionRejected(fixture, { ...fixture.evidenceSubject, id: '' }, /id.*must be a non-empty string/);
+
+  const twoForSameQuestion = [fixture.evidenceSubject, { ...fixture.evidenceSubject, id: 'second-subject-id' }];
+  assert.throws(
+    () =>
+      registerEvidenceSubject(fixture.session, { ...fixture.state, evidenceSubjects: twoForSameQuestion }, {
+        questionId: fixture.question2.id,
+        sourceRef: { kind: 'FINDING', id: fixture.findingIds[1] },
+        originatingFindingId: fixture.findingIds[1],
+        claimText: 'probe claim',
+      }),
+    /more than one EvidenceSubject/
+  );
+});
+
+check('EvidenceSubject global integrity: unknown originatingQuestionId and a wrong-rootCause question are both rejected; zero subjects for a fresh EVIDENCE_GAP question is legitimate, never corruption', () => {
+  const fixture = buildTwoQuestionEvidenceFixture();
+
+  assertLedgerCorruptionRejected(
+    fixture,
+    { ...fixture.evidenceSubject, originatingQuestionId: 'not-a-real-question' },
+    /does not resolve to exactly one registered UnresolvedQuestion/
+  );
+
+  const { state: withCoverageQ, question: coverageQuestion } = buildRegisteredQuestion(fixture.session, fixture.state, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'material COVERAGE_GAP',
+    inputRefs: [{ kind: 'FINDING', id: fixture.findingIds[1] }],
+  });
+  assertLedgerCorruptionRejected(
+    { ...fixture, state: withCoverageQ },
+    { ...fixture.evidenceSubject, originatingQuestionId: coverageQuestion.id },
+    /not EVIDENCE_GAP/
+  );
+
+  // Zero subjects for question2 (a validly registered, current EVIDENCE_GAP
+  // question) is a legitimate pre-registration state, not corruption --
+  // proven by this ordinary registration succeeding.
+  const { evidenceSubject: subject2 } = registerEvidenceSubject(fixture.session, fixture.state, {
+    questionId: fixture.question2.id,
+    sourceRef: { kind: 'FINDING', id: fixture.findingIds[1] },
+    originatingFindingId: fixture.findingIds[1],
+    claimText: 'a valid second claim',
+  });
+  assert.equal(subject2.originatingQuestionId, fixture.question2.id);
+});
+
+check('EvidenceSubject global integrity: tampered sessionId/artifactHash/authorContextHash on a stored subject are each rejected against the authoritative session+state binding', () => {
+  const fixture = buildTwoQuestionEvidenceFixture();
+  const fields = [
+    ['sessionId', 'wrong-session'],
+    ['artifactHash', 'wrong-hash'],
+    ['authorContextHash', 'wrong-hash'],
+  ];
+  for (const [field, value] of fields) {
+    assertLedgerCorruptionRejected(fixture, { ...fixture.evidenceSubject, [field]: value }, /does not match the current DeliberationState\/session binding/);
+  }
+});
+
+check('EvidenceSubject global integrity: AUTHOR_CONTEXT_ITEM sourceRef, unknown FINDING/SEMANTIC_ISSUE ids, non-membership in question.inputRefs, and a wrong originatingFindingId are each rejected on read', () => {
+  const fixture = buildTwoQuestionEvidenceFixture();
+  const authorItemId = fixture.session.authorContext.confirmedFacts[0].id;
+
+  assertLedgerCorruptionRejected(
+    fixture,
+    { ...fixture.evidenceSubject, sourceRef: { kind: 'AUTHOR_CONTEXT_ITEM', id: authorItemId } },
+    /FINDING or SEMANTIC_ISSUE/
+  );
+  assertLedgerCorruptionRejected(fixture, { ...fixture.evidenceSubject, sourceRef: { kind: 'FINDING', id: 'ghost-finding' } }, /unknown FINDING id/);
+  assertLedgerCorruptionRejected(fixture, { ...fixture.evidenceSubject, sourceRef: { kind: 'SEMANTIC_ISSUE', id: 'ghost-issue' } }, /unknown SEMANTIC_ISSUE id/);
+  assertLedgerCorruptionRejected(
+    fixture,
+    { ...fixture.evidenceSubject, sourceRef: { kind: 'FINDING', id: fixture.findingIds[1] }, originatingFindingId: fixture.findingIds[1] },
+    /does not exactly match any of question/
+  );
+  assertLedgerCorruptionRejected(
+    fixture,
+    { ...fixture.evidenceSubject, originatingFindingId: fixture.findingIds[1] },
+    /originatingFindingId must equal sourceRef.id/
+  );
+  assertLedgerCorruptionRejected(
+    fixture,
+    { ...fixture.evidenceSubject, sourceRef: { kind: 'SEMANTIC_ISSUE', id: fixture.issueId }, originatingFindingId: 'not-a-member' },
+    /is not a member of SemanticIssue/
+  );
+});
+
+check('EvidenceSubject global integrity: blank claimText, malformed createdAt, and an unsupported stored extra field are each rejected on read', () => {
+  const fixture = buildTwoQuestionEvidenceFixture();
+  assertLedgerCorruptionRejected(fixture, { ...fixture.evidenceSubject, claimText: '   ' }, /claimText.*must be a non-empty string/);
+  assertLedgerCorruptionRejected(fixture, { ...fixture.evidenceSubject, createdAt: 'not-a-date' }, /createdAt is not a valid parseable timestamp/);
+  assertLedgerCorruptionRejected(fixture, { ...fixture.evidenceSubject, artifactLocation: 'paragraph 1' }, /unexpected field/);
+});
+
+check('planRouteForQuestion: gate 1 rejects an EVIDENCE_GAP question with zero EvidenceSubject; succeeds once exactly one is registered', () => {
+  const { session, state, question } = buildEvidenceGapFixture();
+  assert.throws(() => planRouteForQuestion(session, state, question), /no registered EvidenceSubject/);
+  assert.equal(state.evidenceSubjects.length, 0, 'no RouteDecision may be minted before subject registration');
+
+  const { deliberationState: withSubject } = registerEvidenceSubject(session, state, {
+    questionId: question.id,
+    sourceRef: question.inputRefs[0],
+    originatingFindingId: question.inputRefs[0].id,
+    claimText: VALID_CLAIM_TEXT,
+  });
+  const decision = planRouteForQuestion(session, withSubject, question);
+  assert.equal(decision.route, 'SEEK_EVIDENCE');
+});
+
+check('recordRouteDecision: gate 2 independently rejects a manually constructed SEEK_EVIDENCE decision when zero EvidenceSubject is registered, never trusting that planRouteForQuestion was called', () => {
+  const { session, issueId, findingIds } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const { state, question } = buildRegisteredQuestion(session, state0, {
+    rootCause: 'EVIDENCE_GAP',
+    materialityReason: 'material EVIDENCE_GAP',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  const manual = {
+    id: 'manual-seek-evidence-decision',
+    route: 'SEEK_EVIDENCE',
+    reason: { rootCause: 'EVIDENCE_GAP', materialityReason: 'material EVIDENCE_GAP' },
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    questionId: question.id,
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => recordRouteDecision(session, state, manual), /no registered EvidenceSubject/);
+
+  const { deliberationState: withSubject } = registerEvidenceSubject(session, state, {
+    questionId: question.id,
+    sourceRef: { kind: 'SEMANTIC_ISSUE', id: issueId },
+    originatingFindingId: findingIds[0],
+    claimText: VALID_CLAIM_TEXT,
+  });
+  const recorded = recordRouteDecision(session, withSubject, manual);
+  assert.equal(recorded.history.length, 1);
+  assert.equal(recorded.history[0].id, manual.id);
+});
+
+check('recordRouteAttemptStart: gate 3 independently rejects legacy/tampered state with the subject removed after recording, never trusting gates 1/2 historically', () => {
+  const { session, state, question, findingIds } = buildEvidenceGapFixture();
+  const { deliberationState: withSubject } = registerEvidenceSubject(session, state, {
+    questionId: question.id,
+    sourceRef: { kind: 'FINDING', id: findingIds[0] },
+    originatingFindingId: findingIds[0],
+    claimText: VALID_CLAIM_TEXT,
+  });
+  const decision = planRouteForQuestion(session, withSubject, question);
+  const recorded = recordRouteDecision(session, withSubject, decision);
+
+  const withoutSubject = { ...recorded, evidenceSubjects: [] };
+  assert.throws(() => recordRouteAttemptStart(session, withoutSubject, decision.id), /no registered EvidenceSubject/);
+
+  const started = recordRouteAttemptStart(session, recorded, decision.id);
+  assert.equal(started.attempts.length, 1);
+  assert.equal(started.attempts[0].route, 'SEEK_EVIDENCE');
+});
+
+check('SEEK_EVIDENCE gates: an unrelated corrupt EvidenceSubject elsewhere in the same ledger blocks Q1 too -- global before local, no selected-subject-first shortcut', () => {
+  const { session, state: state0, question: q1, findingIds: findingIds1 } = buildEvidenceGapFixture();
+  const { deliberationState: withQ1Subject } = registerEvidenceSubject(session, state0, {
+    questionId: q1.id,
+    sourceRef: { kind: 'FINDING', id: findingIds1[0] },
+    originatingFindingId: findingIds1[0],
+    claimText: VALID_CLAIM_TEXT,
+  });
+  const q1Decision = planRouteForQuestion(session, withQ1Subject, q1);
+  const withQ1Decision = recordRouteDecision(session, withQ1Subject, q1Decision);
+
+  const { state: withQ2, question: q2 } = buildRegisteredQuestion(session, withQ1Decision, {
+    rootCause: 'EVIDENCE_GAP',
+    materialityReason: 'material EVIDENCE_GAP (q2)',
+    inputRefs: [{ kind: 'FINDING', id: findingIds1[1] }],
+  });
+  const { deliberationState: withBothSubjects, evidenceSubject: subject2 } = registerEvidenceSubject(session, withQ2, {
+    questionId: q2.id,
+    sourceRef: { kind: 'FINDING', id: findingIds1[1] },
+    originatingFindingId: findingIds1[1],
+    claimText: 'A second, independent claim.',
+  });
+
+  const corruptedSubjects = withBothSubjects.evidenceSubjects.map((s) => (s.id === subject2.id ? { ...s, claimText: '' } : s));
+  const corruptedState = { ...withBothSubjects, evidenceSubjects: corruptedSubjects };
+
+  assert.throws(() => recordRouteAttemptStart(session, corruptedState, q1Decision.id), /claimText.*must be a non-empty string/);
+
+  const repairedSubjects = withBothSubjects.evidenceSubjects.map((s) => (s.id === subject2.id ? subject2 : s));
+  const repairedState = { ...withBothSubjects, evidenceSubjects: repairedSubjects };
+  const started = recordRouteAttemptStart(session, repairedState, q1Decision.id);
+  assert.equal(started.attempts.length, 1);
+});
+
+check('non-SEEK_EVIDENCE routes are unaffected by the EvidenceSubject gates -- planning/recording/attempt-start succeed with zero registered subjects', () => {
+  for (const rootCause of ['CONTEXT_GAP', 'STABILITY_QUESTION', 'COVERAGE_GAP', 'DECISION_SENSITIVE_CONFLICT']) {
+    const { state } = buildStartedAttemptFixture(rootCause);
+    assert.equal(state.evidenceSubjects.length, 0, `expected zero EvidenceSubjects for rootCause ${rootCause}`);
+    assert.equal(state.attempts.length, 1);
+  }
+});
+
+check('recordRouteOutcome: generic FAILED remains recordable for a legacy/tampered SEEK_EVIDENCE attempt with no EvidenceSubject at all -- FAILED asserts no evidence-relation judgment', () => {
+  const { session, state, question, findingIds } = buildEvidenceGapFixture();
+  const { deliberationState: withSubject } = registerEvidenceSubject(session, state, {
+    questionId: question.id,
+    sourceRef: { kind: 'FINDING', id: findingIds[0] },
+    originatingFindingId: findingIds[0],
+    claimText: VALID_CLAIM_TEXT,
+  });
+  const decision = planRouteForQuestion(session, withSubject, question);
+  const recorded = recordRouteDecision(session, withSubject, decision);
+  const started = recordRouteAttemptStart(session, recorded, decision.id);
+  const attempt = started.attempts[0];
+
+  const legacyState = { ...started, evidenceSubjects: [] };
+  const next = recordRouteOutcome(session, legacyState, {
+    attemptId: attempt.attemptId,
+    status: 'FAILED',
+    latencyConsumed: 1,
+    failure: VALID_FAILURE,
+  });
+  assert.equal(next.outcomes[0].status, 'FAILED');
+  assert.equal(next.outcomes[0].route, 'SEEK_EVIDENCE');
+});
+
+check('registerEvidenceSubject: alias isolation -- mutating caller input.sourceRef, the input object, or the returned evidenceSubject never rewrites stored ledger history', () => {
+  const { session, state, question, findingIds } = buildEvidenceGapFixture();
+  const sourceRef = { kind: 'FINDING', id: findingIds[0] };
+  const input = { questionId: question.id, sourceRef, originatingFindingId: findingIds[0], claimText: VALID_CLAIM_TEXT };
+  const { deliberationState: next, evidenceSubject } = registerEvidenceSubject(session, state, input);
+
+  sourceRef.id = 'mutated-after-call';
+  sourceRef.kind = 'SEMANTIC_ISSUE';
+  input.claimText = 'mutated input claimText';
+  assert.deepEqual(next.evidenceSubjects[0].sourceRef, { kind: 'FINDING', id: findingIds[0] });
+  assert.equal(next.evidenceSubjects[0].claimText, VALID_CLAIM_TEXT);
+
+  evidenceSubject.sourceRef.id = 'mutated-returned';
+  evidenceSubject.claimText = 'mutated returned claimText';
+  evidenceSubject.id = 'mutated-returned-id';
+  assert.deepEqual(next.evidenceSubjects[0].sourceRef, { kind: 'FINDING', id: findingIds[0] });
+  assert.equal(next.evidenceSubjects[0].claimText, VALID_CLAIM_TEXT);
+  assert.notEqual(next.evidenceSubjects[0].id, 'mutated-returned-id');
+});
+
+check('registerEvidenceSubject: modifies only evidenceSubjects -- session and every other DeliberationState field are unchanged, no cost/latency spend', () => {
+  const { session, state, question, findingIds } = buildEvidenceGapFixture();
+  const sessionBefore = JSON.parse(JSON.stringify(session));
+  const stateBefore = JSON.parse(JSON.stringify(state));
+
+  const { deliberationState: next } = registerEvidenceSubject(session, state, {
+    questionId: question.id,
+    sourceRef: { kind: 'FINDING', id: findingIds[0] },
+    originatingFindingId: findingIds[0],
+    claimText: VALID_CLAIM_TEXT,
+  });
+
+  assert.deepEqual(session, sessionBefore);
+  assert.deepEqual(state, stateBefore, 'original state object untouched (immutability)');
+  assert.deepEqual(next.unresolvedQuestions, stateBefore.unresolvedQuestions);
+  assert.deepEqual(next.history, stateBefore.history);
+  assert.deepEqual(next.attempts, stateBefore.attempts);
+  assert.deepEqual(next.outcomes, stateBefore.outcomes);
+  assert.deepEqual(next.questionDispositions, stateBefore.questionDispositions);
+  assert.deepEqual(next.contextRequests, stateBefore.contextRequests);
+  assert.deepEqual(next.sessionVersionLineages, stateBefore.sessionVersionLineages);
+  assert.deepEqual(next.costBudget, stateBefore.costBudget);
+  assert.deepEqual(next.latencyBudget, stateBefore.latencyBudget);
+  assert.equal(next.stopReason, stateBefore.stopReason);
+  assert.equal(next.evidenceSubjects.length, (stateBefore.evidenceSubjects ?? []).length + 1);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
