@@ -389,10 +389,10 @@ export type AddContextRouteOutcome = AddContextSuppliedRouteOutcome | AddContext
 /** Slice 2D-C2's complete RouteOutcome vocabulary. SEEK_EVIDENCE/TARGETED_PEER_CHALLENGE successful outcomes, ADD_CONTEXT's NO_RESPONSE result, and any INCONCLUSIVE outcome are not yet representable -- not authorized in this slice. */
 export type RouteOutcome = FailedRouteOutcome | AddReviewerRouteOutcome | ReplicationRouteOutcome | AddContextRouteOutcome;
 
-/** The full accepted architecture vocabulary (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9). `CROSS_SESSION` remains excluded from the recordable subset below -- it needs `ADD_CONTEXT` success + session-lineage runtime, not authorized yet. */
+/** The full accepted architecture vocabulary (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9). `CROSS_SESSION` remains excluded from the recordable subset below -- it is never constructed via the ordinary `recordQuestionDisposition` path; as of Slice 2D-C3, only the atomic `createCrossSessionTransition` operation may ever produce one. */
 export type QuestionDispositionKind = 'STILL_OPEN' | 'RESOLVED' | 'SUPERSEDED_RECLASSIFIED' | 'CROSS_SESSION';
 
-/** Slice 2D-B2-B's recordable subset. `SUPERSEDED_RECLASSIFIED` was added in Slice 2D-B2-B (`derivedFromQuestionId` on `UnresolvedQuestion`, ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9 Slice 2D-B2-B0 freeze). `CROSS_SESSION` remains excluded -- needs `ADD_CONTEXT` success + session-lineage runtime, not authorized yet. */
+/** Slice 2D-B2-B's recordable subset. `SUPERSEDED_RECLASSIFIED` was added in Slice 2D-B2-B (`derivedFromQuestionId` on `UnresolvedQuestion`, ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9 Slice 2D-B2-B0 freeze). `CROSS_SESSION` remains excluded -- as of Slice 2D-C3 its runtime exists, but exclusively through `createCrossSessionTransition`'s own atomic operation, never this ordinary recordable path. */
 export type RecordableQuestionDispositionKind = 'STILL_OPEN' | 'RESOLVED' | 'SUPERSEDED_RECLASSIFIED';
 
 const RECORDABLE_QUESTION_DISPOSITION_KINDS: readonly RecordableQuestionDispositionKind[] = [
@@ -677,14 +677,18 @@ function resolveUniqueRouteDecisionById(deliberationState: DeliberationState, de
  * rule is independently re-validated on every read, exactly the same
  * "never trust, always re-validate at the boundary" posture
  * `validateAttemptProvenanceForOutcome` already takes for `RouteAttempt`.
- * An injected unsupported disposition (`SUPERSEDED_RECLASSIFIED`,
- * `CROSS_SESSION`, or an unknown string) throws here rather than silently
- * being treated as non-terminal.
+ * `STILL_OPEN`/`RESOLVED`/`SUPERSEDED_RECLASSIFIED`/`CROSS_SESSION` are all
+ * valid *stored* kinds (`STORED_QUESTION_DISPOSITION_KINDS`); an injected
+ * unknown string still throws here rather than being silently treated as
+ * non-terminal. `CROSS_SESSION`'s own additional bijection with
+ * `SessionVersionLineage` is validated separately, one layer up
+ * (`assertCrossSessionLineageIntegrity`, Slice 2D-C3-0 amendment) -- this
+ * function only proves the disposition record itself is structurally sound.
  */
 /**
  * `STILL_OPEN` is the only non-terminal recordable disposition kind; every
- * other recordable kind (`RESOLVED`, `SUPERSEDED_RECLASSIFIED`) terminates a
- * question's disposition history (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+ * other stored kind (`RESOLVED`, `SUPERSEDED_RECLASSIFIED`, `CROSS_SESSION`)
+ * terminates a question's disposition history (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
  * §9 "Terminality"). Never called with an unsupported/unknown kind --
  * `assertLedgerQuestionDispositionIntegrity` already rejects those before
  * this predicate would ever see one.
@@ -832,11 +836,15 @@ function assertDerivedQuestionLineageIntegrity(deliberationState: DeliberationSt
   }
 
   // Step 3: QuestionDisposition ledger integrity -- per-attemptId cardinality
-  // AND per-questionId lifecycle terminality. Only once this passes can step
-  // 4 below safely assume every question has at most one terminal
-  // disposition (never two, e.g. a tampered RESOLVED + SUPERSEDED_RECLASSIFIED
-  // pair for the same parent).
-  assertQuestionDispositionLedgerIntegrity(deliberationState);
+  // AND per-questionId lifecycle terminality -- plus (Slice 2D-C3-0
+  // amendment) the complete CROSS_SESSION <-> SessionVersionLineage
+  // bijection, so an orphan or forged CROSS_SESSION disposition fails
+  // closed here rather than being silently accepted as terminal by whatever
+  // reads this state next (isQuestionCurrent included). Only once this
+  // passes can step 4 below safely assume every question has at most one
+  // terminal disposition (never two, e.g. a tampered RESOLVED +
+  // SUPERSEDED_RECLASSIFIED pair for the same parent).
+  assertCrossSessionLineageIntegrity(deliberationState);
 
   // Step 4: reverse integrity (child -> parent) and fork detection.
   const childIdsByParentId = new Map<string, string[]>();
@@ -1829,8 +1837,12 @@ export type RecordQuestionDispositionInput = RecordStillOpenOrResolvedDispositio
  *
  * Slice 2D-B2-B additionally records `SUPERSEDED_RECLASSIFIED`, atomically
  * with registering its replacement question (§"SUPERSEDED_RECLASSIFIED
- * branch" below); `CROSS_SESSION` remains rejected outright, not yet
- * authorized.
+ * branch" below); `CROSS_SESSION` remains rejected outright on this
+ * ordinary path -- as of Slice 2D-C3, `CROSS_SESSION` runtime exists, but
+ * only `createCrossSessionTransition`'s own atomic operation may ever
+ * construct one, after independently satisfying every ordinary disposition
+ * precondition itself plus its own additional cross-session provenance
+ * chain.
  */
 export function recordQuestionDisposition(
   session: StressTestSession,
@@ -2417,6 +2429,15 @@ function effectiveSessionVersionLineages(deliberationState: DeliberationState): 
  * `createCrossSessionTransition` (a fresh caller-named attempt) and by
  * `assertSessionVersionLineageLedgerIntegrity` (every *historical* lineage
  * entry's own recorded attempt, re-validated a second time at every read).
+ *
+ * **Slice 2D-C3-0 amendment -- parity with `validateAttemptProvenanceForOutcome`.**
+ * This function must never be a weaker attempt/decision/question provenance
+ * check than the one `recordRouteOutcome` already trusts -- it re-derives
+ * every state-resolvable rule that validator enforces (attempt identity
+ * fields, logical cost, `startedAt`, decision/question rootCause and
+ * materiality agreement, exact input-ref matching, and the root-cause ->
+ * route mapping), plus the `RouteOutcome` common-envelope fields that
+ * validator cannot check (it runs before any outcome exists).
  */
 function revalidateSuppliedOutcomeProvenance(
   deliberationState: DeliberationState,
@@ -2446,12 +2467,20 @@ function revalidateSuppliedOutcomeProvenance(
     throw new Error(`${label}: attemptId ${attemptId}'s RouteOutcome result is ${outcome.result}, not SUPPLIED -- DECLINED can never authorize a cross-session transition`);
   }
   assertNonEmptyString(outcome.responseText, `${label}: outcome.responseText`);
+  assertFiniteNonNegative(outcome.logicalCost, `${label}: outcome.logicalCost`);
+  assertFiniteNonNegative(outcome.latencyConsumed, `${label}: outcome.latencyConsumed`);
+  if (Number.isNaN(Date.parse(outcome.completedAt))) {
+    throw new Error(`${label}: outcome.completedAt is not a valid parseable timestamp`);
+  }
 
   const matchingAttempts = deliberationState.attempts.filter((a) => a.attemptId === outcome.attemptId);
   if (matchingAttempts.length !== 1) {
     throw new Error(`${label}: attemptId ${attemptId} does not resolve to exactly one RouteAttempt`);
   }
   const attempt = matchingAttempts[0];
+  assertNonEmptyString(attempt.attemptId, `${label}: attempt.attemptId`);
+  assertNonEmptyString(attempt.decisionId, `${label}: attempt.decisionId`);
+  assertNonEmptyString(attempt.questionId, `${label}: attempt.questionId`);
   if (attempt.sessionId !== deliberationState.sessionId) {
     throw new Error(`${label}: attempt ${attempt.attemptId}'s sessionId does not match the current DeliberationState binding`);
   }
@@ -2463,6 +2492,16 @@ function revalidateSuppliedOutcomeProvenance(
   }
   if (attempt.route !== 'ADD_CONTEXT') {
     throw new Error(`${label}: attempt ${attempt.attemptId} has route ${attempt.route}, not ADD_CONTEXT`);
+  }
+  assertFiniteNonNegative(attempt.logicalCost, `${label}: attempt.logicalCost`);
+  if (attempt.logicalCost !== logicalAttemptCostForRoute(attempt.route)) {
+    throw new Error(`${label}: attempt.logicalCost does not match the expected logical cost for its route`);
+  }
+  if (Number.isNaN(Date.parse(attempt.startedAt))) {
+    throw new Error(`${label}: attempt.startedAt is not a valid parseable timestamp`);
+  }
+  if (outcome.logicalCost !== attempt.logicalCost) {
+    throw new Error(`${label}: outcome.logicalCost does not match the resolved attempt's logicalCost`);
   }
 
   const decision = resolveUniqueRouteDecisionById(deliberationState, attempt.decisionId, label);
@@ -2484,6 +2523,21 @@ function revalidateSuppliedOutcomeProvenance(
     throw new Error(`${label}: attempt.questionId ${attempt.questionId} does not resolve to exactly one registered UnresolvedQuestion`);
   }
   const question = matchingQuestions[0];
+  if (outcome.originatingQuestionId !== question.id) {
+    throw new Error(`${label}: outcome.originatingQuestionId does not match the resolved question`);
+  }
+  if (decision.reason.rootCause !== question.rootCause) {
+    throw new Error(`${label}: recorded decision rootCause does not match the registered question rootCause`);
+  }
+  if (decision.reason.materialityReason !== question.materialityReason) {
+    throw new Error(`${label}: recorded decision materialityReason does not match the registered question materialityReason`);
+  }
+  if (!refsExactlyMatch(decision.inputRefs, question.inputRefs)) {
+    throw new Error(`${label}: recorded decision inputRefs do not exactly match the registered question inputRefs (order-sensitive)`);
+  }
+  if (routeForRootCause(question.rootCause) !== decision.route) {
+    throw new Error(`${label}: registered question rootCause does not map to the recorded decision route`);
+  }
 
   // Mandatory: the COMPLETE ContextRequest ledger must be sound before a
   // single selected request from it is ever trusted (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
@@ -2604,6 +2658,39 @@ function assertSessionVersionLineageLedgerIntegrity(deliberationState: Deliberat
 }
 
 /**
+ * Combined global cross-session integrity (Slice 2D-C3-0 amendment §9-11):
+ * (1) ordinary `QuestionDisposition` ledger integrity; (2) the complete
+ * `SessionVersionLineage` ledger, which already independently enforces the
+ * forward direction -- every lineage has exactly one matching `CROSS_SESSION`
+ * disposition (`assertSessionVersionLineageLedgerIntegrity`, above); (3) the
+ * reverse direction this amendment adds -- every `CROSS_SESSION` disposition
+ * has exactly one matching lineage, never zero (an orphan terminal fact with
+ * no session ever actually produced) or more than one (ambiguous history).
+ * Together the two directions form a bijection, scoped to one parent
+ * `DeliberationState`, between `CROSS_SESSION` dispositions and
+ * `SessionVersionLineage` entries. Pure, non-cached, non-memoized; every
+ * violation fails closed (throws), never silently interpreted as "not
+ * terminal" by a caller such as `isQuestionCurrent`.
+ */
+function assertCrossSessionLineageIntegrity(deliberationState: DeliberationState): void {
+  assertQuestionDispositionLedgerIntegrity(deliberationState);
+  assertSessionVersionLineageLedgerIntegrity(deliberationState);
+
+  const lineages = effectiveSessionVersionLineages(deliberationState);
+  for (const disposition of deliberationState.questionDispositions) {
+    if (disposition.disposition !== 'CROSS_SESSION') continue;
+    const matchingLineages = lineages.filter(
+      (l) => l.suppliedOutcomeAttemptId === disposition.attemptId && l.originatingQuestionId === disposition.questionId
+    );
+    if (matchingLineages.length !== 1) {
+      throw new Error(
+        `assertCrossSessionLineageIntegrity: CROSS_SESSION disposition for attemptId ${disposition.attemptId} does not have exactly one matching SessionVersionLineage -- orphan or ambiguous cross-session history`
+      );
+    }
+  }
+}
+
+/**
  * Validates the actual child `StressTestSession` against its
  * `SessionVersionLineage` record -- the dimension the parent-side helper
  * above cannot reach, because Session B is never stored inside
@@ -2612,6 +2699,20 @@ function assertSessionVersionLineageLedgerIntegrity(deliberationState: Deliberat
  * amendment). Only meaningful when the caller actually holds the child
  * session object -- exported so it can be invoked wherever that is true,
  * not only inside `createCrossSessionTransition` itself.
+ *
+ * **Slice 2D-C3-0 amendment §15-16.** `parentSession`'s own identity is now
+ * independently bound to `lineage` (never silently ignored merely because
+ * it is accepted as a parameter), and the passed `suppliedOutcome`/
+ * `contextRequest` snapshots are cross-checked against `lineage`'s own
+ * copied identity fields. This does **not** prove those snapshots came from
+ * an authoritative `DeliberationState` ledger -- this function receives no
+ * `DeliberationState` and cannot re-derive that; that membership proof
+ * remains exclusively parent-side (`assertSessionVersionLineageLedgerIntegrity`/
+ * `assertCrossSessionLineageIntegrity`, above). A caller invoking this
+ * helper with a self-consistent but entirely fabricated `lineage`/
+ * `suppliedOutcome`/`contextRequest` triple -- none of them ever actually
+ * recorded anywhere -- is a case only the parent-side ledger helpers can
+ * catch.
  */
 export function assertSessionVersionLineageChildIntegrity(
   parentSession: StressTestSession,
@@ -2620,6 +2721,38 @@ export function assertSessionVersionLineageChildIntegrity(
   suppliedOutcome: AddContextSuppliedRouteOutcome,
   contextRequest: ContextRequest
 ): void {
+  verifyFrozenInputIntegrity(parentSession);
+  if (lineage.parentSessionId !== parentSession.id) {
+    throw new Error('assertSessionVersionLineageChildIntegrity: lineage.parentSessionId does not match parentSession.id');
+  }
+  if (lineage.parentArtifactHash !== parentSession.artifactHash) {
+    throw new Error('assertSessionVersionLineageChildIntegrity: lineage.parentArtifactHash does not match parentSession.artifactHash');
+  }
+  if (lineage.parentAuthorContextHash !== parentSession.authorContextHash) {
+    throw new Error('assertSessionVersionLineageChildIntegrity: lineage.parentAuthorContextHash does not match parentSession.authorContextHash');
+  }
+
+  if (
+    suppliedOutcome.attemptId !== lineage.suppliedOutcomeAttemptId ||
+    suppliedOutcome.originatingQuestionId !== lineage.originatingQuestionId ||
+    suppliedOutcome.contextRequestId !== lineage.contextRequestId
+  ) {
+    throw new Error('assertSessionVersionLineageChildIntegrity: suppliedOutcome does not match lineage\'s own identity fields');
+  }
+  if (suppliedOutcome.route !== 'ADD_CONTEXT' || suppliedOutcome.status !== 'SUCCEEDED' || suppliedOutcome.result !== 'SUPPLIED') {
+    throw new Error('assertSessionVersionLineageChildIntegrity: suppliedOutcome is not a SUCCEEDED ADD_CONTEXT SUPPLIED outcome');
+  }
+  if (
+    contextRequest.id !== lineage.contextRequestId ||
+    contextRequest.originatingAttemptId !== lineage.suppliedOutcomeAttemptId ||
+    contextRequest.originatingQuestionId !== lineage.originatingQuestionId ||
+    contextRequest.originatingSessionId !== lineage.parentSessionId ||
+    contextRequest.artifactHash !== lineage.parentArtifactHash ||
+    contextRequest.authorContextHash !== lineage.parentAuthorContextHash
+  ) {
+    throw new Error('assertSessionVersionLineageChildIntegrity: contextRequest does not match lineage\'s own identity fields');
+  }
+
   if (childSession.id !== lineage.childSessionId) {
     throw new Error('assertSessionVersionLineageChildIntegrity: childSession.id does not match lineage.childSessionId');
   }
@@ -2630,6 +2763,9 @@ export function assertSessionVersionLineageChildIntegrity(
     throw new Error(`assertSessionVersionLineageChildIntegrity: childSession.state must be INPUT_FROZEN (got ${childSession.state})`);
   }
   verifyFrozenInputIntegrity(childSession);
+  if (childSession.artifactText !== parentSession.artifactText) {
+    throw new Error('assertSessionVersionLineageChildIntegrity: childSession.artifactText does not equal parentSession.artifactText');
+  }
   if (childSession.artifactHash !== lineage.childArtifactHash) {
     throw new Error('assertSessionVersionLineageChildIntegrity: childSession.artifactHash does not match lineage.childArtifactHash');
   }
@@ -2747,11 +2883,12 @@ export function createCrossSessionTransition(
     );
   }
 
-  // Mandatory: the COMPLETE SessionVersionLineage ledger must be sound, and
-  // this exact SUPPLIED outcome must not already have produced one, before
-  // any child session is constructed (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
-  // §13.A, decision O; Slice 2D-C3-0 amendment §16).
-  assertSessionVersionLineageLedgerIntegrity(parentDeliberationState);
+  // Mandatory: the COMPLETE cross-session history (disposition ledger +
+  // lineage ledger + their bijection) must be sound, and this exact SUPPLIED
+  // outcome must not already have produced a lineage, before any child
+  // session is constructed (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+  // §13.A, decision O; Slice 2D-C3-0 amendment §9-11/§14).
+  assertCrossSessionLineageIntegrity(parentDeliberationState);
   if (effectiveSessionVersionLineages(parentDeliberationState).some((l) => l.suppliedOutcomeAttemptId === outcome.attemptId)) {
     throw new Error(
       `createCrossSessionTransition: attemptId ${outcome.attemptId} already produced a SessionVersionLineage -- one SUPPLIED outcome may create at most one child session`
@@ -2836,19 +2973,27 @@ export function createCrossSessionTransition(
     createdAt,
   };
 
+  const provisionalDeliberationState: DeliberationState = {
+    ...parentDeliberationState,
+    questionDispositions: [...parentDeliberationState.questionDispositions, disposition],
+    sessionVersionLineages: [...effectiveSessionVersionLineages(parentDeliberationState), buildLineageSnapshot()],
+  };
+
+  // Prove the newly-created pair satisfies the exact same global read rules
+  // any later, independent read of this state will apply -- not merely that
+  // it looked correct while being assembled here (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+  // §13.A; Slice 2D-C3-0 amendment §14).
+  assertCrossSessionLineageIntegrity(provisionalDeliberationState);
+
   // Child-side validation runs on the actual constructed child before any
-  // success return -- the parent-side ledger helper above cannot reach this
+  // success return -- the parent-side ledger helpers above cannot reach this
   // dimension (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.A, "Child-side
   // lineage validation boundary," Slice 2D-C3-0 amendment).
   assertSessionVersionLineageChildIntegrity(parentSession, buildLineageSnapshot(), childSession, outcome, contextRequest);
 
   return {
     session: parentSession,
-    deliberationState: {
-      ...parentDeliberationState,
-      questionDispositions: [...parentDeliberationState.questionDispositions, disposition],
-      sessionVersionLineages: [...effectiveSessionVersionLineages(parentDeliberationState), buildLineageSnapshot()],
-    },
+    deliberationState: provisionalDeliberationState,
     childSession,
     lineage: buildLineageSnapshot(),
   };

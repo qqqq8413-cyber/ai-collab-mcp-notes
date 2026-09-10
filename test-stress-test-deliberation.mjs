@@ -5189,7 +5189,7 @@ check('createCrossSessionTransition: mandatory global ContextRequest ledger inte
   );
 });
 
-check('createCrossSessionTransition: tampered existing SessionVersionLineage ledger entries are rejected at the next transition', () => {
+check('createCrossSessionTransition: tampered existing SessionVersionLineage ledger entries poison the entire DeliberationState -- any subsequent currentness read fails closed (Slice 2D-C3-0 amendment)', () => {
   const tamperFns = [
     (l) => ({ ...l, lineageId: '' }),
     (l) => ({ ...l, childSessionId: l.parentSessionId }),
@@ -5202,33 +5202,171 @@ check('createCrossSessionTransition: tampered existing SessionVersionLineage led
   for (const tamper of tamperFns) {
     const first = buildAddContextSuppliedFixture();
     const firstResult = createCrossSessionTransition(first.session, first.state, { suppliedOutcomeAttemptId: first.attempt.attemptId });
+    const questionId = firstResult.deliberationState.unresolvedQuestions[0].id;
     const tamperedState = { ...firstResult.deliberationState, sessionVersionLineages: [tamper(firstResult.lineage)] };
-    const second = extendWithSecondSuppliedCycle(firstResult.session, tamperedState);
     assert.throws(
-      () => createCrossSessionTransition(second.session, second.state, { suppliedOutcomeAttemptId: second.attempt.attemptId }),
+      () => isQuestionCurrent(tamperedState, questionId),
       undefined,
       `expected lineage tamper to be rejected: ${JSON.stringify(tamper(firstResult.lineage))}`
     );
+    assert.throws(() => createCrossSessionTransition(firstResult.session, tamperedState, { suppliedOutcomeAttemptId: first.attempt.attemptId }));
   }
   {
     // Duplicate lineageId/childSessionId/suppliedOutcomeAttemptId in one shot.
     const first = buildAddContextSuppliedFixture();
     const firstResult = createCrossSessionTransition(first.session, first.state, { suppliedOutcomeAttemptId: first.attempt.attemptId });
+    const questionId = firstResult.deliberationState.unresolvedQuestions[0].id;
     const tamperedState = {
       ...firstResult.deliberationState,
       sessionVersionLineages: [firstResult.lineage, { ...firstResult.lineage }],
     };
-    const second = extendWithSecondSuppliedCycle(firstResult.session, tamperedState);
-    assert.throws(() => createCrossSessionTransition(second.session, second.state, { suppliedOutcomeAttemptId: second.attempt.attemptId }));
+    assert.throws(() => isQuestionCurrent(tamperedState, questionId));
+  }
+});
+
+check('revalidateSuppliedOutcomeProvenance (via createCrossSessionTransition): enforces full attempt/decision/question provenance parity with validateAttemptProvenanceForOutcome (Slice 2D-C3-0 amendment §5)', () => {
+  {
+    const { session, state, attempt } = buildAddContextSuppliedFixture();
+    const tamperedAttempts = state.attempts.map((a) => (a.attemptId === attempt.attemptId ? { ...a, logicalCost: a.logicalCost + 1 } : a));
+    assert.throws(() =>
+      createCrossSessionTransition(session, { ...state, attempts: tamperedAttempts }, { suppliedOutcomeAttemptId: attempt.attemptId })
+    );
   }
   {
-    // Lineage present, matching CROSS_SESSION disposition removed.
-    const first = buildAddContextSuppliedFixture();
-    const firstResult = createCrossSessionTransition(first.session, first.state, { suppliedOutcomeAttemptId: first.attempt.attemptId });
-    const tamperedState = { ...firstResult.deliberationState, questionDispositions: [] };
-    const second = extendWithSecondSuppliedCycle(firstResult.session, tamperedState);
-    assert.throws(() => createCrossSessionTransition(second.session, second.state, { suppliedOutcomeAttemptId: second.attempt.attemptId }));
+    const { session, state, attempt } = buildAddContextSuppliedFixture();
+    const tamperedAttempts = state.attempts.map((a) => (a.attemptId === attempt.attemptId ? { ...a, startedAt: 'not-a-date' } : a));
+    assert.throws(() =>
+      createCrossSessionTransition(session, { ...state, attempts: tamperedAttempts }, { suppliedOutcomeAttemptId: attempt.attemptId })
+    );
   }
+  {
+    // route remains ADD_CONTEXT throughout -- proves the deeper decision/question checks, not the route check, are what reject this.
+    const { session, state, attempt, decision } = buildAddContextSuppliedFixture();
+    const tamperedHistory = state.history.map((d) =>
+      d.id === decision.id ? { ...d, reason: { ...d.reason, rootCause: 'EVIDENCE_GAP' } } : d
+    );
+    assert.throws(() =>
+      createCrossSessionTransition(session, { ...state, history: tamperedHistory }, { suppliedOutcomeAttemptId: attempt.attemptId })
+    );
+  }
+  {
+    const { session, state, attempt, decision } = buildAddContextSuppliedFixture();
+    const tamperedHistory = state.history.map((d) =>
+      d.id === decision.id ? { ...d, reason: { ...d.reason, materialityReason: 'a different materiality reason' } } : d
+    );
+    assert.throws(() =>
+      createCrossSessionTransition(session, { ...state, history: tamperedHistory }, { suppliedOutcomeAttemptId: attempt.attemptId })
+    );
+  }
+  {
+    const { session, state, attempt, decision } = buildAddContextSuppliedFixture();
+    const tamperedHistory = state.history.map((d) => (d.id === decision.id ? { ...d, inputRefs: [] } : d));
+    assert.throws(() =>
+      createCrossSessionTransition(session, { ...state, history: tamperedHistory }, { suppliedOutcomeAttemptId: attempt.attemptId })
+    );
+  }
+});
+
+check('revalidateSuppliedOutcomeProvenance (via createCrossSessionTransition): rejects a tampered RouteOutcome common envelope', () => {
+  const tampers = [
+    (o) => ({ ...o, logicalCost: o.logicalCost + 1 }),
+    (o) => ({ ...o, latencyConsumed: -1 }),
+    (o) => ({ ...o, completedAt: 'not-a-date' }),
+  ];
+  for (const tamper of tampers) {
+    const { session, state, attempt } = buildAddContextSuppliedFixture();
+    const tamperedOutcomes = state.outcomes.map((o) => (o.attemptId === attempt.attemptId ? tamper(o) : o));
+    assert.throws(() =>
+      createCrossSessionTransition(session, { ...state, outcomes: tamperedOutcomes }, { suppliedOutcomeAttemptId: attempt.attemptId })
+    );
+  }
+});
+
+check('isQuestionCurrent: an orphan CROSS_SESSION disposition (no matching SessionVersionLineage) throws, never returns false (Slice 2D-C3-0 amendment §9/§20)', () => {
+  const { state, attempt, question } = buildAddContextSuppliedFixture();
+  const orphanDisposition = {
+    attemptId: attempt.attemptId,
+    questionId: question.id,
+    sessionId: state.sessionId,
+    artifactHash: state.artifactHash,
+    authorContextHash: state.authorContextHash,
+    disposition: 'CROSS_SESSION',
+    reason: 'orphan CROSS_SESSION with no lineage',
+    createdAt: new Date().toISOString(),
+  };
+  assert.throws(() => isQuestionCurrent({ ...state, questionDispositions: [orphanDisposition] }, question.id));
+});
+
+check('isQuestionCurrent: a SessionVersionLineage with no matching CROSS_SESSION disposition throws (bijection reverse direction, Slice 2D-C3-0 amendment §10/§21)', () => {
+  const { session, state, attempt, question } = buildAddContextSuppliedFixture();
+  const result = createCrossSessionTransition(session, state, { suppliedOutcomeAttemptId: attempt.attemptId });
+  const tamperedState = { ...result.deliberationState, questionDispositions: [] };
+  assert.throws(() => isQuestionCurrent(tamperedState, question.id));
+  assert.throws(() => createCrossSessionTransition(result.session, tamperedState, { suppliedOutcomeAttemptId: attempt.attemptId }));
+});
+
+check('isQuestionCurrent: a CROSS_SESSION disposition with a superficially matching but corrupted lineage throws -- existence alone is not sufficient (Slice 2D-C3-0 amendment §22)', () => {
+  const { session, state, attempt, question } = buildAddContextSuppliedFixture();
+  const result = createCrossSessionTransition(session, state, { suppliedOutcomeAttemptId: attempt.attemptId });
+  const forgedLineage = { ...result.lineage, parentArtifactHash: 'forged-hash-still-matches-attemptId-and-questionId' };
+  const tamperedState = { ...result.deliberationState, sessionVersionLineages: [forgedLineage] };
+  assert.throws(() => isQuestionCurrent(tamperedState, question.id));
+});
+
+check('createCrossSessionTransition: a normal completed transition remains a valid bijection -- no regression (Slice 2D-C3-0 amendment §23)', () => {
+  const { session, state, attempt, question } = buildAddContextSuppliedFixture();
+  const result = createCrossSessionTransition(session, state, { suppliedOutcomeAttemptId: attempt.attemptId });
+  assert.equal(isQuestionCurrent(result.deliberationState, question.id), false);
+  assert.equal(result.deliberationState.sessionVersionLineages.length, 1);
+  assert.equal(result.deliberationState.questionDispositions.filter((d) => d.disposition === 'CROSS_SESSION').length, 1);
+});
+
+check('isQuestionCurrent: Q2 is fine on its own, but throws when an unrelated historical CROSS_SESSION/lineage pair (Q1) in the same state is corrupt -- global before local (Slice 2D-C3-0 amendment §24)', () => {
+  const first = buildAddContextSuppliedFixture();
+  const firstResult = createCrossSessionTransition(first.session, first.state, { suppliedOutcomeAttemptId: first.attempt.attemptId });
+  const second = extendWithSecondSuppliedCycle(firstResult.session, firstResult.deliberationState);
+  assert.equal(isQuestionCurrent(second.state, second.question.id), true);
+
+  const corruptedLineages = second.state.sessionVersionLineages.map((l) =>
+    l.suppliedOutcomeAttemptId === first.attempt.attemptId ? { ...l, parentArtifactHash: 'corrupted-elsewhere-in-the-same-ledger' } : l
+  );
+  const corruptedState = { ...second.state, sessionVersionLineages: corruptedLineages };
+  assert.throws(() => isQuestionCurrent(corruptedState, second.question.id));
+});
+
+check('assertSessionVersionLineageChildIntegrity: rejects a wrong/substituted parentSession, and a tampered childSession.artifactText (Slice 2D-C3-0 amendment §15)', () => {
+  const { session, state, attempt, contextRequest, outcome } = buildAddContextSuppliedFixture();
+  const result = createCrossSessionTransition(session, state, { suppliedOutcomeAttemptId: attempt.attemptId });
+  const { lineage, childSession } = result;
+
+  const wrongIdParent = { ...session, id: 'wrong-parent-id' };
+  assert.throws(() => assertSessionVersionLineageChildIntegrity(wrongIdParent, lineage, childSession, outcome, contextRequest));
+
+  const unrelated = buildAddContextSuppliedFixture('an unrelated fixture session');
+  assert.throws(() => assertSessionVersionLineageChildIntegrity(unrelated.session, lineage, childSession, outcome, contextRequest));
+
+  const tamperedChildText = { ...childSession, artifactText: `${childSession.artifactText} tampered` };
+  assert.throws(() => assertSessionVersionLineageChildIntegrity(session, lineage, tamperedChildText, outcome, contextRequest));
+});
+
+check('assertSessionVersionLineageChildIntegrity: rejects a different SUPPLIED outcome or ContextRequest snapshot than the lineage actually names (Slice 2D-C3-0 amendment §16)', () => {
+  const first = buildAddContextSuppliedFixture('first response text');
+  const firstResult = createCrossSessionTransition(first.session, first.state, { suppliedOutcomeAttemptId: first.attempt.attemptId });
+  const second = extendWithSecondSuppliedCycle(firstResult.session, firstResult.deliberationState, 'second response text');
+  const secondOutcome = second.state.outcomes.find((o) => o.attemptId === second.attempt.attemptId);
+
+  assert.throws(() =>
+    assertSessionVersionLineageChildIntegrity(firstResult.session, firstResult.lineage, firstResult.childSession, secondOutcome, first.contextRequest)
+  );
+  assert.throws(() =>
+    assertSessionVersionLineageChildIntegrity(
+      firstResult.session,
+      firstResult.lineage,
+      firstResult.childSession,
+      first.outcome,
+      second.contextRequest
+    )
+  );
 });
 
 check('createCrossSessionTransition: after CROSS_SESSION, Q1 is permanently terminal -- no further routing may target it', () => {
