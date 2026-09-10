@@ -5899,9 +5899,9 @@ check('registerEvidenceSubject: happy path with a FINDING sourceRef', () => {
   assert.notEqual(next.evidenceSubjects[0], evidenceSubject, 'stored and returned snapshots must be independent objects');
 });
 
-check('registerEvidenceSubject: happy path with a SEMANTIC_ISSUE sourceRef -- leaf provenance is the named finding, never the whole issue', () => {
+check('registerEvidenceSubject: happy path with a SEMANTIC_ISSUE sourceRef whose selected finding is a member exactly once -- leaf provenance is the named finding, never the whole issue; routing readiness also passes', () => {
   const { session, state, question, issueId, findingIds } = buildEvidenceGapFixture();
-  const { evidenceSubject } = registerEvidenceSubject(session, state, {
+  const { deliberationState: next, evidenceSubject } = registerEvidenceSubject(session, state, {
     questionId: question.id,
     sourceRef: { kind: 'SEMANTIC_ISSUE', id: issueId },
     originatingFindingId: findingIds[1],
@@ -5909,6 +5909,8 @@ check('registerEvidenceSubject: happy path with a SEMANTIC_ISSUE sourceRef -- le
   });
   assert.deepEqual(evidenceSubject.sourceRef, { kind: 'SEMANTIC_ISSUE', id: issueId });
   assert.equal(evidenceSubject.originatingFindingId, findingIds[1]);
+  const decision = planRouteForQuestion(session, next, question);
+  assert.equal(decision.route, 'SEEK_EVIDENCE');
 });
 
 check('registerEvidenceSubject: an AUTHOR_CONTEXT_ITEM sourceRef is rejected even when present in question.inputRefs', () => {
@@ -6112,13 +6114,36 @@ check('registerEvidenceSubject: SEMANTIC_ISSUE rejects an originatingFindingId p
   );
 });
 
-check('registerEvidenceSubject: a duplicated originatingFindingId entry inside SemanticIssue.findingIds is NOT treated as ambiguous -- membership alone is decisive, never rejected merely for appearing twice', () => {
+check('registerEvidenceSubject: SEMANTIC_ISSUE rejects when the selected originatingFindingId occurs more than once in a tampered findingIds array -- Slice 2D-C5-A amendment, never deduplicated/first-matched/treated as harmless', () => {
   const { session, state, question, issueId, findingIds } = buildEvidenceGapFixture();
   const tamperedSession = {
     ...session,
     semanticIssues: {
       ...session.semanticIssues,
       [issueId]: { ...session.semanticIssues[issueId], findingIds: [findingIds[0], findingIds[0], findingIds[1]] },
+    },
+  };
+  const before = JSON.parse(JSON.stringify(state));
+  assert.throws(
+    () =>
+      registerEvidenceSubject(tamperedSession, state, {
+        questionId: question.id,
+        sourceRef: { kind: 'SEMANTIC_ISSUE', id: issueId },
+        originatingFindingId: findingIds[0],
+        claimText: VALID_CLAIM_TEXT,
+      }),
+    /occurs 2 times.*malformed, provenance-ambiguous membership/
+  );
+  assert.deepEqual(state, before, 'no EvidenceSubject appended on rejection');
+});
+
+check('registerEvidenceSubject: SEMANTIC_ISSUE succeeds when an UNRELATED id is duplicated in findingIds, as long as the selected originatingFindingId itself occurs exactly once', () => {
+  const { session, state, question, issueId, findingIds } = buildEvidenceGapFixture();
+  const tamperedSession = {
+    ...session,
+    semanticIssues: {
+      ...session.semanticIssues,
+      [issueId]: { ...session.semanticIssues[issueId], findingIds: [findingIds[0], findingIds[1], findingIds[1]] },
     },
   };
   const { evidenceSubject } = registerEvidenceSubject(tamperedSession, state, {
@@ -6128,6 +6153,27 @@ check('registerEvidenceSubject: a duplicated originatingFindingId entry inside S
     claimText: VALID_CLAIM_TEXT,
   });
   assert.equal(evidenceSubject.originatingFindingId, findingIds[0]);
+});
+
+check('EvidenceSubject global integrity: a stored SEMANTIC_ISSUE-sourced subject whose selected finding now occurs more than once in the authoritative session (legacy/tampered upstream state) is rejected at a public read boundary (planRouteForQuestion)', () => {
+  const { session, state, question, issueId, findingIds } = buildEvidenceGapFixture();
+  const { deliberationState: withSubject } = registerEvidenceSubject(session, state, {
+    questionId: question.id,
+    sourceRef: { kind: 'SEMANTIC_ISSUE', id: issueId },
+    originatingFindingId: findingIds[1],
+    claimText: VALID_CLAIM_TEXT,
+  });
+  const tamperedSession = {
+    ...session,
+    semanticIssues: {
+      ...session.semanticIssues,
+      [issueId]: { ...session.semanticIssues[issueId], findingIds: [findingIds[0], findingIds[1], findingIds[1]] },
+    },
+  };
+  assert.throws(
+    () => planRouteForQuestion(tamperedSession, withSubject, question),
+    /occurs 2 times.*malformed, provenance-ambiguous membership/
+  );
 });
 
 check('registerEvidenceSubject: rejects every caller-derived/forbidden extra input key', () => {

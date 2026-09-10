@@ -364,7 +364,7 @@ export interface ReplicationRouteOutcome extends RouteOutcomeCommon {
   targetRef: RouteInputRef;
 }
 
-/** The full accepted architecture vocabulary for ADD_CONTEXT's human-response mechanism (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7.A). `NO_RESPONSE` remains excluded from the recordable subset below -- its terminalization mechanism is a still-open architecture decision (§24). */
+/** The full accepted architecture vocabulary for ADD_CONTEXT's human-response mechanism (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7.A). `NO_RESPONSE`'s explicit closure mechanism is implemented and accepted (Slice 2D-C4) -- it is excluded from `recordRouteOutcome`'s own recordable subset below not because it is unauthorized, but because only the dedicated `closeContextRequestWithoutResponse` operation may ever create it (§ below, decision C). */
 export type AddContextResult = 'SUPPLIED' | 'DECLINED' | 'NO_RESPONSE';
 
 /** The immutable terminal record for a successful ADD_CONTEXT attempt whose human context-request mechanism obtained supplied context. `contextRequestId` resolves to the exact `ContextRequest` this outcome answers -- independently re-verified to belong to this same attempt/question/session/hash binding, never trusted merely because a caller supplied a plausible-looking id (Slice 2D-C2). `responseText` is an immutable, provider-neutral response fact; recording it never mutates `AuthorContext` or creates a new session. */
@@ -1541,9 +1541,13 @@ export interface RecordRouteOutcomeInput {
  * successful `REPLICATE` outcome, and successful `ADD_CONTEXT` `SUPPLIED`/
  * `DECLINED` outcomes (each independently re-verified against the complete
  * `ContextRequest` ledger, never trusted from the input alone). `ADD_CONTEXT`
- * `NO_RESPONSE`, `SEEK_EVIDENCE`/`TARGETED_PEER_CHALLENGE` successful
- * outcomes, and any `INCONCLUSIVE` outcome are rejected outright — not yet
- * authorized, regardless of how plausible the supplied payload looks.
+ * `NO_RESPONSE` is rejected outright through this function regardless of how
+ * plausible the supplied payload looks -- not because it is unauthorized
+ * (Slice 2D-C4 implemented and accepted its own dedicated
+ * `closeContextRequestWithoutResponse` operation), but because this function
+ * is never the path that creates it. `SEEK_EVIDENCE`/`TARGETED_PEER_CHALLENGE`
+ * successful outcomes and any `INCONCLUSIVE` outcome remain rejected outright
+ * because they are genuinely not yet authorized.
  *
  * `attemptId` is resolved only against `deliberationState.attempts` (no
  * free-floating outcome) and re-validated against its own recorded
@@ -3248,6 +3252,44 @@ function effectiveEvidenceSubjects(deliberationState: DeliberationState): Eviden
 }
 
 /**
+ * Shared leaf-provenance rule for a SEMANTIC_ISSUE-sourced EvidenceSubject,
+ * enforced identically at write (`registerEvidenceSubject`) and read
+ * (`assertEvidenceSubjectLedgerIntegrity`) time so the two boundaries can
+ * never drift into two subtly different interpretations (Slice 2D-C5-A
+ * amendment). The selected `originatingFindingId` must occur EXACTLY ONCE in
+ * the resolved SemanticIssue's own `findingIds` -- `SemanticIssue.findingIds`
+ * is an audit/provenance collection, not a set; a repeated occurrence means
+ * the authoritative upstream provenance structure is itself malformed. It is
+ * never silently deduplicated, first-matched, or treated as harmless merely
+ * because every occurrence resolves to the same `ReviewFinding` identity --
+ * corrected here from the original `.includes()`-only membership check,
+ * which could not distinguish "member once" from "member more than once."
+ */
+function assertSemanticIssueEvidenceLeaf(
+  session: StressTestSession,
+  semanticIssueId: string,
+  originatingFindingId: string,
+  label: string
+): void {
+  const issue = session.semanticIssues[semanticIssueId];
+  if (!issue) {
+    throw new Error(`${label}: unknown SEMANTIC_ISSUE id ${semanticIssueId}`);
+  }
+  if (!Array.isArray(issue.findingIds)) {
+    throw new Error(`${label}: SemanticIssue ${issue.id}'s findingIds is not an array -- malformed state`);
+  }
+  const occurrences = issue.findingIds.filter((id) => id === originatingFindingId).length;
+  if (occurrences === 0) {
+    throw new Error(`${label}: originatingFindingId ${originatingFindingId} is not a member of SemanticIssue ${issue.id}'s findingIds`);
+  }
+  if (occurrences > 1) {
+    throw new Error(
+      `${label}: originatingFindingId ${originatingFindingId} occurs ${occurrences} times in SemanticIssue ${issue.id}'s findingIds -- malformed, provenance-ambiguous membership`
+    );
+  }
+}
+
+/**
  * Validates the COMPLETE `evidenceSubjects[]` ledger, never only the one
  * subject a caller happens to be creating or resolving -- the same "global
  * before local" posture required at every other ledger boundary since the
@@ -3345,19 +3387,8 @@ function assertEvidenceSubjectLedgerIntegrity(session: StressTestSession, delibe
         );
       }
     } else {
-      // sourceRef.kind === 'SEMANTIC_ISSUE'. `.includes()` is unambiguous
-      // regardless of duplicate entries in `findingIds` -- a duplicated
-      // occurrence of the same id is still one target finding, never two,
-      // so no additional disambiguation is needed beyond membership itself.
-      const issue = session.semanticIssues[subject.sourceRef.id];
-      if (!issue) {
-        throw new Error(`EvidenceSubject ledger entry: unknown SEMANTIC_ISSUE id ${subject.sourceRef.id}`);
-      }
-      if (!Array.isArray(issue.findingIds) || !issue.findingIds.includes(subject.originatingFindingId)) {
-        throw new Error(
-          `EvidenceSubject ledger entry: originatingFindingId ${subject.originatingFindingId} is not a member of SemanticIssue ${issue.id}'s findingIds`
-        );
-      }
+      // sourceRef.kind === 'SEMANTIC_ISSUE'.
+      assertSemanticIssueEvidenceLeaf(session, subject.sourceRef.id, subject.originatingFindingId, 'EvidenceSubject ledger entry');
     }
     const resolvedFinding = session.findings[subject.originatingFindingId];
     if (!resolvedFinding) {
@@ -3515,15 +3546,7 @@ export function registerEvidenceSubject(
       throw new Error('registerEvidenceSubject: originatingFindingId must equal sourceRef.id when sourceRef.kind is FINDING');
     }
   } else {
-    const issue = session.semanticIssues[input.sourceRef.id];
-    if (!issue) {
-      throw new Error(`registerEvidenceSubject: unknown SEMANTIC_ISSUE id ${input.sourceRef.id}`);
-    }
-    if (!Array.isArray(issue.findingIds) || !issue.findingIds.includes(input.originatingFindingId)) {
-      throw new Error(
-        `registerEvidenceSubject: originatingFindingId ${input.originatingFindingId} is not a member of SemanticIssue ${issue.id}'s findingIds`
-      );
-    }
+    assertSemanticIssueEvidenceLeaf(session, input.sourceRef.id, input.originatingFindingId, 'registerEvidenceSubject');
   }
   const resolvedFinding = session.findings[input.originatingFindingId];
   if (!resolvedFinding) {
