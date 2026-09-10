@@ -337,19 +337,19 @@ SeekEvidenceResult = 'SUPPORTIVE' | 'CONTRADICTORY' | 'INCONCLUSIVE'
 
 The accepted Phase 2 contract requires `SEEK_EVIDENCE` to identify the specific factual claim needing verification, its originating `ReviewFinding`/`SemanticIssue`, and that finding's own `artifactLocation`/provenance (`MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §4). The current product-domain `RouteInputRef` vocabulary identifies only a `FINDING` or `SEMANTIC_ISSUE` as a whole — there is no typed `ClaimId`, `ClaimRef`, or `EvidenceSubject` anywhere in the accepted runtime. The frozen `{ result, citations }` payload therefore cannot, by itself, answer *"which exact claim were these citations evaluating?"* whenever one finding carries more than one factual proposition, or a `SemanticIssue` aggregates multiple findings.
 
-This gap is **not solved here**. In particular, this document does not casually add `claimText`, `claimId`, `claimIndex`, `paragraphId`, or `chunkId` without a separately justified design: paragraph-local identity is not product authority (`MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §9); an arbitrary copied claim-text field can drift from the source it was copied from; a `SemanticIssue` can aggregate multiple findings; and one finding can carry more than one factual proposition, so a single finding/issue reference does not uniquely identify a claim inside it. `SEEK_EVIDENCE`'s claim-level provenance requires a separately authorized architecture decision — recorded as genuinely open (§24), not invented under the pressure of this amendment.
+**Corrected by the Slice 2D-C5-0 freeze — the gap is now closed.** See "Schema freeze (Slice 2D-C5-0): `EvidenceSubject` / claim-level provenance" in §13.D for the complete closed answer: a dedicated, immutable `EvidenceSubject` audit fact, registered before routing, referenced by id from the eventual `RouteOutcome` rather than restated. This document no longer declines to add claim identity — it adds exactly one durable identity (`EvidenceSubject.id`) and explicitly continues to reject `claimIndex`/`paragraphId`/`chunkId` as identity (they remain provenance/location facts, never authority).
 
-##### Runtime readiness (Slice 2D-B0 final amendment) — corrects the prior readiness claim
+##### Runtime readiness — corrected by the Slice 2D-C5-0 freeze
 
-Until claim-level `EvidenceSubject` provenance is separately frozen, **no `SEEK_EVIDENCE` result variant may be recorded** by a future RouteOutcome runtime (invariant 32, §20):
+The claim-identity *architecture* that previously blocked every `SEEK_EVIDENCE` result variant is now closed (§13.D, Slice 2D-C5-0). Runtime itself remains **NOT YET IMPLEMENTED** — this freeze closes the schema; it does not build `registerEvidenceSubject`, the `EvidenceSubject` ledger, the routing gate, or `SeekEvidenceRouteOutcome` recording (§25):
 
 | Result | Runtime readiness |
 |---|---|
-| `SUPPORTIVE` | BLOCKED |
-| `CONTRADICTORY` | BLOCKED |
-| `INCONCLUSIVE` | BLOCKED |
+| `SUPPORTIVE` | **SCHEMA FROZEN — RUNTIME NOT YET AUTHORIZED** |
+| `CONTRADICTORY` | **SCHEMA FROZEN — RUNTIME NOT YET AUTHORIZED** |
+| `INCONCLUSIVE` | **SCHEMA FROZEN — RUNTIME NOT YET AUTHORIZED** |
 
-A generic `FAILED` `RouteOutcome` + `FailureInfo` may still eventually be recorded — failure only records that the attempt did not produce a valid route result; it does not claim a successful evidence judgment against any claim. Retrieval itself remains **NOT AUTHORIZED** regardless of this readiness question. This corrects the prior version of this document, which marked `SEEK_EVIDENCE` "schema ready, execution/retrieval not authorized" without surfacing the claim-identity gap above — the successful-result schema was not actually complete, only its citation shape was.
+A generic `FAILED` `RouteOutcome` + `FailureInfo` remains recordable for an already-started `SEEK_EVIDENCE` attempt regardless of `EvidenceSubject` — failure only records that the attempt did not produce a valid route result; it does not claim a successful evidence judgment against any claim, so it never needed claim identity in the first place (§13.D, decision P). Retrieval itself remains **NOT AUTHORIZED** regardless of this readiness question.
 
 Provider-neutral evidence citation, reused as a principle from `main`'s already-validated retrieval shape (`src/providers/types.ts::RetrievalSource { title?: string; url: string }` and `RetrievalResult`) — inspected directly, read-only, per §4 of this packet:
 
@@ -463,7 +463,7 @@ Every new type this schema freeze defines follows the same independent-snapshot 
 
 **M. (Slice 2D-B0 final amendment) Must a `TARGETED_PEER_CHALLENGE` outcome's `targetRef`/`sourceRef` originate from the terminated `RouteDecision`'s own `inputRefs`?** Yes, exactly, with no inference and no new ref introduced at outcome time (invariant 31).
 
-**N. (Slice 2D-B0 final amendment) Is `SEEK_EVIDENCE`'s claim-level provenance closed?** No — genuinely open (§24). This document explicitly declines to invent `claimText`/`claimId`/`claimIndex`/`paragraphId`/`chunkId` without a separately justified design.
+**N. (Slice 2D-B0 final amendment) Is `SEEK_EVIDENCE`'s claim-level provenance closed?** **Corrected by the Slice 2D-C5-0 freeze: YES.** A dedicated `EvidenceSubject` audit fact now carries claim identity (`id`) and an immutable `claimText`; `claimIndex`/`paragraphId`/`chunkId` remain explicitly rejected as identity, exactly as this document always insisted (§13.D, Slice 2D-C5-0 freeze).
 
 #### Route readiness table (Slice 2D-B0 final amendment)
 
@@ -1514,6 +1514,193 @@ Route output: new `ReviewFinding[]` from one reviewer pass (accepted, unchanged 
 
 Evidence-lookup result, one of: supportive | contradictory | partial/inconclusive | execution failure. The first two map to `AttemptStatus = SUCCEEDED`; "partial/inconclusive" maps to `AttemptStatus = INCONCLUSIVE` (§6); "execution failure" maps to `AttemptStatus = FAILED`. Never directly mutates `ReviewFinding.evidenceState` — any later projection into that vocabulary is an explicit, separately-designed re-evaluation step (§14), not an automatic side effect of the lookup.
 
+#### Schema freeze (Slice 2D-C5-0): `EvidenceSubject` / claim-level provenance
+
+The claim-identity gap has been named, unsolved, since the Slice 2D-B0 final amendment (§7, "Claim-identity gap") for exactly one reason: the accepted `RouteInputRef` vocabulary identifies a whole `ReviewFinding`/`SemanticIssue`, never the one factual proposition inside it that a `SEEK_EVIDENCE` attempt actually evaluates. This freeze closes that gap. Nothing below is implemented; no `src/**` type, function, or test is added.
+
+**Core architecture question, answered:** the immutable product-domain identity is a dedicated `EvidenceSubject` record — its own identity (`id`), registered *before* routing, naming the exact factual proposition (`claimText`) and its exact leaf `ReviewFinding` provenance (`originatingFindingId`) — referenced afterward by every `SEEK_EVIDENCE` `RouteDecision`/`RouteAttempt`/`RouteOutcome` for that question, never restated. `EvidenceSubject` answers "which exact claim" the same way `ContextRequest` already answers "which exact context gap" and `SessionVersionLineage` already answers "which exact session transition" — one dedicated, independently-identified audit fact per concept, never a bag of fields grafted onto an unrelated type.
+
+##### A. Is `EvidenceSubject` required?
+
+Closed: YES. `{result, citations}` alone identifies a source, never which claim inside a `ReviewFinding`/`SemanticIssue` the citations evaluate — the exact gap the Slice 2D-B0 final amendment named and declined to paper over. The same "a disposition-kind boolean is never enough, a nested single field is never enough" reasoning already applied to `QuestionDisposition` (§9) and to `SessionVersionLineage` (§13.A, Slice 2D-C3-0 freeze, decision A) applies here: a citation shape alone cannot answer "of what."
+
+##### B. `EvidenceSubject` identity
+
+Closed: a fresh, runtime-generated `id: string` — never `originatingQuestionId` reused as identity (a question can, in principle, later be reclassified or superseded, §9; the claim being verified should not silently inherit a lifecycle event that belongs to a different concept), never a copied/derived value from `ReviewFinding`/`SemanticIssue`, and never `paragraphId`/`chunkId`/`claimIndex`/array position/text offset — all of those describe *where inside a source* something sits, never *what durable product concept* it is, exactly the distinction `MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §9 already draws for every other identity in this contract.
+
+##### C. Minimum fields
+
+Closed:
+
+```
+EvidenceSubject {
+  id                  -- fresh identity (§B)
+  originatingQuestionId -- the EVIDENCE_GAP question this claim belongs to
+  sourceRef              -- RouteInputRef, FINDING | SEMANTIC_ISSUE only (§E)
+  originatingFindingId     -- mandatory leaf ReviewFinding provenance (§F)
+  claimText                 -- the immutable registered factual proposition (§D below)
+  sessionId                  -- derived-and-copied convenience field (§ below)
+  artifactHash                 -- derived-and-copied convenience field
+  authorContextHash              -- derived-and-copied convenience field
+  createdAt                       -- runtime-generated
+}
+```
+
+**Corrected from the governing packet's own proposed shape:** `sessionId`/`artifactHash`/`authorContextHash` are added. The packet's suggested minimum field list omitted them, but every other audit-fact type this contract has ever frozen for a `DeliberationState`-owned ledger — `QuestionDisposition` (§9), `ContextRequest` (§7, Slice 2D-C0), `SessionVersionLineage` (§13.A, Slice 2D-C3-0) — carries this exact trio as a derived-and-copied convenience field, independently re-verified against the containing `DeliberationState`'s own binding at every read (never independently caller-authoritative). Omitting it here would be an unexplained, unjustified departure from an otherwise-universal pattern in this document, not a genuine minimization — this is the one concrete correction inspection surfaced (packet §5's own instruction: "identify any concrete missing or redundant field before freezing").
+
+No `artifactLocation` (§G — derived, never duplicated). No `sourceExcerpt`/copied finding text (the leaf `ReviewFinding` already owns its own text/`artifactLocation`; `EvidenceSubject` only needs to *point* at it, via `originatingFindingId`).
+
+##### D. `claimText` authority and semantics
+
+Closed: `claimText` is the exact factual proposition deliberately registered for evidence evaluation — **not** required to be a byte-for-byte quotation already stored inside the `ReviewFinding` it originates from, and not verified by any semantic/NLP check that it is "really" contained in that finding (§ below, "Trust boundary"). Once registered: immutable, never silently rewritten, and never restated by a `RouteOutcome` (§Q) — every later reference is by `EvidenceSubject.id` alone, exactly the discipline that prevents `responseText`/`reason`/every other authored-text field in this contract from drifting between where it was authored and where it is later used (§13.A decision D's identical reasoning for `ContextRequest.category`/`SUPPLIED.responseText`).
+
+##### Trust boundary (packet §8)
+
+Closed, stated precisely to avoid overclaiming: this domain runtime can prove "this exact immutable proposition was registered as the evidence subject for this exact `EVIDENCE_GAP` question, with this exact finding/issue provenance, at this exact time." It **cannot** cryptographically or semantically prove "the proposition is a faithful, complete extraction of what the source finding actually says" — that judgment call is a caller-supplied semantic act, structurally identical in kind (never in mechanism) to `materialityReason` (§8 of the routing contract) and to `ADD_REVIEWER`'s already-accepted "structural defensibility, not cryptographic proof" trust model (§7, decision D). No new verification machinery is invented to close that gap; it was never closeable within this domain layer's existing trust boundary, and pretending otherwise would overclaim.
+
+##### E. `sourceRef` allowlist
+
+Closed: `FINDING` | `SEMANTIC_ISSUE` only — `AUTHOR_CONTEXT_ITEM` is excluded. This is not merely a preference; it is a structural consequence of decision F below: `originatingFindingId` must always resolve to exactly one real `ReviewFinding`, and an `AUTHOR_CONTEXT_ITEM` has no backing `ReviewFinding` to resolve to at all (`AuthorContextItem` and `ReviewFinding` are unrelated types, `src/stress-test/types.ts`) — there is no leaf-provenance path for author-supplied context to satisfy. `sourceRef` must exactly match one of the originating `EVIDENCE_GAP` question's own `inputRefs` (`(kind, id)` equality, no inference) — the same "no arbitrary new ref introduced only at [creation] time" discipline already frozen for `REPLICATE.targetRef` (§7.C) and `TARGETED_PEER_CHALLENGE`'s two refs (§7.E, invariant 31).
+
+##### F. Mandatory leaf `ReviewFinding` provenance
+
+Closed: `originatingFindingId` is mandatory in every case, even when `sourceRef.kind === 'SEMANTIC_ISSUE'`. If `sourceRef.kind === 'FINDING'`, then `originatingFindingId === sourceRef.id` exactly. If `sourceRef.kind === 'SEMANTIC_ISSUE'`, the named `SemanticIssue` must exist, and `originatingFindingId` must identify exactly one `ReviewFinding` already present in that issue's own `findingIds` (`src/stress-test/types.ts::SemanticIssue.findingIds`) — never an unrelated finding, never a finding merely plausible-looking. Reason: `artifactLocation` and every other leaf-provenance fact live on `ReviewFinding`, never on `SemanticIssue` (`SemanticIssue` has no `artifactLocation` field at all, inspected directly) — without this rule, a `SemanticIssue`-sourced `EvidenceSubject` would have no path back to a concrete artifact location, exactly the gap the Slice 2D-B0 final amendment named ("that finding's own `artifactLocation`/provenance"). Every `EvidenceSubject` therefore has exactly one leaf provenance anchor, regardless of which `sourceRef` kind registered it.
+
+##### G. `artifactLocation`: derive, never duplicate
+
+Closed: `EvidenceSubject` does **not** carry its own `artifactLocation` field. `ReviewFinding` already authoritatively owns `artifactLocation` (`src/stress-test/types.ts`); a copied field on `EvidenceSubject` would be exactly the duplicated-lineage-truth hazard this contract has refused everywhere else (`QuestionDisposition`'s refusal to carry a `childSessionId`, §13.A decision M; `SessionVersionLineage`'s refusal to duplicate `responseText`, §13.A decision C) — it would require permanent synchronization against the finding it was copied from, with no mechanism to detect drift. Any future consumer that needs `artifactLocation` resolves it by walking `originatingFindingId -> session.findings[id].artifactLocation`, exactly as `originatingQuestionId`/`contextRequestId`-style derived-and-copied fields are already re-verified at every read boundary elsewhere in this contract, never independently caller-authoritative.
+
+##### H. `SemanticIssue` relationship
+
+Closed: when `sourceRef.kind === 'SEMANTIC_ISSUE'`, an `EvidenceSubject` does **not** mean the whole issue is one factual claim — it means "within this issue, this exact originating `ReviewFinding` (§F) supplied the leaf provenance for this separately-registered factual proposition." No automatic assumption that every finding aggregated into the issue supports, or even relates to, the same claim; a `SemanticIssue` can aggregate multiple findings (`MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §9, already the reason this gap was left open rather than solved by a naive single-reference field), and this freeze does not pretend otherwise. A second, different `EvidenceSubject` targeting a different finding within the same issue is a completely independent registration, never in tension with this one.
+
+##### I. Ledger ownership
+
+Closed: `DeliberationState.evidenceSubjects: EvidenceSubject[]`, an append-only audit ledger on the same `DeliberationState` that already owns `questionDispositions[]`/`contextRequests[]`/`sessionVersionLineages[]` — the identical established pattern, not a new one. No separate global registry: an `EvidenceSubject` exists specifically to support one deliberation question and its subsequent `SEEK_EVIDENCE` cycles (§M/§N below), and every other question-scoped or attempt-scoped audit fact in this contract already lives inside the one `DeliberationState` that owns the question, never in a cross-session or cross-deliberation structure.
+
+##### J. Legacy compatibility
+
+Closed: a `DeliberationState` predating this field is read as `evidenceSubjects: []` at read boundaries only, never by mutating the stored record — the identical purely-additive compatibility posture already used for `contextRequests` (§7, Slice 2D-C0/C1) and `sessionVersionLineages` (§13.A, Slice 2D-C3-0) when each was first introduced. All newly-created `DeliberationState` values materialize `evidenceSubjects: []` explicitly.
+
+##### K. Creation API
+
+Closed, conceptually:
+
+```
+registerEvidenceSubject(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  input: {
+    questionId: string,
+    sourceRef: RouteInputRef,
+    originatingFindingId: string,
+    claimText: string
+  }
+): { deliberationState: DeliberationState; evidenceSubject: EvidenceSubject }
+```
+
+**On `questionId`, not `attemptId` — an apparent tension with the Slice 2D-C0 freeze, resolved explicitly, not glossed over.** `createContextRequest` deliberately replaced `questionId` with `attemptId` (§7, Slice 2D-C0 freeze, decision C) because a `ContextRequest` is the *output* of running one specific `ADD_CONTEXT` attempt — attempt-scoped by its very nature (`ONE ADD_CONTEXT RouteAttempt -> AT MOST ONE ContextRequest`, invariant 50). `EvidenceSubject` is the opposite in kind: it is a *precondition* for a `SEEK_EVIDENCE` attempt to even be planned (§O below — a `RouteDecision` cannot exist without one), and per decision M/N below it is reused, unchanged, across every attempt/cycle a question has, never re-created per attempt. It is question-scoped in the same sense `UnresolvedQuestion.materialityReason`/`inputRefs` are question-scoped, not attempt-scoped in the sense `ContextRequest` is — so `questionId` is the correct binding identity here, and the two decisions do not actually conflict; they answer the same "what should this concept bind to" question correctly for two genuinely different concepts.
+
+No other input key. `sessionId`/`artifactHash`/`authorContextHash` are derived from `session`, never caller-restated, mirroring every other creation API in this contract.
+
+##### L. Question preconditions
+
+Closed: `questionId` must resolve to exactly one registered `UnresolvedQuestion` whose `rootCause === 'EVIDENCE_GAP'` — never `CONTEXT_GAP`/`STABILITY_QUESTION`/`COVERAGE_GAP`/`DECISION_SENSITIVE_CONFLICT`/`NONE`. The question must be current (`isQuestionCurrent`). `sourceRef` must exactly equal one entry of `question.inputRefs` (`(kind, id)` equality). Every referenced session-domain object (`ReviewFinding`/`SemanticIssue`) must independently resolve and validate, exactly as `validateRouteInputRef` already does for every other `RouteInputRef` consumer in this contract.
+
+##### M. Cardinality — one question, exactly one subject
+
+Closed: `ONE EVIDENCE_GAP UnresolvedQuestion -> EXACTLY ONE EvidenceSubject`. A question should ask about exactly one factual proposition; if two claims genuinely need independent verification, the correct model is two separate `EVIDENCE_GAP` questions (each with its own `materialityReason`/`inputRefs`), never one question carrying two subjects. This makes `questionId -> EvidenceSubject` a deterministic lookup, and avoids inventing an additional per-`RouteDecision` selection identity ("which of this question's subjects does this attempt target") that a many-subjects-per-question model would otherwise require.
+
+##### N. Reuse across cycles
+
+Closed: if `Q` remains current after a `SEEK_EVIDENCE` attempt and receives `QuestionDisposition.STILL_OPEN`, a later, fresh `RouteDecision`/`RouteAttempt` cycle for the same `Q` reuses the *same* `EvidenceSubject` — a second subject is never registered merely because another evidence attempt is made. Question identity owns subject identity (§M). If the underlying proposition materially changes, that is not a reason to mutate or replace the existing subject (§X below) — it requires a new or `SUPERSEDED_RECLASSIFIED` question (§9) and, following from §M, that new question's own fresh `EvidenceSubject`.
+
+##### O. Planning/routing gates
+
+Closed, at two independent boundaries — the same "never trust that an earlier function must have been called" posture already governing active-cycle integrity (invariant 39: independently re-derived at `recordRouteAttemptStart`, `recordRouteOutcome`, `recordQuestionDisposition`, `createContextRequest`, never trusting `recordRouteDecision`'s own creation-time gate alone for state that may predate it). A future `SEEK_EVIDENCE` `RouteDecision` for an `EVIDENCE_GAP` question must not be recordable unless exactly one valid `EvidenceSubject` is already registered for that question — enforced **authoritatively** at `recordRouteDecision` (mirroring where the active-cycle *creation* gate already lives, invariant 35), and **independently re-derived** at `recordRouteAttemptStart` for any `EVIDENCE_GAP`-rooted attempt (mirroring where active-cycle integrity is independently re-checked for state that may predate the creation-time gate, invariant 39) — never assuming a `RouteDecision` already recorded must have passed a check that did not exist, or could have been bypassed by directly-constructed legacy/tampered state.
+
+##### P. Legacy `FAILED` compatibility
+
+Closed: historical generic `SEEK_EVIDENCE` `FAILED` `RouteOutcome` records are not invalidated merely because they predate `EvidenceSubject` — the accepted contract already permits generic `FAILED` for `SEEK_EVIDENCE` (§7 above, "Generic `FAILED` outcome remains structurally useful") precisely because it claims no evidence judgment against any claim, so it never needed claim identity to be defensible. `EvidenceSubject` becomes **mandatory** only to record a `SUCCEEDED`/`INCONCLUSIVE` `SEEK_EVIDENCE` result (§Q/§V below); the historical `FAILED` path does not retroactively gain, or require, a claim-result assertion it never made.
+
+##### Q. `SeekEvidenceRouteOutcome` shape
+
+Closed. **Refined from the governing packet's own proposed flattened shape**, for the same reason `AddContextRouteOutcome` is a union rather than one interface with an optional `responseText`: `status` and `result` are structurally coupled (§7's status/result consistency table, unchanged), so the type itself should make an invalid `status`/`result` pairing unrepresentable, not merely runtime-rejectable:
+
+```
+SeekEvidenceSupportiveOrContradictoryRouteOutcome extends RouteOutcomeCommon {
+  route: 'SEEK_EVIDENCE'
+  status: 'SUCCEEDED'
+  result: 'SUPPORTIVE' | 'CONTRADICTORY'
+  evidenceSubjectId: string
+  citations: EvidenceCitation[]   -- non-empty (§S)
+}
+
+SeekEvidenceInconclusiveRouteOutcome extends RouteOutcomeCommon {
+  route: 'SEEK_EVIDENCE'
+  status: 'INCONCLUSIVE'
+  result: 'INCONCLUSIVE'
+  evidenceSubjectId: string
+  citations: EvidenceCitation[]   -- may be empty (§S)
+}
+
+SeekEvidenceRouteOutcome = SeekEvidenceSupportiveOrContradictoryRouteOutcome | SeekEvidenceInconclusiveRouteOutcome
+```
+
+No `claimText`, `originatingFindingId`, `artifactLocation`, or `sourceRef` duplicated onto the outcome — every one of those resolves by walking `evidenceSubjectId -> EvidenceSubject` (§V below), the exact "identify the immutable subject, never restate it" discipline `AddContextSuppliedRouteOutcome.contextRequestId` and `SessionVersionLineage.suppliedOutcomeAttemptId` already establish. `RouteOutcome`'s union extends to include both variants above.
+
+##### R. Result/status matrix
+
+Closed: preserved, unchanged from §7's already-frozen table — `SUPPORTIVE -> SUCCEEDED`, `CONTRADICTORY -> SUCCEEDED`, `INCONCLUSIVE -> INCONCLUSIVE`, `FAILED` uses the existing generic `FailedRouteOutcome`/`FailureInfo` path and carries no evidence-relation result at all (§P above).
+
+##### S. Citation cardinality/schema
+
+Closed: `SUPPORTIVE`/`CONTRADICTORY` require `citations.length > 0`; `INCONCLUSIVE` permits `citations.length === 0`, unchanged from the already-frozen shape (§7 above). Each `EvidenceCitation`'s structural validation, closed for the future runtime: `sourceIdentifier` must be a non-empty string; `title`, when present, must be a non-empty string (an empty/whitespace-only supplied `title` is rejected the same way every other optional-but-non-empty-when-present field in this contract is); `excerpt` must be a non-empty string. No numeric character bound is invented for `excerpt` — the same "no bound without an analogous, specifically-named justification" reasoning already applied to `materialityReason`/`QuestionDisposition.reason` (§9), not `FailureInfo.message`'s 2000-character cap (that cap exists specifically to bound an otherwise-unbounded raw error blob, a risk `excerpt` does not share since it is always an authored, source-attributable quotation, never a raw payload). No provider or retrieval mechanism is chosen here (§33 of the governing packet; unchanged from §7 above).
+
+##### T. `QuestionDisposition` separation
+
+Closed: unchanged from the posture already frozen for every other route's outcome (§10). No `SEEK_EVIDENCE` result — `SUPPORTIVE`, `CONTRADICTORY`, or `INCONCLUSIVE` — mechanically produces `STILL_OPEN`, `RESOLVED`, `SUPERSEDED_RECLASSIFIED`, or `CROSS_SESSION`. An evidence-relation fact (§ "Evidence relation semantics" below) is not a disposition; semantic re-evaluation remains a separate, explicitly supplied act (§14), and `HumanAdjudication`/`RevisionAction` authority is entirely unaffected (§17, invariant 19) — `SUPPORTIVE`/`CONTRADICTORY` grant no revision authority, exactly as no `RouteOutcome` ever has.
+
+##### Evidence relation semantics (packet §24)
+
+Closed: `SUPPORTIVE` means the recorded citations support the exact `EvidenceSubject.claimText` proposition; `CONTRADICTORY` means they contradict it; `INCONCLUSIVE` means the attempt did not establish either relation sufficiently. These are evidence-relation facts about one attempt's findings, never claims that the artifact must change, that the claim is now globally true or false forever, or that any `QuestionDisposition`/`HumanAdjudication`/`RevisionAction` follows automatically (§T above).
+
+##### U. Global read integrity
+
+Closed: a future, pure, non-cached helper — name not binding, conceptually `assertEvidenceSubjectLedgerIntegrity(deliberationState)` — validates the COMPLETE `evidenceSubjects[]` collection on every read, never only the one subject a caller happens to be creating or resolving (the same "global before local" posture required at every other ledger boundary since the Slice 2D-B2-0 amendment). At minimum: `id` non-empty and globally unique; `originatingQuestionId` resolves to exactly one registered `UnresolvedQuestion` whose `rootCause === 'EVIDENCE_GAP'`; at most one `EvidenceSubject` per `originatingQuestionId` (§M, re-derived independently at read time, never trusting the write-time gate alone for state that may predate it); `sourceRef` is a structurally valid `RouteInputRef` and exactly belongs to that question's own `inputRefs`; `originatingFindingId` is non-empty and satisfies the exact `FINDING`/`SEMANTIC_ISSUE` leaf-provenance rule (§F); the originating finding resolves to exactly one current session `ReviewFinding`; `claimText` is non-empty; `createdAt` is a parseable timestamp; `sessionId`/`artifactHash`/`authorContextHash` match the containing `DeliberationState`'s own binding (§C). No local-first lookup is ever trusted before this complete validation passes.
+
+##### V. Outcome write/read provenance
+
+Closed: a future successful/inconclusive `SEEK_EVIDENCE` outcome must be independently re-validated against the complete authoritative-upstream chain (§13.A's named principle, restated a further time) — `DeliberationState -> RouteAttempt -> RouteDecision -> EVIDENCE_GAP Question -> EvidenceSubject -> sourceRef -> originating ReviewFinding -> artifactLocation/provenance` — and, separately, `RouteOutcome.evidenceSubjectId -> exactly that same EvidenceSubject`, never trusted merely because the outcome's own copied `evidenceSubjectId` and a plausible-looking subject happen to agree with each other (the exact class of gap the Slice 2D-C1 amendment closed for `ContextRequest`/`RouteAttempt`, and the Slice 2D-C3-0 amendment's decision N closed for `SUPPLIED`-outcome provenance: never merely compare two adjacent downstream records). Before recording: the COMPLETE `EvidenceSubject` ledger integrity (§U) must pass; the exact subject must resolve; exact attempt/decision/question provenance must hold; the question's current/active-cycle rules must hold; the resolved `EvidenceSubject.originatingQuestionId` must equal the attempt's own question; the result/status matrix (§R) and citation schema (§S) must validate; latency is accounted only after every prior check passes (§12, unchanged); `ONE RouteAttempt -> AT MOST ONE RouteOutcome` (invariant 10) is unweakened. No retrieval occurs at this boundary — recording an already-obtained evidence result is separate from acquiring it (§33 of the governing packet).
+
+##### W. Alias isolation
+
+Closed: `registerEvidenceSubject` returns independent value snapshots, mirroring `createContextRequest`'s `buildSnapshot()`-called-twice discipline (§7, Slice 2D-C0) — mutating a caller-owned `sourceRef` object, the `claimText`-carrying input object, the returned subject, or any future outcome's `citations` array must never rewrite stored audit history. No generic immutability framework is introduced; this is the same value-semantics discipline already governing every other type in this contract (§7, "Snapshot / value semantics," invariant 20).
+
+##### X. Claim/source mutation posture
+
+Closed: `EvidenceSubject.claimText` is immutable — if the factual proposition materially changes, the subject is never mutated and its text is never overwritten; the correct path is a new or `SUPERSEDED_RECLASSIFIED` `EVIDENCE_GAP` question and that question's own fresh subject (§N). `ReviewFinding` records are already session-bound historical facts (§7.B); `EvidenceSubject` never silently rebinds `originatingFindingId` to a different finding after registration — if the source provenance genuinely changes, that requires a new subject/question path, never a retarget mutation of the existing one.
+
+##### Y. Cross-session posture
+
+Closed: `EvidenceSubject`s are bound to their current `DeliberationState`/session (§C's `sessionId`/`artifactHash`/`authorContextHash` fields make this explicit and independently re-verifiable) and do **not** carry into Session B through an `ADD_CONTEXT` `CROSS_SESSION` transition (§13.A) — Session B reviews from scratch against its own frozen input, exactly as it registers no current questions, findings, or dispositions carried over from Session A (§13.A, decision J). No cross-session `EvidenceSubject` reuse of any kind is authorized or implied by this freeze.
+
+#### Schema decisions closed (Slice 2D-C5-0)
+
+**A-Y map exactly to the lettered/named subsections immediately above.** No governing source-of-truth document contradicts A–Y; none required reopening an already-accepted Slice 2A/2B/2C/2D-B0/2D-B1/2D-B2-0/2D-B2-A/2D-B2-B/2D-C0/2D-C1/2D-C2/2D-C3-0/2D-C3/2D-C4-0/2D-C4 invariant to close. §24 now contains zero genuinely open schema decisions.
+
+#### Recommended next runtime slices (Slice 2D-C5-0 freeze)
+
+Not authorized by this document.
+
+**Evaluated explicitly against the same atomicity question the `CROSS_SESSION` split required (§13.A, Slice 2D-C3-0 amendment §14): does either candidate slice risk persisting an invalid partial lifecycle on its own?** No. `EvidenceSubject` and `SeekEvidenceRouteOutcome` are two independently-complete audit facts, sequenced, not two co-dependent halves of one atomic transaction — the same relationship `ContextRequest` (Slice 2D-C1) already has to `AddContextRouteOutcome` (Slice 2D-C2): an `EvidenceSubject` with no outcome yet is a completely valid, non-orphaned state (exactly as an unanswered `ContextRequest` already is, §7 above), never the "lineage without its bijected disposition" hazard `CROSS_SESSION` actually had. A two-slice split is therefore safe here, unlike the `CROSS_SESSION` case.
+
+**`SLICE 2D-C5-A` — EVIDENCESUBJECT REGISTRY + INTEGRITY + ROUTING GATE:** `EvidenceSubject` type; `evidenceSubjects[]` ledger on `DeliberationState`; legacy missing-ledger compatibility (§J); `registerEvidenceSubject` (§K) with its complete precondition chain (§L); the global read-integrity helper (§U); the two-boundary planning/routing gate (§O) at `recordRouteDecision` and `recordRouteAttemptStart`; tests covering every one of the above. No `SeekEvidenceRouteOutcome` recording yet.
+
+**`SLICE 2D-C5-B` — `SEEK_EVIDENCE` SUCCESSFUL/INCONCLUSIVE ROUTEOUTCOME RECORDING** (after 2D-C5-A is accepted): the `SeekEvidenceRouteOutcome` union (§Q); the mandatory outcome write/read provenance chain (§V); the result/status matrix and citation schema validation (§R/§S); tests covering every one of the above, plus the legacy-`FAILED`-compatibility regression (§P). This slice depends on 2D-C5-A's routing gate already existing (§O) so that a `SEEK_EVIDENCE` attempt can only ever exist with a valid `EvidenceSubject` already bound to it before an outcome is ever recorded against it.
+
+This document does not claim the product is complete once this freeze is accepted. Still not implemented, beyond this slice's own scope: `SEEK_EVIDENCE` runtime itself (2D-C5-A/B above); `TARGETED_PEER_CHALLENGE`'s successful-result routing gate/runtime (its schema is already closed, §7.E, invariant 30/31 — only the gate and recording are unimplemented); and all provider/retrieval execution (§33 of the governing packet; `0`, unconditionally). Architecture-open and implementation-not-yet-built are two different states, and this freeze closes only the former for `SEEK_EVIDENCE`.
+
 ### E. TARGETED_PEER_CHALLENGE
 
 Challenge-response outcome preserving target/source provenance, bounded excerpt identity, and one of: rebuttal | concession | qualification | refusal-to-yield. All four map to `AttemptStatus = SUCCEEDED` — a complete, valid response was produced, regardless of whether it resolves anything. `FAILED` covers a call failure or an unresolvable reference. Consensus is never truth: no peer response, by itself, automatically resolves the conflict (§10, §14) — that remains a disposition decided by re-evaluation, ultimately subordinate to `HumanAdjudication` (§17).
@@ -1686,7 +1873,7 @@ An open/unterminated attempt (§5) is itself an idempotency concern: while a `Ro
 29. `NO_RESPONSE` (an `ADD_CONTEXT` result) is authorized only through the dedicated `closeContextRequestWithoutResponse` operation's explicit closure action — never through `recordRouteOutcome`, never inferred from elapsed time, and never runtime-authorized until that operation's own slice is separately accepted; until then, only `SUPPLIED`, `DECLINED`, and `FAILED` are terminalizable for `ADD_CONTEXT` (§7, §13.A Slice 2D-C4-0 freeze).
 30. A registered `UnresolvedQuestion` whose `rootCause = DECISION_SENSITIVE_CONFLICT` must contain at least two distinct (`kind`, `id`) `RouteInputRef`s; not yet enforced by any registration gate in the accepted runtime (§7).
 31. A `TARGETED_PEER_CHALLENGE` `RouteOutcome`'s `targetRef` and `sourceRef` must be distinct from one another and must each exactly match one of the terminated `RouteDecision`'s own `inputRefs`, with no inference and no new ref introduced at outcome time (§7).
-32. No `SEEK_EVIDENCE` result (`SUPPORTIVE`/`CONTRADICTORY`/`INCONCLUSIVE`) may be recorded until claim-level `EvidenceSubject` provenance is separately, explicitly frozen; only a generic `FAILED` outcome is recordable for `SEEK_EVIDENCE` until then (§7).
+32. No `SEEK_EVIDENCE` result (`SUPPORTIVE`/`CONTRADICTORY`/`INCONCLUSIVE`) may be recorded until `registerEvidenceSubject` and the routing gate that requires one (invariant 74) are separately, explicitly authorized as runtime -- claim-level `EvidenceSubject` provenance itself is architecturally closed (§13.D, Slice 2D-C5-0 freeze), but not yet implemented; only a generic `FAILED` outcome is recordable for `SEEK_EVIDENCE` until then (§7).
 33. `TARGETED_PEER_CHALLENGE`'s successful result variants may not be recorded until the `DECISION_SENSITIVE_CONFLICT` input-cardinality routing gate (invariant 30) exists; only a generic `FAILED` outcome is recordable for `TARGETED_PEER_CHALLENGE` until then (§7).
 34. `planRouteForQuestion`, `recordRouteDecision`, `recordRouteAttemptStart`, `recordRouteOutcome`, and `createContextRequest` must all fail closed on a non-current question — registration in `unresolvedQuestions` is never sufficient by itself once a terminal disposition exists (§9).
 35. At most one `ACTIVE` deliberation cycle — a recorded `RouteDecision` through a recorded `QuestionDisposition` for its eventual outcome — may exist per question at a time; enforced authoritatively at `recordRouteDecision` (§9).
@@ -1724,6 +1911,16 @@ An open/unterminated attempt (§5) is itself an idempotency concern: while a `Ro
 67. `NO_RESPONSE` never mechanically produces a `QuestionDisposition` of any kind, and never authorizes `createCrossSessionTransition` — only a `SUPPLIED` outcome's `responseText` can ever supply that transition's required fact (§13.A, Slice 2D-C4-0 freeze).
 68. Once an attempt is closed `NO_RESPONSE`, no later `SUPPLIED`, `DECLINED`, or `FAILED` outcome may be recorded for it (invariant 10 unweakened); a human reply after explicit closure is out of scope for this freeze and never silently reopens the terminal attempt or auto-creates a new one (§13.A, Slice 2D-C4-0 freeze).
 69. The historical absence of any `RouteOutcome` for an attempt is never reinterpreted as an implicit `NO_RESPONSE`; only an explicit, successfully-recorded `AddContextNoResponseRouteOutcome` ever means `NO_RESPONSE` (§13.A, Slice 2D-C4-0 freeze).
+70. `EvidenceSubject.id` is a fresh, independently-generated identity -- never `originatingQuestionId`, never a copied/derived value from `ReviewFinding`/`SemanticIssue`, and never `paragraphId`/`chunkId`/`claimIndex`/array position/text offset (§13.D, Slice 2D-C5-0 freeze).
+71. `ONE EVIDENCE_GAP UnresolvedQuestion -> EXACTLY ONE EvidenceSubject`; two claims requiring independent verification are always two separate `EVIDENCE_GAP` questions, never one question carrying two subjects (§13.D, Slice 2D-C5-0 freeze).
+72. `EvidenceSubject.originatingFindingId` is mandatory in every case and always resolves to exactly one `ReviewFinding` -- equal to `sourceRef.id` when `sourceRef.kind === 'FINDING'`, or a member of `SemanticIssue.findingIds` when `sourceRef.kind === 'SEMANTIC_ISSUE'`; `AUTHOR_CONTEXT_ITEM` is never a valid `sourceRef` kind for `EvidenceSubject`, having no backing `ReviewFinding` to resolve to (§13.D, Slice 2D-C5-0 freeze).
+73. `EvidenceSubject` never carries its own `artifactLocation`; it is always derived by walking `originatingFindingId -> ReviewFinding.artifactLocation`, never duplicated and independently re-synchronized (§13.D, Slice 2D-C5-0 freeze).
+74. A `SEEK_EVIDENCE` `RouteDecision` for an `EVIDENCE_GAP` question may not be recorded unless exactly one valid `EvidenceSubject` is already registered for that question, enforced authoritatively at `recordRouteDecision` and independently re-derived at `recordRouteAttemptStart` for state that may predate the creation-time gate (§13.D, Slice 2D-C5-0 freeze).
+75. `EvidenceSubject.claimText` is immutable once registered; a materially changed proposition requires a new or `SUPERSEDED_RECLASSIFIED` `EVIDENCE_GAP` question and that question's own fresh `EvidenceSubject`, never a mutation of the existing text or a retarget of `originatingFindingId` (§13.D, Slice 2D-C5-0 freeze).
+76. A future successful/inconclusive `SEEK_EVIDENCE` `RouteOutcome` is never trusted as claim-evaluated merely because its stored `evidenceSubjectId` and a plausible-looking `EvidenceSubject` agree with each other -- the complete `DeliberationState -> RouteAttempt -> RouteDecision -> EVIDENCE_GAP Question -> EvidenceSubject -> sourceRef -> ReviewFinding` chain is independently re-validated at the moment of recording and at every later read (§13.D, Slice 2D-C5-0 freeze).
+77. No `SEEK_EVIDENCE` result (`SUPPORTIVE`/`CONTRADICTORY`/`INCONCLUSIVE`) mechanically produces a `QuestionDisposition` of any kind; semantic re-evaluation remains a separate, explicitly supplied act (§13.D, Slice 2D-C5-0 freeze).
+78. `EvidenceSubject`s are bound to their current `DeliberationState`/session and never carry into Session B through an `ADD_CONTEXT` `CROSS_SESSION` transition; Session B reviews from scratch, registering no `EvidenceSubject` carried over from Session A (§13.D, Slice 2D-C5-0 freeze).
+79. A missing `DeliberationState.evidenceSubjects` array (state predating this field) is read as its legal equivalent, `[]`, without mutating the stored record (§13.D, Slice 2D-C5-0 freeze).
 
 ---
 
@@ -1795,7 +1992,9 @@ No governing source-of-truth document contradicts H–M; none required reopening
 
 **Closed by the Slice 2D-C3-0 schema freeze:** nineteen decisions (A–S, §13.A's "Schema decisions closed (Slice 2D-C3-0)" subsection), covering whether `SessionVersionLineage` is required (yes — `QuestionDisposition = CROSS_SESSION` alone cannot identify Session B, the causing outcome, the hashes, or the new item); its own fresh `lineageId` (never overloaded onto `childSessionId`, even though the two are always 1:1 in accepted usage); the complete field set, closing which fields are load-bearing versus derived-and-copied convenience versus deliberately excluded (`responseText`, already authoritative elsewhere); ledger ownership resolved as one answer across §13/§36 of the governing packet (`DeliberationState.sessionVersionLineages[]`, both returned at transition time and persisted for later read-time re-validation); the three independent cardinality rules; Session B's construction as a wholly new session (never copy-then-mutate); the artifact/hash equations, confirmed against the actual `sha256Text`/`sha256AuthorContext` implementation rather than assumed; the exact `AuthorContext`-copy-plus-one-new-item construction and its `category`/`text` provenance; Session B ending the transition already `INPUT_FROZEN` (a point the governing packet left open, closed here); the explicit non-copy list from Session A; the atomic `createCrossSessionTransition` operation shape (rejecting a standalone `recordQuestionDisposition(CROSS_SESSION, {childSessionId})` extension outright); the three-fact atomic write; `QuestionDisposition`'s stored shape staying unchanged; the eleven-step mandatory `SUPPLIED`-outcome read validation, naming the "authoritative-upstream" principle explicitly rather than leaving it implicit; an executable response-reuse write-time gate; the read-integrity helper; legacy compatibility; cost/latency semantics; and question/review-reset behavior (invariants 54–61). `NO_RESPONSE` and `SEEK_EVIDENCE` claim-level provenance remain untouched, unrevisited (§24).
 
-**Closed by the Slice 2D-C4-0 schema freeze:** fifteen decisions (A–O, §13.A's "Schema decisions closed (Slice 2D-C4-0)" subsection), resolving the last genuinely open half of the two-item list this document has carried since the Slice 2D-B0 amendment. The defensible terminal fact for `NO_RESPONSE` is an explicit closure action, never an elapsed-time inference — resolving the open dependency in favor of an auditable closure event over any `responseDeadlineAt`/timeout mechanism, and requiring a dedicated `closeContextRequestWithoutResponse` operation rather than a `recordRouteOutcome` branch, so the authority boundary is explicit in the API surface itself; the operation's minimal input shape (`attemptId`, `latencyConsumed` only); the complete `ContextRequest`/attempt precondition chain; `AttemptStatus = SUCCEEDED`; the minimal `AddContextNoResponseRouteOutcome` shape with no additional field found necessary; the decision against a separate closure entity; `completedAt`/latency semantics unchanged from every other terminal outcome; `QuestionDisposition` and `CROSS_SESSION` both remaining structurally unreachable from a `NO_RESPONSE` outcome; the complete read-time re-validation rule; the late-response posture closed as an explicit scope boundary rather than left open; and the future scheduler/policy question deliberately left to a separate, later architecture decision (invariants 62–69). `SEEK_EVIDENCE` claim-level provenance is the sole remaining open item (§24).
+**Closed by the Slice 2D-C4-0 schema freeze:** fifteen decisions (A–O, §13.A's "Schema decisions closed (Slice 2D-C4-0)" subsection), resolving the last genuinely open half of the two-item list this document has carried since the Slice 2D-B0 amendment. The defensible terminal fact for `NO_RESPONSE` is an explicit closure action, never an elapsed-time inference — resolving the open dependency in favor of an auditable closure event over any `responseDeadlineAt`/timeout mechanism, and requiring a dedicated `closeContextRequestWithoutResponse` operation rather than a `recordRouteOutcome` branch, so the authority boundary is explicit in the API surface itself; the operation's minimal input shape (`attemptId`, `latencyConsumed` only); the complete `ContextRequest`/attempt precondition chain; `AttemptStatus = SUCCEEDED`; the minimal `AddContextNoResponseRouteOutcome` shape with no additional field found necessary; the decision against a separate closure entity; `completedAt`/latency semantics unchanged from every other terminal outcome; `QuestionDisposition` and `CROSS_SESSION` both remaining structurally unreachable from a `NO_RESPONSE` outcome; the complete read-time re-validation rule; the late-response posture closed as an explicit scope boundary rather than left open; and the future scheduler/policy question deliberately left to a separate, later architecture decision (invariants 62–69). `SEEK_EVIDENCE` claim-level provenance was the sole remaining open item at that point (§24) — now also closed, below.
+
+**Closed by the Slice 2D-C5-0 schema freeze:** twenty-five decisions (A–Y, §13.D's "Schema decisions closed (Slice 2D-C5-0)" subsection), closing the last genuinely open item this document has carried since the Slice 2D-B0 final amendment. A dedicated, independently-identified `EvidenceSubject` audit fact answers "which exact claim" the same way `ContextRequest`/`SessionVersionLineage` already answer their own "which exact X" questions — its own fresh `id` (never `paragraphId`/`chunkId`/`claimIndex`/a reused question or finding id); an immutable `claimText`, registered once, never restated by a later outcome; mandatory leaf `ReviewFinding` provenance even when the source is a `SemanticIssue` (`artifactLocation` derived, never duplicated); a `FINDING`/`SEMANTIC_ISSUE`-only `sourceRef` allowlist (`AUTHOR_CONTEXT_ITEM` structurally excluded — no backing finding to resolve to); a `DeliberationState.evidenceSubjects[]` ledger mirroring the already-established ownership pattern; a `questionId`-bound (not `attemptId`-bound) creation API, with the apparent tension against the Slice 2D-C0 freeze's opposite choice for `ContextRequest` explicitly resolved rather than glossed over; `ONE EVIDENCE_GAP question -> EXACTLY ONE EvidenceSubject`, reused unchanged across every re-attempt cycle for that question; a two-boundary planning/routing gate at `recordRouteDecision` and `recordRouteAttemptStart`; a `SeekEvidenceRouteOutcome` union refined from the governing packet's own flattened proposal so status/result pairing is type-safe, referencing `evidenceSubjectId` rather than restating the subject; the complete global read-integrity and outcome write/read provenance chains; and an explicit finding, during inspection, that the governing packet's proposed minimum field list had omitted the `sessionId`/`artifactHash`/`authorContextHash` trio every other `DeliberationState`-owned audit fact already carries (invariants 70–79). `§24` now contains zero genuinely open schema decisions.
 
 ---
 
@@ -1807,15 +2006,19 @@ Nothing in this document alters, weakens, or contradicts `src/stress-test/delibe
 
 ## 24. Open GPT decisions
 
-**One genuinely open item remains — not hidden, not closed by convenience:**
+**Zero genuinely open schema decisions remain, as of the Slice 2D-C5-0 freeze.** This section's history is preserved below rather than deleted: both items this document ever carried as genuinely open were closed in sequence, each by its own separately authorized architecture decision, neither solved merely because the other was being worked on.
 
-**1. `SEEK_EVIDENCE` claim-level `EvidenceSubject` provenance: OPEN / requires a separately authorized architecture decision.** The frozen `{result, citations}` payload identifies a source, but not which specific factual claim within a `ReviewFinding`/`SemanticIssue` the citations evaluate (§7, invariant 32). This document explicitly declines to invent `claimText`/`claimId`/`claimIndex`/`paragraphId`/`chunkId` to paper over the gap — paragraph-local identity is not product authority, copied claim text can drift, a `SemanticIssue` can aggregate multiple findings, and one finding can carry more than one factual proposition. `SUPPORTIVE`/`CONTRADICTORY`/`INCONCLUSIVE` all stay runtime-blocked until this is closed.
+**Closed by the Slice 2D-C4-0 schema freeze (formerly item 1 of this section):** `ADD_CONTEXT`'s `NO_RESPONSE` terminalization mechanism. The prior framing — a `responseDeadlineAt` bound to `ContextRequest`, or an explicit externally recorded request-window-close event, with existing source-of-truth said not to dictate which — is resolved: the second option alone, an explicit closure action via the dedicated `closeContextRequestWithoutResponse` operation, never a deadline field or any elapsed-time inference (§13.A, "Schema freeze (Slice 2D-C4-0)," decisions A–O; invariants 62–69). `NO_RESPONSE` *runtime* remains **NOT AUTHORIZED** (§25) — only the architecture/mechanism is closed, not implemented.
 
-**Closed by the Slice 2D-C4-0 schema freeze, formerly the other genuinely open item:** `ADD_CONTEXT`'s `NO_RESPONSE` terminalization mechanism (formerly item 2 of this section, prior to the Slice 2D-C4-0 freeze). The prior framing — a `responseDeadlineAt` bound to `ContextRequest`, or an explicit externally recorded request-window-close event, with existing source-of-truth said not to dictate which — is resolved: the second option alone, an explicit closure action via the dedicated `closeContextRequestWithoutResponse` operation, never a deadline field or any elapsed-time inference (§13.A, "Schema freeze (Slice 2D-C4-0)," decisions A–O; invariants 62–69). `NO_RESPONSE` *runtime* remains **NOT AUTHORIZED** (§25) — only the architecture/mechanism is closed here, not implemented.
+**Closed by the Slice 2D-C5-0 schema freeze (formerly item 2 of this section):** `SEEK_EVIDENCE`'s claim-level `EvidenceSubject` provenance. The frozen `{result, citations}` payload identified a source but never which specific factual claim within a `ReviewFinding`/`SemanticIssue` the citations evaluate (§7, invariant 32, as it read before this freeze). This document previously, deliberately declined to invent `claimText`/`claimId`/`claimIndex`/`paragraphId`/`chunkId` to paper over the gap without a separately justified design — that design now exists: a dedicated `EvidenceSubject` audit fact, its own fresh identity, an immutable registered `claimText`, and mandatory leaf `ReviewFinding` provenance (§13.D, "Schema freeze (Slice 2D-C5-0)," decisions A–Y; invariants 70–79). `SUPPORTIVE`/`CONTRADICTORY`/`INCONCLUSIVE` *runtime* remains **NOT AUTHORIZED** (§25) — only the architecture/mechanism is closed, not implemented.
 
-**Not an open decision, despite being a runtime blocker:** `TARGETED_PEER_CHALLENGE`'s source/target provenance rule *is* closed by this amendment (§7 decisions L–M, invariants 30–31) — two distinct refs, both drawn from the terminated `RouteDecision`'s own `inputRefs`. Its successful-outcome runtime stays blocked only because the routing gate that would *enforce* that closed rule does not exist yet — a sequencing gap, not an unresolved architecture question. The same is true of `SUPERSEDED_RECLASSIFIED` (§9 decisions F–H) and `CROSS_SESSION` (§9 decision E): both are architecturally closed — the replacement-question model, the `derivedFromQuestionId` field, and the exact prerequisites `CROSS_SESSION` still lacks are all frozen — but deliberately sequenced into a later slice rather than left as unresolved questions.
+**Not an open decision, despite being a runtime blocker:** `TARGETED_PEER_CHALLENGE`'s source/target provenance rule *is* closed (§7 decisions L–M, invariants 30–31) — two distinct refs, both drawn from the terminated `RouteDecision`'s own `inputRefs`. Its successful-outcome runtime stays blocked only because the routing gate that would *enforce* that closed rule does not exist yet — a sequencing gap, not an unresolved architecture question. The same is true of `SUPERSEDED_RECLASSIFIED` (§9 decisions F–H) and `CROSS_SESSION` (§9 decision E): both are architecturally closed — the replacement-question model, the `derivedFromQuestionId` field, and the exact prerequisites `CROSS_SESSION` still lacks are all frozen — but deliberately sequenced into a later slice rather than left as unresolved questions. `SEEK_EVIDENCE`'s own successful-outcome runtime now belongs to this exact same category, per the Slice 2D-C5-0 freeze: architecturally closed, sequenced into a later, not-yet-authorized slice (§13.D, "Recommended next runtime slices").
 
-**The `SEEK_EVIDENCE` item above was not revisited by the Slice 2D-B2-0 schema freeze, by the Slice 2D-B2-A amendment, by the Slice 2D-B2-B0 schema freeze, by the Slice 2D-B2-B amendment, by the Slice 2D-C0 schema freeze, by Slices 2D-C1/C1-amendment/C2, by the Slice 2D-C3-0 schema freeze, nor by the Slice 2D-C4-0 schema freeze.** It remains exactly as recorded: still open, still requiring a separately authorized architecture decision before its runtime can be authorized. Per the Slice 2D-C4-0 governing packet's own instruction (§27), closing `NO_RESPONSE` was not treated as license to also solve `EvidenceSubject` provenance merely because this document was open.
+**Architecture-open is distinct from implementation-not-yet-built (Slice 2D-C5-0 governing packet §36), stated once, explicitly, now that both items above are closed.** Closing every genuinely open *schema* decision in this document does not mean the product is complete: `SEEK_EVIDENCE` runtime (`EvidenceSubject` registration, the routing gate, `SeekEvidenceRouteOutcome` recording), `NO_RESPONSE` runtime (`closeContextRequestWithoutResponse`), `TARGETED_PEER_CHALLENGE`'s routing gate and successful-outcome runtime, `CROSS_SESSION`'s own runtime notwithstanding being implemented and accepted, and all provider/retrieval execution remain governed entirely by §25's implementation-authorization ledger, never by this section. A future genuinely open architecture decision may still arise — from a new route, a new lifecycle boundary, or a remote review finding a gap this document did not anticipate — and would be recorded here exactly as the two closed items above once were.
+
+**Neither item above was revisited prematurely by an unrelated freeze.** `SEEK_EVIDENCE`'s item was not solved by the Slice 2D-B2-0 schema freeze, the Slice 2D-B2-A amendment, the Slice 2D-B2-B0 schema freeze, the Slice 2D-B2-B amendment, the Slice 2D-C0 schema freeze, Slices 2D-C1/C1-amendment/C2, the Slice 2D-C3-0 schema freeze, nor the Slice 2D-C4-0 schema freeze — each, per its own governing packet's explicit instruction, left it untouched rather than solving it merely because this document happened to be open. Per the Slice 2D-C4-0 governing packet's own instruction (§27), closing `NO_RESPONSE` was likewise not treated as license to also solve `EvidenceSubject` provenance in the same amendment; it was closed only once its own, separately authorized Slice 2D-C5-0 packet arrived.
+
+**The Slice 2D-C5-0 schema freeze introduces zero new open decisions.** All twenty-five items its governing packet asked to be closed (§13.D's "Schema decisions closed (Slice 2D-C5-0)," A–Y) were closeable from source-of-truth already accepted in this document (`MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §4/§9, which already named the claim-identity requirement and the "paragraph-local identity is not product authority" refusal this freeze completes) and this repository's existing runtime (`src/stress-test/types.ts`'s `ReviewFinding`/`SemanticIssue`, and `src/stress-test/deliberation.ts`'s `RouteInputRef`/`validateRouteInputRef`, inspected directly rather than assumed) — not left open for lack of a clear answer. The one point the governing packet's own proposed shape got wrong — omitting the `sessionId`/`artifactHash`/`authorContextHash` trio every other `DeliberationState`-owned audit fact already carries — is corrected here (§13.D, decision C), not silently adopted.
 
 **The Slice 2D-C4-0 schema freeze introduces zero new open decisions.** All fifteen items its governing packet asked to be closed (§13.A's "Schema decisions closed (Slice 2D-C4-0)," A–O) were closeable from source-of-truth already accepted in this document — principally the observation, already available since the Slice 2D-C0/C3-0 freezes, that `ContextRequest`'s identity link and `createCrossSessionTransition`'s atomic-transition mechanism were both *precise enough* to someday carry a `responseDeadlineAt` if that mechanism were ever chosen, but that neither freeze chose it. This freeze makes the choice: no deadline field, ever: an explicit closure action instead. Not left open for lack of a clear answer.
 
@@ -1850,7 +2053,7 @@ Currentness / active-cycle core (`isQuestionCurrent`, all five current gates, th
 
 Provider-backed route execution: **NOT AUTHORIZED**
 `NO_RESPONSE` (closure mechanism/architecture schema-frozen only by the Slice 2D-C4-0 freeze, §13.A — `closeContextRequestWithoutResponse` and `AddContextNoResponseRouteOutcome` are not implemented): **NOT AUTHORIZED**
-`SEEK_EVIDENCE` result runtime: **NOT AUTHORIZED**
+`SEEK_EVIDENCE` result runtime (claim-level `EvidenceSubject` provenance schema-frozen only by the Slice 2D-C5-0 freeze, §13.D — `EvidenceSubject`, `registerEvidenceSubject`, the routing gate, and `SeekEvidenceRouteOutcome` are not implemented): **NOT AUTHORIZED**
 `TARGETED_PEER_CHALLENGE` success runtime: **NOT AUTHORIZED**
 Route execution generally, and Slice 2D's full/general scope beyond the specific accepted subsets recorded above: **NOT AUTHORIZED**
 
