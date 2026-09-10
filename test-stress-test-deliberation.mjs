@@ -176,6 +176,18 @@ function buildAddContextAttemptFixture(costCeiling = 5, latencyCeiling = 5) {
   return { session, state, decision, question, issueId, findingIds, attempt };
 }
 
+/** Convenience: a started ADD_CONTEXT attempt with its ContextRequest already recorded -- ready for a successful recordRouteOutcome(SUPPLIED|DECLINED). */
+function buildAddContextRequestedFixture(costCeiling = 5, latencyCeiling = 5) {
+  const base = buildAddContextAttemptFixture(costCeiling, latencyCeiling);
+  const result = createContextRequest(base.session, base.state, {
+    attemptId: base.attempt.attemptId,
+    category: 'constraints',
+    question: 'What is the actual budget ceiling?',
+    inferenceReason: 'x',
+  });
+  return { ...base, state: result.deliberationState, contextRequest: result.contextRequest };
+}
+
 /** Convenience: adds one new ReviewFinding with the given reviewerRunId via the real addFinding API, returning the updated session and the new finding's id. */
 function addReviewerFinding(session, reviewerRunId, overrides = {}) {
   const before = new Set(Object.keys(session.findings));
@@ -1526,15 +1538,6 @@ check('generic FAILED remains legal for ADD_CONTEXT both with zero and with one 
     assert.equal(outcome.outcomes.length, 1);
     assert.equal(outcome.contextRequests.length, 1);
   }
-});
-
-check('ADD_CONTEXT SUCCEEDED remains rejected even after a ContextRequest is recorded (C1 does not enable C2)', () => {
-  const { session, state, attempt } = buildAddContextAttemptFixture();
-  const result = createContextRequest(session, state, { attemptId: attempt.attemptId, category: 'constraints', question: 'x?', inferenceReason: 'x' });
-  assert.throws(
-    () => recordRouteOutcome(session, result.deliberationState, { attemptId: attempt.attemptId, status: 'SUCCEEDED', latencyConsumed: 1 }),
-    /not authorized/
-  );
 });
 
 // ==================================================================
@@ -2977,10 +2980,11 @@ check('REPLICATE targetRef is snapshot-isolated: mutating the caller-owned ref a
 
 // --- Q8. Blocked successful routes/results ---------------------------------
 
+// ADD_CONTEXT SUPPLIED/DECLINED became recordable in Slice 2D-C2 (see
+// Section U below for their own dedicated tests); NO_RESPONSE remains
+// blocked but is tested there too, with a real ContextRequest present,
+// rather than via this generic no-request loop.
 const BLOCKED_SUCCESS_CASES = [
-  { rootCause: 'CONTEXT_GAP', extra: { responseText: 'The team confirmed capacity.' }, label: 'ADD_CONTEXT SUPPLIED' },
-  { rootCause: 'CONTEXT_GAP', extra: {}, label: 'ADD_CONTEXT DECLINED' },
-  { rootCause: 'CONTEXT_GAP', extra: {}, label: 'ADD_CONTEXT NO_RESPONSE' },
   { rootCause: 'EVIDENCE_GAP', extra: { citations: [] }, label: 'SEEK_EVIDENCE SUPPORTIVE' },
   { rootCause: 'EVIDENCE_GAP', extra: { citations: [] }, label: 'SEEK_EVIDENCE CONTRADICTORY' },
   { rootCause: 'EVIDENCE_GAP', extra: {}, label: 'SEEK_EVIDENCE INCONCLUSIVE' },
@@ -4547,6 +4551,443 @@ check('terminality tracking is per-questionId, not global across all questions',
   assert.equal(isQuestionCurrent(state, qA.id), false);
   assert.equal(isQuestionCurrent(state, qB.id), false);
   assert.equal(isQuestionCurrent(state, qC.id), true);
+});
+
+// ==================================================================
+// U. ADD_CONTEXT SUPPLIED / DECLINED RouteOutcome (Slice 2D-C2)
+// ==================================================================
+console.log('\nADD_CONTEXT SUPPLIED / DECLINED RouteOutcome (Slice 2D-C2)');
+
+check('SUPPLIED happy path: stored outcome carries exact contextRequestId/responseText/decision/question/session/hash/logicalCost/completedAt; ContextRequests and session unchanged', () => {
+  const { session, state, attempt, question, decision, contextRequest } = buildAddContextRequestedFixture();
+  const before = JSON.parse(JSON.stringify(session));
+  const requestsBefore = JSON.parse(JSON.stringify(state.contextRequests));
+
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 3,
+    result: 'SUPPLIED',
+    contextRequestId: contextRequest.id,
+    responseText: 'The team confirmed capacity for the migration.',
+  });
+
+  assert.equal(next.outcomes.length, 1);
+  const outcome = next.outcomes[0];
+  assert.equal(outcome.route, 'ADD_CONTEXT');
+  assert.equal(outcome.status, 'SUCCEEDED');
+  assert.equal(outcome.result, 'SUPPLIED');
+  assert.equal(outcome.contextRequestId, contextRequest.id);
+  assert.equal(outcome.responseText, 'The team confirmed capacity for the migration.');
+  assert.equal(outcome.attemptId, attempt.attemptId);
+  assert.equal(outcome.decisionId, decision.id);
+  assert.equal(outcome.originatingQuestionId, question.id);
+  assert.equal(outcome.sessionId, session.id);
+  assert.equal(outcome.artifactHash, session.artifactHash);
+  assert.equal(outcome.authorContextHash, session.authorContextHash);
+  assert.equal(outcome.logicalCost, attempt.logicalCost);
+  assert.equal(outcome.latencyConsumed, 3);
+  assert.equal(typeof outcome.completedAt, 'string');
+  assert.ok(!Number.isNaN(Date.parse(outcome.completedAt)));
+
+  assert.deepEqual(next.contextRequests, requestsBefore);
+  assert.deepEqual(session, before);
+});
+
+check('DECLINED happy path: stored outcome has no responseText field', () => {
+  const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'DECLINED',
+    contextRequestId: contextRequest.id,
+  });
+  const outcome = next.outcomes[0];
+  assert.equal(outcome.result, 'DECLINED');
+  assert.equal(outcome.contextRequestId, contextRequest.id);
+  assert.equal('responseText' in outcome, false);
+});
+
+check('zero ContextRequest for the attempt: both SUPPLIED and DECLINED are rejected, with no latency spend or outcome append', () => {
+  for (const result of ['SUPPLIED', 'DECLINED']) {
+    const { session, state, attempt } = buildAddContextAttemptFixture();
+    const before = JSON.parse(JSON.stringify(state));
+    const extra = result === 'SUPPLIED' ? { responseText: 'x' } : {};
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, state, {
+          attemptId: attempt.attemptId,
+          status: 'SUCCEEDED',
+          latencyConsumed: 1,
+          result,
+          contextRequestId: 'no-request-exists-for-this-attempt',
+          ...extra,
+        }),
+      /does not resolve to exactly one ContextRequest/
+    );
+    assert.deepEqual(state, before);
+  }
+});
+
+check('a ContextRequest belonging to a DIFFERENT attempt is rejected, even with equivalent sourceRefs/session', () => {
+  const cycle1 = buildAddContextRequestedFixture();
+  const { state: state2, question: question2 } = buildRegisteredQuestion(cycle1.session, cycle1.state, {
+    rootCause: 'CONTEXT_GAP',
+    materialityReason: 'a second, independent CONTEXT_GAP question',
+    inputRefs: cycle1.question.inputRefs.map((ref) => ({ ...ref })),
+  });
+  const decision2 = planRouteForQuestion(cycle1.session, state2, question2);
+  const state3 = recordRouteDecision(cycle1.session, state2, decision2);
+  const state4 = recordRouteAttemptStart(cycle1.session, state3, decision2.id);
+  const attempt2 = state4.attempts.find((a) => a.decisionId === decision2.id);
+  const second = createContextRequest(cycle1.session, state4, {
+    attemptId: attempt2.attemptId,
+    category: 'constraints',
+    question: 'second question?',
+    inferenceReason: 'x',
+  });
+
+  assert.throws(
+    () =>
+      recordRouteOutcome(cycle1.session, second.deliberationState, {
+        attemptId: cycle1.attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        result: 'DECLINED',
+        contextRequestId: second.contextRequest.id,
+      }),
+    /does not match the attempt being terminalized/
+  );
+  assert.equal(second.deliberationState.outcomes.length, 0);
+});
+
+check('a blank or entirely unknown contextRequestId is rejected', () => {
+  const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
+  for (const bad of ['', '   ', null, undefined, 'totally-fictitious-id']) {
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, state, {
+          attemptId: attempt.attemptId,
+          status: 'SUCCEEDED',
+          latencyConsumed: 1,
+          result: 'DECLINED',
+          contextRequestId: bad,
+        }),
+      /must be a non-empty string|does not resolve to exactly one ContextRequest/,
+      `expected contextRequestId ${JSON.stringify(bad)} to be rejected`
+    );
+  }
+  assert.equal(contextRequest.originatingAttemptId, attempt.attemptId);
+});
+
+check('a tampered ledger with a duplicate ContextRequest.id is rejected before any request is selected', () => {
+  const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
+  const duplicateIdEntry = { ...contextRequest, originatingAttemptId: 'a-different-attempt-id-entirely' };
+  const tampered = { ...state, contextRequests: [...state.contextRequests, duplicateIdEntry] };
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, tampered, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        result: 'DECLINED',
+        contextRequestId: contextRequest.id,
+      }),
+    /duplicate ContextRequest\.id/
+  );
+});
+
+check('a self-consistent but state-inconsistent attempt/request pair ELSEWHERE in the ledger fails closed through the mandatory ledger check, even for an otherwise perfectly valid outcome (C1 amendment protection preserved)', () => {
+  const cycle1 = buildAddContextRequestedFixture();
+  const { state: state2, question: question2 } = buildRegisteredQuestion(cycle1.session, cycle1.state, {
+    rootCause: 'CONTEXT_GAP',
+    materialityReason: 'a second, independent CONTEXT_GAP question',
+    inputRefs: cycle1.question.inputRefs.map((ref) => ({ ...ref })),
+  });
+  const decision2 = planRouteForQuestion(cycle1.session, state2, question2);
+  const state3 = recordRouteDecision(cycle1.session, state2, decision2);
+  const state4 = recordRouteAttemptStart(cycle1.session, state3, decision2.id);
+  const attempt2 = state4.attempts.find((a) => a.decisionId === decision2.id);
+  const second = createContextRequest(cycle1.session, state4, {
+    attemptId: attempt2.attemptId,
+    category: 'constraints',
+    question: 'second question?',
+    inferenceReason: 'x',
+  });
+
+  // Tamper A2/R2 (unrelated to the outcome being recorded) so they mutually
+  // agree with each other but disagree with the current DeliberationState.
+  const tamperedAttempts = second.deliberationState.attempts.map((a) =>
+    a.attemptId === attempt2.attemptId ? { ...a, sessionId: 'BAD-SESSION' } : a
+  );
+  const tamperedRequests = second.deliberationState.contextRequests.map((r) =>
+    r.originatingAttemptId === attempt2.attemptId ? { ...r, originatingSessionId: 'BAD-SESSION' } : r
+  );
+  const tampered = { ...second.deliberationState, attempts: tamperedAttempts, contextRequests: tamperedRequests };
+
+  // A1/R1 (the ones actually named by this outcome) are themselves perfectly
+  // valid -- validateAttemptProvenanceForOutcome for attempt1 would pass on
+  // its own. The mandatory GLOBAL ledger check must still reject, because it
+  // scans the COMPLETE ledger (including the tampered, unrelated A2/R2 pair),
+  // never only the locally-selected request.
+  assert.throws(
+    () =>
+      recordRouteOutcome(cycle1.session, tampered, {
+        attemptId: cycle1.attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        result: 'DECLINED',
+        contextRequestId: cycle1.contextRequest.id,
+      }),
+    /sessionId does not match the current DeliberationState binding/
+  );
+});
+
+check('SUPPLIED requires a non-empty responseText; missing/null/empty/whitespace-only are all rejected', () => {
+  const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
+  for (const bad of [undefined, null, '', '   ']) {
+    const extra = bad === undefined ? {} : { responseText: bad };
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, state, {
+          attemptId: attempt.attemptId,
+          status: 'SUCCEEDED',
+          latencyConsumed: 1,
+          result: 'SUPPLIED',
+          contextRequestId: contextRequest.id,
+          ...extra,
+        }),
+      /must be a non-empty string/,
+      `expected responseText ${JSON.stringify(bad)} to be rejected`
+    );
+  }
+  const ok = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'SUPPLIED',
+    contextRequestId: contextRequest.id,
+    responseText: 'a perfectly ordinary response',
+  });
+  assert.equal(ok.outcomes[0].responseText, 'a perfectly ordinary response');
+});
+
+check('DECLINED rejects a responseText field; its own exact payload passes', () => {
+  const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        result: 'DECLINED',
+        contextRequestId: contextRequest.id,
+        responseText: 'should not be allowed here',
+      }),
+    /unexpected field/
+  );
+  const ok = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'DECLINED',
+    contextRequestId: contextRequest.id,
+  });
+  assert.equal(ok.outcomes[0].result, 'DECLINED');
+});
+
+check('NO_RESPONSE is rejected explicitly, even with a perfectly valid ContextRequest present -- no timeout/deadline mechanism is invented', () => {
+  const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        result: 'NO_RESPONSE',
+        contextRequestId: contextRequest.id,
+      }),
+    /NO_RESPONSE is not authorized/
+  );
+});
+
+check('ADD_CONTEXT status INCONCLUSIVE is rejected, never reinterpreted as NO_RESPONSE', () => {
+  const { session, state, attempt } = buildAddContextAttemptFixture();
+  assert.throws(
+    () => recordRouteOutcome(session, state, { attemptId: attempt.attemptId, status: 'INCONCLUSIVE', latencyConsumed: 1 }),
+    /INCONCLUSIVE is not recordable/
+  );
+});
+
+check('generic FAILED remains legal for ADD_CONTEXT with zero or one ContextRequest; extra ADD_CONTEXT-success keys are rejected on FAILED', () => {
+  {
+    const { session, state, attempt } = buildAddContextAttemptFixture();
+    const outcomeState = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'FAILED',
+      latencyConsumed: 1,
+      failure: VALID_FAILURE_FOR_DISPOSITION,
+    });
+    assert.equal(outcomeState.outcomes[0].status, 'FAILED');
+  }
+  {
+    const { session, state, attempt } = buildAddContextRequestedFixture();
+    const outcomeState = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'FAILED',
+      latencyConsumed: 1,
+      failure: VALID_FAILURE_FOR_DISPOSITION,
+    });
+    assert.equal(outcomeState.outcomes[0].status, 'FAILED');
+    assert.equal(outcomeState.contextRequests.length, 1);
+  }
+  {
+    const { session, state, attempt } = buildAddContextAttemptFixture();
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, state, {
+          attemptId: attempt.attemptId,
+          status: 'FAILED',
+          latencyConsumed: 1,
+          failure: VALID_FAILURE_FOR_DISPOSITION,
+          contextRequestId: 'x',
+          result: 'SUPPLIED',
+          responseText: 'x',
+        }),
+      /unexpected field/
+    );
+  }
+});
+
+check('recording SUPPLIED or DECLINED never mutates the ContextRequest ledger (no response/consumed field added)', () => {
+  for (const result of ['SUPPLIED', 'DECLINED']) {
+    const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
+    const before = JSON.parse(JSON.stringify(state.contextRequests));
+    const extra = result === 'SUPPLIED' ? { responseText: 'x' } : {};
+    const next = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      result,
+      contextRequestId: contextRequest.id,
+      ...extra,
+    });
+    assert.deepEqual(next.contextRequests, before);
+  }
+});
+
+check('recording DECLINED does not mutate the session (hashes/AuthorContext/findings/semanticIssues/adjudications/revisionActions untouched)', () => {
+  const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
+  const before = JSON.parse(JSON.stringify(session));
+  recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'DECLINED',
+    contextRequestId: contextRequest.id,
+  });
+  assert.deepEqual(session, before);
+});
+
+check('SUPPLIED and DECLINED never automatically create a QuestionDisposition', () => {
+  for (const result of ['SUPPLIED', 'DECLINED']) {
+    const { session, state, attempt, question, contextRequest } = buildAddContextRequestedFixture();
+    const extra = result === 'SUPPLIED' ? { responseText: 'x' } : {};
+    const next = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      result,
+      contextRequestId: contextRequest.id,
+      ...extra,
+    });
+    assert.deepEqual(next.questionDispositions, []);
+    assert.equal(isQuestionCurrent(next, question.id), true);
+  }
+});
+
+check('after a SUPPLIED outcome, recordQuestionDisposition(STILL_OPEN) and, from a fresh equivalent setup, RESOLVED are both structurally legal', () => {
+  {
+    const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
+    const outcomeState = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      result: 'SUPPLIED',
+      contextRequestId: contextRequest.id,
+      responseText: 'x',
+    });
+    const disposed = recordQuestionDisposition(session, outcomeState, {
+      attemptId: attempt.attemptId,
+      disposition: 'STILL_OPEN',
+      reason: 'still needs more',
+    });
+    assert.equal(disposed.questionDispositions.length, 1);
+  }
+  {
+    const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
+    const outcomeState = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      result: 'SUPPLIED',
+      contextRequestId: contextRequest.id,
+      responseText: 'x',
+    });
+    const disposed = recordQuestionDisposition(session, outcomeState, {
+      attemptId: attempt.attemptId,
+      disposition: 'RESOLVED',
+      reason: 'now resolved',
+    });
+    assert.equal(isQuestionCurrent(disposed, disposed.unresolvedQuestions[0].id), false);
+  }
+});
+
+check('mutating the caller input object after recording does not alter the stored outcome; no nested mutable request object exists in the outcome', () => {
+  const { session, state, attempt, contextRequest } = buildAddContextRequestedFixture();
+  const callerInput = {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'SUPPLIED',
+    contextRequestId: contextRequest.id,
+    responseText: 'original response',
+  };
+  const next = recordRouteOutcome(session, state, callerInput);
+  callerInput.responseText = 'mutated after the call';
+  assert.equal(next.outcomes[0].responseText, 'original response');
+  assert.equal('contextRequest' in next.outcomes[0], false);
+});
+
+check('SUPPLIED and DECLINED both reject every caller-derived field (decisionId/originatingQuestionId/sessionId/artifactHash/authorContextHash/logicalCost/completedAt)', () => {
+  const { session, state, attempt, question, contextRequest } = buildAddContextRequestedFixture();
+  const forbiddenExtras = [
+    { decisionId: 'x' },
+    { originatingQuestionId: question.id },
+    { sessionId: session.id },
+    { artifactHash: session.artifactHash },
+    { authorContextHash: session.authorContextHash },
+    { logicalCost: 0 },
+    { completedAt: new Date().toISOString() },
+  ];
+  for (const result of ['SUPPLIED', 'DECLINED']) {
+    const base = {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      result,
+      contextRequestId: contextRequest.id,
+      ...(result === 'SUPPLIED' ? { responseText: 'x' } : {}),
+    };
+    for (const extra of forbiddenExtras) {
+      assert.throws(
+        () => recordRouteOutcome(session, state, { ...base, ...extra }),
+        /unexpected field/,
+        `expected ${result} + ${JSON.stringify(Object.keys(extra))} to be rejected`
+      );
+    }
+  }
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

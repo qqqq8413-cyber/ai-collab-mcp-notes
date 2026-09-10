@@ -359,8 +359,30 @@ export interface ReplicationRouteOutcome extends RouteOutcomeCommon {
   targetRef: RouteInputRef;
 }
 
-/** Slice 2D-B1's complete RouteOutcome vocabulary. ADD_CONTEXT/SEEK_EVIDENCE/TARGETED_PEER_CHALLENGE successful outcomes and any INCONCLUSIVE outcome are not yet representable -- not authorized in this slice. */
-export type RouteOutcome = FailedRouteOutcome | AddReviewerRouteOutcome | ReplicationRouteOutcome;
+/** The full accepted architecture vocabulary for ADD_CONTEXT's human-response mechanism (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7.A). `NO_RESPONSE` remains excluded from the recordable subset below -- its terminalization mechanism is a still-open architecture decision (§24). */
+export type AddContextResult = 'SUPPLIED' | 'DECLINED' | 'NO_RESPONSE';
+
+/** The immutable terminal record for a successful ADD_CONTEXT attempt whose human context-request mechanism obtained supplied context. `contextRequestId` resolves to the exact `ContextRequest` this outcome answers -- independently re-verified to belong to this same attempt/question/session/hash binding, never trusted merely because a caller supplied a plausible-looking id (Slice 2D-C2). `responseText` is an immutable, provider-neutral response fact; recording it never mutates `AuthorContext` or creates a new session. */
+export interface AddContextSuppliedRouteOutcome extends RouteOutcomeCommon {
+  status: 'SUCCEEDED';
+  route: 'ADD_CONTEXT';
+  result: 'SUPPLIED';
+  contextRequestId: string;
+  responseText: string;
+}
+
+/** The immutable terminal record for a successful ADD_CONTEXT attempt whose human explicitly declined to supply the requested context -- itself a determinate, successful completion of the request mechanism, never a failure. No `responseText` and no `declineReason` field. */
+export interface AddContextDeclinedRouteOutcome extends RouteOutcomeCommon {
+  status: 'SUCCEEDED';
+  route: 'ADD_CONTEXT';
+  result: 'DECLINED';
+  contextRequestId: string;
+}
+
+export type AddContextRouteOutcome = AddContextSuppliedRouteOutcome | AddContextDeclinedRouteOutcome;
+
+/** Slice 2D-C2's complete RouteOutcome vocabulary. SEEK_EVIDENCE/TARGETED_PEER_CHALLENGE successful outcomes, ADD_CONTEXT's NO_RESPONSE result, and any INCONCLUSIVE outcome are not yet representable -- not authorized in this slice. */
+export type RouteOutcome = FailedRouteOutcome | AddReviewerRouteOutcome | ReplicationRouteOutcome | AddContextRouteOutcome;
 
 /** The full accepted architecture vocabulary (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9). `CROSS_SESSION` remains excluded from the recordable subset below -- it needs `ADD_CONTEXT` success + session-lineage runtime, not authorized yet. */
 export type QuestionDispositionKind = 'STILL_OPEN' | 'RESOLVED' | 'SUPERSEDED_RECLASSIFIED' | 'CROSS_SESSION';
@@ -1420,8 +1442,10 @@ export interface RecordRouteOutcomeInput {
   failure?: FailureInfo;
   reviewerRunId?: string;
   findingIds?: string[];
-  result?: ReplicationResult;
+  result?: ReplicationResult | AddContextResult;
   targetRef?: RouteInputRef;
+  contextRequestId?: string;
+  responseText?: string;
 }
 
 /**
@@ -1430,12 +1454,14 @@ export interface RecordRouteOutcomeInput {
  * provider, retrieves anything, or contacts a human
  * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7, §20).
  *
- * Slice 2D-B1 records exactly three shapes: a generic `FAILED` outcome for
- * any already-started non-STOP attempt, a successful `ADD_REVIEWER`
- * outcome, and a successful `REPLICATE` outcome. `ADD_CONTEXT`/
- * `SEEK_EVIDENCE`/`TARGETED_PEER_CHALLENGE` successful outcomes and any
- * `INCONCLUSIVE` outcome are rejected outright — not yet authorized,
- * regardless of how plausible the supplied payload looks.
+ * Slice 2D-C2 records five shapes: a generic `FAILED` outcome for any
+ * already-started non-STOP attempt, a successful `ADD_REVIEWER` outcome, a
+ * successful `REPLICATE` outcome, and successful `ADD_CONTEXT` `SUPPLIED`/
+ * `DECLINED` outcomes (each independently re-verified against the complete
+ * `ContextRequest` ledger, never trusted from the input alone). `ADD_CONTEXT`
+ * `NO_RESPONSE`, `SEEK_EVIDENCE`/`TARGETED_PEER_CHALLENGE` successful
+ * outcomes, and any `INCONCLUSIVE` outcome are rejected outright — not yet
+ * authorized, regardless of how plausible the supplied payload looks.
  *
  * `attemptId` is resolved only against `deliberationState.attempts` (no
  * free-floating outcome) and re-validated against its own recorded
@@ -1502,6 +1528,25 @@ export function recordRouteOutcome(
     allowedKeys = ['attemptId', 'status', 'latencyConsumed', 'reviewerRunId', 'findingIds'];
   } else if (attempt.route === 'REPLICATE') {
     allowedKeys = ['attemptId', 'status', 'latencyConsumed', 'result', 'targetRef'];
+  } else if (attempt.route === 'ADD_CONTEXT') {
+    // Shape differs by result (SUPPLIED carries responseText, DECLINED does
+    // not), so the exact-key set is chosen by raw result-string equality --
+    // never by validated-result membership -- exactly the same
+    // "peek at the raw discriminant before validating it" posture already
+    // used for recordQuestionDisposition's SUPERSEDED_RECLASSIFIED branch.
+    const rawResult = (input as { result?: unknown }).result;
+    if (rawResult === 'NO_RESPONSE') {
+      throw new Error(
+        'recordRouteOutcome: ADD_CONTEXT result NO_RESPONSE is not authorized -- terminalization mechanism is an unresolved open architecture decision'
+      );
+    }
+    if (rawResult === 'SUPPLIED') {
+      allowedKeys = ['attemptId', 'status', 'latencyConsumed', 'result', 'contextRequestId', 'responseText'];
+    } else if (rawResult === 'DECLINED') {
+      allowedKeys = ['attemptId', 'status', 'latencyConsumed', 'result', 'contextRequestId'];
+    } else {
+      throw new Error(`recordRouteOutcome: invalid or unsupported ADD_CONTEXT result ${JSON.stringify(rawResult)}`);
+    }
   } else {
     throw new Error(
       `recordRouteOutcome: SUCCEEDED result recording for route ${attempt.route} is not authorized in Slice 2D-B1`
@@ -1591,6 +1636,90 @@ export function recordRouteOutcome(
       latencyConsumed: input.latencyConsumed,
       reviewerRunId,
       findingIds: [...input.findingIds],
+    };
+    return { ...withLatency, outcomes: [...withLatency.outcomes, outcome] };
+  }
+
+  if (attempt.route === 'ADD_CONTEXT') {
+    const result = input.result as 'SUPPLIED' | 'DECLINED';
+    const contextRequestId = input.contextRequestId as string;
+    assertNonEmptyString(contextRequestId, 'recordRouteOutcome: contextRequestId');
+
+    // Mandatory: the COMPLETE ContextRequest ledger must be sound before a
+    // single selected request from it is ever trusted -- agreement between
+    // the outcome input and one request alone is insufficient if the
+    // request/attempt/state chain elsewhere in the ledger is already corrupt
+    // (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7, Slice 2D-C2;
+    // reaffirms the Slice 2D-C1 amendment's authoritative-upstream posture).
+    assertContextRequestLedgerIntegrity(deliberationState);
+
+    const matchingRequests = effectiveContextRequests(deliberationState).filter((r) => r.id === contextRequestId);
+    if (matchingRequests.length !== 1) {
+      throw new Error(`recordRouteOutcome: contextRequestId ${contextRequestId} does not resolve to exactly one ContextRequest`);
+    }
+    const contextRequest = matchingRequests[0];
+    if (contextRequest.originatingAttemptId !== attempt.attemptId) {
+      throw new Error(
+        'recordRouteOutcome: contextRequest.originatingAttemptId does not match the attempt being terminalized -- a request from another attempt is never valid provenance'
+      );
+    }
+    if (contextRequest.originatingQuestionId !== attempt.questionId) {
+      throw new Error('recordRouteOutcome: contextRequest.originatingQuestionId does not match attempt.questionId');
+    }
+    if (contextRequest.originatingSessionId !== attempt.sessionId) {
+      throw new Error('recordRouteOutcome: contextRequest.originatingSessionId does not match the attempt session binding');
+    }
+    if (contextRequest.artifactHash !== attempt.artifactHash) {
+      throw new Error('recordRouteOutcome: contextRequest.artifactHash does not match the attempt binding');
+    }
+    if (contextRequest.authorContextHash !== attempt.authorContextHash) {
+      throw new Error('recordRouteOutcome: contextRequest.authorContextHash does not match the attempt binding');
+    }
+
+    if (result === 'SUPPLIED') {
+      const responseText = input.responseText as string;
+      assertNonEmptyString(responseText, 'recordRouteOutcome: responseText');
+
+      const withLatency = applyLatencySpend(deliberationState, input.latencyConsumed);
+      verifyDeliberationBinding(session, deliberationState);
+
+      const outcome: AddContextSuppliedRouteOutcome = {
+        attemptId: attempt.attemptId,
+        decisionId: attempt.decisionId,
+        originatingQuestionId: attempt.questionId,
+        route: 'ADD_CONTEXT',
+        sessionId: attempt.sessionId,
+        artifactHash: attempt.artifactHash,
+        authorContextHash: attempt.authorContextHash,
+        completedAt: nowIso(),
+        status: 'SUCCEEDED',
+        logicalCost: attempt.logicalCost,
+        latencyConsumed: input.latencyConsumed,
+        result: 'SUPPLIED',
+        contextRequestId,
+        responseText,
+      };
+      return { ...withLatency, outcomes: [...withLatency.outcomes, outcome] };
+    }
+
+    // result === 'DECLINED'
+    const withLatency = applyLatencySpend(deliberationState, input.latencyConsumed);
+    verifyDeliberationBinding(session, deliberationState);
+
+    const outcome: AddContextDeclinedRouteOutcome = {
+      attemptId: attempt.attemptId,
+      decisionId: attempt.decisionId,
+      originatingQuestionId: attempt.questionId,
+      route: 'ADD_CONTEXT',
+      sessionId: attempt.sessionId,
+      artifactHash: attempt.artifactHash,
+      authorContextHash: attempt.authorContextHash,
+      completedAt: nowIso(),
+      status: 'SUCCEEDED',
+      logicalCost: attempt.logicalCost,
+      latencyConsumed: input.latencyConsumed,
+      result: 'DECLINED',
+      contextRequestId,
     };
     return { ...withLatency, outcomes: [...withLatency.outcomes, outcome] };
   }
