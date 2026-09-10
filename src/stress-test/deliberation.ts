@@ -408,8 +408,65 @@ export type AddContextRouteOutcome =
   | AddContextDeclinedRouteOutcome
   | AddContextNoResponseRouteOutcome;
 
-/** Slice 2D-C4's complete RouteOutcome vocabulary. `SEEK_EVIDENCE`/`TARGETED_PEER_CHALLENGE` successful outcomes and any `INCONCLUSIVE` outcome are not yet representable -- not authorized in this slice. `ADD_CONTEXT`'s `NO_RESPONSE` result is representable, but only through `closeContextRequestWithoutResponse` -- `recordRouteOutcome` never accepts it (§ below). */
-export type RouteOutcome = FailedRouteOutcome | AddReviewerRouteOutcome | ReplicationRouteOutcome | AddContextRouteOutcome;
+/**
+ * A single, provider-neutral citation supporting/contradicting a
+ * `SEEK_EVIDENCE` `EvidenceSubject.claimText` (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+ * §13.D decision S, Slice 2D-C5-0 freeze). Never a raw provider/SDK object, a
+ * retrieved full document, a ranking score, or a query -- `sourceIdentifier`
+ * names where the excerpt came from, `excerpt` is the bounded quoted text
+ * itself, and `title` is optional descriptive context. No numeric length
+ * bound is invented for `excerpt`/`title`, the same "no bound without an
+ * analogous, specifically-named justification" reasoning already applied to
+ * `materialityReason`/`QuestionDisposition.reason`.
+ */
+export interface EvidenceCitation {
+  sourceIdentifier: string;
+  title?: string;
+  excerpt: string;
+}
+
+/** Closed, three-value SEEK_EVIDENCE result vocabulary (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.D decision Q/R). Deliberately never overloaded onto `ReplicationResult`, `AddContextResult`, or `AttemptStatus` -- a separate concept with its own status/result matrix. */
+export type SeekEvidenceResult = 'SUPPORTIVE' | 'CONTRADICTORY' | 'INCONCLUSIVE';
+
+/** Runtime allowlist mirroring SeekEvidenceResult -- a plain-JS caller has no compile-time check. */
+const SEEK_EVIDENCE_RESULTS: readonly SeekEvidenceResult[] = ['SUPPORTIVE', 'CONTRADICTORY', 'INCONCLUSIVE'];
+
+/**
+ * The immutable terminal record for a `SEEK_EVIDENCE` attempt whose evidence
+ * relation was determinately established. `evidenceSubjectId` identifies the
+ * immutable `EvidenceSubject` this result evaluates -- `claimText`,
+ * `originatingFindingId`, `artifactLocation`, and `sourceRef` are never
+ * duplicated onto the outcome; every one of those resolves by walking
+ * `evidenceSubjectId -> EvidenceSubject`, exactly the "identify the immutable
+ * subject, never restate it" discipline `AddContextSuppliedRouteOutcome.contextRequestId`
+ * already establishes (§13.D decision Q).
+ */
+export interface SeekEvidenceSupportiveOrContradictoryRouteOutcome extends RouteOutcomeCommon {
+  status: 'SUCCEEDED';
+  route: 'SEEK_EVIDENCE';
+  result: 'SUPPORTIVE' | 'CONTRADICTORY';
+  evidenceSubjectId: string;
+  citations: EvidenceCitation[];
+}
+
+/** The immutable terminal record for a `SEEK_EVIDENCE` attempt whose evidence relation was not determinately established either way (§13.D decision Q/R). `citations` may be empty -- an inconclusive attempt need not have found anything. */
+export interface SeekEvidenceInconclusiveRouteOutcome extends RouteOutcomeCommon {
+  status: 'INCONCLUSIVE';
+  route: 'SEEK_EVIDENCE';
+  result: 'INCONCLUSIVE';
+  evidenceSubjectId: string;
+  citations: EvidenceCitation[];
+}
+
+export type SeekEvidenceRouteOutcome = SeekEvidenceSupportiveOrContradictoryRouteOutcome | SeekEvidenceInconclusiveRouteOutcome;
+
+/** Slice 2D-C5-B's complete RouteOutcome vocabulary. `TARGETED_PEER_CHALLENGE` successful outcomes remain not yet representable -- not authorized in this slice. `ADD_CONTEXT`'s `NO_RESPONSE` result is representable, but only through `closeContextRequestWithoutResponse` -- `recordRouteOutcome` never accepts it (§ below). */
+export type RouteOutcome =
+  | FailedRouteOutcome
+  | AddReviewerRouteOutcome
+  | ReplicationRouteOutcome
+  | AddContextRouteOutcome
+  | SeekEvidenceRouteOutcome;
 
 /** The full accepted architecture vocabulary (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9). `CROSS_SESSION` remains excluded from the recordable subset below -- it is never constructed via the ordinary `recordQuestionDisposition` path; as of Slice 2D-C3, only the atomic `createCrossSessionTransition` operation may ever produce one. */
 export type QuestionDispositionKind = 'STILL_OPEN' | 'RESOLVED' | 'SUPERSEDED_RECLASSIFIED' | 'CROSS_SESSION';
@@ -527,6 +584,69 @@ function assertExactKeys(input: object, allowed: readonly string[], label: strin
     if (!allowedSet.has(key)) {
       throw new Error(`${label}: unexpected field ${JSON.stringify(key)}`);
     }
+  }
+}
+
+/** Structural validation for one `EvidenceCitation` -- `sourceIdentifier`/`excerpt` non-empty; `title`, when present, non-empty (never present-but-blank). No numeric length bound is invented (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.D decision S). */
+function assertValidEvidenceCitation(citation: EvidenceCitation, label: string): void {
+  if (citation === null || typeof citation !== 'object') {
+    throw new Error(`${label} must be an object`);
+  }
+  assertExactKeys(citation, ['sourceIdentifier', 'title', 'excerpt'], label);
+  assertNonEmptyString(citation.sourceIdentifier, `${label}.sourceIdentifier`);
+  if (citation.title !== undefined) {
+    assertNonEmptyString(citation.title, `${label}.title`);
+  }
+  assertNonEmptyString(citation.excerpt, `${label}.excerpt`);
+}
+
+/** Independent value snapshot of one EvidenceCitation -- never the caller-owned object, preserving the exact supplied `sourceIdentifier`/`title`/`excerpt` strings without trimming or normalization. */
+function cloneEvidenceCitation(citation: EvidenceCitation): EvidenceCitation {
+  const clone: EvidenceCitation = { sourceIdentifier: citation.sourceIdentifier, excerpt: citation.excerpt };
+  if (citation.title !== undefined) {
+    clone.title = citation.title;
+  }
+  return clone;
+}
+
+function cloneEvidenceCitations(citations: EvidenceCitation[]): EvidenceCitation[] {
+  return citations.map(cloneEvidenceCitation);
+}
+
+/**
+ * Shared status/result/citation-cardinality matrix for a `SEEK_EVIDENCE`
+ * evidence-relation outcome, used identically at write time
+ * (`recordRouteOutcome`) and read time (`assertSeekEvidenceOutcomeIntegrity`)
+ * so the two boundaries can never drift (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+ * §13.D decisions R/S; the Slice 2D-C5-A amendment's write/read-drift lesson
+ * applied a further time). Legal pairings only: `SUCCEEDED` +
+ * `SUPPORTIVE`/`CONTRADICTORY`, or `INCONCLUSIVE` + `INCONCLUSIVE` -- every
+ * other status/result combination fails closed. `SUPPORTIVE`/`CONTRADICTORY`
+ * require at least one citation; `INCONCLUSIVE` permits zero.
+ */
+function assertSeekEvidenceStatusResultAndCitations(
+  status: AttemptStatus,
+  result: SeekEvidenceResult,
+  citations: EvidenceCitation[],
+  label: string
+): void {
+  if (!SEEK_EVIDENCE_RESULTS.includes(result)) {
+    throw new Error(`${label}: invalid or unsupported SEEK_EVIDENCE result ${JSON.stringify(result)}`);
+  }
+  const validPairing =
+    (status === 'SUCCEEDED' && (result === 'SUPPORTIVE' || result === 'CONTRADICTORY')) ||
+    (status === 'INCONCLUSIVE' && result === 'INCONCLUSIVE');
+  if (!validPairing) {
+    throw new Error(`${label}: SEEK_EVIDENCE status ${status} is not a legal pairing with result ${result}`);
+  }
+  if (!Array.isArray(citations)) {
+    throw new Error(`${label}: citations must be an array`);
+  }
+  for (const citation of citations) {
+    assertValidEvidenceCitation(citation, `${label}: citations[]`);
+  }
+  if ((result === 'SUPPORTIVE' || result === 'CONTRADICTORY') && citations.length === 0) {
+    throw new Error(`${label}: result ${result} requires at least one citation`);
   }
 }
 
@@ -1524,10 +1644,12 @@ export interface RecordRouteOutcomeInput {
   failure?: FailureInfo;
   reviewerRunId?: string;
   findingIds?: string[];
-  result?: ReplicationResult | AddContextResult;
+  result?: ReplicationResult | AddContextResult | SeekEvidenceResult;
   targetRef?: RouteInputRef;
   contextRequestId?: string;
   responseText?: string;
+  evidenceSubjectId?: string;
+  citations?: EvidenceCitation[];
 }
 
 /**
@@ -1536,17 +1658,22 @@ export interface RecordRouteOutcomeInput {
  * provider, retrieves anything, or contacts a human
  * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7, §20).
  *
- * Slice 2D-C2 records five shapes: a generic `FAILED` outcome for any
- * already-started non-STOP attempt, a successful `ADD_REVIEWER` outcome, a
- * successful `REPLICATE` outcome, and successful `ADD_CONTEXT` `SUPPLIED`/
- * `DECLINED` outcomes (each independently re-verified against the complete
- * `ContextRequest` ledger, never trusted from the input alone). `ADD_CONTEXT`
- * `NO_RESPONSE` is rejected outright through this function regardless of how
- * plausible the supplied payload looks -- not because it is unauthorized
- * (Slice 2D-C4 implemented and accepted its own dedicated
- * `closeContextRequestWithoutResponse` operation), but because this function
- * is never the path that creates it. `SEEK_EVIDENCE`/`TARGETED_PEER_CHALLENGE`
- * successful outcomes and any `INCONCLUSIVE` outcome remain rejected outright
+ * Records a generic `FAILED` outcome for any already-started non-STOP
+ * attempt, a successful `ADD_REVIEWER` outcome, a successful `REPLICATE`
+ * outcome, successful `ADD_CONTEXT` `SUPPLIED`/`DECLINED` outcomes (each
+ * independently re-verified against the complete `ContextRequest` ledger,
+ * never trusted from the input alone), and -- as of Slice 2D-C5-B --
+ * `SEEK_EVIDENCE` `SUPPORTIVE`/`CONTRADICTORY`/`INCONCLUSIVE` results, each
+ * independently re-verified against the complete `EvidenceSubject` ledger
+ * (`assertEvidenceSubjectLedgerIntegrity`, reused rather than reimplemented;
+ * ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.D decisions Q-V). `INCONCLUSIVE`
+ * is recordable ONLY for `SEEK_EVIDENCE` -- every other route's `AttemptStatus`
+ * allowlist is unchanged (§6). `ADD_CONTEXT` `NO_RESPONSE` is rejected
+ * outright through this function regardless of how plausible the supplied
+ * payload looks -- not because it is unauthorized (Slice 2D-C4 implemented
+ * and accepted its own dedicated `closeContextRequestWithoutResponse`
+ * operation), but because this function is never the path that creates it.
+ * `TARGETED_PEER_CHALLENGE` successful outcomes remain rejected outright
  * because they are genuinely not yet authorized.
  *
  * `attemptId` is resolved only against `deliberationState.attempts` (no
@@ -1575,9 +1702,6 @@ export function recordRouteOutcome(
   }
   assertNonEmptyString(input.attemptId, 'recordRouteOutcome: attemptId');
   assertValidAttemptStatus(input.status, 'recordRouteOutcome: status');
-  if (input.status === 'INCONCLUSIVE') {
-    throw new Error('recordRouteOutcome: INCONCLUSIVE is not recordable in Slice 2D-B1');
-  }
 
   const attempt = deliberationState.attempts.find((a) => a.attemptId === input.attemptId);
   if (!attempt) {
@@ -1610,6 +1734,16 @@ export function recordRouteOutcome(
   let allowedKeys: readonly string[];
   if (input.status === 'FAILED') {
     allowedKeys = ['attemptId', 'status', 'latencyConsumed', 'failure'];
+  } else if (attempt.route === 'SEEK_EVIDENCE') {
+    // The only route whose AttemptStatus allowlist includes INCONCLUSIVE
+    // (§6) -- handled here, before the blanket INCONCLUSIVE rejection below,
+    // regardless of whether this particular call is SUCCEEDED or
+    // INCONCLUSIVE; the exact status/result pairing is validated later.
+    allowedKeys = ['attemptId', 'status', 'latencyConsumed', 'result', 'evidenceSubjectId', 'citations'];
+  } else if (input.status === 'INCONCLUSIVE') {
+    throw new Error(
+      `recordRouteOutcome: INCONCLUSIVE is not recordable for route ${attempt.route} -- only SEEK_EVIDENCE supports an indeterminate evidence result`
+    );
   } else if (attempt.route === 'ADD_REVIEWER') {
     allowedKeys = ['attemptId', 'status', 'latencyConsumed', 'reviewerRunId', 'findingIds'];
   } else if (attempt.route === 'REPLICATE') {
@@ -1661,6 +1795,78 @@ export function recordRouteOutcome(
       latencyConsumed: input.latencyConsumed,
       failure: cloneFailureInfo(input.failure as FailureInfo),
     };
+    return { ...withLatency, outcomes: [...withLatency.outcomes, outcome] };
+  }
+
+  if (attempt.route === 'SEEK_EVIDENCE') {
+    const result = input.result as SeekEvidenceResult;
+    const citations = input.citations as EvidenceCitation[];
+    const evidenceSubjectId = input.evidenceSubjectId as string;
+
+    assertSeekEvidenceStatusResultAndCitations(input.status, result, citations, 'recordRouteOutcome');
+    assertNonEmptyString(evidenceSubjectId, 'recordRouteOutcome: evidenceSubjectId');
+
+    // Global before local, and never assume C5-A's earlier planning/
+    // recording/attempt-start gates already proved this for state that may
+    // have changed since: the question must still have exactly one valid
+    // EvidenceSubject, and the caller-supplied evidenceSubjectId must
+    // resolve to that exact subject -- readiness alone is not sufficient
+    // because the caller must identify which subject this result evaluates
+    // (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.D decision V,
+    // Slice 2D-C5-B). Reuses the C5-A shared ledger validator
+    // (`assertSeekEvidenceSubjectReady` -> `assertEvidenceSubjectLedgerIntegrity`
+    // -> `assertSemanticIssueEvidenceLeaf`) rather than reimplementing
+    // sourceRef/leaf-finding logic here -- the exact lesson the Slice
+    // 2D-C5-A amendment closed.
+    assertSeekEvidenceSubjectReady(session, deliberationState, attempt.questionId);
+    const resolvedSubject = effectiveEvidenceSubjects(deliberationState).find(
+      (s) => s.originatingQuestionId === attempt.questionId
+    );
+    if (!resolvedSubject || resolvedSubject.id !== evidenceSubjectId) {
+      throw new Error(
+        `recordRouteOutcome: evidenceSubjectId ${evidenceSubjectId} does not match the exact EvidenceSubject registered for question ${attempt.questionId}`
+      );
+    }
+
+    const withLatency = applyLatencySpend(deliberationState, input.latencyConsumed);
+    verifyDeliberationBinding(session, deliberationState);
+
+    let outcome: SeekEvidenceRouteOutcome;
+    if (result === 'INCONCLUSIVE') {
+      outcome = {
+        attemptId: attempt.attemptId,
+        decisionId: attempt.decisionId,
+        originatingQuestionId: attempt.questionId,
+        route: 'SEEK_EVIDENCE',
+        sessionId: attempt.sessionId,
+        artifactHash: attempt.artifactHash,
+        authorContextHash: attempt.authorContextHash,
+        completedAt: nowIso(),
+        status: 'INCONCLUSIVE',
+        logicalCost: attempt.logicalCost,
+        latencyConsumed: input.latencyConsumed,
+        result: 'INCONCLUSIVE',
+        evidenceSubjectId,
+        citations: cloneEvidenceCitations(citations),
+      };
+    } else {
+      outcome = {
+        attemptId: attempt.attemptId,
+        decisionId: attempt.decisionId,
+        originatingQuestionId: attempt.questionId,
+        route: 'SEEK_EVIDENCE',
+        sessionId: attempt.sessionId,
+        artifactHash: attempt.artifactHash,
+        authorContextHash: attempt.authorContextHash,
+        completedAt: nowIso(),
+        status: 'SUCCEEDED',
+        logicalCost: attempt.logicalCost,
+        latencyConsumed: input.latencyConsumed,
+        result,
+        evidenceSubjectId,
+        citations: cloneEvidenceCitations(citations),
+      };
+    }
     return { ...withLatency, outcomes: [...withLatency.outcomes, outcome] };
   }
 
@@ -1969,6 +2175,15 @@ export function recordQuestionDisposition(
   if (outcome.route !== attempt.route || attempt.route !== decision.route) {
     throw new Error('recordQuestionDisposition: route is inconsistent across outcome/attempt/decision');
   }
+
+  // A claim-evaluating SEEK_EVIDENCE outcome (SUPPORTIVE/CONTRADICTORY/
+  // INCONCLUSIVE) is never trusted as a semantic re-evaluation target merely
+  // because it is present in state -- its own route-specific provenance
+  // (EvidenceSubject, leaf finding, citation schema) is independently
+  // re-validated here, before any disposition is recorded against it
+  // (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.D decision V; Slice
+  // 2D-C5-B, §33). A no-op for every non-claim-evaluating outcome.
+  assertSeekEvidenceOutcomeIntegrity(session, deliberationState, outcome);
 
   const questionId = decision.questionId;
   if (typeof questionId !== 'string' || questionId.length === 0) {
@@ -3602,4 +3817,95 @@ export function registerEvidenceSubject(
     },
     evidenceSubject: buildSnapshot(),
   };
+}
+
+/**
+ * Independently re-validates a stored successful/inconclusive `SEEK_EVIDENCE`
+ * `RouteOutcome` against the complete authoritative-upstream chain at the
+ * moment it is about to be trusted as a claim-evaluating fact -- never
+ * merely because `outcome.attemptId`/`outcome.originatingQuestionId` look
+ * self-consistent (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.D
+ * decision V, "authoritative-upstream" principle, restated a further time).
+ * A no-op for any outcome that is not a claim-evaluating SEEK_EVIDENCE
+ * result -- a generic `FAILED` SEEK_EVIDENCE outcome asserts no evidence
+ * relation and never required an EvidenceSubject (decision P), so it is
+ * never subject to this check. Reuses `assertEvidenceSubjectLedgerIntegrity`
+ * (and, transitively, `assertSemanticIssueEvidenceLeaf`) rather than
+ * reimplementing sourceRef/leaf-finding logic a third time -- the exact
+ * write/read-drift lesson the Slice 2D-C5-A amendment closed for
+ * registration, applied here to outcome recording/re-reading.
+ */
+function assertSeekEvidenceOutcomeIntegrity(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  outcome: RouteOutcome
+): void {
+  if (outcome.route !== 'SEEK_EVIDENCE' || outcome.status === 'FAILED') {
+    return;
+  }
+  const label = 'SEEK_EVIDENCE outcome read validation';
+  assertSeekEvidenceStatusResultAndCitations(outcome.status, outcome.result, outcome.citations, label);
+  assertNonEmptyString(outcome.evidenceSubjectId, `${label}: evidenceSubjectId`);
+  assertFiniteNonNegative(outcome.latencyConsumed, `${label}: latencyConsumed`);
+  if (Number.isNaN(Date.parse(outcome.completedAt))) {
+    throw new Error(`${label}: completedAt is not a valid parseable timestamp`);
+  }
+
+  const matchingAttempts = deliberationState.attempts.filter((a) => a.attemptId === outcome.attemptId);
+  if (matchingAttempts.length !== 1) {
+    throw new Error(`${label}: attemptId ${outcome.attemptId} does not resolve to exactly one RouteAttempt`);
+  }
+  const attempt = matchingAttempts[0];
+  if (attempt.route !== 'SEEK_EVIDENCE') {
+    throw new Error(`${label}: resolved attempt has route ${attempt.route}, not SEEK_EVIDENCE`);
+  }
+  if (attempt.logicalCost !== outcome.logicalCost) {
+    throw new Error(`${label}: logicalCost does not match the resolved attempt`);
+  }
+  if (
+    attempt.sessionId !== outcome.sessionId ||
+    attempt.artifactHash !== outcome.artifactHash ||
+    attempt.authorContextHash !== outcome.authorContextHash
+  ) {
+    throw new Error(`${label}: outcome session/hash binding does not match the resolved attempt`);
+  }
+  if (
+    attempt.sessionId !== session.id ||
+    attempt.artifactHash !== session.artifactHash ||
+    attempt.authorContextHash !== session.authorContextHash
+  ) {
+    throw new Error(`${label}: resolved attempt binding does not match the authoritative session`);
+  }
+
+  const decision = resolveUniqueRouteDecisionById(deliberationState, attempt.decisionId, label);
+  if (decision.route !== 'SEEK_EVIDENCE') {
+    throw new Error(`${label}: resolved decision has route ${decision.route}, not SEEK_EVIDENCE`);
+  }
+  if (decision.id !== outcome.decisionId) {
+    throw new Error(`${label}: outcome.decisionId does not match the resolved attempt's own decision`);
+  }
+  if (attempt.questionId !== decision.questionId) {
+    throw new Error(`${label}: attempt.questionId does not match the resolved decision`);
+  }
+  if (attempt.questionId !== outcome.originatingQuestionId) {
+    throw new Error(`${label}: outcome.originatingQuestionId does not match the resolved attempt`);
+  }
+
+  const matchingQuestions = deliberationState.unresolvedQuestions.filter((q) => q.id === attempt.questionId);
+  if (matchingQuestions.length !== 1) {
+    throw new Error(`${label}: questionId ${attempt.questionId} does not resolve to exactly one registered UnresolvedQuestion`);
+  }
+  const question = matchingQuestions[0];
+  if (question.rootCause !== 'EVIDENCE_GAP') {
+    throw new Error(`${label}: registered question ${question.id} has rootCause ${question.rootCause}, not EVIDENCE_GAP`);
+  }
+
+  assertEvidenceSubjectLedgerIntegrity(session, deliberationState);
+  const matchingSubjects = effectiveEvidenceSubjects(deliberationState).filter((s) => s.id === outcome.evidenceSubjectId);
+  if (matchingSubjects.length !== 1) {
+    throw new Error(`${label}: evidenceSubjectId ${outcome.evidenceSubjectId} does not resolve to exactly one EvidenceSubject`);
+  }
+  if (matchingSubjects[0].originatingQuestionId !== question.id) {
+    throw new Error(`${label}: resolved EvidenceSubject does not belong to the outcome's own question`);
+  }
 }

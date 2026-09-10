@@ -3044,14 +3044,13 @@ check('REPLICATE targetRef is snapshot-isolated: mutating the caller-owned ref a
 
 // --- Q8. Blocked successful routes/results ---------------------------------
 
-// ADD_CONTEXT SUPPLIED/DECLINED became recordable in Slice 2D-C2 (see
-// Section U below for their own dedicated tests); NO_RESPONSE remains
-// blocked but is tested there too, with a real ContextRequest present,
-// rather than via this generic no-request loop.
+// ADD_CONTEXT SUPPLIED/DECLINED became recordable in Slice 2D-C2, and
+// SEEK_EVIDENCE SUPPORTIVE/CONTRADICTORY/INCONCLUSIVE became recordable in
+// Slice 2D-C5-B (see their own dedicated EvidenceSubject test sections
+// below); NO_RESPONSE remains blocked but is tested there too, with a real
+// ContextRequest present, rather than via this generic no-request loop.
+// TARGETED_PEER_CHALLENGE remains the one still-blocked route here.
 const BLOCKED_SUCCESS_CASES = [
-  { rootCause: 'EVIDENCE_GAP', extra: { citations: [] }, label: 'SEEK_EVIDENCE SUPPORTIVE' },
-  { rootCause: 'EVIDENCE_GAP', extra: { citations: [] }, label: 'SEEK_EVIDENCE CONTRADICTORY' },
-  { rootCause: 'EVIDENCE_GAP', extra: {}, label: 'SEEK_EVIDENCE INCONCLUSIVE' },
   {
     rootCause: 'DECISION_SENSITIVE_CONFLICT',
     extra: { targetRef: { kind: 'SEMANTIC_ISSUE', id: 'x' }, sourceRef: { kind: 'SEMANTIC_ISSUE', id: 'y' }, response: 'x' },
@@ -6548,6 +6547,615 @@ check('registerEvidenceSubject: modifies only evidenceSubjects -- session and ev
   assert.deepEqual(next.latencyBudget, stateBefore.latencyBudget);
   assert.equal(next.stopReason, stateBefore.stopReason);
   assert.equal(next.evidenceSubjects.length, (stateBefore.evidenceSubjects ?? []).length + 1);
+});
+
+// ==================================================================
+console.log('\nSEEK_EVIDENCE result recording (Slice 2D-C5-B)');
+// ==================================================================
+
+const VALID_CITATION = {
+  sourceIdentifier: 'internal-doc-1',
+  title: 'Budget memo',
+  excerpt: 'The Q1 budget ceiling is confirmed at $50,000.',
+};
+
+/** Composes buildEvidenceSubjectFixture (C5-A): plans, records, and starts a SEEK_EVIDENCE attempt for a question that already has exactly one valid EvidenceSubject -- ready for recordRouteOutcome. */
+function buildSeekEvidenceAttemptFixture(costCeiling = 5, latencyCeiling = 5) {
+  const base = buildEvidenceSubjectFixture(costCeiling, latencyCeiling);
+  const decision = planRouteForQuestion(base.session, base.state, base.question);
+  const recorded = recordRouteDecision(base.session, base.state, decision);
+  const started = recordRouteAttemptStart(base.session, recorded, decision.id);
+  const attempt = started.attempts[0];
+  return { ...base, state: started, decision, attempt };
+}
+
+check('recordRouteOutcome: SEEK_EVIDENCE SUPPORTIVE happy path records an exact outcome against the resolved EvidenceSubject, restating no claim-identity fields', () => {
+  const { session, state, attempt, decision, question, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 2,
+    result: 'SUPPORTIVE',
+    evidenceSubjectId: evidenceSubject.id,
+    citations: [VALID_CITATION],
+  });
+  const outcome = next.outcomes[0];
+  assert.equal(outcome.route, 'SEEK_EVIDENCE');
+  assert.equal(outcome.status, 'SUCCEEDED');
+  assert.equal(outcome.result, 'SUPPORTIVE');
+  assert.equal(outcome.evidenceSubjectId, evidenceSubject.id);
+  assert.deepEqual(outcome.citations, [VALID_CITATION]);
+  assert.equal(outcome.attemptId, attempt.attemptId);
+  assert.equal(outcome.decisionId, decision.id);
+  assert.equal(outcome.originatingQuestionId, question.id);
+  assert.equal(outcome.sessionId, session.id);
+  assert.equal(outcome.artifactHash, session.artifactHash);
+  assert.equal(outcome.authorContextHash, session.authorContextHash);
+  assert.equal(outcome.logicalCost, attempt.logicalCost);
+  assert.equal(outcome.latencyConsumed, 2);
+  assert.equal(typeof outcome.completedAt, 'string');
+  assert.ok(!Number.isNaN(Date.parse(outcome.completedAt)));
+  assert.equal('claimText' in outcome, false);
+  assert.equal('sourceRef' in outcome, false);
+  assert.equal('originatingFindingId' in outcome, false);
+  assert.equal('artifactLocation' in outcome, false);
+});
+
+check('recordRouteOutcome: SEEK_EVIDENCE CONTRADICTORY happy path', () => {
+  const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'CONTRADICTORY',
+    evidenceSubjectId: evidenceSubject.id,
+    citations: [VALID_CITATION],
+  });
+  assert.equal(next.outcomes[0].status, 'SUCCEEDED');
+  assert.equal(next.outcomes[0].result, 'CONTRADICTORY');
+  assert.deepEqual(next.outcomes[0].citations, [VALID_CITATION]);
+});
+
+check('recordRouteOutcome: SEEK_EVIDENCE INCONCLUSIVE happy path allows empty citations, and also allows a non-empty citations array', () => {
+  const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'INCONCLUSIVE',
+    latencyConsumed: 1,
+    result: 'INCONCLUSIVE',
+    evidenceSubjectId: evidenceSubject.id,
+    citations: [],
+  });
+  assert.equal(next.outcomes[0].status, 'INCONCLUSIVE');
+  assert.equal(next.outcomes[0].result, 'INCONCLUSIVE');
+  assert.deepEqual(next.outcomes[0].citations, []);
+
+  const fixture2 = buildSeekEvidenceAttemptFixture();
+  const next2 = recordRouteOutcome(fixture2.session, fixture2.state, {
+    attemptId: fixture2.attempt.attemptId,
+    status: 'INCONCLUSIVE',
+    latencyConsumed: 1,
+    result: 'INCONCLUSIVE',
+    evidenceSubjectId: fixture2.evidenceSubject.id,
+    citations: [VALID_CITATION],
+  });
+  assert.deepEqual(next2.outcomes[0].citations, [VALID_CITATION]);
+});
+
+check('recordRouteOutcome: SEEK_EVIDENCE rejects every illegal status/result pairing and an unknown result, with no outcome/latency mutation', () => {
+  const illegalCases = [
+    { status: 'SUCCEEDED', result: 'INCONCLUSIVE', citations: [] },
+    { status: 'INCONCLUSIVE', result: 'SUPPORTIVE', citations: [] },
+    { status: 'INCONCLUSIVE', result: 'CONTRADICTORY', citations: [] },
+    { status: 'SUCCEEDED', result: 'NOT_A_REAL_RESULT', citations: [VALID_CITATION] },
+  ];
+  for (const { status, result, citations } of illegalCases) {
+    const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+    const before = JSON.parse(JSON.stringify(state));
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, state, {
+          attemptId: attempt.attemptId,
+          status,
+          latencyConsumed: 1,
+          result,
+          evidenceSubjectId: evidenceSubject.id,
+          citations,
+        }),
+      undefined,
+      `expected status=${status} result=${result} to be rejected`
+    );
+    assert.deepEqual(state, before, `no mutation for status=${status} result=${result}`);
+  }
+});
+
+check('recordRouteOutcome: INCONCLUSIVE is not enabled for any route other than SEEK_EVIDENCE', () => {
+  for (const rootCause of ['CONTEXT_GAP', 'STABILITY_QUESTION', 'COVERAGE_GAP', 'DECISION_SENSITIVE_CONFLICT']) {
+    const { session, state } = buildStartedAttemptFixture(rootCause);
+    const attempt = state.attempts[0];
+    assert.throws(
+      () => recordRouteOutcome(session, state, { attemptId: attempt.attemptId, status: 'INCONCLUSIVE', latencyConsumed: 1 }),
+      /INCONCLUSIVE is not recordable for route/,
+      `expected rootCause ${rootCause} to reject INCONCLUSIVE`
+    );
+  }
+});
+
+check('recordRouteOutcome: SEEK_EVIDENCE citation cardinality -- SUPPORTIVE/CONTRADICTORY require at least one citation, INCONCLUSIVE allows zero', () => {
+  for (const result of ['SUPPORTIVE', 'CONTRADICTORY']) {
+    const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, state, {
+          attemptId: attempt.attemptId,
+          status: 'SUCCEEDED',
+          latencyConsumed: 1,
+          result,
+          evidenceSubjectId: evidenceSubject.id,
+          citations: [],
+        }),
+      /requires at least one citation/,
+      `expected ${result} with zero citations to be rejected`
+    );
+  }
+  const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'INCONCLUSIVE',
+    latencyConsumed: 1,
+    result: 'INCONCLUSIVE',
+    evidenceSubjectId: evidenceSubject.id,
+    citations: [],
+  });
+  assert.deepEqual(next.outcomes[0].citations, []);
+});
+
+check('recordRouteOutcome: SEEK_EVIDENCE rejects malformed citation structure -- non-array, non-object, blank sourceIdentifier/excerpt, blank title, unexpected field', () => {
+  const badCitationsCases = [
+    'not-an-array',
+    [null],
+    [{ sourceIdentifier: '', excerpt: 'x' }],
+    [{ sourceIdentifier: 'x', excerpt: '' }],
+    [{ sourceIdentifier: 'x', excerpt: 'x', title: '' }],
+    [{ sourceIdentifier: 'x', excerpt: 'x', extraField: 'x' }],
+  ];
+  for (const citations of badCitationsCases) {
+    const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, state, {
+          attemptId: attempt.attemptId,
+          status: 'SUCCEEDED',
+          latencyConsumed: 1,
+          result: 'SUPPORTIVE',
+          evidenceSubjectId: evidenceSubject.id,
+          citations,
+        }),
+      undefined,
+      `expected citations ${JSON.stringify(citations)} to be rejected`
+    );
+  }
+});
+
+check('recordRouteOutcome: SEEK_EVIDENCE preserves exact non-empty title/excerpt/sourceIdentifier strings, and allows an omitted title', () => {
+  const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+  const citationWithoutTitle = { sourceIdentifier: 'doc-42', excerpt: 'The exact quoted text.' };
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'SUPPORTIVE',
+    evidenceSubjectId: evidenceSubject.id,
+    citations: [citationWithoutTitle, VALID_CITATION],
+  });
+  assert.deepEqual(next.outcomes[0].citations[0], citationWithoutTitle);
+  assert.equal('title' in next.outcomes[0].citations[0], false);
+  assert.deepEqual(next.outcomes[0].citations[1], VALID_CITATION);
+});
+
+check('recordRouteOutcome: SEEK_EVIDENCE rejects a blank, unknown, or wrong-question evidenceSubjectId, with no mutation', () => {
+  {
+    const { session, state, attempt } = buildSeekEvidenceAttemptFixture();
+    const before = JSON.parse(JSON.stringify(state));
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, state, {
+          attemptId: attempt.attemptId,
+          status: 'SUCCEEDED',
+          latencyConsumed: 1,
+          result: 'SUPPORTIVE',
+          evidenceSubjectId: '',
+          citations: [VALID_CITATION],
+        }),
+      /must be a non-empty string/
+    );
+    assert.deepEqual(state, before);
+  }
+  {
+    const { session, state, attempt } = buildSeekEvidenceAttemptFixture();
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, state, {
+          attemptId: attempt.attemptId,
+          status: 'SUCCEEDED',
+          latencyConsumed: 1,
+          result: 'SUPPORTIVE',
+          evidenceSubjectId: 'unknown-subject-id',
+          citations: [VALID_CITATION],
+        }),
+      /does not match the exact EvidenceSubject/
+    );
+  }
+  {
+    // A valid EvidenceSubject belonging to a DIFFERENT EVIDENCE_GAP question is rejected.
+    const { session, state: state0, question: q1, findingIds } = buildEvidenceGapFixture();
+    const { deliberationState: withQ1Subject, evidenceSubject: subject1 } = registerEvidenceSubject(session, state0, {
+      questionId: q1.id,
+      sourceRef: { kind: 'FINDING', id: findingIds[0] },
+      originatingFindingId: findingIds[0],
+      claimText: VALID_CLAIM_TEXT,
+    });
+    const { state: withQ2, question: q2 } = buildRegisteredQuestion(session, withQ1Subject, {
+      rootCause: 'EVIDENCE_GAP',
+      materialityReason: 'material EVIDENCE_GAP (q2)',
+      inputRefs: [{ kind: 'FINDING', id: findingIds[1] }],
+    });
+    const { deliberationState: withBothSubjects } = registerEvidenceSubject(session, withQ2, {
+      questionId: q2.id,
+      sourceRef: { kind: 'FINDING', id: findingIds[1] },
+      originatingFindingId: findingIds[1],
+      claimText: 'A second, independent claim.',
+    });
+    const q2Decision = planRouteForQuestion(session, withBothSubjects, q2);
+    const q2Recorded = recordRouteDecision(session, withBothSubjects, q2Decision);
+    const q2Started = recordRouteAttemptStart(session, q2Recorded, q2Decision.id);
+    const q2Attempt = q2Started.attempts[0];
+
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, q2Started, {
+          attemptId: q2Attempt.attemptId,
+          status: 'SUCCEEDED',
+          latencyConsumed: 1,
+          result: 'SUPPORTIVE',
+          evidenceSubjectId: subject1.id,
+          citations: [VALID_CITATION],
+        }),
+      /does not match the exact EvidenceSubject/
+    );
+  }
+});
+
+check('recordRouteOutcome: SEEK_EVIDENCE rejects when an UNRELATED EvidenceSubject elsewhere in the ledger is corrupt -- global before local, with no outcome/latency mutation', () => {
+  const { session, state: state0, question: q1, findingIds } = buildEvidenceGapFixture();
+  const { deliberationState: withQ1Subject, evidenceSubject: subject1 } = registerEvidenceSubject(session, state0, {
+    questionId: q1.id,
+    sourceRef: { kind: 'FINDING', id: findingIds[0] },
+    originatingFindingId: findingIds[0],
+    claimText: VALID_CLAIM_TEXT,
+  });
+  const q1Decision = planRouteForQuestion(session, withQ1Subject, q1);
+  const q1Recorded = recordRouteDecision(session, withQ1Subject, q1Decision);
+  const q1Started = recordRouteAttemptStart(session, q1Recorded, q1Decision.id);
+  const q1Attempt = q1Started.attempts[0];
+
+  const { state: withQ2, question: q2 } = buildRegisteredQuestion(session, q1Started, {
+    rootCause: 'EVIDENCE_GAP',
+    materialityReason: 'material EVIDENCE_GAP (q2)',
+    inputRefs: [{ kind: 'FINDING', id: findingIds[1] }],
+  });
+  const { deliberationState: withBothSubjects, evidenceSubject: subject2 } = registerEvidenceSubject(session, withQ2, {
+    questionId: q2.id,
+    sourceRef: { kind: 'FINDING', id: findingIds[1] },
+    originatingFindingId: findingIds[1],
+    claimText: 'A second, independent claim.',
+  });
+
+  const corrupted = {
+    ...withBothSubjects,
+    evidenceSubjects: withBothSubjects.evidenceSubjects.map((s) => (s.id === subject2.id ? { ...s, claimText: '' } : s)),
+  };
+  const before = JSON.parse(JSON.stringify(corrupted));
+
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, corrupted, {
+        attemptId: q1Attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        result: 'SUPPORTIVE',
+        evidenceSubjectId: subject1.id,
+        citations: [VALID_CITATION],
+      }),
+    /claimText.*must be a non-empty string/
+  );
+  assert.deepEqual(corrupted, before, 'no mutation despite the rejection');
+});
+
+check('recordRouteOutcome: SEEK_EVIDENCE reuses the C5-A ledger validator for upstream corruption -- ReviewFinding map-key/id mismatch, SemanticIssue duplicate leaf, and subject session binding are each rejected, never reimplemented here', () => {
+  {
+    const { session, state, attempt, evidenceSubject, findingIds } = buildSeekEvidenceAttemptFixture();
+    const tamperedSession = {
+      ...session,
+      findings: { ...session.findings, [findingIds[0]]: { ...session.findings[findingIds[0]], id: 'different-id' } },
+    };
+    assert.throws(
+      () =>
+        recordRouteOutcome(tamperedSession, state, {
+          attemptId: attempt.attemptId,
+          status: 'SUCCEEDED',
+          latencyConsumed: 1,
+          result: 'SUPPORTIVE',
+          evidenceSubjectId: evidenceSubject.id,
+          citations: [VALID_CITATION],
+        }),
+      /does not agree with originatingFindingId/
+    );
+  }
+  {
+    const { session, issueId, findingIds } = buildFixtureWithIssue();
+    const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+    const { state: state1, question } = buildRegisteredQuestion(session, state0, {
+      rootCause: 'EVIDENCE_GAP',
+      materialityReason: 'material EVIDENCE_GAP',
+      inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    });
+    const { deliberationState: withSubject, evidenceSubject } = registerEvidenceSubject(session, state1, {
+      questionId: question.id,
+      sourceRef: { kind: 'SEMANTIC_ISSUE', id: issueId },
+      originatingFindingId: findingIds[0],
+      claimText: VALID_CLAIM_TEXT,
+    });
+    const decision = planRouteForQuestion(session, withSubject, question);
+    const recorded = recordRouteDecision(session, withSubject, decision);
+    const started = recordRouteAttemptStart(session, recorded, decision.id);
+    const attempt = started.attempts[0];
+
+    const tamperedSession = {
+      ...session,
+      semanticIssues: {
+        ...session.semanticIssues,
+        [issueId]: { ...session.semanticIssues[issueId], findingIds: [findingIds[0], findingIds[0], findingIds[1]] },
+      },
+    };
+    assert.throws(
+      () =>
+        recordRouteOutcome(tamperedSession, started, {
+          attemptId: attempt.attemptId,
+          status: 'SUCCEEDED',
+          latencyConsumed: 1,
+          result: 'SUPPORTIVE',
+          evidenceSubjectId: evidenceSubject.id,
+          citations: [VALID_CITATION],
+        }),
+      /occurs 2 times.*malformed, provenance-ambiguous membership/
+    );
+  }
+  {
+    const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+    const corrupted = {
+      ...state,
+      evidenceSubjects: state.evidenceSubjects.map((s) => (s.id === evidenceSubject.id ? { ...s, sessionId: 'wrong-session' } : s)),
+    };
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, corrupted, {
+          attemptId: attempt.attemptId,
+          status: 'SUCCEEDED',
+          latencyConsumed: 1,
+          result: 'SUPPORTIVE',
+          evidenceSubjectId: evidenceSubject.id,
+          citations: [VALID_CITATION],
+        }),
+      /does not match the current DeliberationState\/session binding/
+    );
+  }
+});
+
+check('recordRouteOutcome: SEEK_EVIDENCE preserves the existing active-cycle precondition -- rejects a legacy/tampered state with more than one active cycle for the question', () => {
+  const { session, state, attempt, decision } = buildSeekEvidenceAttemptFixture();
+  const secondDecision = { ...decision, id: 'second-seek-evidence-decision' };
+  const corrupted = { ...state, history: [...state.history, secondDecision] };
+  assert.throws(
+    () => recordRouteOutcome(session, corrupted, { attemptId: attempt.attemptId, status: 'FAILED', latencyConsumed: 1, failure: VALID_FAILURE }),
+    /more than one active deliberation cycle/
+  );
+});
+
+check('recordRouteOutcome: SEEK_EVIDENCE valid SUPPORTIVE/CONTRADICTORY/INCONCLUSIVE spend latency exactly once, no logical-cost re-charge', () => {
+  const cases = [
+    ['SUCCEEDED', 'SUPPORTIVE', [VALID_CITATION]],
+    ['SUCCEEDED', 'CONTRADICTORY', [VALID_CITATION]],
+    ['INCONCLUSIVE', 'INCONCLUSIVE', []],
+  ];
+  for (const [status, result, citations] of cases) {
+    const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+    const next = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status,
+      latencyConsumed: 3,
+      result,
+      evidenceSubjectId: evidenceSubject.id,
+      citations,
+    });
+    assert.equal(next.latencyBudget.spent, state.latencyBudget.spent + 3);
+    assert.equal(next.costBudget.spent, state.costBudget.spent, 'no additional cost spend at outcome time -- cost was already accounted at attempt start');
+  }
+});
+
+check('recordRouteOutcome + recordQuestionDisposition: SEEK_EVIDENCE results never automatically change questionDispositions; ordinary STILL_OPEN/RESOLVED remain legal afterward', () => {
+  const cases = [
+    ['SUCCEEDED', 'SUPPORTIVE', [VALID_CITATION]],
+    ['SUCCEEDED', 'CONTRADICTORY', [VALID_CITATION]],
+    ['INCONCLUSIVE', 'INCONCLUSIVE', []],
+  ];
+  for (const [status, result, citations] of cases) {
+    const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+    const next = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status,
+      latencyConsumed: 1,
+      result,
+      evidenceSubjectId: evidenceSubject.id,
+      citations,
+    });
+    assert.deepEqual(next.questionDispositions, state.questionDispositions);
+
+    const disposed = recordQuestionDisposition(session, next, {
+      attemptId: attempt.attemptId,
+      disposition: 'STILL_OPEN',
+      reason: 'still need more evidence',
+    });
+    assert.equal(disposed.questionDispositions.length, 1);
+    assert.equal(disposed.questionDispositions[0].disposition, 'STILL_OPEN');
+  }
+
+  const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'SUPPORTIVE',
+    evidenceSubjectId: evidenceSubject.id,
+    citations: [VALID_CITATION],
+  });
+  const disposed = recordQuestionDisposition(session, next, {
+    attemptId: attempt.attemptId,
+    disposition: 'RESOLVED',
+    reason: 'confirmed by citation',
+  });
+  assert.equal(disposed.questionDispositions[0].disposition, 'RESOLVED');
+});
+
+check('recordQuestionDisposition: rejects when the stored SEEK_EVIDENCE outcome has been tampered -- evidenceSubjectId/status-result pairing/citation cardinality/logicalCost/completedAt/session binding are each independently rejected before semantic re-evaluation trusts the outcome', () => {
+  const fields = [
+    ['evidenceSubjectId', 'unknown-subject-id'],
+    ['status', 'INCONCLUSIVE'],
+    ['citations', []],
+    ['logicalCost', 999],
+    ['completedAt', 'not-a-date'],
+    ['sessionId', 'wrong-session'],
+  ];
+  for (const [field, value] of fields) {
+    const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+    const withOutcome = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      result: 'SUPPORTIVE',
+      evidenceSubjectId: evidenceSubject.id,
+      citations: [VALID_CITATION],
+    });
+    const tamperedOutcomes = withOutcome.outcomes.map((o) => (o.attemptId === attempt.attemptId ? { ...o, [field]: value } : o));
+    const tamperedState = { ...withOutcome, outcomes: tamperedOutcomes };
+    assert.throws(
+      () => recordQuestionDisposition(session, tamperedState, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'x' }),
+      undefined,
+      `expected tampering ${field} to be rejected`
+    );
+  }
+});
+
+check('recordRouteOutcome: after one valid SEEK_EVIDENCE result, a second SUPPORTIVE/CONTRADICTORY/INCONCLUSIVE/FAILED for the same attempt all reject', () => {
+  const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+  const withOutcome = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'SUPPORTIVE',
+    evidenceSubjectId: evidenceSubject.id,
+    citations: [VALID_CITATION],
+  });
+
+  const secondAttempts = [
+    () =>
+      recordRouteOutcome(session, withOutcome, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        result: 'SUPPORTIVE',
+        evidenceSubjectId: evidenceSubject.id,
+        citations: [VALID_CITATION],
+      }),
+    () =>
+      recordRouteOutcome(session, withOutcome, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        result: 'CONTRADICTORY',
+        evidenceSubjectId: evidenceSubject.id,
+        citations: [VALID_CITATION],
+      }),
+    () =>
+      recordRouteOutcome(session, withOutcome, {
+        attemptId: attempt.attemptId,
+        status: 'INCONCLUSIVE',
+        latencyConsumed: 1,
+        result: 'INCONCLUSIVE',
+        evidenceSubjectId: evidenceSubject.id,
+        citations: [],
+      }),
+    () => recordRouteOutcome(session, withOutcome, { attemptId: attempt.attemptId, status: 'FAILED', latencyConsumed: 1, failure: VALID_FAILURE }),
+  ];
+  for (const attemptFn of secondAttempts) {
+    assert.throws(attemptFn, /already has a RouteOutcome/);
+  }
+  assert.equal(withOutcome.outcomes.length, 1);
+});
+
+check('recordRouteOutcome: SEEK_EVIDENCE alias isolation -- mutating the original citations array/citation object after recording does not alter the stored outcome', () => {
+  const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+  const citation = { sourceIdentifier: 'doc-1', title: 'Original title', excerpt: 'Original excerpt.' };
+  const citations = [citation];
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'SUPPORTIVE',
+    evidenceSubjectId: evidenceSubject.id,
+    citations,
+  });
+
+  citations.push({ sourceIdentifier: 'injected', excerpt: 'injected' });
+  citation.title = 'mutated title';
+  citation.excerpt = 'mutated excerpt';
+  citation.sourceIdentifier = 'mutated-source';
+
+  assert.equal(next.outcomes[0].citations.length, 1);
+  assert.deepEqual(next.outcomes[0].citations[0], { sourceIdentifier: 'doc-1', title: 'Original title', excerpt: 'Original excerpt.' });
+});
+
+check('recordRouteOutcome: SEEK_EVIDENCE SUCCEEDED/INCONCLUSIVE rejects every caller-derived/forbidden extra input key', () => {
+  const { session, state, attempt, decision, question, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+  const validInput = {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'SUPPORTIVE',
+    evidenceSubjectId: evidenceSubject.id,
+    citations: [VALID_CITATION],
+  };
+  const forbiddenExtras = [
+    { route: 'SEEK_EVIDENCE' },
+    { decisionId: decision.id },
+    { originatingQuestionId: question.id },
+    { sessionId: session.id },
+    { artifactHash: session.artifactHash },
+    { authorContextHash: session.authorContextHash },
+    { logicalCost: 1 },
+    { completedAt: new Date().toISOString() },
+    { claimText: 'x' },
+    { sourceRef: { kind: 'FINDING', id: 'x' } },
+    { originatingFindingId: 'x' },
+    { artifactLocation: 'x' },
+  ];
+  for (const extra of forbiddenExtras) {
+    assert.throws(
+      () => recordRouteOutcome(session, state, { ...validInput, ...extra }),
+      /unexpected field/,
+      `expected ${JSON.stringify(Object.keys(extra))} to be rejected`
+    );
+  }
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
