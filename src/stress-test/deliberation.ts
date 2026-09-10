@@ -1954,10 +1954,16 @@ function effectiveContextRequests(deliberationState: DeliberationState): Context
  * caller happens to be creating (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
  * §7, Slice 2D-C0 freeze, decision F): global `id` uniqueness; `ONE
  * ADD_CONTEXT RouteAttempt -> AT MOST ONE ContextRequest`; every request
- * resolves to an existing `ADD_CONTEXT` `RouteAttempt` whose recorded
- * `RouteDecision` is also `ADD_CONTEXT` and whose `questionId` resolves to
- * exactly one registered `CONTEXT_GAP` question; every derived-and-copied
- * field (`originatingQuestionId`/`originatingSessionId`/`artifactHash`/
+ * resolves to an existing `ADD_CONTEXT` `RouteAttempt` -- itself independently
+ * re-verified against the current `DeliberationState.sessionId`/
+ * `artifactHash`/`authorContextHash` binding before anything else about it is
+ * trusted (`DeliberationState -> RouteAttempt -> ContextRequest`, not merely
+ * `RouteAttempt <-> ContextRequest`; a self-consistent but state-inconsistent
+ * attempt/request pair must never be mistaken for authoritative history,
+ * Slice 2D-C1 amendment) -- whose recorded `RouteDecision` is also
+ * `ADD_CONTEXT` and whose `questionId` resolves to exactly one registered
+ * `CONTEXT_GAP` question; every derived-and-copied field
+ * (`originatingQuestionId`/`originatingSessionId`/`artifactHash`/
  * `authorContextHash`/`sourceRefs`) agrees with that resolved chain. Pure,
  * non-cached, non-memoized. Any violation fails closed; none is ever
  * automatically reconciled.
@@ -1988,6 +1994,28 @@ function assertContextRequestLedgerIntegrity(deliberationState: DeliberationStat
       );
     }
     const attempt = matchingAttempts[0];
+    // The resolved RouteAttempt must itself belong to the current
+    // DeliberationState binding before anything about it is trusted --
+    // mutual agreement between a corrupted RouteAttempt and a ContextRequest
+    // that faithfully copied that corrupted attempt's fields is never proof
+    // of authoritative binding (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+    // §7, Slice 2D-C1 amendment). DeliberationState -> RouteAttempt ->
+    // ContextRequest, not merely RouteAttempt <-> ContextRequest.
+    if (attempt.sessionId !== deliberationState.sessionId) {
+      throw new Error(
+        `ContextRequest ledger entry: attempt ${attempt.attemptId}'s sessionId does not match the current DeliberationState binding`
+      );
+    }
+    if (attempt.artifactHash !== deliberationState.artifactHash) {
+      throw new Error(
+        `ContextRequest ledger entry: attempt ${attempt.attemptId}'s artifactHash does not match the current DeliberationState binding`
+      );
+    }
+    if (attempt.authorContextHash !== deliberationState.authorContextHash) {
+      throw new Error(
+        `ContextRequest ledger entry: attempt ${attempt.attemptId}'s authorContextHash does not match the current DeliberationState binding`
+      );
+    }
     if (attempt.route !== 'ADD_CONTEXT') {
       throw new Error(`ContextRequest ledger entry: attempt ${attempt.attemptId} has route ${attempt.route}, not ADD_CONTEXT`);
     }

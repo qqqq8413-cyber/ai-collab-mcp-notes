@@ -1327,6 +1327,91 @@ check('individually tampered originatingAttemptId/originatingQuestionId/originat
   }
 });
 
+// --- Attempt <-> DeliberationState binding (Slice 2D-C1 amendment) ---------
+
+check('a self-consistent but state-inconsistent attempt/request pair (tampered sessionId, artifactHash, or authorContextHash) fails closed even though request and attempt mutually agree', () => {
+  const tamperCases = [
+    ['sessionId', 'originatingSessionId', 'BAD-SESSION', /attempt .* sessionId does not match the current DeliberationState binding/],
+    ['artifactHash', 'artifactHash', 'BAD-ARTIFACT-HASH', /attempt .* artifactHash does not match the current DeliberationState binding/],
+    ['authorContextHash', 'authorContextHash', 'BAD-AUTHOR-CONTEXT-HASH', /attempt .* authorContextHash does not match the current DeliberationState binding/],
+  ];
+
+  for (const [attemptField, requestField, badValue, expected] of tamperCases) {
+    const cycle1 = buildAddContextAttemptFixture();
+    const first = createContextRequest(cycle1.session, cycle1.state, {
+      attemptId: cycle1.attempt.attemptId,
+      category: 'constraints',
+      question: 'x?',
+      inferenceReason: 'x',
+    });
+
+    // A second, independent, otherwise-valid ADD_CONTEXT attempt in the same
+    // state -- the boundary that invokes assertContextRequestLedgerIntegrity
+    // for the whole ledger, including the tampered first entry below.
+    const { state: state2, question: question2 } = buildRegisteredQuestion(cycle1.session, first.deliberationState, {
+      rootCause: 'CONTEXT_GAP',
+      materialityReason: 'a second, independent CONTEXT_GAP question',
+      inputRefs: cycle1.question.inputRefs.map((ref) => ({ ...ref })),
+    });
+    const decision2 = planRouteForQuestion(cycle1.session, state2, question2);
+    const state3 = recordRouteDecision(cycle1.session, state2, decision2);
+    const state4 = recordRouteAttemptStart(cycle1.session, state3, decision2.id);
+    const attempt2 = state4.attempts.find((a) => a.decisionId === decision2.id);
+
+    // Tamper BOTH the attempt and the request so they still mutually agree,
+    // while the DeliberationState itself remains canonical.
+    const tamperedAttempts = state4.attempts.map((a) =>
+      a.attemptId === cycle1.attempt.attemptId ? { ...a, [attemptField]: badValue } : a
+    );
+    const tamperedRequests = state4.contextRequests.map((r) =>
+      r.originatingAttemptId === cycle1.attempt.attemptId ? { ...r, [requestField]: badValue } : r
+    );
+    const tampered = { ...state4, attempts: tamperedAttempts, contextRequests: tamperedRequests };
+
+    assert.throws(
+      () =>
+        createContextRequest(cycle1.session, tampered, {
+          attemptId: attempt2.attemptId,
+          category: 'constraints',
+          question: 'irrelevant, the ledger check must reject before this attempt is even considered',
+          inferenceReason: 'x',
+        }),
+      expected,
+      `expected tampered ${attemptField} to be rejected`
+    );
+  }
+});
+
+check('a valid historical ContextRequest does not block a fresh, independent ADD_CONTEXT attempt in the same DeliberationState from creating its own request', () => {
+  const cycle1 = buildAddContextAttemptFixture();
+  const first = createContextRequest(cycle1.session, cycle1.state, {
+    attemptId: cycle1.attempt.attemptId,
+    category: 'constraints',
+    question: 'first question?',
+    inferenceReason: 'x',
+  });
+
+  const { state: state2, question: question2 } = buildRegisteredQuestion(cycle1.session, first.deliberationState, {
+    rootCause: 'CONTEXT_GAP',
+    materialityReason: 'a second, independent CONTEXT_GAP question',
+    inputRefs: cycle1.question.inputRefs.map((ref) => ({ ...ref })),
+  });
+  const decision2 = planRouteForQuestion(cycle1.session, state2, question2);
+  const state3 = recordRouteDecision(cycle1.session, state2, decision2);
+  const state4 = recordRouteAttemptStart(cycle1.session, state3, decision2.id);
+  const attempt2 = state4.attempts.find((a) => a.decisionId === decision2.id);
+
+  const second = createContextRequest(cycle1.session, state4, {
+    attemptId: attempt2.attemptId,
+    category: 'constraints',
+    question: 'second, independent question?',
+    inferenceReason: 'x',
+  });
+
+  assert.equal(second.deliberationState.contextRequests.length, 2);
+  assert.notEqual(second.contextRequest.id, first.contextRequest.id);
+});
+
 // --- Active-cycle / currentness -----------------------------------------------
 
 check('active-cycle binding: exactly one active cycle for the exact decision is required; 0, >1, or a different decision are all rejected', () => {
