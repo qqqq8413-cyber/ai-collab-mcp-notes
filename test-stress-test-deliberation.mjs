@@ -7056,6 +7056,114 @@ check('recordQuestionDisposition: rejects when the stored SEEK_EVIDENCE outcome 
   }
 });
 
+// ==================================================================
+console.log('\nSEEK_EVIDENCE authoritative-upstream read provenance hardening (Slice 2D-C5-B amendment)');
+// ==================================================================
+
+check('recordQuestionDisposition: rejects a self-consistent tamper of BOTH attempt.logicalCost and outcome.logicalCost to the same invalid value -- adjacent agreement alone is insufficient', () => {
+  const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+  const withOutcome = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'SUPPORTIVE',
+    evidenceSubjectId: evidenceSubject.id,
+    citations: [VALID_CITATION],
+  });
+  const invalidCost = attempt.logicalCost + 1;
+  const tamperedAttempts = withOutcome.attempts.map((a) =>
+    a.attemptId === attempt.attemptId ? { ...a, logicalCost: invalidCost } : a
+  );
+  const tamperedOutcomes = withOutcome.outcomes.map((o) =>
+    o.attemptId === attempt.attemptId ? { ...o, logicalCost: invalidCost } : o
+  );
+  const tamperedState = { ...withOutcome, attempts: tamperedAttempts, outcomes: tamperedOutcomes };
+  assert.throws(
+    () => recordQuestionDisposition(session, tamperedState, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'x' }),
+    /logicalCost/
+  );
+});
+
+check('recordQuestionDisposition: rejects when the underlying RouteAttempt.startedAt has been tampered to a malformed timestamp -- later-read provenance revalidates the attempt itself, not merely outcome fields', () => {
+  const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+  const withOutcome = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'SUPPORTIVE',
+    evidenceSubjectId: evidenceSubject.id,
+    citations: [VALID_CITATION],
+  });
+  const tamperedAttempts = withOutcome.attempts.map((a) =>
+    a.attemptId === attempt.attemptId ? { ...a, startedAt: 'not-a-date' } : a
+  );
+  const tamperedState = { ...withOutcome, attempts: tamperedAttempts };
+  assert.throws(
+    () => recordQuestionDisposition(session, tamperedState, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'x' }),
+    /startedAt/
+  );
+});
+
+check('recordQuestionDisposition: rejects when the historical RouteDecision.reason.rootCause has been tampered away from the registered question rootCause, even with route/questionId/EvidenceSubject otherwise unchanged', () => {
+  const { session, state, attempt, decision, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+  const withOutcome = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'SUPPORTIVE',
+    evidenceSubjectId: evidenceSubject.id,
+    citations: [VALID_CITATION],
+  });
+  const tamperedHistory = withOutcome.history.map((d) =>
+    d.id === decision.id ? { ...d, reason: { ...d.reason, rootCause: 'CONTEXT_GAP' } } : d
+  );
+  const tamperedState = { ...withOutcome, history: tamperedHistory };
+  assert.throws(
+    () => recordQuestionDisposition(session, tamperedState, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'x' }),
+    /rootCause/
+  );
+});
+
+check('recordQuestionDisposition: rejects when the historical RouteDecision.reason.materialityReason no longer matches the registered question materialityReason', () => {
+  const { session, state, attempt, decision, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+  const withOutcome = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'SUPPORTIVE',
+    evidenceSubjectId: evidenceSubject.id,
+    citations: [VALID_CITATION],
+  });
+  const tamperedHistory = withOutcome.history.map((d) =>
+    d.id === decision.id ? { ...d, reason: { ...d.reason, materialityReason: 'a wholly different materiality reason' } } : d
+  );
+  const tamperedState = { ...withOutcome, history: tamperedHistory };
+  assert.throws(
+    () => recordQuestionDisposition(session, tamperedState, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'x' }),
+    /materialityReason/
+  );
+});
+
+check('recordQuestionDisposition: rejects when the historical RouteDecision.inputRefs order no longer exactly matches the registered question.inputRefs -- no set-equality normalization', () => {
+  const { session, state, attempt, decision, evidenceSubject } = buildSeekEvidenceAttemptFixture();
+  const withOutcome = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'SUPPORTIVE',
+    evidenceSubjectId: evidenceSubject.id,
+    citations: [VALID_CITATION],
+  });
+  assert.ok(decision.inputRefs.length > 1, 'fixture question must have more than one inputRef to test order-sensitivity');
+  const reordered = [...decision.inputRefs].reverse();
+  const tamperedHistory = withOutcome.history.map((d) => (d.id === decision.id ? { ...d, inputRefs: reordered } : d));
+  const tamperedState = { ...withOutcome, history: tamperedHistory };
+  assert.throws(
+    () => recordQuestionDisposition(session, tamperedState, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'x' }),
+    /inputRefs/
+  );
+});
+
 check('recordRouteOutcome: after one valid SEEK_EVIDENCE result, a second SUPPORTIVE/CONTRADICTORY/INCONCLUSIVE/FAILED for the same attempt all reject', () => {
   const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture();
   const withOutcome = recordRouteOutcome(session, state, {

@@ -3829,11 +3829,18 @@ export function registerEvidenceSubject(
  * A no-op for any outcome that is not a claim-evaluating SEEK_EVIDENCE
  * result -- a generic `FAILED` SEEK_EVIDENCE outcome asserts no evidence
  * relation and never required an EvidenceSubject (decision P), so it is
- * never subject to this check. Reuses `assertEvidenceSubjectLedgerIntegrity`
- * (and, transitively, `assertSemanticIssueEvidenceLeaf`) rather than
- * reimplementing sourceRef/leaf-finding logic a third time -- the exact
- * write/read-drift lesson the Slice 2D-C5-A amendment closed for
- * registration, applied here to outcome recording/re-reading.
+ * never subject to this check.
+ *
+ * The `RouteAttempt` -> `RouteDecision` -> `UnresolvedQuestion` leg reuses
+ * the canonical `validateAttemptProvenanceForOutcome` -- the exact function
+ * `recordRouteOutcome` itself trusts at write time -- rather than
+ * maintaining a second, weaker provenance walk here (Slice 2D-C5-B
+ * amendment: "later-read provenance parity"). This also reuses
+ * `assertEvidenceSubjectLedgerIntegrity` (and, transitively,
+ * `assertSemanticIssueEvidenceLeaf`) rather than reimplementing
+ * sourceRef/leaf-finding logic a third time -- the exact write/read-drift
+ * lesson the Slice 2D-C5-A amendment closed for registration, applied here
+ * to outcome recording/re-reading.
  */
 function assertSeekEvidenceOutcomeIntegrity(
   session: StressTestSession,
@@ -3843,6 +3850,7 @@ function assertSeekEvidenceOutcomeIntegrity(
   if (outcome.route !== 'SEEK_EVIDENCE' || outcome.status === 'FAILED') {
     return;
   }
+  verifyDeliberationBinding(session, deliberationState);
   const label = 'SEEK_EVIDENCE outcome read validation';
   assertSeekEvidenceStatusResultAndCitations(outcome.status, outcome.result, outcome.citations, label);
   assertNonEmptyString(outcome.evidenceSubjectId, `${label}: evidenceSubjectId`);
@@ -3859,6 +3867,27 @@ function assertSeekEvidenceOutcomeIntegrity(
   if (attempt.route !== 'SEEK_EVIDENCE') {
     throw new Error(`${label}: resolved attempt has route ${attempt.route}, not SEEK_EVIDENCE`);
   }
+
+  // Full attempt -> decision -> question provenance parity with
+  // `recordRouteOutcome`'s own write-time check -- attemptId/decisionId/
+  // questionId non-empty, route validity, session/hash binding against both
+  // `deliberationState` and the authoritative `session`, logicalCost
+  // finite/non-negative AND route-legal (never adjacent-only, so tampering
+  // attempt.logicalCost and outcome.logicalCost to the SAME invalid value no
+  // longer passes), startedAt parseable, decision resolution, and decision
+  // rootCause/materialityReason/inputRefs/route-mapping parity with the
+  // registered question.
+  const decision = validateAttemptProvenanceForOutcome(session, deliberationState, attempt);
+  if (decision.route !== 'SEEK_EVIDENCE') {
+    throw new Error(`${label}: resolved decision has route ${decision.route}, not SEEK_EVIDENCE`);
+  }
+  if (decision.id !== outcome.decisionId) {
+    throw new Error(`${label}: outcome.decisionId does not match the resolved attempt's own decision`);
+  }
+  if (attempt.questionId !== outcome.originatingQuestionId) {
+    throw new Error(`${label}: outcome.originatingQuestionId does not match the resolved attempt`);
+  }
+
   if (attempt.logicalCost !== outcome.logicalCost) {
     throw new Error(`${label}: logicalCost does not match the resolved attempt`);
   }
@@ -3869,35 +3898,10 @@ function assertSeekEvidenceOutcomeIntegrity(
   ) {
     throw new Error(`${label}: outcome session/hash binding does not match the resolved attempt`);
   }
-  if (
-    attempt.sessionId !== session.id ||
-    attempt.artifactHash !== session.artifactHash ||
-    attempt.authorContextHash !== session.authorContextHash
-  ) {
-    throw new Error(`${label}: resolved attempt binding does not match the authoritative session`);
-  }
 
-  const decision = resolveUniqueRouteDecisionById(deliberationState, attempt.decisionId, label);
-  if (decision.route !== 'SEEK_EVIDENCE') {
-    throw new Error(`${label}: resolved decision has route ${decision.route}, not SEEK_EVIDENCE`);
-  }
-  if (decision.id !== outcome.decisionId) {
-    throw new Error(`${label}: outcome.decisionId does not match the resolved attempt's own decision`);
-  }
-  if (attempt.questionId !== decision.questionId) {
-    throw new Error(`${label}: attempt.questionId does not match the resolved decision`);
-  }
-  if (attempt.questionId !== outcome.originatingQuestionId) {
-    throw new Error(`${label}: outcome.originatingQuestionId does not match the resolved attempt`);
-  }
-
-  const matchingQuestions = deliberationState.unresolvedQuestions.filter((q) => q.id === attempt.questionId);
-  if (matchingQuestions.length !== 1) {
-    throw new Error(`${label}: questionId ${attempt.questionId} does not resolve to exactly one registered UnresolvedQuestion`);
-  }
-  const question = matchingQuestions[0];
-  if (question.rootCause !== 'EVIDENCE_GAP') {
-    throw new Error(`${label}: registered question ${question.id} has rootCause ${question.rootCause}, not EVIDENCE_GAP`);
+  const question = deliberationState.unresolvedQuestions.find((q) => q.id === attempt.questionId);
+  if (!question || question.rootCause !== 'EVIDENCE_GAP') {
+    throw new Error(`${label}: resolved question does not have rootCause EVIDENCE_GAP`);
   }
 
   assertEvidenceSubjectLedgerIntegrity(session, deliberationState);
