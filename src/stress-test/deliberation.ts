@@ -460,13 +460,65 @@ export interface SeekEvidenceInconclusiveRouteOutcome extends RouteOutcomeCommon
 
 export type SeekEvidenceRouteOutcome = SeekEvidenceSupportiveOrContradictoryRouteOutcome | SeekEvidenceInconclusiveRouteOutcome;
 
-/** Slice 2D-C5-B's complete RouteOutcome vocabulary. `TARGETED_PEER_CHALLENGE` successful outcomes remain not yet representable -- not authorized in this slice. `ADD_CONTEXT`'s `NO_RESPONSE` result is representable, but only through `closeContextRequestWithoutResponse` -- `recordRouteOutcome` never accepts it (§ below). */
+/** Closed, four-value TARGETED_PEER_CHALLENGE result vocabulary (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7.E, Slice 2D-B0 final amendment; §13.E, Slice 2D-C6-B). All four map to `AttemptStatus = SUCCEEDED` -- a complete, valid response was produced, regardless of whether it resolves the underlying conflict; none maps to `INCONCLUSIVE` (§6). No result automatically implies any `QuestionDisposition` -- consensus/disagreement is never inferred (§13.E decision, Slice 2D-C6-B). */
+export type TargetedPeerChallengeResult = 'REBUTTAL' | 'CONCESSION' | 'QUALIFICATION' | 'REFUSAL_TO_YIELD';
+
+/** Runtime allowlist mirroring TargetedPeerChallengeResult -- a plain-JS caller has no compile-time check. */
+const TARGETED_PEER_CHALLENGE_RESULTS: readonly TargetedPeerChallengeResult[] = [
+  'REBUTTAL',
+  'CONCESSION',
+  'QUALIFICATION',
+  'REFUSAL_TO_YIELD',
+];
+
+/**
+ * A bounded quoted excerpt attached to a successful `TARGETED_PEER_CHALLENGE`
+ * result -- a product-domain shape, deliberately never importing the
+ * experimental `PeerExcerpt`/`buildPeerExcerpt` (`src/agents/collaboration.ts`)
+ * directly; `agentId`/`chunkId`/`chunkIndex`/`startChar`/`endChar` are never
+ * carried here, the same "paragraph-local identity is not product authority"
+ * refusal already applied to `EvidenceCitation` (Slice 2D-C5-0 freeze). The
+ * runtime proves only that this payload is structurally self-consistent
+ * (`truncated` iff `text.length === charLimit`, and `text.length <=
+ * charLimit` always) -- it never proves `text` was truly copied from a
+ * provider output, that `truncated` reflects some external hidden source, or
+ * that the excerpt semantically belongs to `sourceRef`; those are
+ * execution-layer truths that do not exist in this offline slice.
+ */
+export interface TargetedPeerChallengeBoundedExcerpt {
+  text: string;
+  truncated: boolean;
+  charLimit: number;
+}
+
+/**
+ * The immutable terminal record for a successful `TARGETED_PEER_CHALLENGE`
+ * attempt (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7.E, §13.E, Slice
+ * 2D-C6-B). `targetRef`/`sourceRef` must each exactly match one of the
+ * terminated `RouteDecision`'s own `inputRefs` and be distinct from one
+ * another (invariant 31) -- no inference, no new ref introduced at outcome
+ * time, no positional meaning assigned to either ref's position within the
+ * decision's recorded conflict set. `result` is an audit fact only -- it
+ * never mechanically produces a `QuestionDisposition`.
+ */
+export interface TargetedPeerChallengeRouteOutcome extends RouteOutcomeCommon {
+  status: 'SUCCEEDED';
+  route: 'TARGETED_PEER_CHALLENGE';
+  targetRef: RouteInputRef;
+  sourceRef: RouteInputRef;
+  boundedExcerpt: TargetedPeerChallengeBoundedExcerpt;
+  response: string;
+  result: TargetedPeerChallengeResult;
+}
+
+/** Slice 2D-C6-B's complete RouteOutcome vocabulary. `ADD_CONTEXT`'s `NO_RESPONSE` result is representable, but only through `closeContextRequestWithoutResponse` -- `recordRouteOutcome` never accepts it (§ below). */
 export type RouteOutcome =
   | FailedRouteOutcome
   | AddReviewerRouteOutcome
   | ReplicationRouteOutcome
   | AddContextRouteOutcome
-  | SeekEvidenceRouteOutcome;
+  | SeekEvidenceRouteOutcome
+  | TargetedPeerChallengeRouteOutcome;
 
 /** The full accepted architecture vocabulary (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §9). `CROSS_SESSION` remains excluded from the recordable subset below -- it is never constructed via the ordinary `recordQuestionDisposition` path; as of Slice 2D-C3, only the atomic `createCrossSessionTransition` operation may ever produce one. */
 export type QuestionDispositionKind = 'STILL_OPEN' | 'RESOLVED' | 'SUPERSEDED_RECLASSIFIED' | 'CROSS_SESSION';
@@ -1690,12 +1742,15 @@ export interface RecordRouteOutcomeInput {
   failure?: FailureInfo;
   reviewerRunId?: string;
   findingIds?: string[];
-  result?: ReplicationResult | AddContextResult | SeekEvidenceResult;
+  result?: ReplicationResult | AddContextResult | SeekEvidenceResult | TargetedPeerChallengeResult;
   targetRef?: RouteInputRef;
   contextRequestId?: string;
   responseText?: string;
   evidenceSubjectId?: string;
   citations?: EvidenceCitation[];
+  sourceRef?: RouteInputRef;
+  boundedExcerpt?: TargetedPeerChallengeBoundedExcerpt;
+  response?: string;
 }
 
 /**
@@ -1719,8 +1774,13 @@ export interface RecordRouteOutcomeInput {
  * payload looks -- not because it is unauthorized (Slice 2D-C4 implemented
  * and accepted its own dedicated `closeContextRequestWithoutResponse`
  * operation), but because this function is never the path that creates it.
- * `TARGETED_PEER_CHALLENGE` successful outcomes remain rejected outright
- * because they are genuinely not yet authorized.
+ * As of Slice 2D-C6-B, `TARGETED_PEER_CHALLENGE` `REBUTTAL`/`CONCESSION`/
+ * `QUALIFICATION`/`REFUSAL_TO_YIELD` results are also recordable, each
+ * independently re-verified against the currently-registered question's
+ * TPC readiness (`assertTargetedPeerChallengeReady`, reused rather than
+ * reimplemented; ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.E) and
+ * against the terminated `RouteDecision`'s own `inputRefs` for
+ * `targetRef`/`sourceRef` membership and distinctness (invariant 31).
  *
  * `attemptId` is resolved only against `deliberationState.attempts` (no
  * free-floating outcome) and re-validated against its own recorded
@@ -1813,6 +1873,8 @@ export function recordRouteOutcome(
     } else {
       throw new Error(`recordRouteOutcome: invalid or unsupported ADD_CONTEXT result ${JSON.stringify(rawResult)}`);
     }
+  } else if (attempt.route === 'TARGETED_PEER_CHALLENGE') {
+    allowedKeys = ['attemptId', 'status', 'latencyConsumed', 'targetRef', 'sourceRef', 'boundedExcerpt', 'response', 'result'];
   } else {
     throw new Error(
       `recordRouteOutcome: SUCCEEDED result recording for route ${attempt.route} is not authorized in Slice 2D-B1`
@@ -2062,6 +2124,55 @@ export function recordRouteOutcome(
     return { ...withLatency, outcomes: [...withLatency.outcomes, outcome] };
   }
 
+  if (attempt.route === 'TARGETED_PEER_CHALLENGE') {
+    const targetRef = input.targetRef as RouteInputRef;
+    const sourceRef = input.sourceRef as RouteInputRef;
+    const boundedExcerpt = input.boundedExcerpt as TargetedPeerChallengeBoundedExcerpt;
+    const response = input.response as string;
+    const result = input.result as TargetedPeerChallengeResult;
+
+    // Global before local, and never assume C6-A's earlier planning/
+    // recording/attempt-start gates already proved this for state that may
+    // have changed since -- the question must still carry at least two
+    // distinct, valid RouteInputRefs (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md
+    // §13.E, Slice 2D-C6-0/C6-A, reused rather than reimplemented).
+    assertTargetedPeerChallengeReady(session, deliberationState, attempt.questionId);
+    assertTargetedPeerChallengeResultPayload(
+      input.status,
+      result,
+      targetRef,
+      sourceRef,
+      boundedExcerpt,
+      response,
+      decision.inputRefs,
+      session,
+      'recordRouteOutcome'
+    );
+
+    const withLatency = applyLatencySpend(deliberationState, input.latencyConsumed);
+    verifyDeliberationBinding(session, deliberationState);
+
+    const outcome: TargetedPeerChallengeRouteOutcome = {
+      attemptId: attempt.attemptId,
+      decisionId: attempt.decisionId,
+      originatingQuestionId: attempt.questionId,
+      route: 'TARGETED_PEER_CHALLENGE',
+      sessionId: attempt.sessionId,
+      artifactHash: attempt.artifactHash,
+      authorContextHash: attempt.authorContextHash,
+      completedAt: nowIso(),
+      status: 'SUCCEEDED',
+      logicalCost: attempt.logicalCost,
+      latencyConsumed: input.latencyConsumed,
+      targetRef: cloneRouteInputRef(targetRef),
+      sourceRef: cloneRouteInputRef(sourceRef),
+      boundedExcerpt: cloneTargetedPeerChallengeBoundedExcerpt(boundedExcerpt),
+      response,
+      result,
+    };
+    return { ...withLatency, outcomes: [...withLatency.outcomes, outcome] };
+  }
+
   // attempt.route === 'REPLICATE'
   const result = input.result as ReplicationResult;
   assertValidReplicationResult(result, 'recordRouteOutcome: result');
@@ -2230,6 +2341,16 @@ export function recordQuestionDisposition(
   // (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.D decision V; Slice
   // 2D-C5-B, §33). A no-op for every non-claim-evaluating outcome.
   assertSeekEvidenceOutcomeIntegrity(session, deliberationState, outcome);
+
+  // A successful TARGETED_PEER_CHALLENGE outcome is never trusted as a
+  // semantic re-evaluation target merely because it is present in state --
+  // its own route-specific provenance (TPC readiness, targetRef/sourceRef
+  // membership and distinctness, boundedExcerpt/response validity) is
+  // independently re-validated here, before any disposition is recorded
+  // against it (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.E, Slice
+  // 2D-C6-B). A no-op for every non-TPC-success outcome, including generic
+  // FAILED. `isQuestionCurrent` itself stays state-only, unchanged.
+  assertTargetedPeerChallengeOutcomeIntegrity(session, deliberationState, outcome);
 
   const questionId = decision.questionId;
   if (typeof questionId !== 'string' || questionId.length === 0) {
@@ -4027,4 +4148,194 @@ function assertTargetedPeerChallengeReady(
   }
   assertTargetedPeerChallengeInputRefs(session, question.inputRefs, 'assertTargetedPeerChallengeReady');
   return question;
+}
+
+/**
+ * Structural validator for a `TargetedPeerChallengeBoundedExcerpt` payload
+ * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7.E, §13.E, Slice 2D-C6-B).
+ * Proves only self-consistency -- `text.length <= charLimit` always, and
+ * `truncated` iff `text.length === charLimit` -- mirroring the structural
+ * invariant the experimental `buildPeerExcerpt` principle already produces
+ * (`src/agents/collaboration.ts`, read-only reference, never imported here).
+ * `charLimit` is an explicit per-result bound, not a global production
+ * policy ceiling -- no numeric maximum is invented.
+ */
+function assertValidTargetedPeerChallengeBoundedExcerpt(excerpt: TargetedPeerChallengeBoundedExcerpt, label: string): void {
+  if (excerpt === null || typeof excerpt !== 'object') {
+    throw new Error(`${label} must be an object`);
+  }
+  assertExactKeys(excerpt, ['text', 'truncated', 'charLimit'], label);
+  if (typeof excerpt.text !== 'string' || excerpt.text.trim().length === 0) {
+    throw new Error(`${label}.text must be a non-empty string`);
+  }
+  if (typeof excerpt.truncated !== 'boolean') {
+    throw new Error(`${label}.truncated must be a boolean`);
+  }
+  if (
+    typeof excerpt.charLimit !== 'number' ||
+    !Number.isFinite(excerpt.charLimit) ||
+    !Number.isInteger(excerpt.charLimit) ||
+    excerpt.charLimit < 1
+  ) {
+    throw new Error(`${label}.charLimit must be a finite, positive integer`);
+  }
+  if (excerpt.text.length > excerpt.charLimit) {
+    throw new Error(`${label}: text.length must not exceed charLimit`);
+  }
+  if (excerpt.truncated && excerpt.text.length !== excerpt.charLimit) {
+    throw new Error(`${label}: a truncated excerpt must have text.length exactly equal to charLimit`);
+  }
+}
+
+/** Independent snapshot of a TargetedPeerChallengeBoundedExcerpt -- never the caller-owned object; `text` is stored exactly as supplied, never trimmed or normalized. */
+function cloneTargetedPeerChallengeBoundedExcerpt(
+  excerpt: TargetedPeerChallengeBoundedExcerpt
+): TargetedPeerChallengeBoundedExcerpt {
+  return { text: excerpt.text, truncated: excerpt.truncated, charLimit: excerpt.charLimit };
+}
+
+/**
+ * Shared status/result/targetRef/sourceRef/boundedExcerpt/response validator
+ * for a successful `TARGETED_PEER_CHALLENGE` outcome -- the ONE source of
+ * truth reused at both write time (`recordRouteOutcome`) and later-read time
+ * (`assertTargetedPeerChallengeOutcomeIntegrity`), the same write/read-parity
+ * discipline the Slice 2D-C5-A/2D-C5-B amendments established
+ * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.E, Slice 2D-C6-B).
+ * `targetRef`/`sourceRef` must each independently resolve
+ * (`validateRouteInputRef`), be distinct from one another by full tuple
+ * `(kind, id)` -- never `id` alone -- and each exactly match one of
+ * `decisionInputRefs` (invariant 31); no positional meaning is ever assigned
+ * to either ref's position within that recorded set.
+ */
+function assertTargetedPeerChallengeResultPayload(
+  status: AttemptStatus,
+  result: TargetedPeerChallengeResult,
+  targetRef: RouteInputRef,
+  sourceRef: RouteInputRef,
+  boundedExcerpt: TargetedPeerChallengeBoundedExcerpt,
+  response: string,
+  decisionInputRefs: RouteInputRef[],
+  session: StressTestSession,
+  label: string
+): void {
+  if (status !== 'SUCCEEDED') {
+    throw new Error(`${label}: TARGETED_PEER_CHALLENGE result recording requires status SUCCEEDED`);
+  }
+  if (!TARGETED_PEER_CHALLENGE_RESULTS.includes(result)) {
+    throw new Error(`${label}: invalid TargetedPeerChallengeResult ${JSON.stringify(result)}`);
+  }
+  if (targetRef === null || typeof targetRef !== 'object') {
+    throw new Error(`${label}: targetRef must be an object`);
+  }
+  validateRouteInputRef(session, targetRef);
+  if (sourceRef === null || typeof sourceRef !== 'object') {
+    throw new Error(`${label}: sourceRef must be an object`);
+  }
+  validateRouteInputRef(session, sourceRef);
+  if (targetRef.kind === sourceRef.kind && targetRef.id === sourceRef.id) {
+    throw new Error(`${label}: targetRef and sourceRef must be distinct (kind, id) refs`);
+  }
+  const targetIsMember = decisionInputRefs.some((ref) => ref.kind === targetRef.kind && ref.id === targetRef.id);
+  if (!targetIsMember) {
+    throw new Error(`${label}: targetRef must exactly match one of the recorded RouteDecision.inputRefs`);
+  }
+  const sourceIsMember = decisionInputRefs.some((ref) => ref.kind === sourceRef.kind && ref.id === sourceRef.id);
+  if (!sourceIsMember) {
+    throw new Error(`${label}: sourceRef must exactly match one of the recorded RouteDecision.inputRefs`);
+  }
+  assertValidTargetedPeerChallengeBoundedExcerpt(boundedExcerpt, `${label}: boundedExcerpt`);
+  if (typeof response !== 'string' || response.trim().length === 0) {
+    throw new Error(`${label}: response must be a non-empty string`);
+  }
+}
+
+/**
+ * Independently re-validates a stored successful `TARGETED_PEER_CHALLENGE`
+ * `RouteOutcome` against the complete authoritative-upstream chain at the
+ * moment it is about to be trusted as the target of semantic re-evaluation
+ * -- never merely because its stored fields look self-consistent
+ * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.E, "authoritative-upstream"
+ * principle, Slice 2D-C6-B). A no-op for any outcome that is not a
+ * successful TARGETED_PEER_CHALLENGE result -- a generic `FAILED`
+ * TARGETED_PEER_CHALLENGE outcome asserts no two-sided challenge result and
+ * carries none of `targetRef`/`sourceRef`/`boundedExcerpt`/`response`/
+ * `result`, so it is never subject to this check (decision K, Slice
+ * 2D-C6-A).
+ *
+ * The `RouteAttempt` -> `RouteDecision` -> `UnresolvedQuestion` leg reuses
+ * the canonical `validateAttemptProvenanceForOutcome` -- the exact function
+ * `recordRouteOutcome` itself trusts at write time -- rather than
+ * maintaining a second, weaker provenance walk (the standing rule after
+ * the Slice 2D-C5-B amendment). TPC readiness reuses
+ * `assertTargetedPeerChallengeReady` (and, transitively,
+ * `assertTargetedPeerChallengeInputRefs`) rather than reimplementing
+ * cardinality/ref-validity logic a third time. The result/targetRef/
+ * sourceRef/boundedExcerpt/response payload reuses
+ * `assertTargetedPeerChallengeResultPayload`, the same function
+ * `recordRouteOutcome` calls at write time.
+ */
+function assertTargetedPeerChallengeOutcomeIntegrity(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  outcome: RouteOutcome
+): void {
+  if (outcome.route !== 'TARGETED_PEER_CHALLENGE' || outcome.status !== 'SUCCEEDED') {
+    return;
+  }
+  verifyDeliberationBinding(session, deliberationState);
+  const label = 'TARGETED_PEER_CHALLENGE outcome read validation';
+  assertFiniteNonNegative(outcome.latencyConsumed, `${label}: latencyConsumed`);
+  if (Number.isNaN(Date.parse(outcome.completedAt))) {
+    throw new Error(`${label}: completedAt is not a valid parseable timestamp`);
+  }
+
+  const matchingAttempts = deliberationState.attempts.filter((a) => a.attemptId === outcome.attemptId);
+  if (matchingAttempts.length !== 1) {
+    throw new Error(`${label}: attemptId ${outcome.attemptId} does not resolve to exactly one RouteAttempt`);
+  }
+  const attempt = matchingAttempts[0];
+  if (attempt.route !== 'TARGETED_PEER_CHALLENGE') {
+    throw new Error(`${label}: resolved attempt has route ${attempt.route}, not TARGETED_PEER_CHALLENGE`);
+  }
+
+  // Full attempt -> decision -> question provenance parity with
+  // `recordRouteOutcome`'s own write-time check.
+  const decision = validateAttemptProvenanceForOutcome(session, deliberationState, attempt);
+  if (decision.route !== 'TARGETED_PEER_CHALLENGE') {
+    throw new Error(`${label}: resolved decision has route ${decision.route}, not TARGETED_PEER_CHALLENGE`);
+  }
+  if (decision.id !== outcome.decisionId) {
+    throw new Error(`${label}: outcome.decisionId does not match the resolved attempt's own decision`);
+  }
+  if (attempt.questionId !== outcome.originatingQuestionId) {
+    throw new Error(`${label}: outcome.originatingQuestionId does not match the resolved attempt`);
+  }
+
+  if (attempt.logicalCost !== outcome.logicalCost) {
+    throw new Error(`${label}: logicalCost does not match the resolved attempt`);
+  }
+  if (
+    attempt.sessionId !== outcome.sessionId ||
+    attempt.artifactHash !== outcome.artifactHash ||
+    attempt.authorContextHash !== outcome.authorContextHash
+  ) {
+    throw new Error(`${label}: outcome session/hash binding does not match the resolved attempt`);
+  }
+
+  // Never assume C6-A's earlier planning/recording/attempt-start gates
+  // remain trustworthy for later/tampered state -- readiness is re-derived
+  // in full, including the currently-registered question's inputRefs.
+  assertTargetedPeerChallengeReady(session, deliberationState, attempt.questionId);
+
+  assertTargetedPeerChallengeResultPayload(
+    outcome.status,
+    outcome.result,
+    outcome.targetRef,
+    outcome.sourceRef,
+    outcome.boundedExcerpt,
+    outcome.response,
+    decision.inputRefs,
+    session,
+    label
+  );
 }

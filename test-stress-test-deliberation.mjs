@@ -3060,19 +3060,17 @@ check('REPLICATE targetRef is snapshot-isolated: mutating the caller-owned ref a
 
 // --- Q8. Blocked successful routes/results ---------------------------------
 
-// ADD_CONTEXT SUPPLIED/DECLINED became recordable in Slice 2D-C2, and
+// ADD_CONTEXT SUPPLIED/DECLINED became recordable in Slice 2D-C2,
 // SEEK_EVIDENCE SUPPORTIVE/CONTRADICTORY/INCONCLUSIVE became recordable in
 // Slice 2D-C5-B (see their own dedicated EvidenceSubject test sections
-// below); NO_RESPONSE remains blocked but is tested there too, with a real
-// ContextRequest present, rather than via this generic no-request loop.
-// TARGETED_PEER_CHALLENGE remains the one still-blocked route here.
-const BLOCKED_SUCCESS_CASES = [
-  {
-    rootCause: 'DECISION_SENSITIVE_CONFLICT',
-    extra: { targetRef: { kind: 'SEMANTIC_ISSUE', id: 'x' }, sourceRef: { kind: 'SEMANTIC_ISSUE', id: 'y' }, response: 'x' },
-    label: 'TARGETED_PEER_CHALLENGE REBUTTAL',
-  },
-];
+// below), and TARGETED_PEER_CHALLENGE REBUTTAL/CONCESSION/QUALIFICATION/
+// REFUSAL_TO_YIELD became recordable in Slice 2D-C6-B (see its own dedicated
+// test section below). NO_RESPONSE remains blocked but is tested elsewhere,
+// with a real ContextRequest present, rather than via a generic no-request
+// loop. No route/result combination remains blocked-by-generic-rejection
+// here as of Slice 2D-C6-B; this section is kept as an explicit marker for
+// any future not-yet-authorized route/result rather than deleted outright.
+const BLOCKED_SUCCESS_CASES = [];
 
 for (const { rootCause, extra, label } of BLOCKED_SUCCESS_CASES) {
   check(`SUCCEEDED recording is rejected for ${label} (route not authorized in Slice 2D-B1)`, () => {
@@ -7672,6 +7670,630 @@ check('recordRouteOutcome: generic FAILED remains recordable for a legacy TARGET
   assert.equal(next.outcomes.length, 1);
   assert.equal(next.outcomes[0].status, 'FAILED');
   assert.equal(next.outcomes[0].route, 'TARGETED_PEER_CHALLENGE');
+});
+
+// ==================================================================
+console.log('\nTARGETED_PEER_CHALLENGE successful RouteOutcome recording (Slice 2D-C6-B)');
+// ==================================================================
+
+const VALID_BOUNDED_EXCERPT = {
+  text: 'The vendor notice period requirement is already satisfied by the existing contract addendum.',
+  truncated: false,
+  charLimit: 200,
+};
+
+check('recordRouteOutcome: TARGETED_PEER_CHALLENGE records each successful result variant (REBUTTAL/CONCESSION/QUALIFICATION/REFUSAL_TO_YIELD) with a complete envelope and payload, restating no positional target/source meaning', () => {
+  for (const result of ['REBUTTAL', 'CONCESSION', 'QUALIFICATION', 'REFUSAL_TO_YIELD']) {
+    const { session, state, decision, question } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+    const attempt = state.attempts[0];
+    const targetRef = decision.inputRefs[0];
+    const sourceRef = decision.inputRefs[1];
+    const response = 'The platform team confirmed capacity via the existing vendor contract addendum.';
+    const next = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 2,
+      targetRef,
+      sourceRef,
+      boundedExcerpt: VALID_BOUNDED_EXCERPT,
+      response,
+      result,
+    });
+    const outcome = next.outcomes[0];
+    assert.equal(outcome.route, 'TARGETED_PEER_CHALLENGE');
+    assert.equal(outcome.status, 'SUCCEEDED');
+    assert.equal(outcome.result, result);
+    assert.deepEqual(outcome.targetRef, targetRef);
+    assert.deepEqual(outcome.sourceRef, sourceRef);
+    assert.deepEqual(outcome.boundedExcerpt, VALID_BOUNDED_EXCERPT);
+    assert.equal(outcome.response, response);
+    assert.equal(outcome.attemptId, attempt.attemptId);
+    assert.equal(outcome.decisionId, decision.id);
+    assert.equal(outcome.originatingQuestionId, question.id);
+    assert.equal(outcome.sessionId, session.id);
+    assert.equal(outcome.artifactHash, session.artifactHash);
+    assert.equal(outcome.authorContextHash, session.authorContextHash);
+    assert.equal(outcome.logicalCost, attempt.logicalCost);
+    assert.equal(outcome.latencyConsumed, 2);
+    assert.equal(typeof outcome.completedAt, 'string');
+    assert.ok(!Number.isNaN(Date.parse(outcome.completedAt)));
+  }
+});
+
+check('recordRouteOutcome: TARGETED_PEER_CHALLENGE rejects targetRef === sourceRef by the same (kind, id), with no outcome or spend', () => {
+  const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+  const attempt = state.attempts[0];
+  const before = JSON.parse(JSON.stringify(state));
+  const sameRef = decision.inputRefs[0];
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        targetRef: sameRef,
+        sourceRef: { ...sameRef },
+        boundedExcerpt: VALID_BOUNDED_EXCERPT,
+        response: 'x',
+        result: 'REBUTTAL',
+      }),
+    /must be distinct/
+  );
+  assert.deepEqual(state, before);
+});
+
+check('recordRouteOutcome: TARGETED_PEER_CHALLENGE allows targetRef/sourceRef that share an id but differ by kind, when both independently resolve and both are members of decision.inputRefs -- full tuple distinctness, never id alone', () => {
+  const { session: baseSession, findingIds } = buildFixtureWithIssue();
+  const collidingId = findingIds[0];
+  const session = {
+    ...baseSession,
+    semanticIssues: {
+      ...baseSession.semanticIssues,
+      [collidingId]: Object.values(baseSession.semanticIssues)[0],
+    },
+  };
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const question = createUnresolvedQuestion(session, {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'cross-kind id collision for TPC target/source',
+    inputRefs: [
+      { kind: 'FINDING', id: collidingId },
+      { kind: 'SEMANTIC_ISSUE', id: collidingId },
+    ],
+  });
+  const state1 = registerUnresolvedQuestion(session, state0, question);
+  const decision = planRouteForQuestion(session, state1, question);
+  const state2 = recordRouteDecision(session, state1, decision);
+  const state3 = recordRouteAttemptStart(session, state2, decision.id);
+  const attempt = state3.attempts[0];
+
+  const next = recordRouteOutcome(session, state3, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    targetRef: { kind: 'FINDING', id: collidingId },
+    sourceRef: { kind: 'SEMANTIC_ISSUE', id: collidingId },
+    boundedExcerpt: VALID_BOUNDED_EXCERPT,
+    response: 'x',
+    result: 'REBUTTAL',
+  });
+  assert.equal(next.outcomes[0].status, 'SUCCEEDED');
+  assert.deepEqual(next.outcomes[0].targetRef, { kind: 'FINDING', id: collidingId });
+  assert.deepEqual(next.outcomes[0].sourceRef, { kind: 'SEMANTIC_ISSUE', id: collidingId });
+});
+
+check('recordRouteOutcome: TARGETED_PEER_CHALLENGE rejects a valid session-domain targetRef that is not a member of the recorded decision.inputRefs -- proves authoritative membership, not mere existence', () => {
+  const { session, state, decision, findingIds } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+  const attempt = state.attempts[0];
+  const notMemberRef = { kind: 'FINDING', id: findingIds[1] };
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        targetRef: notMemberRef,
+        sourceRef: decision.inputRefs[0],
+        boundedExcerpt: VALID_BOUNDED_EXCERPT,
+        response: 'x',
+        result: 'REBUTTAL',
+      }),
+    /targetRef must exactly match one of the recorded RouteDecision.inputRefs/
+  );
+});
+
+check('recordRouteOutcome: TARGETED_PEER_CHALLENGE with three recorded refs allows choosing target/source as refs #3 and #1 -- proves no positional/first-two semantics', () => {
+  const { session, issueId, findingIds } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const question = createUnresolvedQuestion(session, {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'a three-way conflict',
+    inputRefs: [
+      { kind: 'FINDING', id: findingIds[0] },
+      { kind: 'FINDING', id: findingIds[1] },
+      { kind: 'SEMANTIC_ISSUE', id: issueId },
+    ],
+  });
+  const state1 = registerUnresolvedQuestion(session, state0, question);
+  const decision = planRouteForQuestion(session, state1, question);
+  const state2 = recordRouteDecision(session, state1, decision);
+  const state3 = recordRouteAttemptStart(session, state2, decision.id);
+  const attempt = state3.attempts[0];
+
+  const next = recordRouteOutcome(session, state3, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    targetRef: decision.inputRefs[2],
+    sourceRef: decision.inputRefs[0],
+    boundedExcerpt: VALID_BOUNDED_EXCERPT,
+    response: 'x',
+    result: 'QUALIFICATION',
+  });
+  assert.deepEqual(next.outcomes[0].targetRef, decision.inputRefs[2]);
+  assert.deepEqual(next.outcomes[0].sourceRef, decision.inputRefs[0]);
+});
+
+check('recordRouteOutcome: TARGETED_PEER_CHALLENGE rejects an unknown result, with no outcome or spend', () => {
+  const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+  const attempt = state.attempts[0];
+  const before = JSON.parse(JSON.stringify(state));
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, state, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        targetRef: decision.inputRefs[0],
+        sourceRef: decision.inputRefs[1],
+        boundedExcerpt: VALID_BOUNDED_EXCERPT,
+        response: 'x',
+        result: 'NOT_A_REAL_RESULT',
+      }),
+    /invalid TargetedPeerChallengeResult/
+  );
+  assert.deepEqual(state, before);
+});
+
+check('recordRouteOutcome: TARGETED_PEER_CHALLENGE rejects a missing, empty, whitespace-only, or non-string response, and preserves the exact valid response string (including incidental surrounding whitespace) when valid', () => {
+  const invalidResponses = [undefined, '', '   ', 42, null];
+  for (const response of invalidResponses) {
+    const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+    const attempt = state.attempts[0];
+    const input = {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      targetRef: decision.inputRefs[0],
+      sourceRef: decision.inputRefs[1],
+      boundedExcerpt: VALID_BOUNDED_EXCERPT,
+      result: 'REBUTTAL',
+    };
+    if (response !== undefined) input.response = response;
+    assert.throws(
+      () => recordRouteOutcome(session, state, input),
+      undefined,
+      `expected response ${JSON.stringify(response)} to be rejected`
+    );
+  }
+
+  const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+  const attempt = state.attempts[0];
+  const exactResponse = '  The team confirmed capacity via the vendor addendum.  ';
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    targetRef: decision.inputRefs[0],
+    sourceRef: decision.inputRefs[1],
+    boundedExcerpt: VALID_BOUNDED_EXCERPT,
+    response: exactResponse,
+    result: 'REBUTTAL',
+  });
+  assert.equal(next.outcomes[0].response, exactResponse);
+});
+
+check('recordRouteOutcome: TARGETED_PEER_CHALLENGE accepts a valid non-truncated and a valid truncated boundedExcerpt', () => {
+  const cases = [
+    { text: 'abc', truncated: false, charLimit: 10 },
+    { text: 'abcdefghij', truncated: true, charLimit: 10 },
+  ];
+  for (const boundedExcerpt of cases) {
+    const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+    const attempt = state.attempts[0];
+    const next = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      targetRef: decision.inputRefs[0],
+      sourceRef: decision.inputRefs[1],
+      boundedExcerpt,
+      response: 'x',
+      result: 'REBUTTAL',
+    });
+    assert.deepEqual(next.outcomes[0].boundedExcerpt, boundedExcerpt);
+  }
+});
+
+check('recordRouteOutcome: TARGETED_PEER_CHALLENGE rejects every structurally invalid boundedExcerpt independently, with no outcome or spend', () => {
+  const invalidExcerpts = [
+    'not-an-object',
+    null,
+    { text: 'x', truncated: false, charLimit: 10, extra: 'x' },
+    { text: '', truncated: false, charLimit: 10 },
+    { text: '   ', truncated: false, charLimit: 10 },
+    { text: 'x', truncated: 'false', charLimit: 10 },
+    { text: 'x', truncated: false, charLimit: NaN },
+    { text: 'x', truncated: false, charLimit: Infinity },
+    { text: 'x', truncated: false, charLimit: 0 },
+    { text: 'x', truncated: false, charLimit: -5 },
+    { text: 'x', truncated: false, charLimit: 1.5 },
+    { text: 'abcdef', truncated: false, charLimit: 3 },
+    { text: 'abc', truncated: true, charLimit: 10 },
+  ];
+  for (const boundedExcerpt of invalidExcerpts) {
+    const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+    const attempt = state.attempts[0];
+    const before = JSON.parse(JSON.stringify(state));
+    assert.throws(
+      () =>
+        recordRouteOutcome(session, state, {
+          attemptId: attempt.attemptId,
+          status: 'SUCCEEDED',
+          latencyConsumed: 1,
+          targetRef: decision.inputRefs[0],
+          sourceRef: decision.inputRefs[1],
+          boundedExcerpt,
+          response: 'x',
+          result: 'REBUTTAL',
+        }),
+      undefined,
+      `expected boundedExcerpt ${JSON.stringify(boundedExcerpt)} to be rejected`
+    );
+    assert.deepEqual(state, before);
+  }
+});
+
+check('recordRouteOutcome: TARGETED_PEER_CHALLENGE SUCCEEDED rejects every caller-derived/forbidden extra input key', () => {
+  const { session, state, decision, question } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+  const attempt = state.attempts[0];
+  const validInput = {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    targetRef: decision.inputRefs[0],
+    sourceRef: decision.inputRefs[1],
+    boundedExcerpt: VALID_BOUNDED_EXCERPT,
+    response: 'x',
+    result: 'REBUTTAL',
+  };
+  const forbiddenExtras = [
+    { route: 'TARGETED_PEER_CHALLENGE' },
+    { decisionId: decision.id },
+    { originatingQuestionId: question.id },
+    { sessionId: session.id },
+    { artifactHash: session.artifactHash },
+    { authorContextHash: session.authorContextHash },
+    { logicalCost: 1 },
+    { completedAt: new Date().toISOString() },
+    { evidenceSubjectId: 'x' },
+    { citations: [] },
+    { reviewerRunId: 'x' },
+    { findingIds: ['x'] },
+    { contextRequestId: 'x' },
+    { responseText: 'x' },
+  ];
+  for (const extra of forbiddenExtras) {
+    assert.throws(
+      () => recordRouteOutcome(session, state, { ...validInput, ...extra }),
+      /unexpected field/,
+      `expected ${JSON.stringify(Object.keys(extra))} to be rejected`
+    );
+  }
+});
+
+check('recordRouteOutcome: TARGETED_PEER_CHALLENGE rejects when both the registered question and its recorded RouteDecision have been tampered to the same one-ref conflict set since the attempt started -- caught through the shared readiness helper, global before local', () => {
+  const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+  const attempt = state.attempts[0];
+  const oneRef = [decision.inputRefs[0]];
+
+  // Tampering only the registered question (leaving decision.inputRefs at
+  // two refs) would be caught by validateAttemptProvenanceForOutcome's own
+  // decision/question inputRefs-parity check instead -- a self-consistent
+  // pair proves rejection actually comes from the TPC readiness helper
+  // re-deriving cardinality from the authoritative registered question,
+  // never from adjacent decision/question agreement alone.
+  const tamperedState = {
+    ...state,
+    unresolvedQuestions: state.unresolvedQuestions.map((q) => (q.id === decision.questionId ? { ...q, inputRefs: oneRef } : q)),
+    history: state.history.map((d) => (d.id === decision.id ? { ...d, inputRefs: oneRef } : d)),
+  };
+  assert.throws(
+    () =>
+      recordRouteOutcome(session, tamperedState, {
+        attemptId: attempt.attemptId,
+        status: 'SUCCEEDED',
+        latencyConsumed: 1,
+        targetRef: oneRef[0],
+        sourceRef: decision.inputRefs[1],
+        boundedExcerpt: VALID_BOUNDED_EXCERPT,
+        response: 'x',
+        result: 'REBUTTAL',
+      }),
+    /at least two distinct \(kind, id\) RouteInputRefs/
+  );
+});
+
+check('recordRouteOutcome: TARGETED_PEER_CHALLENGE alias isolation -- mutating the original targetRef/sourceRef/boundedExcerpt after recording does not alter the stored outcome', () => {
+  const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+  const attempt = state.attempts[0];
+  const targetRef = { ...decision.inputRefs[0] };
+  const sourceRef = { ...decision.inputRefs[1] };
+  const boundedExcerpt = { text: 'original excerpt text', truncated: false, charLimit: 50 };
+
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    targetRef,
+    sourceRef,
+    boundedExcerpt,
+    response: 'x',
+    result: 'REBUTTAL',
+  });
+
+  targetRef.id = 'mutated-target';
+  targetRef.kind = 'FINDING';
+  sourceRef.id = 'mutated-source';
+  boundedExcerpt.text = 'mutated text';
+  boundedExcerpt.truncated = true;
+  boundedExcerpt.charLimit = 999;
+
+  assert.deepEqual(next.outcomes[0].targetRef, { ...decision.inputRefs[0] });
+  assert.deepEqual(next.outcomes[0].sourceRef, { ...decision.inputRefs[1] });
+  assert.deepEqual(next.outcomes[0].boundedExcerpt, { text: 'original excerpt text', truncated: false, charLimit: 50 });
+});
+
+check('recordRouteOutcome + recordQuestionDisposition: TARGETED_PEER_CHALLENGE successful results never automatically change questionDispositions; the question remains current, and ordinary STILL_OPEN/RESOLVED remain legal afterward with no result->disposition mapping imposed', () => {
+  for (const result of ['REBUTTAL', 'CONCESSION', 'QUALIFICATION', 'REFUSAL_TO_YIELD']) {
+    const { session, state, decision, question } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+    const attempt = state.attempts[0];
+    const next = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      targetRef: decision.inputRefs[0],
+      sourceRef: decision.inputRefs[1],
+      boundedExcerpt: VALID_BOUNDED_EXCERPT,
+      response: 'x',
+      result,
+    });
+    assert.deepEqual(next.questionDispositions, state.questionDispositions);
+    assert.equal(isQuestionCurrent(next, question.id), true);
+
+    const disposed = recordQuestionDisposition(session, next, {
+      attemptId: attempt.attemptId,
+      disposition: 'STILL_OPEN',
+      reason: `still open after ${result}`,
+    });
+    assert.equal(disposed.questionDispositions[0].disposition, 'STILL_OPEN');
+  }
+
+  const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+  const attempt = state.attempts[0];
+  const next = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    targetRef: decision.inputRefs[0],
+    sourceRef: decision.inputRefs[1],
+    boundedExcerpt: VALID_BOUNDED_EXCERPT,
+    response: 'x',
+    result: 'CONCESSION',
+  });
+  const resolved = recordQuestionDisposition(session, next, {
+    attemptId: attempt.attemptId,
+    disposition: 'RESOLVED',
+    reason: 'conceded; resolved after separate human review',
+  });
+  assert.equal(resolved.questionDispositions[0].disposition, 'RESOLVED');
+});
+
+check('recordQuestionDisposition: rejects when the stored TARGETED_PEER_CHALLENGE outcome targetRef/sourceRef has been tampered to an unknown ref, or collapsed to the same ref as each other', () => {
+  const refFields = [
+    ['targetRef', { kind: 'FINDING', id: 'unknown-ref' }],
+    ['sourceRef', { kind: 'FINDING', id: 'unknown-ref' }],
+  ];
+  for (const [field, value] of refFields) {
+    const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+    const attempt = state.attempts[0];
+    const withOutcome = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      targetRef: decision.inputRefs[0],
+      sourceRef: decision.inputRefs[1],
+      boundedExcerpt: VALID_BOUNDED_EXCERPT,
+      response: 'x',
+      result: 'REBUTTAL',
+    });
+    const tamperedOutcomes = withOutcome.outcomes.map((o) => (o.attemptId === attempt.attemptId ? { ...o, [field]: value } : o));
+    const tamperedState = { ...withOutcome, outcomes: tamperedOutcomes };
+    assert.throws(
+      () => recordQuestionDisposition(session, tamperedState, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'x' }),
+      undefined,
+      `expected tampering ${field} to be rejected`
+    );
+  }
+
+  const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+  const attempt = state.attempts[0];
+  const withOutcome = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    targetRef: decision.inputRefs[0],
+    sourceRef: decision.inputRefs[1],
+    boundedExcerpt: VALID_BOUNDED_EXCERPT,
+    response: 'x',
+    result: 'REBUTTAL',
+  });
+  const collapsedOutcomes = withOutcome.outcomes.map((o) =>
+    o.attemptId === attempt.attemptId ? { ...o, sourceRef: { ...o.targetRef } } : o
+  );
+  const collapsedState = { ...withOutcome, outcomes: collapsedOutcomes };
+  assert.throws(
+    () => recordQuestionDisposition(session, collapsedState, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'x' }),
+    /distinct/
+  );
+});
+
+check('recordQuestionDisposition: rejects when the stored TARGETED_PEER_CHALLENGE outcome has been tampered -- unknown result/blank response/invalid boundedExcerpt/logicalCost/completedAt/session binding are each independently rejected before semantic re-evaluation trusts the outcome', () => {
+  const fields = [
+    ['result', 'NOT_A_REAL_RESULT'],
+    ['response', ''],
+    ['boundedExcerpt', { text: '', truncated: false, charLimit: 10 }],
+    ['logicalCost', 999],
+    ['completedAt', 'not-a-date'],
+    ['sessionId', 'wrong-session'],
+  ];
+  for (const [field, value] of fields) {
+    const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+    const attempt = state.attempts[0];
+    const withOutcome = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      targetRef: decision.inputRefs[0],
+      sourceRef: decision.inputRefs[1],
+      boundedExcerpt: VALID_BOUNDED_EXCERPT,
+      response: 'x',
+      result: 'REBUTTAL',
+    });
+    const tamperedOutcomes = withOutcome.outcomes.map((o) => (o.attemptId === attempt.attemptId ? { ...o, [field]: value } : o));
+    const tamperedState = { ...withOutcome, outcomes: tamperedOutcomes };
+    assert.throws(
+      () => recordQuestionDisposition(session, tamperedState, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'x' }),
+      undefined,
+      `expected tampering ${field} to be rejected`
+    );
+  }
+});
+
+check('recordQuestionDisposition: rejects when BOTH the registered question.inputRefs and recorded RouteDecision.inputRefs have been tampered to the same one-ref conflict set -- later-read TPC readiness is re-derived from authoritative state, adjacent agreement is insufficient', () => {
+  const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+  const attempt = state.attempts[0];
+  const withOutcome = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    targetRef: decision.inputRefs[0],
+    sourceRef: decision.inputRefs[1],
+    boundedExcerpt: VALID_BOUNDED_EXCERPT,
+    response: 'x',
+    result: 'REBUTTAL',
+  });
+
+  const oneRef = [decision.inputRefs[0]];
+  const tamperedQuestions = withOutcome.unresolvedQuestions.map((q) =>
+    q.id === decision.questionId ? { ...q, inputRefs: oneRef } : q
+  );
+  const tamperedHistory = withOutcome.history.map((d) => (d.id === decision.id ? { ...d, inputRefs: oneRef } : d));
+  const tamperedState = { ...withOutcome, unresolvedQuestions: tamperedQuestions, history: tamperedHistory };
+
+  assert.throws(
+    () => recordQuestionDisposition(session, tamperedState, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'x' }),
+    /at least two distinct \(kind, id\) RouteInputRefs/
+  );
+});
+
+check('recordQuestionDisposition: rejects when the underlying RouteAttempt.startedAt or the historical RouteDecision.materialityReason has been tampered -- proves the later-read validator reuses validateAttemptProvenanceForOutcome, not a second weaker walk', () => {
+  {
+    const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+    const attempt = state.attempts[0];
+    const withOutcome = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      targetRef: decision.inputRefs[0],
+      sourceRef: decision.inputRefs[1],
+      boundedExcerpt: VALID_BOUNDED_EXCERPT,
+      response: 'x',
+      result: 'REBUTTAL',
+    });
+    const tamperedAttempts = withOutcome.attempts.map((a) =>
+      a.attemptId === attempt.attemptId ? { ...a, startedAt: 'not-a-date' } : a
+    );
+    const tamperedState = { ...withOutcome, attempts: tamperedAttempts };
+    assert.throws(
+      () => recordQuestionDisposition(session, tamperedState, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'x' }),
+      /startedAt/
+    );
+  }
+  {
+    const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+    const attempt = state.attempts[0];
+    const withOutcome = recordRouteOutcome(session, state, {
+      attemptId: attempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 1,
+      targetRef: decision.inputRefs[0],
+      sourceRef: decision.inputRefs[1],
+      boundedExcerpt: VALID_BOUNDED_EXCERPT,
+      response: 'x',
+      result: 'REBUTTAL',
+    });
+    const tamperedHistory = withOutcome.history.map((d) =>
+      d.id === decision.id ? { ...d, reason: { ...d.reason, materialityReason: 'a wholly different materiality reason' } } : d
+    );
+    const tamperedState = { ...withOutcome, history: tamperedHistory };
+    assert.throws(
+      () => recordQuestionDisposition(session, tamperedState, { attemptId: attempt.attemptId, disposition: 'STILL_OPEN', reason: 'x' }),
+      /materialityReason/
+    );
+  }
+});
+
+check('recordRouteOutcome: after one successful TARGETED_PEER_CHALLENGE outcome, a second REBUTTAL/CONCESSION/QUALIFICATION/REFUSAL_TO_YIELD/FAILED for the same attempt all reject', () => {
+  const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT');
+  const attempt = state.attempts[0];
+  const withOutcome = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    targetRef: decision.inputRefs[0],
+    sourceRef: decision.inputRefs[1],
+    boundedExcerpt: VALID_BOUNDED_EXCERPT,
+    response: 'x',
+    result: 'REBUTTAL',
+  });
+
+  const secondAttempts = [
+    ...['REBUTTAL', 'CONCESSION', 'QUALIFICATION', 'REFUSAL_TO_YIELD'].map(
+      (result) => () =>
+        recordRouteOutcome(session, withOutcome, {
+          attemptId: attempt.attemptId,
+          status: 'SUCCEEDED',
+          latencyConsumed: 1,
+          targetRef: decision.inputRefs[0],
+          sourceRef: decision.inputRefs[1],
+          boundedExcerpt: VALID_BOUNDED_EXCERPT,
+          response: 'x',
+          result,
+        })
+    ),
+    () =>
+      recordRouteOutcome(session, withOutcome, {
+        attemptId: attempt.attemptId,
+        status: 'FAILED',
+        latencyConsumed: 1,
+        failure: VALID_FAILURE_FOR_DISPOSITION,
+      }),
+  ];
+  for (const attemptFn of secondAttempts) {
+    assert.throws(attemptFn, /already has a RouteOutcome/);
+  }
+  assert.equal(withOutcome.outcomes.length, 1);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
