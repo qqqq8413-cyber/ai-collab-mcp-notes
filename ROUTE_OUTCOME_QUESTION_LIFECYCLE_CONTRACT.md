@@ -2412,3 +2412,225 @@ Unlike §24's historical *schema* list (zero, unchanged, §24 above), this is a 
 - `TARGETED_PEER_CHALLENGE` (7): target-content mapping; source-content mapping; whether/how a new audit fact bridges product refs to reviewer-output provenance; challenged-party selection authority; `boundedExcerpt` source-text derivation; response-capture mechanism; result-classification authority.
 
 **Total: 32 genuinely open live-execution decisions**, none of which reopens any offline/domain schema decision this document has already closed (§24), and none of which is resolved by this read-only inventory packet.
+
+---
+
+## 27. External route execution envelope: idempotency, failure, reconciliation, latency contract (Slice 2D-D1-0)
+
+Architecture documentation only. **No `src/**`, test, or `package.json` change is made by this section or this packet; no execution checkpoint runtime is implemented; no provider/model is called or selected.** This section closes the smallest common execution-layer prerequisite shared by `ADD_REVIEWER`, `REPLICATE`, `SEEK_EVIDENCE`, and `TARGETED_PEER_CHALLENGE` (§26.3, §26.12–§26.13), without choosing a provider, a model, or any route-specific normalization/classification authority, and without touching the `TARGETED_PEER_CHALLENGE` identity bridge (§26.5, deliberately deferred to its own later slice).
+
+### 27.1 Three-layer execution authority model (standing principle)
+
+Frozen as the organizing principle for everything below:
+
+1. **Product domain** (`src/stress-test/deliberation.ts` + `session.ts`) — whether a `RouteAttempt` is valid and what terminal facts are legal. Unchanged by this slice.
+2. **Execution coordination** — whether one attempt owns exactly one live-call claim, a latency reservation, and a recovery checkpoint. New in this slice, architecture only.
+3. **Route adapter** — how one route's specific external mechanism is invoked and its raw result normalized. Remains open (§26.5), not solved here.
+
+No layer substitutes for another. The product domain never performs a live call (see 27.2); the execution-coordination layer never decides route-specific semantic authority (reviewer selection, evidence classification, TPC identity mapping, etc. — all still OPEN per §26.5); the route adapter never bypasses the execution-coordination claim/checkpoint.
+
+### 27.2 Execution ownership — resolves §26.3.A/B
+
+**Frozen:** live external execution MUST NOT occur inside `src/stress-test/deliberation.ts`. That module remains pure/offline product-domain routing and audit state, exactly as every function in it already documents itself (confirmed by direct inspection this packet — `recordRouteAttemptStart`'s own docstring already states the intended ordering: persist the attempt, then "an external mechanism MAY execute in a separately-authorized layer"). Live execution belongs in a separate orchestration/execution-coordination layer, consistent with the repository's own existing precedent that provider calls live in `src/modes/*`/`src/agents/*`, never in `src/stress-test/*` (grounding fact, §26.3).
+
+No final module/filename is chosen in this docs-only slice. This resolves §26.3 open item 1 (execution ownership) as a **layering** decision; the concrete module boundary remains an implementation detail for the runtime slice that follows.
+
+### 27.3 Execution classification — resolves §26.3 scope boundary, restates §26.4
+
+The shared execution envelope defined in this section (§27.4–§27.15) applies only to the four machine-provider routes: `ADD_REVIEWER`, `REPLICATE`, `SEEK_EVIDENCE`, `TARGETED_PEER_CHALLENGE`. `ADD_CONTEXT` remains categorically outside it — its response is human-authored, not model-generated (§26.4, unchanged) — and must not be forced into the shape of a machine executor merely because it shares `RouteAttempt`. `STOP` records no `RouteAttempt`/`RouteOutcome` at all and is likewise out of scope.
+
+### 27.4 Execution identity: `attemptId` — resolves §26.3.C (already closed, restated)
+
+**Frozen:** `RouteAttempt.attemptId` is the executor-facing idempotency key. No second product execution identity (`executionId`, `requestId`, `callId`, `runExecutionId`, `providerAttemptId`, or similar) is introduced. §26.3.C already found no source-of-truth evidence that `attemptId` is insufficient; this slice does not manufacture a need for a second identity. A provider-specific request id may exist transiently as transport metadata (useful for support/debugging), but it is never product authority and is never substituted for `attemptId`.
+
+### 27.5 Identity ≠ de-duplication — resolves §26.3.D (the actual gap)
+
+`attemptId` being the idempotency *key* does not mean duplicate execution is already *prevented*. The existing `ONE RouteDecision → AT MOST ONE RouteAttempt` cardinality (invariants 9–10, already accepted) stops a second `RouteAttempt` record from being created for the same decision; it does nothing to stop two independent executor processes (or one process retrying after an apparent hang) from both initiating an external call for the *same already-persisted* `attemptId`. A live executor therefore requires an **atomic execution claim** distinct from, and layered on top of, the existing ledger cardinality.
+
+### 27.6 Durable execution checkpoint — conceptual record, state machine
+
+**Frozen:** the requirement for a durable execution-coordination record keyed by `attemptId` — conceptually a `RouteExecutionCheckpoint` (name not final). It is:
+- **not** owned by `DeliberationState`;
+- **not** a second product-outcome ledger — `RouteOutcome` remains the sole authoritative product terminal record (§27.12);
+- purpose-scoped to execution coordination, de-duplication, latency reservation, and crash reconciliation only.
+
+Storage technology (database row, transactional table, durable queue, etc.) is explicitly **not chosen here** — an infrastructure choice, not an architecture decision this slice makes.
+
+**Frozen conceptual phases:**
+
+```
+UNCLAIMED → CLAIMED → TERMINAL_FACT_READY → OUTCOME_COMMITTED
+```
+
+- **UNCLAIMED** need not be physically stored — it is simply the absence of a checkpoint row for an `attemptId`.
+- **CLAIMED** — this exact `attemptId` holds exclusive live-execution ownership; no second executor may initiate another external call for it.
+- **TERMINAL_FACT_READY** — the external mechanism reached a determinate terminal technical fact, normalized into the route's already-accepted product-domain-ready payload shape (e.g. `TargetedPeerChallengeRouteOutcome`'s field shape minus the envelope) **or** a sanitized `FailureInfo`; it has **not** necessarily been successfully persisted as a `RouteOutcome` yet.
+- **OUTCOME_COMMITTED** — `recordRouteOutcome` (or the applicable dedicated domain operation, e.g. a future `ADD_CONTEXT`-shaped one) has successfully persisted the terminal fact.
+
+No automatic backward transition between phases.
+
+### 27.7 Atomic claim requirement — resolves §26.3.D concretely
+
+The `UNCLAIMED → CLAIMED` transition must be atomic with respect to `attemptId`: of two concurrent claimers, exactly one succeeds; the loser MUST NOT call a provider. "Check then insert" without an atomic uniqueness/compare-and-set guarantee does not satisfy this. The concrete mechanism (database uniqueness constraint, transaction, CAS, durable queue semantics) is deferred as an infrastructure choice, not decided here.
+
+**Pre-claim domain check** (does not replace any existing domain validator — additive, execution-coordination-layer only): authoritative session/state binding valid; `attemptId` resolves exactly; the attempt has no `RouteOutcome` yet; the attempt's route is machine-executable (§27.3); state is not `STOPPED`; the route's own already-accepted readiness gate still passes (`assertTargetedPeerChallengeReady`, `SEEK_EVIDENCE`'s three-boundary gate, etc.); finite budget configuration exists (invariant 18, MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md §12); explicit live-execution authorization exists (§27.15).
+
+**Post-claim rule:** once `CLAIMED`, no second executor may launch a second external call for the same `attemptId` merely because no `RouteOutcome` exists yet, the first worker appears slow, a process restarted, or a timeout observer fired. `CLAIMED` is never interpreted as "free to retry." Crash recovery is reconciliation (§27.12), never automatic re-execution.
+
+**Provider-side idempotency** (a provider's own idempotency-key feature, using `attemptId` where compatible) is **defense in depth only** — it does not replace the product execution claim, and the architecture must work correctly even against a provider exposing no such API.
+
+### 27.8 No automatic retry — resolves §26.3.L
+
+**Frozen:** automatic transport/provider retries = **0** for the first live-execution architecture. The execution shell must disable SDK auto-retry where technically supported. A hidden SDK-level retry is, architecturally, an unauthorized additional external execution — it re-calls a provider without a corresponding fresh `RouteDecision`/`RouteAttempt`, silently violating the already-accepted principle (invariant 6; `MINIMUM_NECESSARY_DELIBERATION_CONTRACT.md` §13: "a retry of the very same route that just failed is never automatic; it requires a fresh, independently justified `RouteDecision`").
+
+**Grounded observation (direct inspection this packet, read-only):** `src/providers/claude.ts`, `openai.ts`, and `gemini.ts` construct their SDK clients and call sites today with no `maxRetries`, no timeout, and no `AbortSignal` passed anywhere — a repository-wide search for `maxRetries|timeout|AbortController|signal:` across all three adapters returned zero matches. None of the three currently satisfies this slice's "no automatic retry" or "enforceable deadline" (§27.13) requirements as they stand today; each SDK's own default retry/timeout behavior applies unmodified. This is not a defect to fix here — no `src/**` change is made — but it is a concrete, source-grounded reason none of the three adapters is yet eligible for product live execution under this architecture (§27.14 restates this as a general eligibility rule).
+
+A controlled transport retry, if ever wanted later, requires its own separately authorized architecture redesign — not assumed here.
+
+### 27.9 `FailureInfo` mapping — resolves §26.3.G
+
+Preserves the already-closed, closed vocabulary (`FailureCategory`, confirmed unchanged by direct inspection this packet — `src/stress-test/deliberation.ts:270`): `TRANSPORT | VALIDATION | REFERENCE_RESOLUTION | EXECUTION`. No provider-specific category is added. `FailureInfo.message` remains sanitized, bounded (2000-char cap, `FAILURE_MESSAGE_MAX_CHARS`, confirmed unchanged), human-readable — never a stack trace, header, API key, raw SDK object, or raw provider response.
+
+**Mapping table:**
+
+| Category | Applies when | Examples |
+|---|---|---|
+| `REFERENCE_RESOLUTION` | An authoritative product reference required for execution cannot be resolved | `targetRef`/`sourceRef` no longer resolves; `EvidenceSubject` cannot resolve; required finding/issue identity missing or ambiguous |
+| `TRANSPORT` | The call channel itself failed before a usable response existed | DNS/network/socket/TLS failure; provider request timeout; executor-triggered deadline abort; HTTP 408; HTTP 429 / rate limiting; provider 5xx; SDK transport exception |
+| `VALIDATION` | A response was received but cannot be normalized into the already-accepted product-domain terminal-result schema | malformed structured response; missing required normalized fields; unsupported result enum from the route-specific normalizer; citation payload fails `EvidenceCitation` normalization; reviewer output cannot become a valid `ReviewFinding`; TPC response cannot normalize into the accepted payload |
+| `EXECUTION` | A determinate executor-layer inability that is neither of the above | missing/invalid provider configuration discovered at execution time; missing credentials; unsupported selected capability/tool; provider/model refuses the requested operation; adapter cannot legally construct its invocation; internal executor failure after domain refs are valid but before a valid route result exists |
+
+**Precedence when multiple conditions exist** — frozen causal order, never "whichever exception was caught last": `REFERENCE_RESOLUTION` (if authoritative identity cannot be established) → `TRANSPORT` (if the channel failed before a usable response existed) → `VALIDATION` (if a response existed but failed the output contract) → `EXECUTION` (other determinate failures). Preferred posture: detect `REFERENCE_RESOLUTION` failures before any provider call — when caught pre-call, provider calls for that attempt execution = 0.
+
+### 27.10 Failure disposition — restates §26.3.F/O/P, no semantic change
+
+If the executor can determinately attribute a failure to the attempt: normalize `FailureInfo` → checkpoint `TERMINAL_FACT_READY` → attempt to persist a generic `FAILED` `RouteOutcome`. A known determinate failure is never left as a silently-open attempt.
+
+If a process disappears while the checkpoint is `CLAIMED` and no durable terminal fact exists, the attempt is **execution-ambiguous**. The executor must NOT infer `FAILED`, infer `SUCCEEDED`, or automatically re-run provider execution. The checkpoint remains `CLAIMED`/ambiguous pending explicit reconciliation — fail-closed, consistent with invariant 22 (open/unterminated attempts are already accepted as auditable, never silently resolved).
+
+### 27.11 Checkpoint-before-commit ordering — resolves §26.3.E/N, §26.8
+
+**Frozen ordering:** external mechanism completes → normalize/sanitize into the route's already-accepted payload shape or sanitized `FailureInfo` → durably persist `TERMINAL_FACT_READY` → **then** attempt `recordRouteOutcome` → `OUTCOME_COMMITTED`.
+
+**Reason:** if the provider call succeeds and the process then crashes before `RouteOutcome` is ever written, the exact normalized fact must remain recoverable without re-calling the provider — this is the reconciliation substrate for §26.8 scenario 1.
+
+**`RouteOutcome` remains authoritative product truth.** The execution checkpoint is not product semantic authority; once `RouteOutcome` is committed, no routing/currentness/`HumanAdjudication` decision may derive product truth from checkpoint state. The checkpoint exists only for de-duplication, crash recovery, persistence reconciliation, and execution audit — never a second competing truth ledger. After commit, checkpoint transitions to `OUTCOME_COMMITTED`; a later implementation may compact/remove the stored normalized payload once audit/recovery requirements permit (retention duration not decided here), but the state transition itself stays auditable.
+
+**Product persistence failure** (`TERMINAL_FACT_READY` reached, but `recordRouteOutcome` rejects or persistence fails — §26.8 scenario 2): keep `TERMINAL_FACT_READY` durably; do not call the provider again; do not fabricate a different payload; do not automatically mutate product state; surface a reconciliation-required state. A future reconciliation operation may retry **only** the product-persistence step using the exact checkpointed normalized fact — it must never re-run external execution.
+
+**Reconciliation validation:** any future persistence-only reconciliation must re-run the same authoritative product validators an ordinary `RouteOutcome` write uses (session/hash binding, attempt provenance, question currentness, route readiness, `EvidenceSubject` integrity, TPC readiness, etc.). A checkpoint created earlier does not bypass current-state validation; if current state makes the previously-normalized fact no longer legal, reconciliation fails closed rather than force-writing a stale fact.
+
+**No automatic reconciliation** is introduced by this slice — no background automatic retry, automatic provider replay, or automatic outcome force-write. This slice freezes the recovery substrate/policy only; trigger/UI/operator policy for reconciliation remains a later implementation decision (§26.8's "reconciliation *process*" gap is narrowed to a frozen *policy*, not yet an implemented *process*).
+
+### 27.12 Latency contract — resolves §26.3.H/I/J, §26.9
+
+**Unit and measurement window (resolves H):** `latencyConsumed` unit is frozen as **milliseconds**, measured with a monotonic clock (not `Date.now` subtraction, when a monotonic elapsed-time API is available). The window runs from immediately before the first external side effect (the provider call) through the point a normalized terminal fact — success or failure — has been produced, including the route-specific normalization/classification work required to obtain that fact. Excluded: pre-call eligibility/ref validation, durable claim acquisition, post-terminal `RouteOutcome` persistence, and later `QuestionDisposition`. `latencyConsumed` remains, as already accepted, an **observed execution fact** — never truncated, clamped to remaining budget, replaced with the configured limit, or estimated.
+
+**Admission (partially resolves J):** before `CLAIMED` transitions into an actual external call, the executor computes `remainingLatency = latencyBudget.ceiling - latencyBudget.spent - other durable in-flight reservations`, and requires `remainingLatency > 0`. No live call begins otherwise.
+
+**Explicit per-call limit (resolves J):** every provider-backed live execution must receive an explicit, finite `latencyLimitMs` from live-execution policy/configuration — no numeric default is frozen here, and a missing value means the call is **not authorized**, never "unlimited." Required: `latencyLimitMs > 0` and `latencyLimitMs <= remainingLatency`. The executor durably reserves `latencyLimitMs` in the checkpoint before the provider call — this is an authorization ceiling, not a prediction of actual latency.
+
+**Reservation:** across one `DeliberationState`, `spent + durable active reservations` must never exceed `latencyBudget.ceiling`. Atomic reservation is required once concurrent machine executions are ever allowed; a first implementation MAY serialize provider-backed execution per `DeliberationState` if that materially simplifies correctness — concurrency is not required by this slice.
+
+**Provider deadline (resolves I, partially):** the external adapter MUST support an enforceable deadline/abort bounded by `latencyLimitMs`. A candidate provider/adapter that cannot expose a bounded execution mechanism is **not eligible** for product live execution under this architecture — no provider is selected by this rule, but §27.8's grounded observation already shows none of the three current adapters yet exposes one.
+
+**Normal reconciliation:** on a terminal fact with `actualLatencyMs <= reserved latencyLimitMs`, release the reservation and charge `actualLatencyMs` through the existing latency accounting (`applyLatencySpend`) when `RouteOutcome` is persisted. Unused reservation returns to available budget. No logical-cost re-charge (§27.13 preserves `CostBudget` unchanged).
+
+**Deadline timeout:** when the deadline is reached, abort/cancel the external call, normalize `FailureInfo.category = TRANSPORT` with a sanitized timeout message, and produce a terminal technical failure. Observed latency remains the actually measured value, never guessed from the configured limit.
+
+**Overrun — execution-shell contract violation (resolves I/the §26.9 race, decisively):** if an adapter returns control with `actualLatencyMs > latencyLimitMs` despite the required deadline, this is an **execution-shell contract violation**, not a normal outcome. The executor must NOT clamp the latency, fabricate a legal `RouteOutcome`, or silently exceed the product's `LatencyBudget`. It persists the observed fact in the execution checkpoint and surfaces **reconciliation/operator-attention-required** — no provider replay. Such an adapter is not eligible for continued production execution until the breach is understood. This resolves §26.9's race by removing the *legal option* that was previously missing (fabricate vs. leave permanently open): the reservation-and-deadline discipline above (admission + per-call limit + enforced provider deadline) is designed so a legally-recordable `actualLatencyMs <= latencyLimitMs <= remainingLatency` is the expected path, and an adapter that still overruns its own enforced deadline is treated as a contract violation requiring operator attention, not a silent ledger failure — truth (the real observed latency) is preserved either way, never fabricated.
+
+### 27.13 Cost budget — unchanged
+
+`CostBudget` is not redesigned. `logicalCost` remains charged exactly once, at `RouteAttempt` start (`applyCostSpend`, a fixed route-determined integer via `logicalAttemptCostForRoute` — confirmed unchanged by direct inspection this packet). The live executor MUST NOT charge logical cost again. No provider-dollar/token accounting is introduced.
+
+### 27.14 Explicit live-execution authorization — resolves §26.3.Q
+
+**Frozen:** finite `CostBudget`/`LatencyBudget` configuration (invariant 18, already accepted) is **necessary but not sufficient** to authorize live execution. A future execution shell must additionally require an explicit **live-execution enablement policy**, absent/disabled by default, authorizing at minimum (a) Stress Test live execution generally and (b) the specific route. Provider/model selection authority remains separate and still **OPEN** (§26.3.K, unchanged). No execution occurs while live authorization is absent. This session's own GPT packet-governance authorization is not the runtime product mechanism — it authorizes this documentation packet, not a running system's live calls.
+
+**Live authorization ≠ human revision authority:** live-execution authorization means only "this external route mechanism may execute." It never grants `HumanAdjudication`/`ACTION_CHANGE = YES`/`RevisionAction` authority, which remains unchanged (Slice 1, unaffected).
+
+### 27.15 Remaining open by design — not solved here
+
+Provider/model selection (Claude/OpenAI/Gemini, specific models, registry role) is **not chosen** in this slice — it closes the envelope, not selection authority; each route-specific execution slice still decides what capability it needs. Route-specific normalization/classification (`ADD_REVIEWER` raw-output→`ReviewFinding`; `REPLICATE` result classification; `SEEK_EVIDENCE` query/retrieval/citation normalization; TPC's identity bridge and response classification) is likewise not solved — the common shell accepts route-specific adapter functions conceptually (§27.1 layer 3), but their authority is defined later, per route. `ADD_CONTEXT`'s human-response capture surface (§26.4) is unaffected and remains its own, separate, non-execution open item.
+
+### 27.16 Required failure matrix
+
+| Condition | Provider call made? | Failure category | Checkpoint terminal fact? | `RouteOutcome` | Automatic retry? |
+|---|---|---|---|---|---|
+| Unknown product ref (pre-call) | No | `REFERENCE_RESOLUTION` | Yes (`FailureInfo`) | `FAILED` | No |
+| Missing provider config | No | `EXECUTION` | Yes (`FailureInfo`) | `FAILED` | No |
+| Network/DNS/TLS failure | Attempted | `TRANSPORT` | Yes (`FailureInfo`) | `FAILED` | No |
+| Timeout/deadline reached | Yes (aborted) | `TRANSPORT` | Yes (`FailureInfo`) | `FAILED` | No |
+| HTTP 429 | Yes | `TRANSPORT` | Yes (`FailureInfo`) | `FAILED` | No |
+| HTTP 5xx | Yes | `TRANSPORT` | Yes (`FailureInfo`) | `FAILED` | No |
+| Provider refusal | Yes | `EXECUTION` | Yes (`FailureInfo`) | `FAILED` | No |
+| Malformed response | Yes | `VALIDATION` | Yes (`FailureInfo`) | `FAILED` | No |
+| Normalizer schema failure | Yes | `VALIDATION` | Yes (`FailureInfo`) | `FAILED` | No |
+| Process crash while `CLAIMED`, no terminal fact | Unknown | — (ambiguous) | No | None (stays open) | No — fails closed, reconciliation-pending |
+| Result normalized but `RouteOutcome` persistence fails | Yes | N/A (success path) | Yes (normalized success payload) | Not yet committed — persistence-reconciliation pending | No — never re-run external execution |
+| Latency deadline contract overrun | Yes | N/A (success/failure path with overrun) | Yes, flagged reconciliation/operator-attention-required | Not committed pending resolution | No |
+
+### 27.17 Required state flow
+
+```
+RouteAttempt already persisted (recordRouteAttemptStart, existing runtime)
+  ↓
+live-execution authorization + eligibility check (§27.14, §27.7 pre-claim check)
+  ↓
+atomic CLAIMED(attemptId)                                  (§27.6, §27.7)
+  ↓
+latency admission + reservation (latencyLimitMs)            (§27.12)
+  ↓
+external route adapter call, bounded by provider deadline   (§27.1 layer 3, §27.12)
+  ↓
+normalized terminal fact (success payload or FailureInfo)   (§27.9, §27.10)
+  ↓
+durable TERMINAL_FACT_READY                                 (§27.6, §27.11)
+  ↓
+recordRouteOutcome (existing runtime, re-validated)          (§27.11)
+  ↓
+OUTCOME_COMMITTED                                            (§27.6, §27.11)
+```
+
+**Crash/reconciliation branches:**
+- Crash while `CLAIMED`, no terminal fact yet → checkpoint stays `CLAIMED`/ambiguous, fail-closed, no inference, no auto-rerun (§27.10, §27.7).
+- Terminal fact reached (`TERMINAL_FACT_READY`) but `recordRouteOutcome` rejects or persistence fails → checkpoint stays `TERMINAL_FACT_READY`, no provider replay, reconciliation-required surfaced; a future persistence-only reconciliation re-validates against current authoritative state before writing (§27.11).
+- Deadline enforced but adapter still overruns it → contract-violation path, observed latency preserved, no clamp/fabrication, operator attention required, no replay (§27.12).
+
+### 27.18 Governance backlink check (Slice 2D-D1-0)
+
+This section changes no offline/domain implementation status. §25 is unaffected by this slice: `RouteOutcome`/`RouteAttempt`/`QuestionDisposition` runtime status lines above remain exactly as the Slice 2D-D0 packet left them, and the two **NOT AUTHORIZED** lines ("Provider-backed route execution," "Route execution generally...") remain **NOT AUTHORIZED** — this slice adds architecture/authorization posture only and marks no execution runtime, idempotency mechanism, or latency-reservation mechanism as implemented. A search of this section's own prose for language that could be misread as "provider execution now ready," "latency race already implemented," or "idempotency already implemented" found none requiring correction; §27.19 states the negative runtime consequence explicitly to foreclose that misreading.
+
+### 27.19 Runtime consequence — explicit, not implied
+
+The current domain runtime (`src/stress-test/deliberation.ts`, `applyLatencySpend`, confirmed unchanged by direct inspection this packet — still throws if `spent + amount > ceiling`, still charged only at terminal-outcome time) does **not yet** model in-flight latency reservations, atomic execution claims, or an execution checkpoint of any kind. This section documents and freezes the architecture and policy for those mechanisms; it does not implement them. **Provider-backed route execution therefore remains NOT AUTHORIZED** until a later runtime slice implements the accepted reservation/admission/claim/checkpoint contract above. Documentation alone does not resolve the `LatencyBudget` race described in §26.9 — only a runtime slice that actually implements admission (§27.12) does.
+
+### 27.20 Common execution-layer decisions — closed vs. still open after this freeze
+
+**Closed or materially resolved by this slice (10):**
+1. Execution ownership — layering resolved (§27.2); concrete module boundary deferred to implementation.
+2. Live-call idempotency/de-duplication — resolved via the atomic execution claim (§27.5, §27.7).
+3. Success-but-persistence-fails reconciliation — policy resolved (§27.11); process/trigger/UI deferred.
+4. `FailureInfo` category mapping table — resolved (§27.9).
+5. `latencyConsumed` measurement definition and units — resolved (§27.12).
+6. `LatencyBudget` vs. an external call of unknowable duration — resolved via admission + reservation + enforced deadline + fail-closed overrun policy (§27.12).
+7. Pre-call latency reservation mechanism — resolved conceptually (§27.12); storage technology deferred.
+8. Transport-retry vs. logical-`RouteAttempt`-retry enforcement point — resolved: zero automatic transport retries, enforced by the execution shell (§27.8).
+9. External-side-effect/local-ledger atomicity/reconciliation contract — resolved as policy (§27.11, §27.17); no automatic mechanism implemented.
+10. Dedicated live-execution authorization boundary — resolved: invariant 18 alone is insufficient; a separate live-execution enablement policy is required (§27.14).
+
+**Still open after this freeze (1):**
+- Product-domain provider/model selection authority (§26.3.K) — explicitly out of scope for this slice (§27.15); remains for a later, dedicated slice.
+
+Common execution-layer open-decision count: **11 → 1** after this freeze (10 resolved as architecture/policy; the remaining 1 — provider/model selection authority — was always out of scope for an "envelope" slice by the packet's own design, §26.13).
+
+### 27.21 Route-specific decisions — unchanged
+
+Direct source inspection this packet (`deliberation.ts`'s `RouteAttempt`/`RouteOutcome`/`FailureInfo`/budget functions, `src/providers/*`) found nothing contradicting the Slice 2D-D0 route-specific inventory. Counts are unchanged: `ADD_CONTEXT` 1, `ADD_REVIEWER` 5, `REPLICATE` 3, `SEEK_EVIDENCE` 5, `TARGETED_PEER_CHALLENGE` 7 — **21 total**, exactly as §26.14 recorded. This slice resolves none of them; none was in scope (§27.15).
+
+### 27.22 Recommended next architecture slice
+
+**Recommended: `SLICE 2D-D1-A` — EXECUTION COORDINATION / CLAIM / LATENCY RESERVATION OFFLINE RUNTIME.**
+
+This slice's own freeze (§27.6–§27.14) is now a complete, internally consistent architecture for the execution checkpoint, the atomic claim, and the latency-reservation/admission contract — entirely independent of any specific provider. The natural next step is to **implement that architecture offline** (the checkpoint state machine, the atomic claim primitive, the latency admission/reservation bookkeeping) **without any provider call**, exactly mirroring how `RouteAttempt`/`RouteOutcome` themselves were built and fully tested offline (Slice 2D-B0/B1) long before any route's successful-result semantics were designed. This closes the runtime gap named in §27.19 and gives every future route-specific execution slice (reviewer normalization, retrieval integration, TPC identity bridge, etc.) a tested, working coordination substrate to build on, rather than each one having to first invent its own ad hoc claim/reservation logic. No missing common-schema prerequisite was surfaced during this freeze that would redirect the recommendation elsewhere.
