@@ -154,16 +154,28 @@ function buildRegisteredQuestion(session, state, input) {
  * EVIDENCE_GAP, an EvidenceSubject is registered first via the real
  * `registerEvidenceSubject` API -- required as of Slice 2D-C5-A's routing
  * gates (planRouteForQuestion/recordRouteDecision both now reject a
- * SEEK_EVIDENCE route with no registered subject); every other rootCause is
+ * SEEK_EVIDENCE route with no registered subject). For
+ * DECISION_SENSITIVE_CONFLICT, two distinct refs (SEMANTIC_ISSUE + FINDING)
+ * are supplied instead of the usual single ref -- required as of Slice
+ * 2D-C6-A's cardinality gate (createUnresolvedQuestion/
+ * registerUnresolvedQuestion both now reject a DECISION_SENSITIVE_CONFLICT
+ * question with fewer than two distinct refs); every other rootCause is
  * unaffected.
  */
 function buildRecordedDecisionFixture(rootCause, costCeiling = 5, latencyCeiling = 5) {
   const { session, issueId, findingIds } = buildFixtureWithIssue();
   const state0 = createDeliberationState(session, { costCeiling, latencyCeiling });
+  const inputRefs =
+    rootCause === 'DECISION_SENSITIVE_CONFLICT'
+      ? [
+          { kind: 'SEMANTIC_ISSUE', id: issueId },
+          { kind: 'FINDING', id: findingIds[0] },
+        ]
+      : [{ kind: 'SEMANTIC_ISSUE', id: issueId }];
   const { state: state1, question } = buildRegisteredQuestion(session, state0, {
     rootCause,
     materialityReason: `material ${rootCause}`,
-    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    inputRefs,
   });
   const state1b =
     rootCause === 'EVIDENCE_GAP'
@@ -672,18 +684,22 @@ check('registration is rejected once the deliberation has stopped', () => {
 console.log('\nRouteDecision planning');
 
 check('a registered question plans successfully; route is derived and questionId is set', () => {
-  const { session, issueId } = buildFixtureWithIssue();
+  const { session, issueId, findingIds } = buildFixtureWithIssue();
   const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const inputRefs = [
+    { kind: 'SEMANTIC_ISSUE', id: issueId },
+    { kind: 'FINDING', id: findingIds[0] },
+  ];
   const { state, question } = buildRegisteredQuestion(session, state0, {
     rootCause: 'DECISION_SENSITIVE_CONFLICT',
     materialityReason: 'Two findings conflict on timeline feasibility, and the answer changes whether the memo can be sent as-is.',
-    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    inputRefs,
   });
   const decision = planRouteForQuestion(session, state, question);
   assert.equal(decision.route, 'TARGETED_PEER_CHALLENGE');
   assert.equal(decision.reason.rootCause, 'DECISION_SENSITIVE_CONFLICT');
   assert.equal(decision.questionId, question.id);
-  assert.deepEqual(decision.inputRefs, [{ kind: 'SEMANTIC_ISSUE', id: issueId }]);
+  assert.deepEqual(decision.inputRefs, inputRefs);
 });
 
 check('an unregistered question is rejected', () => {
@@ -3826,12 +3842,17 @@ check('two dispositions for one question remain valid when they belong to differ
 // ==================================================================
 console.log('\nSUPERSEDED_RECLASSIFIED / derived question lineage (Slice 2D-B2-B)');
 
-/** Convenience: a valid, independently-constructed replacement question (Q2) for `cycle.question` (Q1), via the real createUnresolvedQuestion factory. */
+/** Convenience: a valid, independently-constructed replacement question (Q2) for `cycle.question` (Q1), via the real createUnresolvedQuestion factory. Uses two distinct refs (SEMANTIC_ISSUE + FINDING), derived directly from `cycle.session` rather than copying Q1's own (possibly single-ref) inputRefs or relying on a cycle-specific `issueId`/`findingIds` return field (not every cycle fixture returns those) -- required as of Slice 2D-C6-A's DECISION_SENSITIVE_CONFLICT cardinality gate; a replacement question's inputRefs are independently constructed, never required to relate to the superseded question's own. */
 function buildReplacementFor(cycle, overrides = {}) {
+  const semanticIssueId = Object.keys(cycle.session.semanticIssues)[0];
+  const findingId = Object.keys(cycle.session.findings)[0];
   return createUnresolvedQuestion(cycle.session, {
     rootCause: 'DECISION_SENSITIVE_CONFLICT',
     materialityReason: 'reclassified: two interpretations now materially conflict',
-    inputRefs: cycle.question.inputRefs.map((ref) => ({ ...ref })),
+    inputRefs: [
+      { kind: 'SEMANTIC_ISSUE', id: semanticIssueId },
+      { kind: 'FINDING', id: findingId },
+    ],
     derivedFromQuestionId: cycle.question.id,
     ...overrides,
   });
@@ -4021,7 +4042,7 @@ check('STILL_OPEN/RESOLVED input still rejects a replacementQuestion field (unch
 // --- S6. Ordinary registration tests (packet §39) ---------------------------
 
 check('createUnresolvedQuestion + registerUnresolvedQuestion: omitted/null derivedFromQuestionId succeeds; non-null is rejected on the ordinary path', () => {
-  const { session, issueId } = buildFixtureWithIssue();
+  const { session, issueId, findingIds } = buildFixtureWithIssue();
   const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
 
   const omitted = createUnresolvedQuestion(session, {
@@ -4046,7 +4067,10 @@ check('createUnresolvedQuestion + registerUnresolvedQuestion: omitted/null deriv
   const derived = createUnresolvedQuestion(session, {
     rootCause: 'DECISION_SENSITIVE_CONFLICT',
     materialityReason: 'z',
-    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    inputRefs: [
+      { kind: 'SEMANTIC_ISSUE', id: issueId },
+      { kind: 'FINDING', id: findingIds[0] },
+    ],
     derivedFromQuestionId: omitted.id,
   });
   assert.equal(derived.derivedFromQuestionId, omitted.id);
@@ -4114,11 +4138,14 @@ check('a SUPERSEDED_RECLASSIFIED disposition with zero registered derived childr
 // --- S8. Orphan test (packet §41) -------------------------------------------
 
 check('a registered question claiming a nonexistent parent (orphan) fails lineage integrity, never silently treated as original', () => {
-  const { session, state, question } = buildRecordedDecisionFixture('COVERAGE_GAP');
+  const { session, state, question, issueId, findingIds } = buildRecordedDecisionFixture('COVERAGE_GAP');
   const orphan = createUnresolvedQuestion(session, {
     rootCause: 'DECISION_SENSITIVE_CONFLICT',
     materialityReason: 'orphaned derived question',
-    inputRefs: question.inputRefs.map((ref) => ({ ...ref })),
+    inputRefs: [
+      { kind: 'SEMANTIC_ISSUE', id: issueId },
+      { kind: 'FINDING', id: findingIds[0] },
+    ],
     derivedFromQuestionId: 'nonexistent-parent-id',
   });
   const corrupted = { ...state, unresolvedQuestions: [...state.unresolvedQuestions, orphan] };
@@ -4129,7 +4156,7 @@ check('a registered question claiming a nonexistent parent (orphan) fails lineag
 
 check('a derived question whose claimed parent has no disposition, or STILL_OPEN, or RESOLVED (never SUPERSEDED) fails lineage integrity', () => {
   for (const dispositionKind of [null, 'STILL_OPEN', 'RESOLVED']) {
-    const { session, state, question, attempt } = buildFailedCycleFixture('COVERAGE_GAP');
+    const { session, state, question, attempt, issueId, findingIds } = buildFailedCycleFixture('COVERAGE_GAP');
     const withParentDisposition =
       dispositionKind === null
         ? state
@@ -4137,7 +4164,10 @@ check('a derived question whose claimed parent has no disposition, or STILL_OPEN
     const child = createUnresolvedQuestion(session, {
       rootCause: 'DECISION_SENSITIVE_CONFLICT',
       materialityReason: 'claims a parent that was never superseded',
-      inputRefs: question.inputRefs.map((ref) => ({ ...ref })),
+      inputRefs: [
+        { kind: 'SEMANTIC_ISSUE', id: issueId },
+        { kind: 'FINDING', id: findingIds[0] },
+      ],
       derivedFromQuestionId: question.id,
     });
     const corrupted = { ...withParentDisposition, unresolvedQuestions: [...withParentDisposition.unresolvedQuestions, child] };
@@ -4152,7 +4182,7 @@ check('a derived question whose claimed parent has no disposition, or STILL_OPEN
 
 check('two questions both claiming the same superseded parent is a fork, rejected with no first/latest-child winner', () => {
   const cycle = buildFailedCycleFixture('COVERAGE_GAP');
-  const { session, state, question, attempt } = cycle;
+  const { session, state, question, attempt, issueId, findingIds } = cycle;
   const q2 = buildReplacementFor(cycle);
   const disposed = recordQuestionDisposition(session, state, {
     attemptId: attempt.attemptId,
@@ -4163,7 +4193,10 @@ check('two questions both claiming the same superseded parent is a fork, rejecte
   const q3 = createUnresolvedQuestion(session, {
     rootCause: 'DECISION_SENSITIVE_CONFLICT',
     materialityReason: 'a second, forking claimed replacement',
-    inputRefs: question.inputRefs.map((ref) => ({ ...ref })),
+    inputRefs: [
+      { kind: 'SEMANTIC_ISSUE', id: issueId },
+      { kind: 'FINDING', id: findingIds[0] },
+    ],
     derivedFromQuestionId: question.id,
   });
   const forked = { ...disposed, unresolvedQuestions: [...disposed.unresolvedQuestions, q3] };
@@ -4351,7 +4384,7 @@ console.log('\nQuestion-terminality ledger integrity (Slice 2D-B2-B amendment)')
 
 check('a prior STILL_OPEN cycle does not block a later SUPERSEDED_RECLASSIFIED cycle for the same question', () => {
   const cycle1 = buildFailedCycleFixture('COVERAGE_GAP');
-  const { session, state: state0, question: q1, attempt: attempt1 } = cycle1;
+  const { session, state: state0, question: q1, attempt: attempt1, issueId, findingIds } = cycle1;
   const afterStillOpen = recordQuestionDisposition(session, state0, {
     attemptId: attempt1.attemptId,
     disposition: 'STILL_OPEN',
@@ -4371,7 +4404,10 @@ check('a prior STILL_OPEN cycle does not block a later SUPERSEDED_RECLASSIFIED c
   const q2 = createUnresolvedQuestion(session, {
     rootCause: 'DECISION_SENSITIVE_CONFLICT',
     materialityReason: 'reclassified after a prior STILL_OPEN cycle',
-    inputRefs: q1.inputRefs.map((ref) => ({ ...ref })),
+    inputRefs: [
+      { kind: 'SEMANTIC_ISSUE', id: issueId },
+      { kind: 'FINDING', id: findingIds[0] },
+    ],
     derivedFromQuestionId: q1.id,
   });
   const state5 = recordQuestionDisposition(session, state4, {
@@ -4420,7 +4456,7 @@ check('multiple prior STILL_OPEN cycles do not block a later RESOLVED', () => {
 check('a tampered RESOLVED + SUPERSEDED_RECLASSIFIED pair for the same question fails closed in both append orders, even with an otherwise-valid Q2 child', () => {
   for (const order of ['RESOLVED-then-SUPERSEDED', 'SUPERSEDED-then-RESOLVED']) {
     const cycle1 = buildFailedCycleFixture('COVERAGE_GAP');
-    const { session, state: state0, question: q1, attempt: attempt1 } = cycle1;
+    const { session, state: state0, question: q1, attempt: attempt1, issueId, findingIds } = cycle1;
 
     const afterFirst = recordQuestionDisposition(session, state0, {
       attemptId: attempt1.attemptId,
@@ -4441,7 +4477,10 @@ check('a tampered RESOLVED + SUPERSEDED_RECLASSIFIED pair for the same question 
     const q2 = createUnresolvedQuestion(session, {
       rootCause: 'DECISION_SENSITIVE_CONFLICT',
       materialityReason: 'an otherwise-valid derived child of a doubly-terminal Q1',
-      inputRefs: q1.inputRefs.map((ref) => ({ ...ref })),
+      inputRefs: [
+        { kind: 'SEMANTIC_ISSUE', id: issueId },
+        { kind: 'FINDING', id: findingIds[0] },
+      ],
       derivedFromQuestionId: q1.id,
     });
 
@@ -4574,7 +4613,7 @@ check('two terminal dispositions of the SAME kind for one question also reject (
 
 check('terminality tracking is per-questionId, not global across all questions', () => {
   const cycleA = buildFailedCycleFixture('COVERAGE_GAP');
-  const { session, state: stateA, question: qA, attempt: attemptA } = cycleA;
+  const { session, state: stateA, question: qA, attempt: attemptA, issueId, findingIds } = cycleA;
   const resolvedA = recordQuestionDisposition(session, stateA, {
     attemptId: attemptA.attemptId,
     disposition: 'RESOLVED',
@@ -4601,7 +4640,10 @@ check('terminality tracking is per-questionId, not global across all questions',
   const qC = createUnresolvedQuestion(session, {
     rootCause: 'DECISION_SENSITIVE_CONFLICT',
     materialityReason: 'B reclassified into C',
-    inputRefs: qB.inputRefs.map((ref) => ({ ...ref })),
+    inputRefs: [
+      { kind: 'SEMANTIC_ISSUE', id: issueId },
+      { kind: 'FINDING', id: findingIds[0] },
+    ],
     derivedFromQuestionId: qB.id,
   });
   state = recordQuestionDisposition(session, state, {
@@ -5937,12 +5979,19 @@ check('registerEvidenceSubject: an AUTHOR_CONTEXT_ITEM sourceRef is rejected eve
 
 check('registerEvidenceSubject: rejects every non-EVIDENCE_GAP rootCause', () => {
   for (const rootCause of ['CONTEXT_GAP', 'STABILITY_QUESTION', 'COVERAGE_GAP', 'DECISION_SENSITIVE_CONFLICT']) {
-    const { session, issueId } = buildFixtureWithIssue();
+    const { session, issueId, findingIds } = buildFixtureWithIssue();
     const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+    const inputRefs =
+      rootCause === 'DECISION_SENSITIVE_CONFLICT'
+        ? [
+            { kind: 'SEMANTIC_ISSUE', id: issueId },
+            { kind: 'FINDING', id: findingIds[0] },
+          ]
+        : [{ kind: 'SEMANTIC_ISSUE', id: issueId }];
     const { state, question } = buildRegisteredQuestion(session, state0, {
       rootCause,
       materialityReason: `material ${rootCause}`,
-      inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+      inputRefs,
     });
     assert.throws(
       () =>
@@ -7264,6 +7313,365 @@ check('recordRouteOutcome: SEEK_EVIDENCE SUCCEEDED/INCONCLUSIVE rejects every ca
       `expected ${JSON.stringify(Object.keys(extra))} to be rejected`
     );
   }
+});
+
+// ==================================================================
+console.log('\nTARGETED_PEER_CHALLENGE cardinality & routing readiness (Slice 2D-C6-A)');
+// ==================================================================
+
+check('createUnresolvedQuestion: DECISION_SENSITIVE_CONFLICT with a single inputRef is rejected', () => {
+  const { session, findingIds } = buildFixtureWithIssue();
+  assert.throws(
+    () =>
+      createUnresolvedQuestion(session, {
+        rootCause: 'DECISION_SENSITIVE_CONFLICT',
+        materialityReason: 'x',
+        inputRefs: [{ kind: 'FINDING', id: findingIds[0] }],
+      }),
+    /at least two distinct \(kind, id\) RouteInputRefs/
+  );
+});
+
+check('createUnresolvedQuestion: DECISION_SENSITIVE_CONFLICT with the same (kind, id) tuple twice is rejected -- two array entries is not two distinct refs', () => {
+  const { session, findingIds } = buildFixtureWithIssue();
+  assert.throws(
+    () =>
+      createUnresolvedQuestion(session, {
+        rootCause: 'DECISION_SENSITIVE_CONFLICT',
+        materialityReason: 'x',
+        inputRefs: [
+          { kind: 'FINDING', id: findingIds[0] },
+          { kind: 'FINDING', id: findingIds[0] },
+        ],
+      }),
+    /at least two distinct \(kind, id\) RouteInputRefs/
+  );
+});
+
+check('createUnresolvedQuestion: DECISION_SENSITIVE_CONFLICT with two distinct valid refs succeeds', () => {
+  const { session, findingIds } = buildFixtureWithIssue();
+  const question = createUnresolvedQuestion(session, {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'x',
+    inputRefs: [
+      { kind: 'FINDING', id: findingIds[0] },
+      { kind: 'FINDING', id: findingIds[1] },
+    ],
+  });
+  assert.equal(question.inputRefs.length, 2);
+});
+
+check('createUnresolvedQuestion + registerUnresolvedQuestion + planRouteForQuestion: DECISION_SENSITIVE_CONFLICT accepts three or more distinct refs -- "at least two" is a floor, not an exact count, and the full set is preserved, never truncated', () => {
+  const { session, issueId, findingIds } = buildFixtureWithIssue();
+  const question = createUnresolvedQuestion(session, {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'x',
+    inputRefs: [
+      { kind: 'FINDING', id: findingIds[0] },
+      { kind: 'FINDING', id: findingIds[1] },
+      { kind: 'SEMANTIC_ISSUE', id: issueId },
+    ],
+  });
+  assert.equal(question.inputRefs.length, 3);
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const state1 = registerUnresolvedQuestion(session, state0, question);
+  assert.equal(state1.unresolvedQuestions[0].inputRefs.length, 3);
+  const decision = planRouteForQuestion(session, state1, question);
+  assert.equal(decision.route, 'TARGETED_PEER_CHALLENGE');
+  assert.equal(decision.inputRefs.length, 3);
+});
+
+check('TARGETED_PEER_CHALLENGE cardinality: a FINDING and a SEMANTIC_ISSUE sharing the same id are distinct RouteInputRefs when both independently resolve -- distinctness is full-tuple (kind, id), never id alone', () => {
+  const { session, issueId, findingIds } = buildFixtureWithIssue();
+  const collidingId = findingIds[0];
+  const tamperedSession = {
+    ...session,
+    semanticIssues: {
+      ...session.semanticIssues,
+      [collidingId]: session.semanticIssues[issueId],
+    },
+  };
+  const question = createUnresolvedQuestion(tamperedSession, {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'cross-kind id collision',
+    inputRefs: [
+      { kind: 'FINDING', id: collidingId },
+      { kind: 'SEMANTIC_ISSUE', id: collidingId },
+    ],
+  });
+  assert.equal(question.inputRefs.length, 2);
+});
+
+check('registerUnresolvedQuestion: independently enforces DECISION_SENSITIVE_CONFLICT cardinality on a manually-constructed question, never trusting that createUnresolvedQuestion was used', () => {
+  const { session, issueId, findingIds } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const baseQuestion = {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'manually constructed, bypassing createUnresolvedQuestion',
+    createdAt: new Date().toISOString(),
+    derivedFromQuestionId: null,
+  };
+
+  // Case A: one ref -> reject.
+  assert.throws(
+    () =>
+      registerUnresolvedQuestion(session, state0, {
+        ...baseQuestion,
+        id: 'manual-tpc-one-ref',
+        inputRefs: [{ kind: 'FINDING', id: findingIds[0] }],
+      }),
+    /at least two distinct \(kind, id\) RouteInputRefs/
+  );
+
+  // Case B: the same tuple twice -> reject.
+  assert.throws(
+    () =>
+      registerUnresolvedQuestion(session, state0, {
+        ...baseQuestion,
+        id: 'manual-tpc-duplicate',
+        inputRefs: [
+          { kind: 'FINDING', id: findingIds[0] },
+          { kind: 'FINDING', id: findingIds[0] },
+        ],
+      }),
+    /at least two distinct \(kind, id\) RouteInputRefs/
+  );
+
+  // Case C: two distinct valid refs -> registration succeeds.
+  const registered = registerUnresolvedQuestion(session, state0, {
+    ...baseQuestion,
+    id: 'manual-tpc-valid',
+    inputRefs: [
+      { kind: 'FINDING', id: findingIds[0] },
+      { kind: 'SEMANTIC_ISSUE', id: issueId },
+    ],
+  });
+  assert.equal(registered.unresolvedQuestions.length, 1);
+});
+
+check('registerUnresolvedQuestion: rejects when the caller mutates a validly-constructed question.inputRefs down to one ref (or duplicate-only) before registering -- constructor-time validation is never trusted', () => {
+  const { session, findingIds } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const question = createUnresolvedQuestion(session, {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'x',
+    inputRefs: [
+      { kind: 'FINDING', id: findingIds[0] },
+      { kind: 'FINDING', id: findingIds[1] },
+    ],
+  });
+
+  const downToOne = { ...question, inputRefs: [question.inputRefs[0]] };
+  assert.throws(
+    () => registerUnresolvedQuestion(session, state0, downToOne),
+    /at least two distinct \(kind, id\) RouteInputRefs/
+  );
+
+  const downToDuplicate = { ...question, inputRefs: [question.inputRefs[0], { ...question.inputRefs[0] }] };
+  assert.throws(
+    () => registerUnresolvedQuestion(session, state0, downToDuplicate),
+    /at least two distinct \(kind, id\) RouteInputRefs/
+  );
+});
+
+check('planRouteForQuestion: gate 1 rejects a current DECISION_SENSITIVE_CONFLICT question whose registered inputRefs have been tampered down to one ref or duplicate-only refs (legacy/pre-C6-A state) -- no RouteDecision returned', () => {
+  const { session, issueId, findingIds } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const question = createUnresolvedQuestion(session, {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'x',
+    inputRefs: [
+      { kind: 'FINDING', id: findingIds[0] },
+      { kind: 'SEMANTIC_ISSUE', id: issueId },
+    ],
+  });
+  const state1 = registerUnresolvedQuestion(session, state0, question);
+
+  const oneRefQuestion = { ...question, inputRefs: [question.inputRefs[0]] };
+  const oneRefState = {
+    ...state1,
+    unresolvedQuestions: state1.unresolvedQuestions.map((q) => (q.id === question.id ? oneRefQuestion : q)),
+  };
+  assert.throws(
+    () => planRouteForQuestion(session, oneRefState, oneRefQuestion),
+    /at least two distinct \(kind, id\) RouteInputRefs/
+  );
+
+  const duplicateQuestion = { ...question, inputRefs: [question.inputRefs[0], { ...question.inputRefs[0] }] };
+  const duplicateState = {
+    ...state1,
+    unresolvedQuestions: state1.unresolvedQuestions.map((q) => (q.id === question.id ? duplicateQuestion : q)),
+  };
+  assert.throws(
+    () => planRouteForQuestion(session, duplicateState, duplicateQuestion),
+    /at least two distinct \(kind, id\) RouteInputRefs/
+  );
+});
+
+check('recordRouteDecision: gate 2 independently rejects a self-consistent tampered pair (question.inputRefs=[F1] and decision.inputRefs=[F1]) for a manually-constructed TARGETED_PEER_CHALLENGE decision -- adjacent question/decision agreement alone is insufficient', () => {
+  const { session, findingIds } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  const oneRef = [{ kind: 'FINDING', id: findingIds[0] }];
+  const legacyQuestion = {
+    id: 'legacy-tpc-question',
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'legacy single-ref conflict question, predates the cardinality gate',
+    inputRefs: oneRef,
+    createdAt: new Date().toISOString(),
+    derivedFromQuestionId: null,
+  };
+  const legacyState = { ...state0, unresolvedQuestions: [...state0.unresolvedQuestions, legacyQuestion] };
+
+  const manualDecision = {
+    id: 'legacy-tpc-decision',
+    route: 'TARGETED_PEER_CHALLENGE',
+    reason: { rootCause: 'DECISION_SENSITIVE_CONFLICT', materialityReason: legacyQuestion.materialityReason },
+    inputRefs: oneRef,
+    questionId: legacyQuestion.id,
+    createdAt: new Date().toISOString(),
+  };
+
+  assert.throws(
+    () => recordRouteDecision(session, legacyState, manualDecision),
+    /at least two distinct \(kind, id\) RouteInputRefs/
+  );
+  assert.equal(legacyState.history.length, 0);
+});
+
+check('recordRouteAttemptStart: gate 3 independently rejects a self-consistent tampered pair (registered question.inputRefs and recorded RouteDecision.inputRefs both reduced to one ref) before a TARGETED_PEER_CHALLENGE attempt begins -- no cost spend, no attempt appended', () => {
+  const { session, state, decision } = buildRecordedDecisionFixture('DECISION_SENSITIVE_CONFLICT');
+  const registeredQuestion = state.unresolvedQuestions.find((q) => q.id === decision.questionId);
+  const oneRef = [registeredQuestion.inputRefs[0]];
+
+  const tamperedQuestions = state.unresolvedQuestions.map((q) =>
+    q.id === decision.questionId ? { ...q, inputRefs: oneRef } : q
+  );
+  const tamperedHistory = state.history.map((d) => (d.id === decision.id ? { ...d, inputRefs: oneRef } : d));
+  const tamperedState = { ...state, unresolvedQuestions: tamperedQuestions, history: tamperedHistory };
+
+  assert.throws(
+    () => recordRouteAttemptStart(session, tamperedState, decision.id),
+    /at least two distinct \(kind, id\) RouteInputRefs/
+  );
+  assert.equal(tamperedState.attempts.length, 0);
+  assert.equal(tamperedState.costBudget.spent, state.costBudget.spent);
+});
+
+check('TARGETED_PEER_CHALLENGE cardinality: an unresolvable ref never counts toward the two-distinct floor -- one valid ref plus one unknown ref is rejected, not silently accepted at cardinality 2', () => {
+  const { session, findingIds } = buildFixtureWithIssue();
+  assert.throws(
+    () =>
+      createUnresolvedQuestion(session, {
+        rootCause: 'DECISION_SENSITIVE_CONFLICT',
+        materialityReason: 'x',
+        inputRefs: [
+          { kind: 'FINDING', id: findingIds[0] },
+          { kind: 'FINDING', id: 'not-a-real-finding' },
+        ],
+      }),
+    /unknown FINDING id/
+  );
+});
+
+check('TARGETED_PEER_CHALLENGE readiness: inputRefs carry no positional target/source semantics -- both [F1,F2] and its reverse [F2,F1] register and route successfully, each preserving its own chosen order', () => {
+  const { session, findingIds } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+
+  const qForward = createUnresolvedQuestion(session, {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'forward order',
+    inputRefs: [
+      { kind: 'FINDING', id: findingIds[0] },
+      { kind: 'FINDING', id: findingIds[1] },
+    ],
+  });
+  const stateForward = registerUnresolvedQuestion(session, state0, qForward);
+  const decisionForward = planRouteForQuestion(session, stateForward, qForward);
+  assert.equal(decisionForward.route, 'TARGETED_PEER_CHALLENGE');
+  assert.deepEqual(decisionForward.inputRefs, qForward.inputRefs);
+
+  const qReversed = createUnresolvedQuestion(session, {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'reversed order',
+    inputRefs: [
+      { kind: 'FINDING', id: findingIds[1] },
+      { kind: 'FINDING', id: findingIds[0] },
+    ],
+  });
+  const stateReversed = registerUnresolvedQuestion(session, state0, qReversed);
+  const decisionReversed = planRouteForQuestion(session, stateReversed, qReversed);
+  assert.equal(decisionReversed.route, 'TARGETED_PEER_CHALLENGE');
+  assert.deepEqual(decisionReversed.inputRefs, qReversed.inputRefs);
+});
+
+check('non-TPC root causes are unaffected by the DECISION_SENSITIVE_CONFLICT cardinality floor -- a single inputRef remains legal for each, and NONE still accepts zero', () => {
+  const { session, issueId } = buildFixtureWithIssue();
+  for (const rootCause of ['CONTEXT_GAP', 'EVIDENCE_GAP', 'STABILITY_QUESTION', 'COVERAGE_GAP']) {
+    const question = createUnresolvedQuestion(session, {
+      rootCause,
+      materialityReason: `material ${rootCause}`,
+      inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    });
+    assert.equal(question.inputRefs.length, 1);
+    const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+    const state1 = registerUnresolvedQuestion(session, state0, question);
+    assert.equal(state1.unresolvedQuestions.length, 1);
+  }
+  const noneQuestion = createUnresolvedQuestion(session, {
+    rootCause: 'NONE',
+    materialityReason: 'no unresolved deficit',
+    inputRefs: [],
+  });
+  assert.equal(noneQuestion.inputRefs.length, 0);
+});
+
+check('recordRouteOutcome: generic FAILED remains recordable for a legacy TARGETED_PEER_CHALLENGE attempt whose question predates the Slice 2D-C6-A cardinality gate (only one ref) -- FAILED asserts no successful two-sided challenge result', () => {
+  const { session, findingIds } = buildFixtureWithIssue();
+  const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+
+  const legacyQuestion = {
+    id: 'legacy-tpc-q',
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'legacy single-ref conflict question, predates the cardinality gate',
+    inputRefs: [{ kind: 'FINDING', id: findingIds[0] }],
+    createdAt: new Date().toISOString(),
+    derivedFromQuestionId: null,
+  };
+  const legacyDecision = {
+    id: 'legacy-tpc-decision',
+    route: 'TARGETED_PEER_CHALLENGE',
+    reason: { rootCause: 'DECISION_SENSITIVE_CONFLICT', materialityReason: legacyQuestion.materialityReason },
+    inputRefs: legacyQuestion.inputRefs,
+    questionId: legacyQuestion.id,
+    createdAt: new Date().toISOString(),
+  };
+  const legacyAttempt = {
+    attemptId: 'legacy-tpc-attempt',
+    decisionId: legacyDecision.id,
+    questionId: legacyQuestion.id,
+    route: 'TARGETED_PEER_CHALLENGE',
+    sessionId: session.id,
+    artifactHash: session.artifactHash,
+    authorContextHash: session.authorContextHash,
+    startedAt: new Date().toISOString(),
+    logicalCost: 1,
+  };
+  const legacyState = {
+    ...state0,
+    unresolvedQuestions: [...state0.unresolvedQuestions, legacyQuestion],
+    history: [...state0.history, legacyDecision],
+    attempts: [...state0.attempts, legacyAttempt],
+  };
+
+  const next = recordRouteOutcome(session, legacyState, {
+    attemptId: legacyAttempt.attemptId,
+    status: 'FAILED',
+    latencyConsumed: 1,
+    failure: VALID_FAILURE_FOR_DISPOSITION,
+  });
+  assert.equal(next.outcomes.length, 1);
+  assert.equal(next.outcomes[0].status, 'FAILED');
+  assert.equal(next.outcomes[0].route, 'TARGETED_PEER_CHALLENGE');
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

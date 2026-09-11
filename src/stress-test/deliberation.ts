@@ -1165,6 +1165,15 @@ export function createUnresolvedQuestion(
     throw new Error('createUnresolvedQuestion: at least one inputRef is required for a non-NONE root cause');
   }
   for (const ref of input.inputRefs) validateRouteInputRef(session, ref);
+  // Early, non-authoritative rejection (contract §13.E decision B, Slice
+  // 2D-C6-0/2D-C6-A): the canonical constructor should not mint a
+  // structurally invalid DECISION_SENSITIVE_CONFLICT question.
+  // `registerUnresolvedQuestion` remains the authoritative persistence gate
+  // and independently re-validates this from scratch below -- never trusted
+  // from this constructor call alone.
+  if (input.rootCause === 'DECISION_SENSITIVE_CONFLICT') {
+    assertTargetedPeerChallengeInputRefs(session, input.inputRefs, 'createUnresolvedQuestion');
+  }
   let derivedFromQuestionId: string | null = null;
   if (input.derivedFromQuestionId !== undefined && input.derivedFromQuestionId !== null) {
     assertNonEmptyString(input.derivedFromQuestionId, 'createUnresolvedQuestion: derivedFromQuestionId');
@@ -1210,6 +1219,14 @@ export function registerUnresolvedQuestion(
   for (const ref of question.inputRefs) validateRouteInputRef(session, ref);
   if (question.inputRefs.length === 0) {
     throw new Error('registerUnresolvedQuestion: at least one inputRef is required for a non-NONE root cause');
+  }
+  // Authoritative write boundary (contract §13.E decision A, Slice
+  // 2D-C6-0/2D-C6-A): invariant 30 states this cardinality as a property of
+  // a REGISTERED UnresolvedQuestion -- never trusts that
+  // createUnresolvedQuestion was called, that its own gate ran, or that the
+  // caller-supplied object was not modified after construction.
+  if (question.rootCause === 'DECISION_SENSITIVE_CONFLICT') {
+    assertTargetedPeerChallengeInputRefs(session, question.inputRefs, 'registerUnresolvedQuestion');
   }
   if (effectiveDerivedFromQuestionId(question) !== null) {
     throw new Error(
@@ -1311,6 +1328,17 @@ export function planRouteForQuestion(
   // trusted by the later authoritative/independent gates below.
   if (route === 'SEEK_EVIDENCE') {
     assertSeekEvidenceSubjectReady(session, deliberationState, question.id);
+  }
+
+  // TPC Gate 1 of 3 (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.E
+  // decision C, invariant 80, Slice 2D-C6-A): a TARGETED_PEER_CHALLENGE
+  // route may not even be planned for a DECISION_SENSITIVE_CONFLICT question
+  // until its currently-registered inputRefs still contain at least two
+  // distinct, valid RouteInputRefs -- causal-order/legacy-read protection,
+  // before a RouteDecision is ever minted, never trusting that
+  // registration's own gate still holds for state that may predate it.
+  if (route === 'TARGETED_PEER_CHALLENGE') {
+    assertTargetedPeerChallengeReady(session, deliberationState, question.id);
   }
 
   // Derived from the already-validated registry entry, not the caller-owned
@@ -1429,6 +1457,16 @@ export function recordRouteDecision(
     if (routeDecision.route === 'SEEK_EVIDENCE') {
       assertSeekEvidenceSubjectReady(session, deliberationState, routeDecision.questionId);
     }
+
+    // TPC Gate 2 of 3 (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.E
+    // decision D, invariant 80, Slice 2D-C6-A): the authoritative
+    // decision-write boundary -- never trusts that `routeDecision` actually
+    // came from `planRouteForQuestion` or that its gate 1 check ran; a
+    // manually-constructed or legacy TARGETED_PEER_CHALLENGE decision cannot
+    // bypass cardinality merely by skipping the planning call.
+    if (routeDecision.route === 'TARGETED_PEER_CHALLENGE') {
+      assertTargetedPeerChallengeReady(session, deliberationState, routeDecision.questionId);
+    }
   }
 
   let stopReason: StopReason | null = null;
@@ -1538,6 +1576,14 @@ export function recordRouteAttemptStart(
   // have been bypassed by directly-constructed legacy/tampered state.
   if (decision.route === 'SEEK_EVIDENCE') {
     assertSeekEvidenceSubjectReady(session, deliberationState, decision.questionId);
+  }
+
+  // TPC Gate 3 of 3 (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.E
+  // decision E, invariant 80, Slice 2D-C6-A): final execution-start
+  // protection -- never trusts that construction, registration, planning, or
+  // decision-recording already checked the requirement.
+  if (decision.route === 'TARGETED_PEER_CHALLENGE') {
+    assertTargetedPeerChallengeReady(session, deliberationState, decision.questionId);
   }
 
   const logicalCost = logicalAttemptCostForRoute(decision.route);
@@ -3912,4 +3958,73 @@ function assertSeekEvidenceOutcomeIntegrity(
   if (matchingSubjects[0].originatingQuestionId !== question.id) {
     throw new Error(`${label}: resolved EvidenceSubject does not belong to the outcome's own question`);
   }
+}
+
+/**
+ * Shared, pure structural/cardinality validator for a
+ * `DECISION_SENSITIVE_CONFLICT` question's `inputRefs` -- the ONE source of
+ * truth for "what counts as a valid `TARGETED_PEER_CHALLENGE` conflict set"
+ * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.E decisions F/G/H,
+ * invariants 80/81, Slice 2D-C6-A). Every ref must independently resolve
+ * against the authoritative `session` (`validateRouteInputRef`) -- an
+ * unresolved/malformed ref never counts toward cardinality, so the gate is
+ * "two or more distinct AND valid refs," never merely `inputRefs.length >=
+ * 2`. Distinctness is full-tuple `(kind, id)`: two refs of different `kind`
+ * but the same `id` are distinct, provided each independently resolves;
+ * deduplication by `id` alone is never performed. "At least two" is a floor,
+ * not an exact count -- three or more distinct refs remain legal and are
+ * never truncated or normalized. Used directly by `createUnresolvedQuestion`/
+ * `registerUnresolvedQuestion` (which validate a caller-supplied array with
+ * no yet-registered/current question to resolve by id) and, transitively,
+ * by `assertTargetedPeerChallengeReady` below (which resolves the registered
+ * question first, then reuses this same function) -- never reimplemented a
+ * second or third time.
+ */
+function assertTargetedPeerChallengeInputRefs(session: StressTestSession, inputRefs: RouteInputRef[], label: string): void {
+  if (!Array.isArray(inputRefs)) {
+    throw new Error(`${label}: inputRefs must be an array`);
+  }
+  for (const ref of inputRefs) validateRouteInputRef(session, ref);
+  const distinctKeys = new Set(inputRefs.map((ref) => `${ref.kind}\x00${ref.id}`));
+  if (distinctKeys.size < 2) {
+    throw new Error(
+      `${label}: a DECISION_SENSITIVE_CONFLICT question requires at least two distinct (kind, id) RouteInputRefs`
+    );
+  }
+}
+
+/**
+ * Post-registration `TARGETED_PEER_CHALLENGE` readiness
+ * (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §13.E decisions C/D/E/F,
+ * invariants 80/81, Slice 2D-C6-A). Resolves the exact registered, current
+ * question and reuses `assertTargetedPeerChallengeInputRefs` above on its
+ * `inputRefs` rather than maintaining a second definition of tuple/
+ * cardinality semantics. Reused, unchanged, at `planRouteForQuestion`,
+ * `recordRouteDecision`, and `recordRouteAttemptStart` -- none deferring to
+ * another having already checked the requirement, the same
+ * never-trust-an-upstream-boundary posture already governing invariant 74's
+ * `SEEK_EVIDENCE` gates.
+ */
+function assertTargetedPeerChallengeReady(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  questionId: string
+): UnresolvedQuestion {
+  verifyDeliberationBinding(session, deliberationState);
+  const question = deliberationState.unresolvedQuestions.find((q) => q.id === questionId);
+  if (!question) {
+    throw new Error(
+      `assertTargetedPeerChallengeReady: questionId ${questionId} is not a currently registered unresolved question`
+    );
+  }
+  if (question.rootCause !== 'DECISION_SENSITIVE_CONFLICT') {
+    throw new Error(
+      `assertTargetedPeerChallengeReady: question ${questionId} has rootCause ${question.rootCause}, not DECISION_SENSITIVE_CONFLICT`
+    );
+  }
+  if (!isQuestionCurrent(deliberationState, questionId)) {
+    throw new Error(`assertTargetedPeerChallengeReady: question ${questionId} is not current`);
+  }
+  assertTargetedPeerChallengeInputRefs(session, question.inputRefs, 'assertTargetedPeerChallengeReady');
+  return question;
 }
