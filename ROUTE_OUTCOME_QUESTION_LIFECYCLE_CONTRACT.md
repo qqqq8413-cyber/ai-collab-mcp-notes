@@ -2634,3 +2634,288 @@ Direct source inspection this packet (`deliberation.ts`'s `RouteAttempt`/`RouteO
 **Recommended: `SLICE 2D-D1-A` — EXECUTION COORDINATION / CLAIM / LATENCY RESERVATION OFFLINE RUNTIME.**
 
 This slice's own freeze (§27.6–§27.14) is now a complete, internally consistent architecture for the execution checkpoint, the atomic claim, and the latency-reservation/admission contract — entirely independent of any specific provider. The natural next step is to **implement that architecture offline** (the checkpoint state machine, the atomic claim primitive, the latency admission/reservation bookkeeping) **without any provider call**, exactly mirroring how `RouteAttempt`/`RouteOutcome` themselves were built and fully tested offline (Slice 2D-B0/B1) long before any route's successful-result semantics were designed. This closes the runtime gap named in §27.19 and gives every future route-specific execution slice (reviewer normalization, retrieval integration, TPC identity bridge, etc.) a tested, working coordination substrate to build on, rather than each one having to first invent its own ad hoc claim/reservation logic. No missing common-schema prerequisite was surfaced during this freeze that would redirect the recommendation elsewhere.
+
+---
+
+## 28. Execution checkpoint schema & atomic claim/reservation API freeze (Slice 2D-D1-A0)
+
+Architecture documentation only. **No `src/**`, test, or `package.json` change is made by this section or this packet; no execution checkpoint is implemented; no provider/model is called.** §27 (Slice 2D-D1-0) remains fully authoritative and is not reopened — `attemptId` as the sole idempotency key, execution living outside `DeliberationState`, zero automatic retries, the `FailureInfo` vocabulary, checkpoint-before-`RouteOutcome` ordering, millisecond monotonic latency, explicit finite `latencyLimitMs`, latency reservation, the provider-deadline requirement, live execution disabled by default, and the three-layer authority model are all unchanged. This section translates that accepted policy into an exact, implementable schema and API contract, closing the specific sequencing gap D1-0 left open (§27.12's claim → admission → call ordering did not yet say what happens when admission itself fails) and freezing everything a runtime implementer would otherwise have to invent ad hoc.
+
+**Grounding, confirmed by direct inspection this packet:** `DeliberationState` (`src/stress-test/deliberation.ts:583`) carries its own identity as `id` (not `deliberationStateId`) plus `sessionId`, `artifactHash`, `authorContextHash`, `latencyBudget: DeliberationBudget` (`{ spent, ceiling }`, `deliberation.ts:571`). `RouteAttempt` (`deliberation.ts:245`) already carries `attemptId`, `decisionId`, `questionId`, `route`, `sessionId`, `artifactHash`, `authorContextHash`, `startedAt`, `logicalCost` — every product-truth field a checkpoint could want is already resolvable from the attempt itself once the owning `DeliberationState` is known. `recordRouteOutcome` (`deliberation.ts:1797`) already enforces "one attempt has at most one outcome" as its own precondition, confirmed by direct read. A repository-wide search for `interface.*Store|interface.*Repository|class.*Store|class.*Repository|Port\b` under `src/` returned **zero matches** — no persistence/store abstraction exists anywhere in the repository today; this section's store-port contract (§28.3) is a genuinely new architecture surface, not a fit against an existing convention.
+
+### 28.1 Exact checkpoint entity
+
+**Frozen name:** `RouteExecutionCheckpoint`. **Identity:** `attemptId` — the same `RouteAttempt.attemptId` already frozen as the sole executor-facing idempotency key (§27.4). No second identity (`checkpointId`, `executionId`, `callId`, `requestId`) is introduced.
+
+### 28.2 Checkpoint ownership
+
+The checkpoint is **not** a field on `DeliberationState` and **not** a field on `StressTestSession` — it belongs to the execution-coordination layer (§27.1 layer 2). **Frozen conceptual owner:** a `RouteExecutionCheckpointStore` (or equivalent durable-store port) supporting lookup and atomic mutation by `attemptId`. No concrete storage technology is chosen (§28.23 makes this distinction explicit).
+
+### 28.3 Parent binding and non-duplication
+
+**Frozen:** the checkpoint stores `deliberationStateId` (the owning `DeliberationState.id`) as a binding key — required so the coordination layer can prove which state owns the attempt and aggregate active reservations scoped to it (§28.12). This is a parent/binding key, **not** a second execution identity.
+
+`sessionId`, `artifactHash`, and `authorContextHash` are **not** duplicated onto the checkpoint. Default posture (per this packet's own §8 instruction) is not to copy product truth that coordination integrity does not need: every operation that needs those values resolves the authoritative `RouteAttempt` (which already carries them, confirmed above) via `deliberationState.attempts.find(a => a.attemptId === attemptId)` after resolving `deliberationState` by `deliberationStateId`. Re-resolution, not duplication, is the frozen rule.
+
+### 28.4 Route binding
+
+**Frozen:** the checkpoint stores `route` as an immutable copied coordination/audit binding, set once at claim time and never mutated. It must always equal the authoritative `RouteAttempt.route` — read integrity (§28.20) verifies this on every read; it is **never** independently authoritative, and a mismatch is an integrity violation, not a source of truth to reconcile toward. No copy of `RouteDecision`, `UnresolvedQuestion`, `ReviewFinding`, or `SemanticIssue` is stored on the checkpoint.
+
+### 28.5 Exact phase union
+
+**Frozen discriminated union**, discriminant field `phase`:
+
+```
+RouteExecutionCheckpoint =
+  | ClaimedCheckpoint            (phase: 'CLAIMED')
+  | TerminalFactReadyCheckpoint  (phase: 'TERMINAL_FACT_READY')
+  | OutcomeCommittedCheckpoint   (phase: 'OUTCOME_COMMITTED')
+```
+
+`UNCLAIMED` remains the absence of any stored record for an `attemptId` — never a fourth union member. No generic mutable `status: string` shape is used; each phase's TypeScript shape exposes only the fields legal at that lifecycle point (illegal-field combinations are unrepresentable, not merely unchecked). No backward transition exists in the union (nothing transitions a `TerminalFactReadyCheckpoint` back into a `ClaimedCheckpoint`, etc.).
+
+### 28.6 `CLAIMED` — minimum fields
+
+```
+ClaimedCheckpoint {
+  phase: 'CLAIMED';
+  attemptId: string;
+  deliberationStateId: string;
+  route: NonStopDeliberationRoute;
+  claimedAt: string;          // ISO timestamp, parseable
+  latencyLimitMs: number;     // finite integer > 0
+  reservedLatencyMs: number;  // finite integer > 0
+}
+```
+
+**Invariant:** `reservedLatencyMs === latencyLimitMs` for every `ClaimedCheckpoint` that is externally observable to a caller (§28.7 — a checkpoint that never reaches this state because admission failed is not a `ClaimedCheckpoint` at all). No provider/model identity, no secret, no raw payload field exists at this phase.
+
+### 28.7 Claim + reservation as one coordination transaction — closes the ordering gap (§27.12)
+
+**Frozen:** `claimRouteExecution` performs the atomic ownership claim and the latency admission/reservation check as **one coordination transaction**, not two separately-observable steps. The transaction may pass through `CLAIMED` internally, but **no provider-call-authorized `ClaimedCheckpoint` is ever returned to a caller unless its latency reservation has already succeeded** as part of the same transaction. This is the exact, chosen resolution to the gap this packet's §12 identified: D1-0 said "atomic CLAIMED → latency admission/reservation → provider call" without saying what happens when admission fails; A0 collapses claim-and-admission into one atomic step so that "admission fails" and "claim fails" produce the same observable result to the caller — no provider-call-authorized state is ever exposed in either case.
+
+### 28.8 No-call admission failure — exact representation (§27.12's race, made mechanical)
+
+**Frozen:** when ownership can be claimed but the latency reservation cannot legally be granted (insufficient `remainingLatency`, per §27.12's admission formula), the transaction produces, atomically and directly:
+
+```
+TerminalFactReadyCheckpoint {
+  phase: 'TERMINAL_FACT_READY';
+  attemptId; deliberationStateId; route; claimedAt;
+  latencyLimitMs; reservedLatencyMs: 0;   // never fabricated — no reservation was ever held
+  terminalFactReadyAt: claimedAt;         // same instant — no time was spent attempting a call
+  terminalFact: {
+    kind: 'FAILED';
+    failure: { category: 'EXECUTION', message: '<sanitized: latency budget cannot admit this call>' };
+    actualLatencyMs: 0;
+  };
+}
+```
+
+No `ClaimedCheckpoint` reaches an external caller in this path. Provider calls = 0. `latencyConsumed`/`actualLatencyMs` = 0 (no fabrication — no external work was ever attempted). **Category: `EXECUTION`** — chosen because product references are valid, no transport call was attempted (ruling out `TRANSPORT`), no external response exists to validate (ruling out `VALIDATION`), and no reference-resolution failure occurred (ruling out `REFERENCE_RESOLUTION`); what failed is execution *policy* itself being unable to legally admit the operation, which is exactly `EXECUTION`'s definition in the already-frozen mapping (§27.9). No new `FailureCategory` is invented.
+
+### 28.9 Configuration failure vs. budget-admission failure
+
+Both a missing/invalid `latencyLimitMs` (a configuration/policy defect — the caller or its policy source supplied an illegal value) and a valid `latencyLimitMs` with insufficient remaining reservable budget (a legitimate admission failure) occur strictly before any provider call and **both normalize to `FailureInfo.category = 'EXECUTION'`**, per §28.8's reasoning — the distinction is preserved only in `FailureInfo.message` (sanitized, distinct wording per case: e.g. "invalid latencyLimitMs configuration" vs. "insufficient remaining latency budget"), never as a second category. No provider-specific category is added.
+
+### 28.10 Atomicity of claim + reservation
+
+**Frozen (Option A, general contract):** the atomic claim-and-reservation transaction (§28.7) is a property of the `RouteExecutionCheckpointStore` itself — two concurrent `claimRouteExecution` calls against the same `deliberationStateId` (whether for the same or different `attemptId`s) must never both succeed by reading the same stale `remainingLatency` value. A first implementation MAY satisfy this by serializing provider-backed execution per `DeliberationState` (Option B as a valid *implementation strategy* of Option A's contract, per D1-0 §27.12's own allowance) — but the store's public contract is Option A regardless of which internal strategy a given implementation uses; a future concurrent implementation must not require a contract change, only a strategy change.
+
+### 28.11 Reservation aggregation — which phases hold reservation
+
+**Frozen invariant, for one `deliberationStateId`:**
+
+```
+authoritative deliberationState.latencyBudget.spent
+  + SUM(reservedLatencyMs for checkpoints in phase CLAIMED)
+  + SUM(reservedLatencyMs for checkpoints in phase TERMINAL_FACT_READY, terminalFact.kind != 'FAILED-admission-rejected (§28.8)')
+  <= authoritative deliberationState.latencyBudget.ceiling
+```
+
+More precisely, stated by phase (resolving this packet's own §17 explicitly, choosing the justified alternative it flagged rather than its stated default expectation):
+
+- **`CLAIMED`: reservation active (YES).** The call has not yet happened; the full `reservedLatencyMs` must remain reserved.
+- **`TERMINAL_FACT_READY`: reservation remains active (YES — not released), *except* the §28.8 admission-rejection shape, whose `reservedLatencyMs` is `0` by construction and therefore contributes nothing.** This is a deliberate departure from this packet's own stated "Expected: NO" default, chosen and justified in §28.12 below to close the exact double-spend window the packet's own §18–§19 warn against.
+- **`OUTCOME_COMMITTED`: reservation inactive (NO).** By this point the real cost is already reflected in `deliberationState.latencyBudget.spent` (via the ordinary `recordRouteOutcome` → `applyLatencySpend` call that is a precondition of reaching this phase, §28.16), so continuing to count the checkpoint's reservation would double-count capacity already spent, not protect it.
+
+### 28.12 Reservation release point — no double-spend window (resolves §27.12/§18/§19)
+
+**Why `TERMINAL_FACT_READY` must retain reservation, justified:** D1-0's own rule is that `actualLatencyMs` is charged into `deliberationState.latencyBudget.spent` only when `recordRouteOutcome` persists (§27.12 "normal reconciliation"). If the checkpoint's reservation were released at `TERMINAL_FACT_READY` — i.e., the instant the external call finishes, before the domain-level charge lands — there would be a window in which the attempt's true latency cost is reflected in *neither* the coordination layer's active-reservation sum *nor* the domain's `latencyBudget.spent`, during which a second, unrelated claim against the same `deliberationStateId` could legally reserve that same capacity. If both attempts later commit successfully, the state's actual total latency usage could exceed `ceiling` despite every individual admission check having passed. This is exactly the transient double-spend this packet's §18–§19 forbid.
+
+**Frozen resolution:** the checkpoint's reservation is released **exactly and only** at the successful `TERMINAL_FACT_READY → OUTCOME_COMMITTED` transition (§28.16), which itself requires (§28.19) that the matching `RouteOutcome` — and therefore the matching `applyLatencySpend(actualLatencyMs)` call — has *already* landed in `deliberationState.latencyBudget.spent`. At every instant, an attempt's latency capacity is accounted for by exactly one of {an active reservation in the coordination layer, a landed charge in `deliberationState.latencyBudget.spent`} — never neither, and never counted in both sums simultaneously, because the moment it moves into `spent` is the same transition that removes it from the active-reservation sum. No transient window exists in which the capacity is simultaneously free-to-reserve-elsewhere and not yet truly spent.
+
+A `TerminalFactReadyCheckpoint` whose `recordRouteOutcome` persistence fails (D1-0 §27.11's "product persistence failure" scenario) correctly **keeps its reservation held** under this rule — exactly the outcome needed, since the true cost has not yet landed anywhere, and releasing the reservation here would reopen the same double-spend gap this section closes.
+
+### 28.13 `TERMINAL_FACT_READY` — exact shape and terminal-fact representation
+
+```
+TerminalFactReadyCheckpoint {
+  phase: 'TERMINAL_FACT_READY';
+  attemptId; deliberationStateId; route; claimedAt;
+  latencyLimitMs; reservedLatencyMs;   // per §28.11/§28.12 aggregation rule
+  terminalFactReadyAt: string;
+  terminalFact: TerminalFact;
+}
+
+TerminalFact =
+  | { kind: 'SUCCEEDED'; actualLatencyMs: number; payload: RouteSpecificSuccessPayload }
+  | { kind: 'FAILED';    actualLatencyMs: number; failure: FailureInfo }
+  | { kind: 'DEADLINE_VIOLATION'; actualLatencyMs: number; latencyLimitMs: number }  // never committable, §28.14
+```
+
+**`RouteSpecificSuccessPayload` — frozen design (resolves §27.20/§27.23, Option A chosen over Option B):** the smallest design satisfying every listed constraint is to reuse, verbatim, the already-accepted route-specific portion of `RecordRouteOutcomeInput` for `attempt.route` — i.e., every field `recordRouteOutcome` already accepts for that route (`result`, `targetRef`, `sourceRef`, `boundedExcerpt`, `response`, `citation`, etc., per route) **except** `attemptId`, `status`, and `latencyConsumed`, which the checkpoint already tracks independently (`attemptId` as identity, `status` implied by `TerminalFact.kind`, `actualLatencyMs` as the checkpoint's own field). This is deliberately **not** a new type — it is a structural subset of a type this document has already closed per route (§25). Choosing it over a generic `raw: unknown`/`providerResponse: unknown`/`metadata: Record<string, unknown>` escape hatch (explicitly forbidden by this packet's §20) means: raw provider data is excluded **by construction**, because the reused types were already independently confirmed (Slice 2D-D0, §26.10) to have no field capable of holding such data; no second semantic authority is created, because committing this payload later is simply *replaying the same object* into the same `recordRouteOutcome` that would already accept it directly; and no route-specific normalization/classification authority is preempted, because this only fixes the *shape* of what a future route adapter must produce — it says nothing about *who* produces it or *how* (§26.5's open items are untouched).
+
+**`FailureInfo` terminal fact** — reuses the already-closed `FailureInfo` type verbatim (§27.9); no duplication of `sessionId`/`artifactHash`/`authorContextHash`/`logicalCost`, all of which remain authoritative on the re-resolved `RouteAttempt` (§28.3) and are re-derived, never re-supplied, at commit time (§28.19).
+
+### 28.14 Deadline-violation representation — non-committable, no phase expansion
+
+**Frozen:** a deadline-contract-violation (D1-0 §27.12's `actualLatencyMs > latencyLimitMs` case) is represented as the `DEADLINE_VIOLATION` terminal-fact subtype **within** `TERMINAL_FACT_READY` — no new checkpoint phase is added, per this packet's own preference (§25). It remains fully recoverable/auditable in the execution-coordination store, holds its reservation exactly as any other `TERMINAL_FACT_READY` record does (§28.11 — its `actualLatencyMs > reservedLatencyMs` is precisely the fact operator attention must see, and is never clamped or hidden), and is **permanently non-committable**: `markExecutionOutcomeCommitted` (§28.19) must reject any transition attempt where `terminalFact.kind === 'DEADLINE_VIOLATION'`, unconditionally — there is no path by which a deadline-violation record ever becomes `OUTCOME_COMMITTED`. No provider replay; no product `RouteOutcome` force-write.
+
+### 28.15 `OUTCOME_COMMITTED` — minimum fields
+
+```
+OutcomeCommittedCheckpoint {
+  phase: 'OUTCOME_COMMITTED';
+  attemptId; deliberationStateId; route;
+  claimedAt; terminalFactReadyAt; outcomeCommittedAt: string;
+  actualLatencyMs: number;   // copied forward from the committed terminal fact, for read convenience
+}
+```
+
+The full `terminalFact` payload (including any `RouteSpecificSuccessPayload`) MAY be retained for audit or MAY be omitted from a canonical compacted representation once committed — retention/compaction *duration* policy is explicitly out of scope (per D1-0 §27.11's own deferral), but whatever a future implementation chooses, read integrity must still be able to prove phase progression (`CLAIMED` occurred, `TERMINAL_FACT_READY` occurred, `OUTCOME_COMMITTED` occurred, in that order) from the timestamps alone, independent of whether the full payload is retained.
+
+### 28.16 Timestamp ordering — audit only, never ownership
+
+**Frozen:** `claimedAt <= terminalFactReadyAt <= outcomeCommittedAt`, for every phase where the later timestamp exists. Timestamps exist strictly for audit ordering. **Atomic store semantics — never timestamp comparison — decide ownership** (the claim in §28.7/§28.10, and the single successful commit in §28.19); a clock skew or two equal timestamps must never be used to arbitrate a disputed claim or a disputed commit.
+
+### 28.17 Exact API surface
+
+**Frozen conceptual operations — no generic `updateCheckpoint(partialObject)` escape hatch; every transition is a dedicated, narrow operation:**
+
+```
+claimRouteExecution(session, deliberationState, store, input: { attemptId, latencyLimitMs })
+  → ClaimedCheckpoint | TerminalFactReadyCheckpoint   (§28.7/§28.8 — never throws for an ordinary admission failure)
+
+recordExecutionTerminalFact(store, input: { attemptId, actualLatencyMs, terminalFact })
+  → TerminalFactReadyCheckpoint                        (§28.18)
+
+markExecutionOutcomeCommitted(session, deliberationState, store, input: { attemptId })
+  → OutcomeCommittedCheckpoint                         (§28.19)
+
+assertRouteExecutionCheckpointIntegrity(session, deliberationState, store, attemptId?)
+  → void | throws                                      (§28.20)
+```
+
+### 28.18 Claim input and terminal-fact input — narrowest legal shape
+
+**`claimRouteExecution` input:** `{ attemptId, latencyLimitMs }` only. Everything else — `route`, `deliberationStateId`, `sessionId`, hashes, `reservedLatencyMs`, `claimedAt` — is derived from the authoritative `RouteAttempt` (re-resolved per §28.3), the live-execution policy (§28.21), and the store's own transaction (§28.7). A caller may not restate any of it.
+
+**`recordExecutionTerminalFact` input:** `{ attemptId, actualLatencyMs, terminalFact }` only. `route`, `claimedAt`, `reservedLatencyMs`, the parent binding, and the checkpoint's current phase are all derived from the existing `ClaimedCheckpoint` record, never caller-supplied. The operation requires the checkpoint's current phase to be `CLAIMED`; any other current phase is rejected (§28.24's transition matrix).
+
+### 28.19 Commit-acknowledgement input and integrity — narrowest legal shape, no adjacency-only trust
+
+**`markExecutionOutcomeCommitted` input:** `{ attemptId }` only, per this packet's own preference (§31) — a caller never simply asserts `outcomeCommitted = true`. The operation must independently verify, before transitioning:
+1. the checkpoint's current phase is `TERMINAL_FACT_READY` and `terminalFact.kind !== 'DEADLINE_VIOLATION'` (§28.14);
+2. exactly one `RouteOutcome` exists in `deliberationState.outcomes` for this `attemptId` (already enforced as a `recordRouteOutcome` precondition, confirmed by direct inspection this packet — `deliberation.ts:1815`'s existing "one attempt has at most one outcome" check means this is a re-verification, not a new invariant);
+3. that `RouteOutcome`'s route-specific fields are consistent with the checkpointed `terminalFact.payload` (§28.13);
+4. that `RouteOutcome`'s `latencyConsumed` agrees with the checkpoint's `terminalFact.actualLatencyMs`;
+5. the `deliberationStateId`/`route` binding is still valid (§28.3/§28.4).
+
+Only if all five hold does the transition to `OUTCOME_COMMITTED` occur. No adjacency-only trust (i.e., "a `RouteOutcome` exists somewhere, therefore this checkpoint may commit" is insufficient without the consistency check in step 3–4).
+
+### 28.20 Checkpoint read integrity — global, not merely local
+
+**Frozen validator**, conceptually `assertRouteExecutionCheckpointIntegrity(session, deliberationState, store, attemptId?)`, mirroring this document's own established "never trust an upstream boundary already checked it" posture (already applied to `SEEK_EVIDENCE`/`TARGETED_PEER_CHALLENGE` readiness, §13.D/§13.E): it must independently validate, never trusting checkpoint self-consistency alone —
+- the attempt resolves exactly (against `deliberationState.attempts`, via the parent binding);
+- the parent `DeliberationState` binding is valid;
+- `route` agrees with the authoritative `RouteAttempt.route` (§28.4);
+- phase-specific required/forbidden fields hold exactly (§28.6/§28.13/§28.15 shapes, no extra or missing fields);
+- timestamp ordering holds (§28.16);
+- the reservation is legal — not merely locally well-formed, but globally consistent: **global reservation integrity**, scoped to at least one `deliberationStateId`, requires that the sum of every *sibling* checkpoint's active reservation (§28.11) plus `deliberationState.latencyBudget.spent` does not exceed `deliberationState.latencyBudget.ceiling` — a single locally-well-formed checkpoint is not trustworthy in isolation if its siblings' reservations collectively overrun the ceiling;
+- terminal-fact legality (§28.13's shape, `DEADLINE_VIOLATION` correctly marked non-committable);
+- product-outcome consistency, exactly the §28.19 checks, whenever `phase === 'OUTCOME_COMMITTED'`.
+
+"Global before local" applies exactly as this document's prior slices have already established elsewhere.
+
+### 28.21 Legacy / missing coordination state — compatibility posture
+
+Because execution checkpoints do not exist in any accepted runtime today, an existing `RouteAttempt` with no checkpoint record is **legitimate historical/offline state**, not an anomaly. A missing checkpoint must **never** be interpreted as "`UNCLAIMED`, and therefore automatically safe to execute" — for any future live-execution eligibility decision, a missing checkpoint means only "no execution-coordination record exists yet for this `attemptId`." A separately-authorized `claimRouteExecution` call may create one only after every current precondition (route readiness, live-execution authorization, etc.) independently passes. Historical `RouteOutcome`s recorded with no checkpoint at all (every one that exists today, and every one Slice 2D-B0 through 2D-D1-0 have produced in tests) remain fully legitimate accepted offline history and are never retroactively required to acquire one.
+
+**No retroactive invalidation:** checkpoint integrity (§28.20) must never make any existing accepted offline `RouteAttempt`, `RouteOutcome`, or `QuestionDisposition` invalid merely because it predates execution coordination. Execution coordination is required only for future live-execution paths, never applied backward.
+
+### 28.22 Alias isolation
+
+Every stored checkpoint payload (claim input, terminal fact, route-specific success payload) is an independent snapshot at the moment of its transition. Mutating a caller-owned object after passing it into `claimRouteExecution`/`recordExecutionTerminalFact` must never alter stored coordination history — the store's write boundary is responsible for this, not a generic deep-freeze utility applied everywhere. This mirrors the same discipline this document's accepted domain layer already applies to every `RouteOutcome`/`RouteAttempt` write (clone-at-the-boundary, never trust a caller's continued ownership of a passed-in object).
+
+### 28.23 Store-port contract vs. production durability — explicit distinction
+
+An offline reference implementation may later provide an in-memory `RouteExecutionCheckpointStore` for deterministic tests. **This does not, and can never, by itself satisfy production durability or cross-process atomicity.** The store-port *contract* frozen in this section (§28.1–§28.20) requires its claim operation (§28.7/§28.10) to be atomic; a future production adapter (a database, a transactional queue, or equivalent) must supply the actual durable, cross-process atomic semantics that an in-memory test double can only simulate within one process. No claim of cross-process safety may ever be derived from an in-memory test double's passing tests alone.
+
+### 28.24 Required schema summary
+
+| Phase | Required fields | Forbidden fields | Reservation held? | Terminal fact present? | Product `RouteOutcome` required? | Legal next transition |
+|---|---|---|---|---|---|---|
+| *(absent)* — `UNCLAIMED` | none (no record) | — | No | No | No | → `CLAIMED` or → `TERMINAL_FACT_READY` (admission-rejected, §28.8), via `claimRouteExecution` |
+| `CLAIMED` | `attemptId`, `deliberationStateId`, `route`, `claimedAt`, `latencyLimitMs`, `reservedLatencyMs` (`=== latencyLimitMs`) | `terminalFactReadyAt`, `terminalFact`, `outcomeCommittedAt`, `actualLatencyMs` | Yes | No | No | → `TERMINAL_FACT_READY` via `recordExecutionTerminalFact` |
+| `TERMINAL_FACT_READY` (`terminalFact.kind` = `SUCCEEDED`/`FAILED`) | above + `terminalFactReadyAt`, `terminalFact` | `outcomeCommittedAt` | Yes (per §28.11/§28.12) | Yes | Not yet — required only to advance | → `OUTCOME_COMMITTED` via `markExecutionOutcomeCommitted` |
+| `TERMINAL_FACT_READY` (`terminalFact.kind` = `DEADLINE_VIOLATION`) | above | `outcomeCommittedAt` | Yes | Yes (non-committable) | Never (permanently blocked) | none — terminal, reconciliation/operator-attention only |
+| `OUTCOME_COMMITTED` | `attemptId`, `deliberationStateId`, `route`, `claimedAt`, `terminalFactReadyAt`, `outcomeCommittedAt`, `actualLatencyMs` | — (terminal fact payload retention is a compaction policy choice, not a required/forbidden field) | No | Implied by having committed | Yes — exactly one, already verified | none — terminal |
+
+### 28.25 Required transition matrix
+
+**Legal:**
+
+| From | To | Operation |
+|---|---|---|
+| *(absent)* | `CLAIMED` | `claimRouteExecution`, admission succeeds |
+| *(absent)* | `TERMINAL_FACT_READY` (`FAILED`, `EXECUTION` category) | `claimRouteExecution`, admission rejected (§28.8) — no `CLAIMED` ever exposed |
+| `CLAIMED` | `TERMINAL_FACT_READY` | `recordExecutionTerminalFact` |
+| `TERMINAL_FACT_READY` (`SUCCEEDED`/`FAILED`) | `OUTCOME_COMMITTED` | `markExecutionOutcomeCommitted`, all §28.19 checks pass |
+
+**Rejected (each throws / refuses, never silently no-ops):**
+
+| Attempted transition | Why rejected |
+|---|---|
+| Claim + admission rejection, but caller expects a `ClaimedCheckpoint` back | Not a rejection of the call itself — §28.8's `TerminalFactReadyCheckpoint` is the correct, successful return value; the caller must branch on the returned `phase`, not assume `CLAIMED` |
+| Deadline-violation record → `OUTCOME_COMMITTED` | §28.14 — permanently non-committable by construction |
+| Duplicate claim (`claimRouteExecution` called twice for the same `attemptId`) | A checkpoint already exists for this `attemptId`; the atomic claim (§28.7/§28.10) guarantees the second caller observes an existing record, not a fresh claim |
+| Terminal fact recorded twice (`recordExecutionTerminalFact` called when phase is already `TERMINAL_FACT_READY` or `OUTCOME_COMMITTED`) | Requires current phase `CLAIMED`; any other phase is rejected |
+| Commit acknowledgement before a matching `RouteOutcome` exists | §28.19 check 2 fails — no `OUTCOME_COMMITTED` without a matching authoritative `RouteOutcome` already persisted |
+| Second commit acknowledgement (`markExecutionOutcomeCommitted` called when phase is already `OUTCOME_COMMITTED`) | Requires current phase `TERMINAL_FACT_READY`; `OUTCOME_COMMITTED` is terminal |
+
+### 28.26 Frozen design-time invariants (Slice 2D-D1-A0)
+
+Numbered locally to this section (`EC-1`–`EC-15`) rather than merged into this document's master invariant numbering (§16 and elsewhere), because — consistent with Slice 2D-D1-0's own posture (§27.18–§27.19) — nothing in this section is implemented runtime; these are binding requirements a future runtime slice must satisfy, not yet-accepted guarantees about existing behavior.
+
+1. **EC-1** — Checkpoint identity is exactly `attemptId`; no second execution identity exists (§28.1).
+2. **EC-2** — Every checkpoint carries a valid `deliberationStateId` parent binding (§28.3).
+3. **EC-3** — At most one checkpoint exists per `attemptId` (§28.10, enforced by the atomic claim).
+4. **EC-4** — `route` is immutable once set and always agrees with the authoritative `RouteAttempt.route` (§28.4).
+5. **EC-5** — Only the fields legal for the current `phase` may be present; the union is exhaustive and non-generic (§28.5).
+6. **EC-6** — The `UNCLAIMED → CLAIMED`-or-`TERMINAL_FACT_READY` transition is atomic; of concurrent claimants, exactly one may obtain a provider-call-authorized `ClaimedCheckpoint` (§28.7/§28.10).
+7. **EC-7** — For one `deliberationStateId`, active reservations plus authoritative `spent` never exceed `ceiling` (§28.11).
+8. **EC-8** — No `ClaimedCheckpoint` is ever exposed to a caller without an already-successful latency reservation (§28.7/§28.8).
+9. **EC-9** — For a `SUCCEEDED` or `FAILED` terminal fact, `actualLatencyMs <= reservedLatencyMs` always (§28.13); a violation is representable only as `DEADLINE_VIOLATION` (EC-10), never silently clamped into a normal fact.
+10. **EC-10** — A `DEADLINE_VIOLATION` terminal fact is permanently non-committable; no transition to `OUTCOME_COMMITTED` exists for it (§28.14).
+11. **EC-11** — `TERMINAL_FACT_READY` is reached before any `RouteOutcome` write is attempted for the same terminal fact (§27.11, restated).
+12. **EC-12** — `OUTCOME_COMMITTED` requires exactly one authoritative `RouteOutcome` already persisted, consistent with the checkpointed terminal fact (§28.19).
+13. **EC-13** — An `attemptId` with no checkpoint is legitimate historical/offline state, never treated as `UNCLAIMED`-and-safe for a live-execution decision (§28.21).
+14. **EC-14** — No checkpoint field, at any phase, may hold a raw provider/SDK payload, a secret, or an unbounded raw document (§28.13, by construction).
+15. **EC-15** — `RouteOutcome` is the sole product-truth ledger; no checkpoint state is ever treated as product-semantic authority, and no circular dependency exists where `RouteOutcome`'s own validity depends on checkpoint content (§28.27).
+
+### 28.27 `RouteOutcome` authority preserved — no circular dependency
+
+Restated precisely: `RouteOutcome` is, and remains, the sole authoritative product terminal-truth ledger (§27.11, unchanged). `OutcomeCommittedCheckpoint` status *depends on* a `RouteOutcome`'s existence and consistency (§28.19) — but the dependency runs in exactly one direction. `recordRouteOutcome`'s own validators (session/hash binding, attempt provenance, question currentness, route readiness, `EvidenceSubject`/TPC readiness, etc. — all pre-existing, all unchanged) never inspect, and must never be made to inspect, execution-checkpoint state for their own semantic validity. No circular authority is introduced.
+
+### 28.28 Live-execution authorization as claim input
+
+`claimRouteExecution` (§28.17/§28.18) does not reduce live-execution eligibility to "a `latencyLimitMs` was supplied." Per D1-0 §27.14 (unchanged), the claim operation must additionally resolve — from the live-execution enablement policy, not from the caller's own assertion — proof that live execution is authorized both generally and for the attempt's specific route, before any admission/reservation logic runs. This section does not design the final product UI/config representation of that policy (explicitly out of scope, per this packet's own §43); it only fixes that the claim operation's precondition chain must include it.
+
+### 28.29 Provider selection and route-specific decisions — unchanged
+
+Provider/model selection (Claude/OpenAI/Gemini, specific models, registry roles) remains **OPEN** and is not touched by this schema freeze — no provider is read, called, or selected in the course of this inspection. Direct inspection this packet of `deliberation.ts` and the store-abstraction search found nothing contradicting the Slice 2D-D0 route-specific inventory: counts are unchanged — `ADD_CONTEXT` 1, `ADD_REVIEWER` 5, `REPLICATE` 3, `SEEK_EVIDENCE` 5, `TARGETED_PEER_CHALLENGE` 7, **21 total**. Slice 2D-D1-0's own common-execution-layer open-decision count (**11 → 1**, §27.20) is **not rewritten** by this section: D1-0 closed the provider-independent *policy* questions; this section closes the *executable schema/sequencing* needed to implement those already-accepted policies — sequencing refinement, not a reopening (per this packet's own §46 instruction). The one remaining common open item — provider/model selection authority — is unchanged and unresolved here.
+
+### 28.30 Recommended next slice
+
+**Recommended: `SLICE 2D-D1-A` — EXECUTION COORDINATION / CLAIM / LATENCY RESERVATION OFFLINE RUNTIME**, exactly as Slice 2D-D1-0 already recommended (§27.22) and this packet's own §51 expects absent a new blocker. This freeze found no missing common-schema prerequisite that would redirect the recommendation: the exact checkpoint entity, phase union, field shapes, API surface, reservation-aggregation rule, and transition matrix are now specified precisely enough to implement and test entirely offline (no provider calls), mirroring how `RouteAttempt`/`RouteOutcome` were themselves built and fully tested offline before any route's successful-result semantics existed. That runtime slice must implement, at minimum, the deterministic conformance tests this packet's own §39–§41 anticipate: (a) a two-concurrent-claims-same-`attemptId` test proving exactly one obtains a provider-call-authorized `ClaimedCheckpoint`, explicitly noting that a single-process in-memory test demonstrates API/store-contract conformance only, never cross-process production durability (§28.23); (b) a reservation-aggregation test proving two attempts against one `deliberationStateId` cannot jointly reserve more than the remaining ceiling, including a self-consistent-tamper variant where two individually-valid checkpoints' combined reservations exceed the ceiling and global read integrity (§28.20) rejects it; (c) an admission-failure test proving the exact §28.8 transition is followed, with zero provider calls and no permanently-ambiguous `CLAIMED` state produced for a failure that was already known and pre-call.
