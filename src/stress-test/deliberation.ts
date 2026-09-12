@@ -4339,3 +4339,1612 @@ function assertTargetedPeerChallengeOutcomeIntegrity(
     label
   );
 }
+
+// ===========================================================================
+// Execution coordination runtime — Slice 2D-D1-A (OFFLINE ONLY)
+// ===========================================================================
+//
+// Implements the accepted Slice 2D-D1-A0 architecture
+// (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §27, §28.1-§28.36, EC-1-EC-30)
+// as a deterministic, single-process, in-memory reference runtime.
+//
+// NOTHING HERE CALLS A PROVIDER. No Claude/OpenAI/Gemini call, no retrieval,
+// no prompt generation, no model selection, no TPC execution, no Round 2.
+// Every "execution result" this layer accepts is an already-obtained,
+// already-normalized terminal fact handed in by a caller that performed the
+// call somewhere outside this domain (§27.1's layer separation, §27.2).
+//
+// Durability posture (§28.23, restated so no reader can mistake it): the
+// in-memory store/port below prove API and coordination-CONTRACT conformance
+// within one process only. They are NOT database durability, NOT cross-process
+// atomicity, NOT distributed locking, and NOT crash-safe production
+// persistence. A production adapter must supply those; passing tests here can
+// never be evidence of them.
+// ===========================================================================
+
+/**
+ * The four machine-provider routes the execution envelope applies to (§27.3).
+ * `ADD_CONTEXT` is categorically outside it (human-authored response) and
+ * `STOP` records no attempt at all -- neither may ever be claimed for
+ * provider-backed execution.
+ */
+const MACHINE_EXECUTABLE_ROUTES: readonly NonStopDeliberationRoute[] = [
+  'ADD_REVIEWER',
+  'REPLICATE',
+  'SEEK_EVIDENCE',
+  'TARGETED_PEER_CHALLENGE',
+];
+
+function assertFiniteNonNegativeInteger(value: number, label: string): void {
+  if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < 0) {
+    throw new Error(`${label} must be a finite integer >= 0 (got ${JSON.stringify(value)})`);
+  }
+}
+
+function assertFinitePositiveInteger(value: number, label: string): void {
+  if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value <= 0) {
+    throw new Error(`${label} must be a finite integer > 0 (got ${JSON.stringify(value)})`);
+  }
+}
+
+/**
+ * The route-specific portion of an already-obtained successful terminal
+ * result -- deliberately NOT a new type: each member is the exact subset of
+ * `RecordRouteOutcomeInput` this document already accepted for that route
+ * (§28.13's frozen Option A), minus `attemptId`/`status`/`latencyConsumed`,
+ * which the checkpoint already tracks independently. No `raw`/
+ * `providerResponse`/`metadata` escape hatch exists, so a raw provider
+ * payload is excluded by construction, not merely by convention (EC-14).
+ */
+export type RouteSpecificSuccessPayload =
+  | { reviewerRunId: string; findingIds: string[] }
+  | { result: ReplicationResult; targetRef: RouteInputRef }
+  | { result: 'SUPPORTIVE' | 'CONTRADICTORY'; evidenceSubjectId: string; citations: EvidenceCitation[] }
+  | { result: 'SUPPLIED'; contextRequestId: string; responseText: string }
+  | { result: 'DECLINED'; contextRequestId: string }
+  | { result: 'NO_RESPONSE'; contextRequestId: string }
+  | {
+      targetRef: RouteInputRef;
+      sourceRef: RouteInputRef;
+      boundedExcerpt: TargetedPeerChallengeBoundedExcerpt;
+      response: string;
+      result: TargetedPeerChallengeResult;
+    };
+
+/** The exact `SEEK_EVIDENCE` inconclusive payload already accepted by `recordRouteOutcome` (§28.13, EC-19). */
+export interface SeekEvidenceInconclusivePayload {
+  result: 'INCONCLUSIVE';
+  evidenceSubjectId: string;
+  citations: EvidenceCitation[];
+}
+
+/**
+ * The persisted terminal fact. `DEADLINE_VIOLATION` exists here and ONLY
+ * here -- it is always derived by this runtime from the single supplied
+ * `actualLatencyMs` versus the authoritative `ClaimedCheckpoint.latencyLimitMs`,
+ * never caller-selected (§28.14, EC-18).
+ */
+export type ReservedTerminalFact =
+  | { kind: 'SUCCEEDED'; actualLatencyMs: number; payload: RouteSpecificSuccessPayload }
+  | { kind: 'INCONCLUSIVE'; actualLatencyMs: number; payload: SeekEvidenceInconclusivePayload }
+  | { kind: 'FAILED'; actualLatencyMs: number; failure: FailureInfo }
+  | { kind: 'DEADLINE_VIOLATION'; actualLatencyMs: number };
+
+/**
+ * The caller-facing terminal-result input (§28.13, second amendment).
+ * Structurally incapable of expressing `DEADLINE_VIOLATION` or a second
+ * `actualLatencyMs` -- the two defects that shape exists to foreclose.
+ */
+export type ExecutionTerminalResultInput =
+  | { kind: 'SUCCEEDED'; payload: RouteSpecificSuccessPayload }
+  | { kind: 'INCONCLUSIVE'; payload: SeekEvidenceInconclusivePayload }
+  | { kind: 'FAILED'; failure: FailureInfo };
+
+/** Ownership claimed and latency reservation already granted, atomically, in one transaction (§28.6/§28.7). */
+export interface ClaimedCheckpoint {
+  phase: 'CLAIMED';
+  attemptId: string;
+  deliberationStateId: string;
+  route: NonStopDeliberationRoute;
+  claimedAt: string;
+  latencyLimitMs: number;
+  reservedLatencyMs: number;
+}
+
+/** An external call was attempted and produced a terminal fact (§28.13). */
+export interface ReservedTerminalFactReadyCheckpoint {
+  phase: 'TERMINAL_FACT_READY';
+  attemptId: string;
+  deliberationStateId: string;
+  route: NonStopDeliberationRoute;
+  claimedAt: string;
+  latencyLimitMs: number;
+  reservedLatencyMs: number;
+  terminalFactReadyAt: string;
+  terminalFact: ReservedTerminalFact;
+}
+
+/**
+ * A determinate PRE-call failure -- no provider call was ever attempted, so
+ * no reservation was ever held and no `latencyLimitMs` field exists on this
+ * shape at all (§28.8/§28.13, EC-16). Reachable two ways, both producing this
+ * identical canonical shape: `claimRouteExecution`'s own admission rejection
+ * (§28.9, always `EXECUTION`) and `recordExecutionPreCallFailure` (§28.33,
+ * `REFERENCE_RESOLUTION` or `EXECUTION`).
+ */
+export interface PreCallFailedTerminalFactReadyCheckpoint {
+  phase: 'TERMINAL_FACT_READY';
+  attemptId: string;
+  deliberationStateId: string;
+  route: NonStopDeliberationRoute;
+  claimedAt: string;
+  reservedLatencyMs: 0;
+  terminalFactReadyAt: string;
+  terminalFact: { kind: 'FAILED'; actualLatencyMs: 0; failure: FailureInfo };
+}
+
+export type TerminalFactReadyCheckpoint =
+  | ReservedTerminalFactReadyCheckpoint
+  | PreCallFailedTerminalFactReadyCheckpoint;
+
+/** `terminalFact` is RETAINED, never compacted away -- read integrity re-proves exact agreement against it (§28.15, EC-24). */
+export interface OutcomeCommittedCheckpoint {
+  phase: 'OUTCOME_COMMITTED';
+  attemptId: string;
+  deliberationStateId: string;
+  route: NonStopDeliberationRoute;
+  claimedAt: string;
+  terminalFactReadyAt: string;
+  outcomeCommittedAt: string;
+  terminalFact: ReservedTerminalFact;
+}
+
+/**
+ * The execution-coordination record for exactly one `RouteAttempt`.
+ * Identity is `attemptId` and nothing else -- no `checkpointId`/`executionId`/
+ * `callId`/`requestId` second identity exists (§28.1, EC-1). `UNCLAIMED` is
+ * the ABSENCE of a record, never a fourth phase (§28.5).
+ */
+export type RouteExecutionCheckpoint = ClaimedCheckpoint | TerminalFactReadyCheckpoint | OutcomeCommittedCheckpoint;
+
+/** Structural discriminant between the two `TERMINAL_FACT_READY` subtypes (§28.13): a pre-call failure has no `latencyLimitMs` field at all. */
+export function isPreCallFailedCheckpoint(
+  checkpoint: RouteExecutionCheckpoint
+): checkpoint is PreCallFailedTerminalFactReadyCheckpoint {
+  return checkpoint.phase === 'TERMINAL_FACT_READY' && !('latencyLimitMs' in checkpoint);
+}
+
+/**
+ * Live-execution authority (§28.32, EC-20). `DISABLED` is categorically NOT
+ * an admission failure: it produces no checkpoint of any kind. No provider or
+ * model name belongs in this decision -- provider selection remains OPEN
+ * (§28.29, unchanged).
+ */
+export type LiveExecutionPolicyDecision = { status: 'DISABLED' } | { status: 'ENABLED'; latencyLimitMs: number };
+
+/** Composition-level dependency, never per-call caller data (§28.32). */
+export interface LiveExecutionPolicyResolver {
+  resolveLiveExecutionPolicy(attempt: RouteAttempt): LiveExecutionPolicyDecision;
+}
+
+/**
+ * Current-value authority (§28.34.4, EC-27). Serializing operations through a
+ * critical section does NOT, by itself, make a second operation observe the
+ * state a first one just committed -- these domain operations use immutable
+ * value semantics (`operation(state) -> newState`), so a caller-captured
+ * snapshot stays stale forever unless current state is re-resolved from
+ * INSIDE the boundary. This port exists exactly to close that gap. It is not
+ * a second semantic ledger: `RouteOutcome` remains product truth (EC-25).
+ */
+export interface DeliberationStateAccessPort {
+  resolveCurrentDeliberationState(deliberationStateId: string): DeliberationState;
+  commitDeliberationState(nextState: DeliberationState): void;
+}
+
+/**
+ * Checkpoint persistence + state-level coordination (§28.2/§28.10/§28.34.4).
+ * Deliberately exposes NO generic `updateCheckpoint(partialObject)` escape
+ * hatch -- every lifecycle change flows through a dedicated, narrow operation
+ * (§28.17).
+ */
+export interface RouteExecutionCheckpointStore {
+  getCheckpoint(attemptId: string): RouteExecutionCheckpoint | undefined;
+  listCheckpointsForDeliberationState(deliberationStateId: string): RouteExecutionCheckpoint[];
+  /** Atomic insert-if-absent. Throws if a checkpoint already exists for the `attemptId` (EC-3/EC-6). */
+  insertCheckpointIfAbsent(checkpoint: RouteExecutionCheckpoint): RouteExecutionCheckpoint;
+  /** Phase-safe replacement: rejects unless the stored record is currently in `expectedPhase`. */
+  replaceCheckpointPhase(
+    attemptId: string,
+    expectedPhase: RouteExecutionCheckpoint['phase'],
+    next: RouteExecutionCheckpoint
+  ): RouteExecutionCheckpoint;
+  withDeliberationStateCoordination<T>(deliberationStateId: string, operation: () => T): T;
+}
+
+// --- Snapshot / alias isolation (§28.22, EC-14) ----------------------------
+// Explicit domain-specific clone helpers, reusing the ones the accepted
+// product layer already established. No generic deep-freeze/deep-clone
+// infrastructure is introduced (this packet's own §30 instruction).
+
+function cloneRouteSpecificSuccessPayload(payload: RouteSpecificSuccessPayload): RouteSpecificSuccessPayload {
+  const raw = payload as Record<string, unknown>;
+  if ('reviewerRunId' in raw) {
+    return { reviewerRunId: raw.reviewerRunId as string, findingIds: [...(raw.findingIds as string[])] };
+  }
+  if ('boundedExcerpt' in raw) {
+    return {
+      targetRef: cloneRouteInputRef(raw.targetRef as RouteInputRef),
+      sourceRef: cloneRouteInputRef(raw.sourceRef as RouteInputRef),
+      boundedExcerpt: cloneTargetedPeerChallengeBoundedExcerpt(raw.boundedExcerpt as TargetedPeerChallengeBoundedExcerpt),
+      response: raw.response as string,
+      result: raw.result as TargetedPeerChallengeResult,
+    };
+  }
+  if ('evidenceSubjectId' in raw) {
+    return {
+      result: raw.result as 'SUPPORTIVE' | 'CONTRADICTORY',
+      evidenceSubjectId: raw.evidenceSubjectId as string,
+      citations: cloneEvidenceCitations(raw.citations as EvidenceCitation[]),
+    };
+  }
+  if ('responseText' in raw) {
+    return {
+      result: 'SUPPLIED',
+      contextRequestId: raw.contextRequestId as string,
+      responseText: raw.responseText as string,
+    };
+  }
+  if ('contextRequestId' in raw) {
+    return { result: raw.result as 'DECLINED' | 'NO_RESPONSE', contextRequestId: raw.contextRequestId as string };
+  }
+  return { result: raw.result as ReplicationResult, targetRef: cloneRouteInputRef(raw.targetRef as RouteInputRef) };
+}
+
+function cloneSeekEvidenceInconclusivePayload(payload: SeekEvidenceInconclusivePayload): SeekEvidenceInconclusivePayload {
+  return {
+    result: 'INCONCLUSIVE',
+    evidenceSubjectId: payload.evidenceSubjectId,
+    citations: cloneEvidenceCitations(payload.citations),
+  };
+}
+
+function cloneReservedTerminalFact(fact: ReservedTerminalFact): ReservedTerminalFact {
+  switch (fact.kind) {
+    case 'SUCCEEDED':
+      return { kind: 'SUCCEEDED', actualLatencyMs: fact.actualLatencyMs, payload: cloneRouteSpecificSuccessPayload(fact.payload) };
+    case 'INCONCLUSIVE':
+      return {
+        kind: 'INCONCLUSIVE',
+        actualLatencyMs: fact.actualLatencyMs,
+        payload: cloneSeekEvidenceInconclusivePayload(fact.payload),
+      };
+    case 'FAILED':
+      return { kind: 'FAILED', actualLatencyMs: fact.actualLatencyMs, failure: cloneFailureInfo(fact.failure) };
+    case 'DEADLINE_VIOLATION':
+      return { kind: 'DEADLINE_VIOLATION', actualLatencyMs: fact.actualLatencyMs };
+    default: {
+      const exhaustive: never = fact;
+      throw new Error(`cloneReservedTerminalFact: invalid kind ${JSON.stringify((exhaustive as { kind: unknown }).kind)}`);
+    }
+  }
+}
+
+// --- Route-specific payload validation -------------------------------------
+// Structural/vocabulary validation only. Deep product re-verification
+// (findings resolve, refs belong to the decision's inputRefs, evidence
+// subject readiness, ...) stays where it already lives -- `recordRouteOutcome`
+// at persistence time. Coordination governs admission and ordering, never
+// product semantic content (§28.34.8/EC-25).
+
+function assertRouteSpecificSuccessPayload(
+  route: NonStopDeliberationRoute,
+  payload: RouteSpecificSuccessPayload,
+  label: string
+): void {
+  if (payload === null || typeof payload !== 'object') {
+    throw new Error(`${label} must be an object`);
+  }
+  const raw = payload as Record<string, unknown>;
+  switch (route) {
+    case 'ADD_REVIEWER': {
+      assertExactKeys(payload, ['reviewerRunId', 'findingIds'], label);
+      assertNonEmptyString(raw.reviewerRunId as string, `${label}.reviewerRunId`);
+      if (!Array.isArray(raw.findingIds)) {
+        throw new Error(`${label}.findingIds must be an array`);
+      }
+      for (const id of raw.findingIds as unknown[]) {
+        assertNonEmptyString(id as string, `${label}.findingIds[]`);
+      }
+      return;
+    }
+    case 'REPLICATE': {
+      assertExactKeys(payload, ['result', 'targetRef'], label);
+      assertValidReplicationResult(raw.result as ReplicationResult, `${label}.result`);
+      if (raw.targetRef === null || typeof raw.targetRef !== 'object') {
+        throw new Error(`${label}.targetRef must be an object`);
+      }
+      return;
+    }
+    case 'SEEK_EVIDENCE': {
+      assertExactKeys(payload, ['result', 'evidenceSubjectId', 'citations'], label);
+      if (raw.result !== 'SUPPORTIVE' && raw.result !== 'CONTRADICTORY') {
+        throw new Error(
+          `${label}.result must be SUPPORTIVE or CONTRADICTORY for a SUCCEEDED SEEK_EVIDENCE terminal fact (got ${JSON.stringify(raw.result)}); INCONCLUSIVE uses its own terminal-fact kind`
+        );
+      }
+      assertNonEmptyString(raw.evidenceSubjectId as string, `${label}.evidenceSubjectId`);
+      if (!Array.isArray(raw.citations)) {
+        throw new Error(`${label}.citations must be an array`);
+      }
+      for (const citation of raw.citations as EvidenceCitation[]) {
+        assertValidEvidenceCitation(citation, `${label}.citations[]`);
+      }
+      return;
+    }
+    case 'TARGETED_PEER_CHALLENGE': {
+      assertExactKeys(payload, ['targetRef', 'sourceRef', 'boundedExcerpt', 'response', 'result'], label);
+      if (raw.targetRef === null || typeof raw.targetRef !== 'object') {
+        throw new Error(`${label}.targetRef must be an object`);
+      }
+      if (raw.sourceRef === null || typeof raw.sourceRef !== 'object') {
+        throw new Error(`${label}.sourceRef must be an object`);
+      }
+      assertValidTargetedPeerChallengeBoundedExcerpt(
+        raw.boundedExcerpt as TargetedPeerChallengeBoundedExcerpt,
+        `${label}.boundedExcerpt`
+      );
+      assertNonEmptyString(raw.response as string, `${label}.response`);
+      if (!TARGETED_PEER_CHALLENGE_RESULTS.includes(raw.result as TargetedPeerChallengeResult)) {
+        throw new Error(`${label}.result: invalid TargetedPeerChallengeResult ${JSON.stringify(raw.result)}`);
+      }
+      return;
+    }
+    case 'ADD_CONTEXT': {
+      if (raw.result === 'SUPPLIED') {
+        assertExactKeys(payload, ['result', 'contextRequestId', 'responseText'], label);
+        assertNonEmptyString(raw.contextRequestId as string, `${label}.contextRequestId`);
+        assertNonEmptyString(raw.responseText as string, `${label}.responseText`);
+        return;
+      }
+      if (raw.result === 'DECLINED' || raw.result === 'NO_RESPONSE') {
+        assertExactKeys(payload, ['result', 'contextRequestId'], label);
+        assertNonEmptyString(raw.contextRequestId as string, `${label}.contextRequestId`);
+        return;
+      }
+      throw new Error(`${label}.result: invalid AddContextResult ${JSON.stringify(raw.result)}`);
+    }
+    default: {
+      const exhaustive: never = route;
+      throw new Error(`${label}: invalid route ${JSON.stringify(exhaustive)}`);
+    }
+  }
+}
+
+function assertSeekEvidenceInconclusivePayload(payload: SeekEvidenceInconclusivePayload, label: string): void {
+  if (payload === null || typeof payload !== 'object') {
+    throw new Error(`${label} must be an object`);
+  }
+  assertExactKeys(payload, ['result', 'evidenceSubjectId', 'citations'], label);
+  if (payload.result !== 'INCONCLUSIVE') {
+    throw new Error(`${label}.result must be INCONCLUSIVE (got ${JSON.stringify(payload.result)})`);
+  }
+  assertNonEmptyString(payload.evidenceSubjectId, `${label}.evidenceSubjectId`);
+  if (!Array.isArray(payload.citations)) {
+    throw new Error(`${label}.citations must be an array`);
+  }
+  for (const citation of payload.citations) {
+    assertValidEvidenceCitation(citation, `${label}.citations[]`);
+  }
+}
+
+// --- projectRouteOutcomeToTerminalFact + exact agreement (§28.35.3) --------
+
+/**
+ * The ONE shared comparison boundary (§28.35.3). A pure, symmetric projection
+ * of an already-persisted, authoritative `RouteOutcome` back into the same
+ * `ReservedTerminalFact` shape a checkpoint stores. Used -- never
+ * reimplemented -- by `markExecutionOutcomeCommitted` (§28.19 step 3),
+ * `assertRouteExecutionCheckpointIntegrity` (§28.20), and §28.11's
+ * residual-encumbrance match. Never produces `DEADLINE_VIOLATION`: no
+ * `RouteOutcome` may exist for one (§28.14).
+ */
+export function projectRouteOutcomeToTerminalFact(outcome: RouteOutcome): ReservedTerminalFact {
+  if (outcome === null || typeof outcome !== 'object') {
+    throw new Error('projectRouteOutcomeToTerminalFact: outcome must be an object');
+  }
+  const actualLatencyMs = outcome.latencyConsumed;
+  if (outcome.status === 'FAILED') {
+    return { kind: 'FAILED', actualLatencyMs, failure: cloneFailureInfo((outcome as FailedRouteOutcome).failure) };
+  }
+  if (outcome.status === 'INCONCLUSIVE') {
+    const seek = outcome as SeekEvidenceInconclusiveRouteOutcome;
+    // Read the raw discriminant: a tampered/hand-built outcome is not
+    // trustworthy merely because its TypeScript type says SEEK_EVIDENCE.
+    if ((outcome as { route: string }).route !== 'SEEK_EVIDENCE') {
+      throw new Error(
+        `projectRouteOutcomeToTerminalFact: INCONCLUSIVE is only representable for SEEK_EVIDENCE (got route ${(outcome as { route: string }).route})`
+      );
+    }
+    return {
+      kind: 'INCONCLUSIVE',
+      actualLatencyMs,
+      payload: { result: 'INCONCLUSIVE', evidenceSubjectId: seek.evidenceSubjectId, citations: cloneEvidenceCitations(seek.citations) },
+    };
+  }
+  switch (outcome.route) {
+    case 'ADD_REVIEWER': {
+      const o = outcome as AddReviewerRouteOutcome;
+      return { kind: 'SUCCEEDED', actualLatencyMs, payload: { reviewerRunId: o.reviewerRunId, findingIds: [...o.findingIds] } };
+    }
+    case 'REPLICATE': {
+      const o = outcome as ReplicationRouteOutcome;
+      return { kind: 'SUCCEEDED', actualLatencyMs, payload: { result: o.result, targetRef: cloneRouteInputRef(o.targetRef) } };
+    }
+    case 'SEEK_EVIDENCE': {
+      const o = outcome as SeekEvidenceSupportiveOrContradictoryRouteOutcome;
+      return {
+        kind: 'SUCCEEDED',
+        actualLatencyMs,
+        payload: { result: o.result, evidenceSubjectId: o.evidenceSubjectId, citations: cloneEvidenceCitations(o.citations) },
+      };
+    }
+    case 'TARGETED_PEER_CHALLENGE': {
+      const o = outcome as TargetedPeerChallengeRouteOutcome;
+      return {
+        kind: 'SUCCEEDED',
+        actualLatencyMs,
+        payload: {
+          targetRef: cloneRouteInputRef(o.targetRef),
+          sourceRef: cloneRouteInputRef(o.sourceRef),
+          boundedExcerpt: cloneTargetedPeerChallengeBoundedExcerpt(o.boundedExcerpt),
+          response: o.response,
+          result: o.result,
+        },
+      };
+    }
+    case 'ADD_CONTEXT': {
+      const o = outcome as AddContextRouteOutcome;
+      if (o.result === 'SUPPLIED') {
+        return {
+          kind: 'SUCCEEDED',
+          actualLatencyMs,
+          payload: { result: 'SUPPLIED', contextRequestId: o.contextRequestId, responseText: o.responseText },
+        };
+      }
+      return { kind: 'SUCCEEDED', actualLatencyMs, payload: { result: o.result, contextRequestId: o.contextRequestId } };
+    }
+  }
+  throw new Error(
+    `projectRouteOutcomeToTerminalFact: invalid route ${JSON.stringify((outcome as { route: unknown }).route)}`
+  );
+}
+
+function routeInputRefsAgree(a: RouteInputRef, b: RouteInputRef): boolean {
+  return a.kind === b.kind && a.id === b.id;
+}
+
+function citationsAgree(a: EvidenceCitation[], b: EvidenceCitation[]): boolean {
+  // Ordering is domain-significant and is compared, never reduced to set
+  // membership (§28.35.3).
+  if (a.length !== b.length) return false;
+  return a.every((c, i) => c.sourceIdentifier === b[i].sourceIdentifier && c.excerpt === b[i].excerpt && c.title === b[i].title);
+}
+
+/**
+ * Value equality over the CLOSED domain fields only (§28.35.3) -- never
+ * object identity, never category-only agreement, never prose similarity,
+ * never a latest/first heuristic, and never a generic unbounded JSON
+ * comparison (no field reachable here can hold a raw provider payload).
+ */
+function successPayloadsExactlyAgree(a: RouteSpecificSuccessPayload, b: RouteSpecificSuccessPayload): boolean {
+  const x = a as Record<string, unknown>;
+  const y = b as Record<string, unknown>;
+  const xKeys = Object.keys(x).sort();
+  const yKeys = Object.keys(y).sort();
+  if (xKeys.length !== yKeys.length || xKeys.some((k, i) => k !== yKeys[i])) return false;
+  if ('reviewerRunId' in x) {
+    const xf = x.findingIds as string[];
+    const yf = y.findingIds as string[];
+    return x.reviewerRunId === y.reviewerRunId && xf.length === yf.length && xf.every((id, i) => id === yf[i]);
+  }
+  if ('boundedExcerpt' in x) {
+    const xe = x.boundedExcerpt as TargetedPeerChallengeBoundedExcerpt;
+    const ye = y.boundedExcerpt as TargetedPeerChallengeBoundedExcerpt;
+    return (
+      routeInputRefsAgree(x.targetRef as RouteInputRef, y.targetRef as RouteInputRef) &&
+      routeInputRefsAgree(x.sourceRef as RouteInputRef, y.sourceRef as RouteInputRef) &&
+      xe.text === ye.text &&
+      xe.truncated === ye.truncated &&
+      xe.charLimit === ye.charLimit &&
+      x.response === y.response &&
+      x.result === y.result
+    );
+  }
+  if ('evidenceSubjectId' in x) {
+    return (
+      x.result === y.result &&
+      x.evidenceSubjectId === y.evidenceSubjectId &&
+      citationsAgree(x.citations as EvidenceCitation[], y.citations as EvidenceCitation[])
+    );
+  }
+  if ('responseText' in x) {
+    return x.result === y.result && x.contextRequestId === y.contextRequestId && x.responseText === y.responseText;
+  }
+  if ('contextRequestId' in x) {
+    return x.result === y.result && x.contextRequestId === y.contextRequestId;
+  }
+  return x.result === y.result && routeInputRefsAgree(x.targetRef as RouteInputRef, y.targetRef as RouteInputRef);
+}
+
+/** Exact terminal-fact agreement -- the §28.19 step 3/4 check, shared with §28.11 and §28.20. */
+export function terminalFactsExactlyAgree(a: ReservedTerminalFact, b: ReservedTerminalFact): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.actualLatencyMs !== b.actualLatencyMs) return false;
+  switch (a.kind) {
+    case 'SUCCEEDED':
+      return successPayloadsExactlyAgree(a.payload, (b as typeof a).payload);
+    case 'INCONCLUSIVE': {
+      const bp = (b as typeof a).payload;
+      return a.payload.evidenceSubjectId === bp.evidenceSubjectId && citationsAgree(a.payload.citations, bp.citations);
+    }
+    case 'FAILED': {
+      const bf = (b as typeof a).failure;
+      return a.failure.category === bf.category && a.failure.message === bf.message;
+    }
+    case 'DEADLINE_VIOLATION':
+      return true;
+    default:
+      return false;
+  }
+}
+
+// --- Effective latency encumbrance (§28.11/§28.12, EC-7) -------------------
+
+/**
+ * A DERIVED, read-time value -- never a stored, mutated field.
+ * `reservedLatencyMs` itself is never rewritten. Computed by joining one
+ * checkpoint against the authoritative `DeliberationState.outcomes`, so the
+ * reservation-to-`spent` handoff needs no second write and has no race
+ * window (§28.12).
+ */
+export function effectiveLatencyEncumbrance(
+  checkpoint: RouteExecutionCheckpoint,
+  deliberationState: DeliberationState
+): number {
+  if (checkpoint.phase === 'OUTCOME_COMMITTED') return 0;
+  if (checkpoint.phase === 'CLAIMED') return checkpoint.reservedLatencyMs;
+  if (isPreCallFailedCheckpoint(checkpoint)) return 0;
+  const reserved = checkpoint as ReservedTerminalFactReadyCheckpoint;
+  const matches = deliberationState.outcomes.filter((o) => o.attemptId === reserved.attemptId);
+  if (matches.length !== 1) return reserved.reservedLatencyMs;
+  let projected: ReservedTerminalFact;
+  try {
+    projected = projectRouteOutcomeToTerminalFact(matches[0]);
+  } catch {
+    return reserved.reservedLatencyMs;
+  }
+  // Residual reduction applies ONLY on exact agreement -- a disagreeing but
+  // otherwise-plausible outcome leaves the FULL reservation encumbered
+  // (§28.11). A DEADLINE_VIOLATION never agrees with any projection, so it
+  // stays permanently full, exactly as §28.14 requires.
+  if (!terminalFactsExactlyAgree(projected, reserved.terminalFact)) return reserved.reservedLatencyMs;
+  return reserved.reservedLatencyMs - reserved.terminalFact.actualLatencyMs;
+}
+
+/** `SUM(effectiveLatencyEncumbrance)` over every checkpoint of one `deliberationStateId`. */
+export function totalEffectiveLatencyEncumbrance(
+  store: RouteExecutionCheckpointStore,
+  deliberationState: DeliberationState
+): number {
+  return store
+    .listCheckpointsForDeliberationState(deliberationState.id)
+    .reduce((sum, checkpoint) => sum + effectiveLatencyEncumbrance(checkpoint, deliberationState), 0);
+}
+
+function assertGlobalLatencyIntegrity(
+  store: RouteExecutionCheckpointStore,
+  deliberationState: DeliberationState,
+  label: string
+): void {
+  const encumbrance = totalEffectiveLatencyEncumbrance(store, deliberationState);
+  const total = deliberationState.latencyBudget.spent + encumbrance;
+  if (total > deliberationState.latencyBudget.ceiling) {
+    throw new Error(
+      `${label}: global latency integrity violated -- spent(${deliberationState.latencyBudget.spent}) + effectiveEncumbrance(${encumbrance}) = ${total} exceeds ceiling(${deliberationState.latencyBudget.ceiling})`
+    );
+  }
+}
+
+function hasUnresolvedDeadlineViolation(store: RouteExecutionCheckpointStore, deliberationStateId: string): boolean {
+  return store
+    .listCheckpointsForDeliberationState(deliberationStateId)
+    .some((c) => c.phase === 'TERMINAL_FACT_READY' && (c as ReservedTerminalFactReadyCheckpoint).terminalFact.kind === 'DEADLINE_VIOLATION');
+}
+
+// --- State coordination transaction (§28.34.4) ----------------------------
+
+/**
+ * The frozen §28.34.4 transaction: (1) acquire coordination for
+ * `deliberationStateId`; (2) resolve the CURRENT authoritative state AFTER
+ * acquiring it, never before; (3) run `operation` against that current value;
+ * (4) commit any new state BEFORE releasing; (5) release; (6) return.
+ *
+ * No caller-supplied/caller-captured `DeliberationState` may serve as the
+ * accounting snapshot once the boundary is entered (EC-27).
+ */
+export function withCurrentDeliberationState<T>(
+  store: RouteExecutionCheckpointStore,
+  deliberationStateAccessPort: DeliberationStateAccessPort,
+  deliberationStateId: string,
+  operation: (currentState: DeliberationState) => { nextState?: DeliberationState; result: T }
+): T {
+  return store.withDeliberationStateCoordination(deliberationStateId, () => {
+    const currentState = deliberationStateAccessPort.resolveCurrentDeliberationState(deliberationStateId);
+    if (currentState.id !== deliberationStateId) {
+      throw new Error(
+        `withCurrentDeliberationState: access port returned DeliberationState ${currentState.id}, not ${deliberationStateId}`
+      );
+    }
+    const { nextState, result } = operation(currentState);
+    if (nextState !== undefined) {
+      deliberationStateAccessPort.commitDeliberationState(nextState);
+    }
+    return result;
+  });
+}
+
+// --- Shared precondition helpers ------------------------------------------
+
+function resolveExactAttempt(deliberationState: DeliberationState, attemptId: string, label: string): RouteAttempt {
+  const matches = deliberationState.attempts.filter((a) => a.attemptId === attemptId);
+  if (matches.length !== 1) {
+    throw new Error(`${label}: attemptId ${attemptId} does not resolve to exactly one RouteAttempt in the current DeliberationState`);
+  }
+  return matches[0];
+}
+
+function assertMachineExecutableRoute(route: NonStopDeliberationRoute, label: string): void {
+  if (!MACHINE_EXECUTABLE_ROUTES.includes(route)) {
+    throw new Error(
+      `${label}: route ${route} is not machine-executable -- the external execution envelope covers ADD_REVIEWER/REPLICATE/SEEK_EVIDENCE/TARGETED_PEER_CHALLENGE only (§27.3)`
+    );
+  }
+}
+
+/**
+ * Re-runs the applicable ALREADY-ACCEPTED route readiness for a claim, from
+ * the current authoritative state -- never trusting that an earlier
+ * planning/attempt-start gate is still satisfied. Claiming execution for an
+ * attempt whose outcome could never legally be recorded is exactly what this
+ * refuses to authorize.
+ */
+function assertClaimRouteReadiness(session: StressTestSession, currentState: DeliberationState, attempt: RouteAttempt): void {
+  const decision = validateAttemptProvenanceForOutcome(session, currentState, attempt);
+  if (!isQuestionCurrent(currentState, attempt.questionId)) {
+    throw new Error(`claimRouteExecution: question ${attempt.questionId} is not current`);
+  }
+  const active = getActiveRouteDecisionsForQuestion(currentState, attempt.questionId);
+  if (active.length !== 1 || active[0].id !== decision.id) {
+    throw new Error(
+      `claimRouteExecution: question ${attempt.questionId} has no single active deliberation cycle matching the attempt's RouteDecision`
+    );
+  }
+  if (attempt.route === 'SEEK_EVIDENCE') {
+    assertSeekEvidenceSubjectReady(session, currentState, attempt.questionId);
+  } else if (attempt.route === 'TARGETED_PEER_CHALLENGE') {
+    assertTargetedPeerChallengeReady(session, currentState, attempt.questionId);
+  }
+}
+
+function assertLiveExecutionPolicyDecisionShape(decision: LiveExecutionPolicyDecision, label: string): void {
+  if (decision === null || typeof decision !== 'object') {
+    throw new Error(`${label} must return an object`);
+  }
+  if (decision.status === 'DISABLED') {
+    assertExactKeys(decision, ['status'], label);
+    return;
+  }
+  if (decision.status !== 'ENABLED') {
+    throw new Error(`${label}: invalid LiveExecutionPolicyDecision status ${JSON.stringify((decision as { status: unknown }).status)}`);
+  }
+  assertExactKeys(decision, ['status', 'latencyLimitMs'], label);
+}
+
+function buildPreCallFailedCheckpoint(
+  attempt: RouteAttempt,
+  deliberationStateId: string,
+  failure: FailureInfo
+): PreCallFailedTerminalFactReadyCheckpoint {
+  // claimedAt === terminalFactReadyAt: no time was spent attempting a call,
+  // and no latency is ever fabricated (§28.8/§28.13).
+  const at = nowIso();
+  return {
+    phase: 'TERMINAL_FACT_READY',
+    attemptId: attempt.attemptId,
+    deliberationStateId,
+    route: attempt.route,
+    claimedAt: at,
+    reservedLatencyMs: 0,
+    terminalFactReadyAt: at,
+    terminalFact: { kind: 'FAILED', actualLatencyMs: 0, failure: cloneFailureInfo(failure) },
+  };
+}
+
+// --- claimRouteExecution (§28.7-§28.10, §28.17, §28.18) -------------------
+
+/**
+ * The atomic ownership claim AND latency admission/reservation, as ONE
+ * coordination transaction (§28.7). No provider-call-authorized
+ * `ClaimedCheckpoint` is ever returned unless its reservation already
+ * succeeded in that same transaction (EC-8).
+ *
+ * Returns a `PreCallFailedTerminalFactReadyCheckpoint` -- a successful return
+ * value, not an error -- for each of the three checkpoint-producing admission
+ * causes (§28.9). THROWS, creating no checkpoint of any kind, when the
+ * resolved live-execution policy is `DISABLED` (§28.32): "never authorized to
+ * be attempted" is categorically distinct from "authorized but not admissible
+ * this time".
+ *
+ * Calls no provider. Selects no model. Generates no prompt.
+ */
+export function claimRouteExecution(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  store: RouteExecutionCheckpointStore,
+  deliberationStateAccessPort: DeliberationStateAccessPort,
+  liveExecutionPolicyResolver: LiveExecutionPolicyResolver,
+  input: { attemptId: string }
+): ClaimedCheckpoint | PreCallFailedTerminalFactReadyCheckpoint {
+  if (input === null || typeof input !== 'object') {
+    throw new Error('claimRouteExecution: input must be an object');
+  }
+  // `{ attemptId }` ONLY -- a caller may never restate route, state id,
+  // hashes, latencyLimitMs, reservedLatencyMs, claimedAt, an authorization
+  // flag, spent, or remaining budget (§28.18/EC-20).
+  assertExactKeys(input, ['attemptId'], 'claimRouteExecution');
+  assertNonEmptyString(input.attemptId, 'claimRouteExecution: attemptId');
+
+  // (1) The caller's own state identifies the intended state and verifies the
+  // caller's binding expectation -- it is never the accounting authority.
+  verifyDeliberationBinding(session, deliberationState);
+  const deliberationStateId = deliberationState.id;
+
+  // (2)-(15) all run inside the state coordination boundary, against the
+  // CURRENT authoritative state resolved in there (EC-26/EC-27).
+  return withCurrentDeliberationState<ClaimedCheckpoint | PreCallFailedTerminalFactReadyCheckpoint>(
+    store,
+    deliberationStateAccessPort,
+    deliberationStateId,
+    (currentState) => {
+    verifyDeliberationBinding(session, currentState);
+    const attempt = resolveExactAttempt(currentState, input.attemptId, 'claimRouteExecution');
+    assertMachineExecutableRoute(attempt.route, 'claimRouteExecution');
+    if (currentState.outcomes.some((o) => o.attemptId === input.attemptId)) {
+      throw new Error(`claimRouteExecution: attempt ${input.attemptId} already has a RouteOutcome; execution is already terminalized`);
+    }
+    if (store.getCheckpoint(input.attemptId) !== undefined) {
+      throw new Error(`claimRouteExecution: attempt ${input.attemptId} already has an execution checkpoint; a claim is not repeatable`);
+    }
+    if (currentState.stopReason !== null) {
+      throw new Error('claimRouteExecution: deliberation has already stopped; no further execution may be claimed');
+    }
+    assertClaimRouteReadiness(session, currentState, attempt);
+
+    const policy = liveExecutionPolicyResolver.resolveLiveExecutionPolicy(attempt);
+    assertLiveExecutionPolicyDecisionShape(policy, 'claimRouteExecution: liveExecutionPolicyResolver');
+    if (policy.status === 'DISABLED') {
+      // No checkpoint of any kind -- fail closed (§28.32, EC-20).
+      throw new Error(
+        `claimRouteExecution: live execution is DISABLED for route ${attempt.route}; no execution checkpoint is created and no provider call is authorized`
+      );
+    }
+
+    // Cause 3 first: an unreconciled deadline-contract violation on this state
+    // blocks every further claim, even one the budget would otherwise admit
+    // (§28.14/EC-17).
+    if (hasUnresolvedDeadlineViolation(store, deliberationStateId)) {
+      return {
+        result: store.insertCheckpointIfAbsent(
+          buildPreCallFailedCheckpoint(attempt, deliberationStateId, {
+            category: 'EXECUTION',
+            message: `claimRouteExecution: DeliberationState ${deliberationStateId} has an unresolved DEADLINE_VIOLATION checkpoint; further provider-backed claims are blocked until it is separately reconciled`,
+          })
+        ) as PreCallFailedTerminalFactReadyCheckpoint,
+      };
+    }
+
+    // Cause 1: the policy-derived limit is itself missing/malformed. The raw
+    // value is never stored and no replacement is ever fabricated (EC-16).
+    const limit = policy.latencyLimitMs;
+    if (typeof limit !== 'number' || !Number.isFinite(limit) || !Number.isInteger(limit) || limit <= 0) {
+      return {
+        result: store.insertCheckpointIfAbsent(
+          buildPreCallFailedCheckpoint(attempt, deliberationStateId, {
+            category: 'EXECUTION',
+            message: 'claimRouteExecution: live execution policy returned a missing or malformed latencyLimitMs; no reservation is possible',
+          })
+        ) as PreCallFailedTerminalFactReadyCheckpoint,
+      };
+    }
+
+    // Cause 2: structurally valid, but the state has no remaining reservable
+    // latency. Remaining is computed from CURRENT spent and CURRENT effective
+    // encumbrance, inside the boundary (§28.11/EC-7).
+    const remaining =
+      currentState.latencyBudget.ceiling - currentState.latencyBudget.spent - totalEffectiveLatencyEncumbrance(store, currentState);
+    if (limit > remaining) {
+      return {
+        result: store.insertCheckpointIfAbsent(
+          buildPreCallFailedCheckpoint(attempt, deliberationStateId, {
+            category: 'EXECUTION',
+            message: `claimRouteExecution: requested latency envelope exceeds the remaining reservable latency for DeliberationState ${deliberationStateId}`,
+          })
+        ) as PreCallFailedTerminalFactReadyCheckpoint,
+      };
+    }
+
+    const claimed: ClaimedCheckpoint = {
+      phase: 'CLAIMED',
+      attemptId: attempt.attemptId,
+      deliberationStateId,
+      route: attempt.route,
+      claimedAt: nowIso(),
+      latencyLimitMs: limit,
+      reservedLatencyMs: limit,
+    };
+    return { result: store.insertCheckpointIfAbsent(claimed) as ClaimedCheckpoint };
+    }
+  );
+}
+
+// --- recordExecutionPreCallFailure (§28.33) -------------------------------
+
+/**
+ * The determinate PRE-call failure path -- principally a `REFERENCE_RESOLUTION`
+ * failure `claimRouteExecution`'s own admission logic never detects (§28.33,
+ * EC-21). Follows the frozen 13-step sequence, in which EVERY terminality
+ * precondition reads the CURRENT authoritative state resolved inside
+ * coordination, never the caller's own possibly-stale snapshot (EC-29).
+ *
+ * `failure.category` is restricted to `REFERENCE_RESOLUTION` or `EXECUTION`:
+ * `TRANSPORT` cannot exist before any transport channel was engaged, and
+ * `VALIDATION` cannot exist before any external response was received
+ * (§28.33's restricted allowlist). Calls no provider.
+ */
+export function recordExecutionPreCallFailure(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  store: RouteExecutionCheckpointStore,
+  deliberationStateAccessPort: DeliberationStateAccessPort,
+  liveExecutionPolicyResolver: LiveExecutionPolicyResolver,
+  input: { attemptId: string; failure: FailureInfo }
+): PreCallFailedTerminalFactReadyCheckpoint {
+  if (input === null || typeof input !== 'object') {
+    throw new Error('recordExecutionPreCallFailure: input must be an object');
+  }
+  assertExactKeys(input, ['attemptId', 'failure'], 'recordExecutionPreCallFailure');
+  assertNonEmptyString(input.attemptId, 'recordExecutionPreCallFailure: attemptId');
+
+  // (1) caller state identifies only.
+  verifyDeliberationBinding(session, deliberationState);
+  const deliberationStateId = deliberationState.id;
+
+  // (2) acquire coordination; (3) resolve CURRENT state inside it.
+  return withCurrentDeliberationState(store, deliberationStateAccessPort, deliberationStateId, (currentState) => {
+    verifyDeliberationBinding(session, currentState); // (4)
+    const attempt = resolveExactAttempt(currentState, input.attemptId, 'recordExecutionPreCallFailure'); // (5)
+    if (currentState.outcomes.some((o) => o.attemptId === input.attemptId)) {
+      // (6) -- the stale-snapshot bypass this step exists to close (EC-29).
+      throw new Error(
+        `recordExecutionPreCallFailure: attempt ${input.attemptId} already has a RouteOutcome in the current DeliberationState; a pre-call fact may not be recorded for an already-terminalized attempt`
+      );
+    }
+    if (store.getCheckpoint(input.attemptId) !== undefined) {
+      throw new Error(`recordExecutionPreCallFailure: attempt ${input.attemptId} already has an execution checkpoint`); // (7)
+    }
+    if (currentState.stopReason !== null) {
+      throw new Error('recordExecutionPreCallFailure: deliberation has already stopped');
+    }
+    assertMachineExecutableRoute(attempt.route, 'recordExecutionPreCallFailure'); // (8)
+
+    const policy = liveExecutionPolicyResolver.resolveLiveExecutionPolicy(attempt); // (9)
+    assertLiveExecutionPolicyDecisionShape(policy, 'recordExecutionPreCallFailure: liveExecutionPolicyResolver');
+    if (policy.status === 'DISABLED') {
+      // (10) -- mirrors claimRouteExecution exactly; no checkpoint created.
+      throw new Error(
+        `recordExecutionPreCallFailure: live execution is DISABLED for route ${attempt.route}; no execution checkpoint is created`
+      );
+    }
+    // Note (§28.33): a pre-call failure requires ENABLED but never requires a
+    // reservable latencyLimitMs -- no provider call will ever occur for this
+    // checkpoint, so reservedLatencyMs is 0 unconditionally. A genuine
+    // REFERENCE_RESOLUTION failure is causally prior to a merely-malformed
+    // policy latency configuration and is recorded as such (§27.9's
+    // precedence, unchanged) -- which is why the limit is not inspected here.
+
+    // (11) category scope.
+    assertValidFailureInfo(input.failure, 'recordExecutionPreCallFailure: failure');
+    if (input.failure.category !== 'REFERENCE_RESOLUTION' && input.failure.category !== 'EXECUTION') {
+      throw new Error(
+        `recordExecutionPreCallFailure: failure.category ${input.failure.category} is not a legal pre-call cause -- only REFERENCE_RESOLUTION or EXECUTION (no transport was engaged and no external response exists before a call)`
+      );
+    }
+
+    // (12) atomic create; (13) release on return.
+    return {
+      result: store.insertCheckpointIfAbsent(
+        buildPreCallFailedCheckpoint(attempt, deliberationStateId, input.failure)
+      ) as PreCallFailedTerminalFactReadyCheckpoint,
+    };
+  });
+}
+
+// --- recordExecutionTerminalFact (§28.13/§28.14/§28.18) -------------------
+
+/**
+ * Records an ALREADY-OBTAINED terminal fact for a `CLAIMED` checkpoint. Takes
+ * only the store: it mutates no `DeliberationState` and therefore enters no
+ * state coordination boundary (§28.17's exact surface).
+ *
+ * `actualLatencyMs` is supplied EXACTLY ONCE, at the top level -- `result`
+ * carries no latency field, so there is no second value to disagree with
+ * (EC-18). `DEADLINE_VIOLATION` is derived here, never submitted: derivation
+ * strictly precedes normal classification, so a `SUCCEEDED`/`INCONCLUSIVE`/
+ * `FAILED` submission whose measured latency overran the authorized envelope
+ * is stored as `DEADLINE_VIOLATION`, and the overrun is never clamped or
+ * hidden (§28.14).
+ */
+export function recordExecutionTerminalFact(
+  store: RouteExecutionCheckpointStore,
+  input: { attemptId: string; actualLatencyMs: number; result: ExecutionTerminalResultInput }
+): ReservedTerminalFactReadyCheckpoint {
+  if (input === null || typeof input !== 'object') {
+    throw new Error('recordExecutionTerminalFact: input must be an object');
+  }
+  assertExactKeys(input, ['attemptId', 'actualLatencyMs', 'result'], 'recordExecutionTerminalFact');
+  assertNonEmptyString(input.attemptId, 'recordExecutionTerminalFact: attemptId');
+
+  // (1) resolve the exact, authoritative ClaimedCheckpoint.
+  const existing = store.getCheckpoint(input.attemptId);
+  if (existing === undefined) {
+    throw new Error(`recordExecutionTerminalFact: no execution checkpoint exists for attempt ${input.attemptId}`);
+  }
+  if (existing.phase !== 'CLAIMED') {
+    throw new Error(
+      `recordExecutionTerminalFact: checkpoint for attempt ${input.attemptId} is in phase ${existing.phase}; a terminal fact may only be recorded from CLAIMED`
+    );
+  }
+  const claimed = existing;
+
+  // (2) structural validation of the single supplied latency value --
+  // malformed input is rejected outright, never stored, never substituted.
+  assertFiniteNonNegativeInteger(input.actualLatencyMs, 'recordExecutionTerminalFact: actualLatencyMs');
+
+  const result = input.result;
+  if (result === null || typeof result !== 'object') {
+    throw new Error('recordExecutionTerminalFact: result must be an object');
+  }
+  // A caller cannot even structurally express DEADLINE_VIOLATION: it is not a
+  // member of ExecutionTerminalResultInput, so it fails this same kind check.
+  if (result.kind === 'FAILED') {
+    assertExactKeys(result, ['kind', 'failure'], 'recordExecutionTerminalFact: result');
+  } else if (result.kind === 'SUCCEEDED' || result.kind === 'INCONCLUSIVE') {
+    assertExactKeys(result, ['kind', 'payload'], 'recordExecutionTerminalFact: result');
+  } else {
+    throw new Error(
+      `recordExecutionTerminalFact: result.kind ${JSON.stringify((result as { kind: unknown }).kind)} is not a legal ExecutionTerminalResultInput kind (SUCCEEDED, INCONCLUSIVE, FAILED) -- DEADLINE_VIOLATION is always derived, never submitted`
+    );
+  }
+
+  // (3)/(4) derive the deadline violation BEFORE any normal classification.
+  let terminalFact: ReservedTerminalFact;
+  if (input.actualLatencyMs > claimed.latencyLimitMs) {
+    terminalFact = { kind: 'DEADLINE_VIOLATION', actualLatencyMs: input.actualLatencyMs };
+  } else {
+    // (5) only now is the caller's result trusted to classify.
+    if (result.kind === 'FAILED') {
+      assertValidFailureInfo(result.failure, 'recordExecutionTerminalFact: result.failure');
+      terminalFact = { kind: 'FAILED', actualLatencyMs: input.actualLatencyMs, failure: cloneFailureInfo(result.failure) };
+    } else if (result.kind === 'INCONCLUSIVE') {
+      // Route is re-resolved from the checkpoint, never from caller intent
+      // (§28.13/EC-19) -- mirrors recordRouteOutcome's own guard exactly.
+      if (claimed.route !== 'SEEK_EVIDENCE') {
+        throw new Error(
+          `recordExecutionTerminalFact: INCONCLUSIVE is not representable for route ${claimed.route} -- only SEEK_EVIDENCE supports an indeterminate evidence result`
+        );
+      }
+      assertSeekEvidenceInconclusivePayload(result.payload, 'recordExecutionTerminalFact: result.payload');
+      terminalFact = {
+        kind: 'INCONCLUSIVE',
+        actualLatencyMs: input.actualLatencyMs,
+        payload: cloneSeekEvidenceInconclusivePayload(result.payload),
+      };
+    } else {
+      assertRouteSpecificSuccessPayload(claimed.route, result.payload, 'recordExecutionTerminalFact: result.payload');
+      terminalFact = {
+        kind: 'SUCCEEDED',
+        actualLatencyMs: input.actualLatencyMs,
+        payload: cloneRouteSpecificSuccessPayload(result.payload),
+      };
+    }
+    // EC-9, re-asserted defensively: a normal terminal fact never exceeds its
+    // own reservation. A violation is representable only as
+    // DEADLINE_VIOLATION, never silently clamped into a normal fact.
+    if (input.actualLatencyMs > claimed.reservedLatencyMs) {
+      throw new Error(
+        `recordExecutionTerminalFact: actualLatencyMs ${input.actualLatencyMs} exceeds reservedLatencyMs ${claimed.reservedLatencyMs} for a normal terminal fact`
+      );
+    }
+  }
+
+  const next: ReservedTerminalFactReadyCheckpoint = {
+    phase: 'TERMINAL_FACT_READY',
+    attemptId: claimed.attemptId,
+    deliberationStateId: claimed.deliberationStateId,
+    route: claimed.route,
+    claimedAt: claimed.claimedAt,
+    latencyLimitMs: claimed.latencyLimitMs,
+    reservedLatencyMs: claimed.reservedLatencyMs,
+    terminalFactReadyAt: nowIso(),
+    terminalFact,
+  };
+  return store.replaceCheckpointPhase(claimed.attemptId, 'CLAIMED', next) as ReservedTerminalFactReadyCheckpoint;
+}
+
+// --- persistExecutionTerminalFactAsRouteOutcome (§28.35) ------------------
+
+function deriveRecordRouteOutcomeInput(
+  attemptId: string,
+  terminalFact: ReservedTerminalFact,
+  label: string
+): RecordRouteOutcomeInput {
+  if (terminalFact.kind === 'DEADLINE_VIOLATION') {
+    throw new Error(`${label}: a DEADLINE_VIOLATION terminal fact is permanently non-committable; no RouteOutcome may be derived from it`);
+  }
+  const base = { attemptId, latencyConsumed: terminalFact.actualLatencyMs };
+  if (terminalFact.kind === 'FAILED') {
+    return { ...base, status: 'FAILED', failure: cloneFailureInfo(terminalFact.failure) };
+  }
+  if (terminalFact.kind === 'INCONCLUSIVE') {
+    return {
+      ...base,
+      status: 'INCONCLUSIVE',
+      result: 'INCONCLUSIVE',
+      evidenceSubjectId: terminalFact.payload.evidenceSubjectId,
+      citations: cloneEvidenceCitations(terminalFact.payload.citations),
+    };
+  }
+  // A purely mechanical reassembly: RouteSpecificSuccessPayload was already
+  // frozen as an exact subset of RecordRouteOutcomeInput (§28.13), so this is
+  // a spread, never a normalization step.
+  return { ...base, status: 'SUCCEEDED', ...cloneRouteSpecificSuccessPayload(terminalFact.payload) } as RecordRouteOutcomeInput;
+}
+
+/**
+ * The ONLY legal path to a new `RouteOutcome` for an `attemptId` that owns an
+ * execution checkpoint (§28.35/§28.36, EC-23/EC-30). Replays the STORED
+ * terminal fact exactly -- a caller supplies `{ attemptId }` and nothing else,
+ * so no status, latency, payload, failure, citation, ref, excerpt, or response
+ * can be retyped into a "close enough" but unequal value.
+ *
+ * Calls the canonical, unmodified `recordRouteOutcome` (never a copy of its
+ * validators) against the CURRENT state resolved inside coordination, and
+ * commits the result before releasing (§28.35's 10-step sequence).
+ *
+ * On product-persistence failure it commits nothing and leaves the checkpoint
+ * at `TERMINAL_FACT_READY` with its reservation and terminal fact intact,
+ * available for a later persistence-only reconciliation attempt (§27.11).
+ * There is no automatic reconciliation loop and no provider replay.
+ */
+export function persistExecutionTerminalFactAsRouteOutcome(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  store: RouteExecutionCheckpointStore,
+  deliberationStateAccessPort: DeliberationStateAccessPort,
+  input: { attemptId: string }
+): DeliberationState {
+  if (input === null || typeof input !== 'object') {
+    throw new Error('persistExecutionTerminalFactAsRouteOutcome: input must be an object');
+  }
+  assertExactKeys(input, ['attemptId'], 'persistExecutionTerminalFactAsRouteOutcome');
+  assertNonEmptyString(input.attemptId, 'persistExecutionTerminalFactAsRouteOutcome: attemptId');
+
+  // (1) identity lookup -- the checkpoint's parent binding is fixed once set
+  // and is not itself subject to concurrent mutation (§28.4).
+  const checkpoint = store.getCheckpoint(input.attemptId);
+  if (checkpoint === undefined) {
+    throw new Error(`persistExecutionTerminalFactAsRouteOutcome: no execution checkpoint exists for attempt ${input.attemptId}`);
+  }
+  if (deliberationState.id !== checkpoint.deliberationStateId) {
+    throw new Error(
+      `persistExecutionTerminalFactAsRouteOutcome: caller DeliberationState ${deliberationState.id} does not own checkpoint for attempt ${input.attemptId}`
+    );
+  }
+  verifyDeliberationBinding(session, deliberationState);
+
+  // (2)/(3) coordinate, then resolve CURRENT state inside the boundary.
+  return withCurrentDeliberationState(store, deliberationStateAccessPort, checkpoint.deliberationStateId, (currentState) => {
+    verifyDeliberationBinding(session, currentState);
+    // (4) re-resolve the checkpoint -- defends against a concurrent second
+    // commit attempt between the identity lookup and the boundary.
+    const live = store.getCheckpoint(input.attemptId);
+    if (live === undefined || live.phase !== 'TERMINAL_FACT_READY') {
+      throw new Error(
+        `persistExecutionTerminalFactAsRouteOutcome: checkpoint for attempt ${input.attemptId} is not in TERMINAL_FACT_READY`
+      );
+    }
+    const terminalFact = (live as ReservedTerminalFactReadyCheckpoint).terminalFact;
+    // (5) derive the exact input from the stored fact (rejects DEADLINE_VIOLATION).
+    const outcomeInput = deriveRecordRouteOutcomeInput(input.attemptId, terminalFact, 'persistExecutionTerminalFactAsRouteOutcome');
+    // (6) canonical, unmodified product validator. (7) no provider call, ever.
+    const nextState = recordRouteOutcome(session, currentState, outcomeInput);
+    // (8) commit before releasing; (9) return.
+    return { nextState, result: nextState };
+  });
+}
+
+// --- markExecutionOutcomeCommitted (§28.19) -------------------------------
+
+/**
+ * Acknowledges that the authoritative `RouteOutcome` for this checkpoint's
+ * terminal fact now exists and EXACTLY agrees with it (§28.19). No
+ * adjacency-only trust: "an outcome exists somewhere" is never sufficient.
+ * Retains `terminalFact` on the committed checkpoint -- compaction is not
+ * authorized (§28.15/EC-24).
+ */
+export function markExecutionOutcomeCommitted(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  store: RouteExecutionCheckpointStore,
+  deliberationStateAccessPort: DeliberationStateAccessPort,
+  input: { attemptId: string }
+): OutcomeCommittedCheckpoint {
+  if (input === null || typeof input !== 'object') {
+    throw new Error('markExecutionOutcomeCommitted: input must be an object');
+  }
+  assertExactKeys(input, ['attemptId'], 'markExecutionOutcomeCommitted');
+  assertNonEmptyString(input.attemptId, 'markExecutionOutcomeCommitted: attemptId');
+
+  const checkpoint = store.getCheckpoint(input.attemptId);
+  if (checkpoint === undefined) {
+    throw new Error(`markExecutionOutcomeCommitted: no execution checkpoint exists for attempt ${input.attemptId}`);
+  }
+  if (deliberationState.id !== checkpoint.deliberationStateId) {
+    throw new Error(
+      `markExecutionOutcomeCommitted: caller DeliberationState ${deliberationState.id} does not own checkpoint for attempt ${input.attemptId}`
+    );
+  }
+  verifyDeliberationBinding(session, deliberationState);
+
+  return withCurrentDeliberationState(store, deliberationStateAccessPort, checkpoint.deliberationStateId, (currentState) => {
+    verifyDeliberationBinding(session, currentState);
+    const live = store.getCheckpoint(input.attemptId);
+    if (live === undefined || live.phase !== 'TERMINAL_FACT_READY') {
+      throw new Error(
+        `markExecutionOutcomeCommitted: checkpoint for attempt ${input.attemptId} is not in TERMINAL_FACT_READY; OUTCOME_COMMITTED is terminal and a second acknowledgement is rejected`
+      );
+    }
+    const tfr = live as ReservedTerminalFactReadyCheckpoint;
+    if (tfr.terminalFact.kind === 'DEADLINE_VIOLATION') {
+      throw new Error(
+        `markExecutionOutcomeCommitted: attempt ${input.attemptId} recorded a DEADLINE_VIOLATION; it is permanently non-committable (§28.14)`
+      );
+    }
+    // (2) exactly one authoritative RouteOutcome, in the CURRENT state.
+    const matches = currentState.outcomes.filter((o) => o.attemptId === input.attemptId);
+    if (matches.length !== 1) {
+      throw new Error(
+        `markExecutionOutcomeCommitted: attempt ${input.attemptId} does not resolve to exactly one RouteOutcome in the current DeliberationState`
+      );
+    }
+    // (3)/(4) exact agreement, via the ONE shared projection boundary --
+    // this is what detects a self-consistently altered RouteOutcome that
+    // timestamps alone could never reveal.
+    const projected = projectRouteOutcomeToTerminalFact(matches[0]);
+    if (!terminalFactsExactlyAgree(projected, tfr.terminalFact)) {
+      throw new Error(
+        `markExecutionOutcomeCommitted: the authoritative RouteOutcome for attempt ${input.attemptId} does not exactly agree with the checkpointed terminal fact`
+      );
+    }
+    // (5) parent/route binding still valid against the authoritative attempt.
+    const attempt = resolveExactAttempt(currentState, input.attemptId, 'markExecutionOutcomeCommitted');
+    if (attempt.route !== tfr.route || matches[0].route !== tfr.route) {
+      throw new Error(`markExecutionOutcomeCommitted: checkpoint route ${tfr.route} disagrees with the authoritative RouteAttempt/RouteOutcome`);
+    }
+    assertGlobalLatencyIntegrity(store, currentState, 'markExecutionOutcomeCommitted');
+
+    const committed: OutcomeCommittedCheckpoint = {
+      phase: 'OUTCOME_COMMITTED',
+      attemptId: tfr.attemptId,
+      deliberationStateId: tfr.deliberationStateId,
+      route: tfr.route,
+      claimedAt: tfr.claimedAt,
+      terminalFactReadyAt: tfr.terminalFactReadyAt,
+      outcomeCommittedAt: nowIso(),
+      terminalFact: cloneReservedTerminalFact(tfr.terminalFact),
+    };
+    return {
+      result: store.replaceCheckpointPhase(tfr.attemptId, 'TERMINAL_FACT_READY', committed) as OutcomeCommittedCheckpoint,
+    };
+  });
+}
+
+// --- performCoordinatedLatencyWrite (§28.34.5/§28.36.4) -------------------
+
+/**
+ * The coordinated wrapper for every NEW latency-consuming write that is NOT
+ * checkpoint-backed replay -- `recordRouteOutcome`'s `ADD_CONTEXT`
+ * `SUPPLIED`/`DECLINED` and generic-`FAILED` branches, and
+ * `closeContextRequestWithoutResponse`'s `NO_RESPONSE` closure.
+ *
+ * Enters coordination UNCONDITIONALLY (EC-26): the question "is effective
+ * encumbrance currently positive?" is answered only INSIDE the boundary,
+ * never as a pre-boundary gate used to decide whether to enter it -- that
+ * pre-check is itself racy across the zero-to-positive transition.
+ *
+ * Rejects outright if any checkpoint exists for `attemptId`, regardless of its
+ * phase, `reservedLatencyMs`, or `effectiveLatencyEncumbrance` (§28.36) -- an
+ * identity/authority gate, not a budget gate. Zero reservation never restores
+ * an uncheckpointed write path (EC-30).
+ *
+ * The canonical product validators are called unmodified and are never made to
+ * inspect checkpoint state themselves (§28.34.8/EC-25). No automatic retry.
+ */
+export function performCoordinatedLatencyWrite(
+  store: RouteExecutionCheckpointStore,
+  deliberationStateAccessPort: DeliberationStateAccessPort,
+  deliberationStateId: string,
+  attemptId: string,
+  operation: (currentState: DeliberationState) => DeliberationState
+): DeliberationState {
+  assertNonEmptyString(deliberationStateId, 'performCoordinatedLatencyWrite: deliberationStateId');
+  assertNonEmptyString(attemptId, 'performCoordinatedLatencyWrite: attemptId');
+  if (typeof operation !== 'function') {
+    throw new Error('performCoordinatedLatencyWrite: operation must be a function');
+  }
+  return withCurrentDeliberationState(store, deliberationStateAccessPort, deliberationStateId, (currentState) => {
+    if (store.getCheckpoint(attemptId) !== undefined) {
+      throw new Error(
+        `performCoordinatedLatencyWrite: attempt ${attemptId} already owns an execution checkpoint; the only legal path to a new RouteOutcome for it is persistExecutionTerminalFactAsRouteOutcome (§28.36)`
+      );
+    }
+    const encumbrance = totalEffectiveLatencyEncumbrance(store, currentState);
+    if (encumbrance > 0) {
+      throw new Error(
+        `performCoordinatedLatencyWrite: DeliberationState ${deliberationStateId} currently holds ${encumbrance}ms of active effective latency encumbrance; this uncheckpointed write is deferred rather than permitted to bypass the reservation`
+      );
+    }
+    const nextState = operation(currentState);
+    if (nextState === null || typeof nextState !== 'object' || nextState.id !== deliberationStateId) {
+      throw new Error('performCoordinatedLatencyWrite: operation must return a DeliberationState for the same deliberationStateId');
+    }
+    return { nextState, result: nextState };
+  });
+}
+
+// --- assertRouteExecutionCheckpointIntegrity (§28.20) ---------------------
+
+const CLAIMED_KEYS = ['phase', 'attemptId', 'deliberationStateId', 'route', 'claimedAt', 'latencyLimitMs', 'reservedLatencyMs'] as const;
+const RESERVED_TFR_KEYS = [...CLAIMED_KEYS, 'terminalFactReadyAt', 'terminalFact'] as const;
+const PRE_CALL_TFR_KEYS = [
+  'phase',
+  'attemptId',
+  'deliberationStateId',
+  'route',
+  'claimedAt',
+  'reservedLatencyMs',
+  'terminalFactReadyAt',
+  'terminalFact',
+] as const;
+const COMMITTED_KEYS = [
+  'phase',
+  'attemptId',
+  'deliberationStateId',
+  'route',
+  'claimedAt',
+  'terminalFactReadyAt',
+  'outcomeCommittedAt',
+  'terminalFact',
+] as const;
+
+function assertTerminalFactShape(
+  fact: ReservedTerminalFact,
+  route: NonStopDeliberationRoute,
+  label: string
+): void {
+  if (fact === null || typeof fact !== 'object') {
+    throw new Error(`${label} must be an object`);
+  }
+  switch (fact.kind) {
+    case 'DEADLINE_VIOLATION':
+      assertExactKeys(fact, ['kind', 'actualLatencyMs'], label);
+      assertFiniteNonNegativeInteger(fact.actualLatencyMs, `${label}.actualLatencyMs`);
+      return;
+    case 'FAILED':
+      assertExactKeys(fact, ['kind', 'actualLatencyMs', 'failure'], label);
+      assertFiniteNonNegativeInteger(fact.actualLatencyMs, `${label}.actualLatencyMs`);
+      assertValidFailureInfo(fact.failure, `${label}.failure`);
+      return;
+    case 'INCONCLUSIVE':
+      assertExactKeys(fact, ['kind', 'actualLatencyMs', 'payload'], label);
+      assertFiniteNonNegativeInteger(fact.actualLatencyMs, `${label}.actualLatencyMs`);
+      if (route !== 'SEEK_EVIDENCE') {
+        throw new Error(`${label}: INCONCLUSIVE is legal only for route SEEK_EVIDENCE (got ${route})`);
+      }
+      assertSeekEvidenceInconclusivePayload(fact.payload, `${label}.payload`);
+      return;
+    case 'SUCCEEDED':
+      assertExactKeys(fact, ['kind', 'actualLatencyMs', 'payload'], label);
+      assertFiniteNonNegativeInteger(fact.actualLatencyMs, `${label}.actualLatencyMs`);
+      assertRouteSpecificSuccessPayload(route, fact.payload, `${label}.payload`);
+      return;
+    default:
+      throw new Error(`${label}: invalid terminal fact kind ${JSON.stringify((fact as { kind: unknown }).kind)}`);
+  }
+}
+
+function assertOneCheckpointIntegrity(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  checkpoint: RouteExecutionCheckpoint,
+  label: string
+): void {
+  if (checkpoint === null || typeof checkpoint !== 'object') {
+    throw new Error(`${label}: checkpoint must be an object`);
+  }
+  assertNonEmptyString(checkpoint.attemptId, `${label}: attemptId`);
+  if (checkpoint.deliberationStateId !== deliberationState.id) {
+    throw new Error(
+      `${label}: checkpoint for attempt ${checkpoint.attemptId} is bound to DeliberationState ${checkpoint.deliberationStateId}, not ${deliberationState.id}`
+    );
+  }
+  // Never trust checkpoint self-consistency: the attempt must resolve
+  // exactly, against the authoritative ledger, and route must agree -- a
+  // self-consistent forged child checkpoint fails here (§28.4/EC-4).
+  const attempt = resolveExactAttempt(deliberationState, checkpoint.attemptId, label);
+  if (attempt.route !== checkpoint.route) {
+    throw new Error(
+      `${label}: checkpoint route ${checkpoint.route} disagrees with the authoritative RouteAttempt.route ${attempt.route}`
+    );
+  }
+  assertNonEmptyString(checkpoint.claimedAt, `${label}: claimedAt`);
+  if (Number.isNaN(Date.parse(checkpoint.claimedAt))) {
+    throw new Error(`${label}: claimedAt is not a parseable timestamp`);
+  }
+
+  if (checkpoint.phase === 'CLAIMED') {
+    assertExactKeys(checkpoint, CLAIMED_KEYS, label);
+    assertFinitePositiveInteger(checkpoint.latencyLimitMs, `${label}: latencyLimitMs`);
+    assertFinitePositiveInteger(checkpoint.reservedLatencyMs, `${label}: reservedLatencyMs`);
+    if (checkpoint.reservedLatencyMs !== checkpoint.latencyLimitMs) {
+      throw new Error(`${label}: reservedLatencyMs must equal latencyLimitMs for a CLAIMED checkpoint`);
+    }
+    return;
+  }
+
+  if (checkpoint.phase === 'TERMINAL_FACT_READY') {
+    assertNonEmptyString(checkpoint.terminalFactReadyAt, `${label}: terminalFactReadyAt`);
+    if (Date.parse(checkpoint.claimedAt) > Date.parse(checkpoint.terminalFactReadyAt)) {
+      throw new Error(`${label}: claimedAt must be <= terminalFactReadyAt`);
+    }
+    if (isPreCallFailedCheckpoint(checkpoint)) {
+      assertExactKeys(checkpoint, PRE_CALL_TFR_KEYS, label);
+      if (checkpoint.reservedLatencyMs !== 0) {
+        throw new Error(`${label}: a pre-call-failed checkpoint must carry reservedLatencyMs === 0`);
+      }
+      if (checkpoint.terminalFactReadyAt !== checkpoint.claimedAt) {
+        throw new Error(`${label}: a pre-call-failed checkpoint must carry terminalFactReadyAt === claimedAt (no time was spent attempting a call)`);
+      }
+      if (checkpoint.terminalFact.kind !== 'FAILED' || checkpoint.terminalFact.actualLatencyMs !== 0) {
+        throw new Error(`${label}: a pre-call-failed checkpoint's terminal fact must be FAILED with actualLatencyMs === 0`);
+      }
+      assertValidFailureInfo(checkpoint.terminalFact.failure, `${label}: terminalFact.failure`);
+      return;
+    }
+    const reserved = checkpoint as ReservedTerminalFactReadyCheckpoint;
+    assertExactKeys(reserved, RESERVED_TFR_KEYS, label);
+    assertFinitePositiveInteger(reserved.latencyLimitMs, `${label}: latencyLimitMs`);
+    assertFinitePositiveInteger(reserved.reservedLatencyMs, `${label}: reservedLatencyMs`);
+    if (reserved.reservedLatencyMs !== reserved.latencyLimitMs) {
+      throw new Error(`${label}: reservedLatencyMs must equal latencyLimitMs`);
+    }
+    assertTerminalFactShape(reserved.terminalFact, reserved.route, `${label}: terminalFact`);
+    if (reserved.terminalFact.kind === 'DEADLINE_VIOLATION') {
+      if (reserved.terminalFact.actualLatencyMs <= reserved.latencyLimitMs) {
+        throw new Error(`${label}: a DEADLINE_VIOLATION terminal fact must carry actualLatencyMs > latencyLimitMs`);
+      }
+      if (deliberationState.outcomes.some((o) => o.attemptId === reserved.attemptId)) {
+        throw new Error(`${label}: a DEADLINE_VIOLATION attempt must never have a RouteOutcome (§28.14)`);
+      }
+    } else if (reserved.terminalFact.actualLatencyMs > reserved.reservedLatencyMs) {
+      throw new Error(`${label}: actualLatencyMs exceeds reservedLatencyMs for a normal terminal fact (EC-9)`);
+    }
+    return;
+  }
+
+  if (checkpoint.phase === 'OUTCOME_COMMITTED') {
+    assertExactKeys(checkpoint, COMMITTED_KEYS, label);
+    assertNonEmptyString(checkpoint.terminalFactReadyAt, `${label}: terminalFactReadyAt`);
+    assertNonEmptyString(checkpoint.outcomeCommittedAt, `${label}: outcomeCommittedAt`);
+    if (
+      Date.parse(checkpoint.claimedAt) > Date.parse(checkpoint.terminalFactReadyAt) ||
+      Date.parse(checkpoint.terminalFactReadyAt) > Date.parse(checkpoint.outcomeCommittedAt)
+    ) {
+      throw new Error(`${label}: claimedAt <= terminalFactReadyAt <= outcomeCommittedAt must hold`);
+    }
+    // terminalFact retention is REQUIRED -- a compacted checkpoint produced
+    // under this contract is rejected here (§28.15/EC-24).
+    assertTerminalFactShape(checkpoint.terminalFact, checkpoint.route, `${label}: terminalFact`);
+    if (checkpoint.terminalFact.kind === 'DEADLINE_VIOLATION') {
+      throw new Error(`${label}: a DEADLINE_VIOLATION checkpoint may never reach OUTCOME_COMMITTED (§28.14)`);
+    }
+    const matches = deliberationState.outcomes.filter((o) => o.attemptId === checkpoint.attemptId);
+    if (matches.length !== 1) {
+      throw new Error(`${label}: an OUTCOME_COMMITTED checkpoint requires exactly one authoritative RouteOutcome`);
+    }
+    const projected = projectRouteOutcomeToTerminalFact(matches[0]);
+    if (!terminalFactsExactlyAgree(projected, checkpoint.terminalFact)) {
+      throw new Error(
+        `${label}: the authoritative RouteOutcome for attempt ${checkpoint.attemptId} no longer exactly agrees with the retained terminal fact`
+      );
+    }
+    if (matches[0].latencyConsumed !== checkpoint.terminalFact.actualLatencyMs) {
+      throw new Error(`${label}: RouteOutcome.latencyConsumed disagrees with terminalFact.actualLatencyMs`);
+    }
+    return;
+  }
+
+  throw new Error(`${label}: invalid checkpoint phase ${JSON.stringify((checkpoint as { phase: unknown }).phase)}`);
+}
+
+/**
+ * Global-before-local read integrity (§28.20). A PURE validator of the
+ * `deliberationState` snapshot it is given -- it does not resolve "the latest
+ * live state" and takes no `DeliberationStateAccessPort` dependency (§28.20's
+ * fifth-amendment scope clarification). A caller needing integrity checked
+ * against current live state resolves that state through the coordination
+ * boundary first and passes the result in.
+ *
+ * The global reservation invariant is ALWAYS evaluated across every sibling
+ * checkpoint of the state, even when `attemptId` narrows the per-checkpoint
+ * shape checks: a single locally-well-formed checkpoint is not trustworthy in
+ * isolation if its siblings' combined effective encumbrance overruns the
+ * ceiling.
+ */
+export function assertRouteExecutionCheckpointIntegrity(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  store: RouteExecutionCheckpointStore,
+  attemptId?: string
+): void {
+  verifyDeliberationBinding(session, deliberationState);
+  const label = 'assertRouteExecutionCheckpointIntegrity';
+  const siblings = store.listCheckpointsForDeliberationState(deliberationState.id);
+
+  // Global first.
+  assertGlobalLatencyIntegrity(store, deliberationState, label);
+
+  const seen = new Set<string>();
+  for (const sibling of siblings) {
+    if (seen.has(sibling.attemptId)) {
+      throw new Error(`${label}: more than one checkpoint exists for attempt ${sibling.attemptId} (EC-3)`);
+    }
+    seen.add(sibling.attemptId);
+  }
+
+  if (attemptId !== undefined) {
+    assertNonEmptyString(attemptId, `${label}: attemptId`);
+    const checkpoint = store.getCheckpoint(attemptId);
+    if (checkpoint === undefined) {
+      throw new Error(`${label}: no execution checkpoint exists for attempt ${attemptId}`);
+    }
+    assertOneCheckpointIntegrity(session, deliberationState, checkpoint, label);
+    return;
+  }
+  for (const sibling of siblings) {
+    assertOneCheckpointIntegrity(session, deliberationState, sibling, label);
+  }
+}
+
+// --- Deterministic offline reference implementations ----------------------
+// In-memory, single-process, synchronous. Proves the coordination CONTRACT
+// only -- never database durability, cross-process atomicity, distributed
+// locking, or crash-safe production persistence (§28.23).
+
+export function createInMemoryRouteExecutionCheckpointStore(): RouteExecutionCheckpointStore {
+  const checkpoints = new Map<string, RouteExecutionCheckpoint>();
+  const held = new Set<string>();
+  return {
+    getCheckpoint(attemptId: string): RouteExecutionCheckpoint | undefined {
+      return checkpoints.get(attemptId);
+    },
+    listCheckpointsForDeliberationState(deliberationStateId: string): RouteExecutionCheckpoint[] {
+      return [...checkpoints.values()].filter((c) => c.deliberationStateId === deliberationStateId);
+    },
+    insertCheckpointIfAbsent(checkpoint: RouteExecutionCheckpoint): RouteExecutionCheckpoint {
+      if (checkpoints.has(checkpoint.attemptId)) {
+        throw new Error(
+          `RouteExecutionCheckpointStore: a checkpoint already exists for attempt ${checkpoint.attemptId}; insert-if-absent is atomic and never overwrites (EC-3/EC-6)`
+        );
+      }
+      checkpoints.set(checkpoint.attemptId, checkpoint);
+      return checkpoint;
+    },
+    replaceCheckpointPhase(
+      attemptId: string,
+      expectedPhase: RouteExecutionCheckpoint['phase'],
+      next: RouteExecutionCheckpoint
+    ): RouteExecutionCheckpoint {
+      const existing = checkpoints.get(attemptId);
+      if (existing === undefined) {
+        throw new Error(`RouteExecutionCheckpointStore: no checkpoint exists for attempt ${attemptId}`);
+      }
+      if (existing.phase !== expectedPhase) {
+        throw new Error(
+          `RouteExecutionCheckpointStore: checkpoint for attempt ${attemptId} is in phase ${existing.phase}, not the expected ${expectedPhase}`
+        );
+      }
+      if (next.attemptId !== attemptId || next.deliberationStateId !== existing.deliberationStateId || next.route !== existing.route) {
+        throw new Error(
+          `RouteExecutionCheckpointStore: a phase transition may never change a checkpoint's attemptId, parent binding, or route`
+        );
+      }
+      checkpoints.set(attemptId, next);
+      return next;
+    },
+    withDeliberationStateCoordination<T>(deliberationStateId: string, operation: () => T): T {
+      // Deterministic single-process ownership. Re-entry is a programming
+      // error, not a supported nesting pattern -- fail closed rather than
+      // silently permit an inner operation to act on a half-built state.
+      if (held.has(deliberationStateId)) {
+        throw new Error(
+          `RouteExecutionCheckpointStore: state coordination for ${deliberationStateId} is already held by an enclosing operation; coordinated operations are never nested`
+        );
+      }
+      held.add(deliberationStateId);
+      try {
+        return operation();
+      } finally {
+        held.delete(deliberationStateId);
+      }
+    },
+  };
+}
+
+export function createInMemoryDeliberationStateAccessPort(
+  initialState: DeliberationState
+): DeliberationStateAccessPort & { current(): DeliberationState } {
+  let state = initialState;
+  return {
+    resolveCurrentDeliberationState(deliberationStateId: string): DeliberationState {
+      if (state.id !== deliberationStateId) {
+        throw new Error(`DeliberationStateAccessPort: no DeliberationState ${deliberationStateId} is known to this port`);
+      }
+      return state;
+    },
+    commitDeliberationState(nextState: DeliberationState): void {
+      if (nextState === null || typeof nextState !== 'object' || nextState.id !== state.id) {
+        throw new Error('DeliberationStateAccessPort: a committed DeliberationState must carry the same id');
+      }
+      state = nextState;
+    },
+    current(): DeliberationState {
+      return state;
+    },
+  };
+}
+
+/**
+ * A fixed policy for tests/composition. Carries no provider or model name --
+ * live-execution authority and provider selection are separate concerns, and
+ * selection remains OPEN (§28.29).
+ */
+export function createStaticLiveExecutionPolicyResolver(
+  decide: LiveExecutionPolicyDecision | ((attempt: RouteAttempt) => LiveExecutionPolicyDecision)
+): LiveExecutionPolicyResolver {
+  return {
+    resolveLiveExecutionPolicy(attempt: RouteAttempt): LiveExecutionPolicyDecision {
+      return typeof decide === 'function' ? decide(attempt) : decide;
+    },
+  };
+}

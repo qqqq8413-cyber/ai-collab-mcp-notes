@@ -28,6 +28,20 @@ import {
   assertSessionVersionLineageChildIntegrity,
   closeContextRequestWithoutResponse,
   registerEvidenceSubject,
+  claimRouteExecution,
+  recordExecutionPreCallFailure,
+  recordExecutionTerminalFact,
+  markExecutionOutcomeCommitted,
+  persistExecutionTerminalFactAsRouteOutcome,
+  assertRouteExecutionCheckpointIntegrity,
+  projectRouteOutcomeToTerminalFact,
+  terminalFactsExactlyAgree,
+  effectiveLatencyEncumbrance,
+  totalEffectiveLatencyEncumbrance,
+  performCoordinatedLatencyWrite,
+  createInMemoryRouteExecutionCheckpointStore,
+  createInMemoryDeliberationStateAccessPort,
+  createStaticLiveExecutionPolicyResolver,
 } from './dist/stress-test/index.js';
 
 let passed = 0;
@@ -8294,6 +8308,1079 @@ check('recordRouteOutcome: after one successful TARGETED_PEER_CHALLENGE outcome,
     assert.throws(attemptFn, /already has a RouteOutcome/);
   }
   assert.equal(withOutcome.outcomes.length, 1);
+});
+
+// ==================================================================
+// Slice 2D-D1-A — execution coordination OFFLINE runtime
+//
+// Every "execution result" below is a manually supplied, already-obtained
+// normalized terminal fact. No provider is imported, constructed, or called
+// anywhere in this section: provider/model calls = 0, retrieval = 0, TPC
+// execution = 0, Round 2 = 0, M2-B = 0.
+//
+// These prove API/store-CONTRACT conformance within one process only --
+// never cross-process durability or distributed atomicity (§28.23).
+// ==================================================================
+
+const ENABLED_POLICY = (latencyLimitMs) => createStaticLiveExecutionPolicyResolver({ status: 'ENABLED', latencyLimitMs });
+const DISABLED_POLICY = createStaticLiveExecutionPolicyResolver({ status: 'DISABLED' });
+
+/** A started REPLICATE (machine) attempt plus a fresh in-memory coordination runtime. */
+function buildReplicateExecFixture({ latencyCeiling = 100, latencyLimitMs = 50 } = {}) {
+  const { session, state, decision, question, issueId } = buildStartedAttemptFixture('STABILITY_QUESTION', 50, latencyCeiling);
+  const attempt = state.attempts[0];
+  return {
+    session,
+    state,
+    decision,
+    question,
+    issueId,
+    attempt,
+    store: createInMemoryRouteExecutionCheckpointStore(),
+    port: createInMemoryDeliberationStateAccessPort(state),
+    resolver: ENABLED_POLICY(latencyLimitMs),
+    successPayload: { result: 'REPRODUCED', targetRef: { kind: 'SEMANTIC_ISSUE', id: issueId } },
+  };
+}
+
+/** Two started machine attempts (ADD_REVIEWER + REPLICATE) sharing one DeliberationState. */
+function buildTwoMachineAttemptFixture(latencyCeiling = 100, reviewerRunId = 'run-A') {
+  const f = buildTwoQuestionDecisionFixture(50, latencyCeiling);
+  let state = recordRouteAttemptStart(f.session, f.state, f.firstDecision.id);
+  state = recordRouteAttemptStart(f.session, state, f.secondDecision.id);
+  const attemptA = state.attempts.find((a) => a.decisionId === f.firstDecision.id);
+  const attemptB = state.attempts.find((a) => a.decisionId === f.secondDecision.id);
+  const added = addReviewerFinding(f.session, reviewerRunId);
+  const issueRef = f.firstDecision.inputRefs[0];
+  return {
+    session: added.session,
+    state,
+    attemptA,
+    attemptB,
+    payloadA: { reviewerRunId, findingIds: [added.findingId] },
+    payloadB: { result: 'REPRODUCED', targetRef: issueRef },
+    store: createInMemoryRouteExecutionCheckpointStore(),
+    port: createInMemoryDeliberationStateAccessPort(state),
+  };
+}
+
+/** One machine (REPLICATE) attempt and one non-machine ADD_CONTEXT attempt with an open ContextRequest, in one state. */
+function buildMixedExecFixture(latencyCeiling = 100) {
+  const { session, issueId, findingIds } = buildFixtureWithIssue();
+  let state = createDeliberationState(session, { costCeiling: 50, latencyCeiling });
+  const q1 = buildRegisteredQuestion(session, state, {
+    rootCause: 'STABILITY_QUESTION',
+    materialityReason: 'the reported instability must be replicated before it is trusted',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  state = q1.state;
+  const q2 = buildRegisteredQuestion(session, state, {
+    rootCause: 'CONTEXT_GAP',
+    materialityReason: 'the author must supply the missing budget constraint',
+    inputRefs: [{ kind: 'FINDING', id: findingIds[0] }],
+  });
+  state = q2.state;
+  const d1 = planRouteForQuestion(session, state, q1.question);
+  state = recordRouteDecision(session, state, d1);
+  const d2 = planRouteForQuestion(session, state, q2.question);
+  state = recordRouteDecision(session, state, d2);
+  state = recordRouteAttemptStart(session, state, d1.id);
+  state = recordRouteAttemptStart(session, state, d2.id);
+  const machineAttempt = state.attempts.find((a) => a.decisionId === d1.id);
+  const contextAttempt = state.attempts.find((a) => a.decisionId === d2.id);
+  const requested = createContextRequest(session, state, {
+    attemptId: contextAttempt.attemptId,
+    category: 'constraints',
+    question: 'What is the actual budget ceiling?',
+    inferenceReason: 'needed to evaluate the consolidation claim',
+  });
+  state = requested.deliberationState;
+  return {
+    session,
+    state,
+    issueId,
+    machineAttempt,
+    contextAttempt,
+    contextRequest: requested.contextRequest,
+    machinePayload: { result: 'REPRODUCED', targetRef: { kind: 'SEMANTIC_ISSUE', id: issueId } },
+    store: createInMemoryRouteExecutionCheckpointStore(),
+    port: createInMemoryDeliberationStateAccessPort(state),
+  };
+}
+
+// --- §34. Claim cardinality & aggregation ----------------------------------
+
+check('claimRouteExecution: two claims for the same attemptId -- exactly one obtains ownership, the second is rejected, no provider call occurs', () => {
+  const { session, state, attempt, store, port, resolver } = buildReplicateExecFixture();
+  const first = claimRouteExecution(session, state, store, port, resolver, { attemptId: attempt.attemptId });
+  assert.equal(first.phase, 'CLAIMED');
+  assert.throws(
+    () => claimRouteExecution(session, state, store, port, resolver, { attemptId: attempt.attemptId }),
+    /already has an execution checkpoint/
+  );
+  assert.equal(store.listCheckpointsForDeliberationState(state.id).length, 1);
+  assert.equal(store.getCheckpoint(attempt.attemptId).phase, 'CLAIMED');
+});
+
+check('claimRouteExecution: reservations aggregate against current authoritative state -- a stale capacity snapshot cannot authorize two claims beyond the ceiling', () => {
+  const { session, state, attemptA, attemptB, store, port } = buildTwoMachineAttemptFixture(100);
+  const resolver = createStaticLiveExecutionPolicyResolver({ status: 'ENABLED', latencyLimitMs: 60 });
+  const a = claimRouteExecution(session, state, store, port, resolver, { attemptId: attemptA.attemptId });
+  assert.equal(a.phase, 'CLAIMED');
+  assert.equal(a.reservedLatencyMs, 60);
+  // B is handed the SAME pre-claim state A was handed. Remaining is computed
+  // from current state + current encumbrance inside the boundary: 100-0-60=40.
+  const b = claimRouteExecution(session, state, store, port, resolver, { attemptId: attemptB.attemptId });
+  assert.equal(b.phase, 'TERMINAL_FACT_READY');
+  assert.equal(b.reservedLatencyMs, 0);
+  assert.equal(b.terminalFact.failure.category, 'EXECUTION');
+  assert.equal(totalEffectiveLatencyEncumbrance(store, port.current()), 60);
+});
+
+// --- §35. Live-execution policy --------------------------------------------
+
+check('claimRouteExecution: a DISABLED live-execution policy rejects with NO checkpoint of any kind and no reservation', () => {
+  const { session, state, attempt, store, port } = buildReplicateExecFixture();
+  assert.throws(
+    () => claimRouteExecution(session, state, store, port, DISABLED_POLICY, { attemptId: attempt.attemptId }),
+    /live execution is DISABLED/
+  );
+  assert.equal(store.getCheckpoint(attempt.attemptId), undefined);
+  assert.equal(store.listCheckpointsForDeliberationState(state.id).length, 0);
+});
+
+check('claimRouteExecution: a policy ENABLED only for a different route rejects this attempt exactly like a general DISABLED', () => {
+  const { session, state, attempt, store, port } = buildReplicateExecFixture();
+  const routeScoped = createStaticLiveExecutionPolicyResolver((a) =>
+    a.route === 'ADD_REVIEWER' ? { status: 'ENABLED', latencyLimitMs: 10 } : { status: 'DISABLED' }
+  );
+  assert.throws(() => claimRouteExecution(session, state, store, port, routeScoped, { attemptId: attempt.attemptId }), /DISABLED/);
+  assert.equal(store.getCheckpoint(attempt.attemptId), undefined);
+});
+
+check('claimRouteExecution: ENABLED with a valid limit produces a CLAIMED checkpoint carrying exactly the policy-resolved latencyLimitMs', () => {
+  const { session, state, attempt, store, port } = buildReplicateExecFixture();
+  const claimed = claimRouteExecution(session, state, store, port, ENABLED_POLICY(37), { attemptId: attempt.attemptId });
+  assert.equal(claimed.phase, 'CLAIMED');
+  assert.equal(claimed.latencyLimitMs, 37);
+  assert.equal(claimed.reservedLatencyMs, 37);
+  assert.equal(claimed.route, 'REPLICATE');
+  assert.equal(claimed.deliberationStateId, state.id);
+  assert.deepEqual(Object.keys(claimed).sort(), [
+    'attemptId',
+    'claimedAt',
+    'deliberationStateId',
+    'latencyLimitMs',
+    'phase',
+    'reservedLatencyMs',
+    'route',
+  ]);
+});
+
+check('claimRouteExecution: a missing or malformed policy-derived latencyLimitMs produces a pre-call-failed checkpoint with EXECUTION category, zero reservation, and NO latencyLimitMs field at all', () => {
+  for (const bad of [undefined, null, 'ten', Number.NaN, Number.POSITIVE_INFINITY, 0, -5, 12.5]) {
+    const { session, state, attempt, store, port } = buildReplicateExecFixture();
+    const resolver = { resolveLiveExecutionPolicy: () => ({ status: 'ENABLED', latencyLimitMs: bad }) };
+    const result = claimRouteExecution(session, state, store, port, resolver, { attemptId: attempt.attemptId });
+    assert.equal(result.phase, 'TERMINAL_FACT_READY', `latencyLimitMs ${JSON.stringify(bad)}`);
+    assert.equal('latencyLimitMs' in result, false, 'no latencyLimitMs field may exist on a pre-call-failed checkpoint');
+    assert.equal(result.reservedLatencyMs, 0);
+    assert.equal(result.terminalFact.kind, 'FAILED');
+    assert.equal(result.terminalFact.actualLatencyMs, 0);
+    assert.equal(result.terminalFact.failure.category, 'EXECUTION');
+    assert.equal(result.terminalFactReadyAt, result.claimedAt);
+    assert.equal(JSON.stringify(result).includes('"latencyLimitMs"'), false, 'the malformed policy-derived value is never persisted, raw or replaced');
+  }
+});
+
+check('claimRouteExecution: a structurally valid limit exceeding remaining reservable latency produces a pre-call-failed checkpoint, never a CLAIMED one', () => {
+  const { session, state, attempt, store, port } = buildReplicateExecFixture({ latencyCeiling: 10 });
+  const result = claimRouteExecution(session, state, store, port, ENABLED_POLICY(11), { attemptId: attempt.attemptId });
+  assert.equal(result.phase, 'TERMINAL_FACT_READY');
+  assert.equal(result.reservedLatencyMs, 0);
+  assert.equal(result.terminalFact.failure.category, 'EXECUTION');
+  assert.match(result.terminalFact.failure.message, /remaining reservable latency/);
+});
+
+check('claimRouteExecution: a caller attempting to pass latencyLimitMs (or any other extra field) is rejected as an unexpected field', () => {
+  const { session, state, attempt, store, port, resolver } = buildReplicateExecFixture();
+  for (const extra of [{ latencyLimitMs: 5 }, { route: 'REPLICATE' }, { reservedLatencyMs: 1 }, { authorized: true }, { claimedAt: 'now' }]) {
+    assert.throws(
+      () => claimRouteExecution(session, state, store, port, resolver, { attemptId: attempt.attemptId, ...extra }),
+      /unexpected field/
+    );
+  }
+  assert.equal(store.getCheckpoint(attempt.attemptId), undefined);
+});
+
+check('claimRouteExecution: a non-machine ADD_CONTEXT attempt is never claimable for provider-backed execution', () => {
+  const { session, state, contextAttempt, store, port } = buildMixedExecFixture();
+  assert.throws(
+    () => claimRouteExecution(session, state, store, port, ENABLED_POLICY(10), { attemptId: contextAttempt.attemptId }),
+    /not machine-executable/
+  );
+  assert.equal(store.getCheckpoint(contextAttempt.attemptId), undefined);
+});
+
+// --- §36. Deadline violation ------------------------------------------------
+
+check('recordExecutionTerminalFact: a SUCCEEDED submission whose actual latency overruns the limit is stored as DEADLINE_VIOLATION, never clamped and never SUCCEEDED', () => {
+  const { session, state, attempt, store, port, successPayload } = buildReplicateExecFixture({ latencyLimitMs: 100 });
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(100), { attemptId: attempt.attemptId });
+  const tfr = recordExecutionTerminalFact(store, {
+    attemptId: attempt.attemptId,
+    actualLatencyMs: 101,
+    result: { kind: 'SUCCEEDED', payload: successPayload },
+  });
+  assert.equal(tfr.terminalFact.kind, 'DEADLINE_VIOLATION');
+  assert.equal(tfr.terminalFact.actualLatencyMs, 101, 'the true measured latency is never clamped to the limit');
+  assert.equal(tfr.latencyLimitMs, 100);
+  assert.equal('payload' in tfr.terminalFact, false);
+  assert.throws(
+    () => persistExecutionTerminalFactAsRouteOutcome(session, port.current(), store, port, { attemptId: attempt.attemptId }),
+    /non-committable/
+  );
+  assert.equal(port.current().outcomes.length, 0);
+});
+
+check('recordExecutionTerminalFact: a FAILED submission whose actual latency overruns the limit is stored as DEADLINE_VIOLATION, not FAILED', () => {
+  const { session, state, attempt, store, port } = buildReplicateExecFixture({ latencyLimitMs: 100 });
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(100), { attemptId: attempt.attemptId });
+  const tfr = recordExecutionTerminalFact(store, {
+    attemptId: attempt.attemptId,
+    actualLatencyMs: 110,
+    result: { kind: 'FAILED', failure: { category: 'TRANSPORT', message: 'already-obtained transport failure' } },
+  });
+  assert.equal(tfr.terminalFact.kind, 'DEADLINE_VIOLATION');
+  assert.equal(tfr.terminalFact.actualLatencyMs, 110);
+  assert.throws(
+    () => markExecutionOutcomeCommitted(session, port.current(), store, port, { attemptId: attempt.attemptId }),
+    /permanently non-committable/
+  );
+});
+
+check('recordExecutionTerminalFact: an INCONCLUSIVE submission whose actual latency overruns the limit is stored as DEADLINE_VIOLATION, not INCONCLUSIVE', () => {
+  const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture(50, 100);
+  const store = createInMemoryRouteExecutionCheckpointStore();
+  const port = createInMemoryDeliberationStateAccessPort(state);
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(20), { attemptId: attempt.attemptId });
+  const tfr = recordExecutionTerminalFact(store, {
+    attemptId: attempt.attemptId,
+    actualLatencyMs: 21,
+    result: { kind: 'INCONCLUSIVE', payload: { result: 'INCONCLUSIVE', evidenceSubjectId: evidenceSubject.id, citations: [] } },
+  });
+  assert.equal(tfr.terminalFact.kind, 'DEADLINE_VIOLATION');
+  assert.equal(tfr.terminalFact.actualLatencyMs, 21);
+});
+
+check('claimRouteExecution: an unresolved DEADLINE_VIOLATION on the state blocks every subsequent claim, even one the budget would otherwise admit', () => {
+  const { session, state, attemptA, attemptB, store, port, payloadA } = buildTwoMachineAttemptFixture(100);
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(10), { attemptId: attemptA.attemptId });
+  recordExecutionTerminalFact(store, {
+    attemptId: attemptA.attemptId,
+    actualLatencyMs: 11,
+    result: { kind: 'SUCCEEDED', payload: payloadA },
+  });
+  assert.equal(store.getCheckpoint(attemptA.attemptId).terminalFact.kind, 'DEADLINE_VIOLATION');
+  const blocked = claimRouteExecution(session, state, store, port, ENABLED_POLICY(5), { attemptId: attemptB.attemptId });
+  assert.equal(blocked.phase, 'TERMINAL_FACT_READY');
+  assert.equal(blocked.reservedLatencyMs, 0);
+  assert.equal(blocked.terminalFact.failure.category, 'EXECUTION');
+  assert.match(blocked.terminalFact.failure.message, /DEADLINE_VIOLATION/);
+});
+
+check('recordExecutionTerminalFact: a caller can never submit DEADLINE_VIOLATION, nor a second actualLatencyMs alongside the result', () => {
+  const { session, state, attempt, store, port, successPayload } = buildReplicateExecFixture();
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId });
+  assert.throws(
+    () => recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: 5, result: { kind: 'DEADLINE_VIOLATION' } }),
+    /not a legal ExecutionTerminalResultInput kind/
+  );
+  assert.throws(
+    () =>
+      recordExecutionTerminalFact(store, {
+        attemptId: attempt.attemptId,
+        actualLatencyMs: 5,
+        result: { kind: 'SUCCEEDED', payload: successPayload, actualLatencyMs: 9 },
+      }),
+    /unexpected field/
+  );
+  assert.throws(
+    () =>
+      recordExecutionTerminalFact(store, {
+        attemptId: attempt.attemptId,
+        actualLatencyMs: 5,
+        latencyLimitMs: 9,
+        result: { kind: 'SUCCEEDED', payload: successPayload },
+      }),
+    /unexpected field/
+  );
+  for (const bad of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, '5']) {
+    assert.throws(
+      () => recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: bad, result: { kind: 'SUCCEEDED', payload: successPayload } }),
+      /must be a finite integer/
+    );
+  }
+  assert.equal(store.getCheckpoint(attempt.attemptId).phase, 'CLAIMED', 'a rejected recording never mutates the checkpoint');
+});
+
+check('recordExecutionTerminalFact: an actualLatencyMs at or below the limit never produces a DEADLINE_VIOLATION', () => {
+  for (const actual of [0, 49, 50]) {
+    const { session, state, attempt, store, port, successPayload } = buildReplicateExecFixture({ latencyLimitMs: 50 });
+    claimRouteExecution(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId });
+    const tfr = recordExecutionTerminalFact(store, {
+      attemptId: attempt.attemptId,
+      actualLatencyMs: actual,
+      result: { kind: 'SUCCEEDED', payload: successPayload },
+    });
+    assert.equal(tfr.terminalFact.kind, 'SUCCEEDED');
+    assert.equal(tfr.terminalFact.actualLatencyMs, actual);
+  }
+});
+
+// --- §37. INCONCLUSIVE ------------------------------------------------------
+
+check('INCONCLUSIVE lifecycle: a SEEK_EVIDENCE attempt claims, records an INCONCLUSIVE terminal fact, persists an exact INCONCLUSIVE RouteOutcome, commits, and passes read integrity', () => {
+  const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture(50, 100);
+  const store = createInMemoryRouteExecutionCheckpointStore();
+  const port = createInMemoryDeliberationStateAccessPort(state);
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(20), { attemptId: attempt.attemptId });
+  const tfr = recordExecutionTerminalFact(store, {
+    attemptId: attempt.attemptId,
+    actualLatencyMs: 7,
+    result: { kind: 'INCONCLUSIVE', payload: { result: 'INCONCLUSIVE', evidenceSubjectId: evidenceSubject.id, citations: [VALID_CITATION] } },
+  });
+  assert.equal(tfr.terminalFact.kind, 'INCONCLUSIVE');
+  const next = persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attempt.attemptId });
+  const outcome = next.outcomes.find((o) => o.attemptId === attempt.attemptId);
+  assert.equal(outcome.status, 'INCONCLUSIVE');
+  assert.equal(outcome.result, 'INCONCLUSIVE');
+  assert.equal(outcome.latencyConsumed, 7);
+  assert.deepEqual(outcome.citations, [VALID_CITATION]);
+  const committed = markExecutionOutcomeCommitted(session, next, store, port, { attemptId: attempt.attemptId });
+  assert.equal(committed.phase, 'OUTCOME_COMMITTED');
+  assert.equal(committed.terminalFact.kind, 'INCONCLUSIVE', 'terminalFact is retained, never compacted away');
+  assertRouteExecutionCheckpointIntegrity(session, port.current(), store, attempt.attemptId);
+  assertRouteExecutionCheckpointIntegrity(session, port.current(), store);
+});
+
+check('recordExecutionTerminalFact: INCONCLUSIVE is rejected for every non-SEEK_EVIDENCE route, on the re-resolved checkpoint route', () => {
+  const { session, state, attempt, store, port } = buildReplicateExecFixture();
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId });
+  assert.throws(
+    () =>
+      recordExecutionTerminalFact(store, {
+        attemptId: attempt.attemptId,
+        actualLatencyMs: 1,
+        result: { kind: 'INCONCLUSIVE', payload: { result: 'INCONCLUSIVE', evidenceSubjectId: 'x', citations: [] } },
+      }),
+    /INCONCLUSIVE is not representable for route REPLICATE/
+  );
+  assert.equal(store.getCheckpoint(attempt.attemptId).phase, 'CLAIMED');
+});
+
+// --- §38. Pre-call REFERENCE_RESOLUTION failure -----------------------------
+
+check('recordExecutionPreCallFailure: a genuine REFERENCE_RESOLUTION pre-call failure terminalizes with zero reservation, zero latency, and replays exactly into a FAILED RouteOutcome', () => {
+  const { session, state, attempt, store, port } = buildReplicateExecFixture();
+  const failure = { category: 'REFERENCE_RESOLUTION', message: 'the bound target reference no longer resolves' };
+  const cp = recordExecutionPreCallFailure(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId, failure });
+  assert.equal(cp.phase, 'TERMINAL_FACT_READY');
+  assert.equal(cp.reservedLatencyMs, 0);
+  assert.equal('latencyLimitMs' in cp, false);
+  assert.equal(cp.terminalFact.actualLatencyMs, 0);
+  assert.equal(cp.terminalFactReadyAt, cp.claimedAt);
+  assert.equal(effectiveLatencyEncumbrance(cp, state), 0);
+
+  const next = persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attempt.attemptId });
+  const outcome = next.outcomes.find((o) => o.attemptId === attempt.attemptId);
+  assert.equal(outcome.status, 'FAILED');
+  assert.equal(outcome.latencyConsumed, 0);
+  assert.deepEqual(outcome.failure, failure);
+  const committed = markExecutionOutcomeCommitted(session, next, store, port, { attemptId: attempt.attemptId });
+  assert.equal(committed.phase, 'OUTCOME_COMMITTED');
+  assertRouteExecutionCheckpointIntegrity(session, port.current(), store, attempt.attemptId);
+});
+
+check('recordExecutionPreCallFailure: a DISABLED live-execution policy rejects with no checkpoint -- the pre-call API cannot bypass the authorization boundary claimRouteExecution respects', () => {
+  const { session, state, attempt, store, port } = buildReplicateExecFixture();
+  assert.throws(
+    () =>
+      recordExecutionPreCallFailure(session, state, store, port, DISABLED_POLICY, {
+        attemptId: attempt.attemptId,
+        failure: { category: 'REFERENCE_RESOLUTION', message: 'unresolvable reference' },
+      }),
+    /live execution is DISABLED/
+  );
+  assert.equal(store.getCheckpoint(attempt.attemptId), undefined);
+  assert.equal(port.current().outcomes.length, 0);
+});
+
+check('recordExecutionPreCallFailure: only REFERENCE_RESOLUTION and EXECUTION are legal pre-call causes; TRANSPORT and VALIDATION are rejected outright', () => {
+  for (const category of ['TRANSPORT', 'VALIDATION']) {
+    const { session, state, attempt, store, port } = buildReplicateExecFixture();
+    assert.throws(
+      () =>
+        recordExecutionPreCallFailure(session, state, store, port, ENABLED_POLICY(50), {
+          attemptId: attempt.attemptId,
+          failure: { category, message: 'not a legal pre-call cause' },
+        }),
+      /not a legal pre-call cause/
+    );
+    assert.equal(store.getCheckpoint(attempt.attemptId), undefined);
+  }
+  const ok = buildReplicateExecFixture();
+  const cp = recordExecutionPreCallFailure(ok.session, ok.state, ok.store, ok.port, ENABLED_POLICY(50), {
+    attemptId: ok.attempt.attemptId,
+    failure: { category: 'EXECUTION', message: 'determinate pre-call execution-configuration failure' },
+  });
+  assert.equal(cp.terminalFact.failure.category, 'EXECUTION');
+});
+
+check('recordExecutionPreCallFailure: caller input is exactly { attemptId, failure } and an existing checkpoint blocks it', () => {
+  const { session, state, attempt, store, port } = buildReplicateExecFixture();
+  const failure = { category: 'REFERENCE_RESOLUTION', message: 'unresolvable' };
+  assert.throws(
+    () => recordExecutionPreCallFailure(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId, failure, reservedLatencyMs: 0 }),
+    /unexpected field/
+  );
+  recordExecutionPreCallFailure(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId, failure });
+  assert.throws(
+    () => recordExecutionPreCallFailure(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId, failure }),
+    /already has an execution checkpoint/
+  );
+});
+
+// --- §39. Stale pre-call snapshot -------------------------------------------
+
+check('recordExecutionPreCallFailure: a stale caller snapshot can never fabricate a pre-call checkpoint for an attempt the CURRENT state has already terminalized', () => {
+  const { session, state: s0, machineAttempt, store, port, machinePayload } = buildMixedExecFixture();
+  // A concurrent operation terminalizes the attempt and commits S1.
+  const s1 = recordRouteOutcome(session, s0, {
+    attemptId: machineAttempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 3,
+    ...machinePayload,
+  });
+  port.commitDeliberationState(s1);
+  // The caller still holds S0, in which the attempt has no RouteOutcome.
+  assert.equal(s0.outcomes.length, 0);
+  assert.throws(
+    () =>
+      recordExecutionPreCallFailure(session, s0, store, port, ENABLED_POLICY(50), {
+        attemptId: machineAttempt.attemptId,
+        failure: { category: 'REFERENCE_RESOLUTION', message: 'unresolvable' },
+      }),
+    /already has a RouteOutcome in the current DeliberationState/
+  );
+  assert.equal(store.getCheckpoint(machineAttempt.attemptId), undefined);
+  assert.equal(store.listCheckpointsForDeliberationState(s0.id).length, 0);
+  assert.equal(port.current().outcomes.length, 1, 'no product mutation occurred');
+});
+
+check('claimRouteExecution: a stale caller snapshot can never claim an attempt the CURRENT state has already terminalized', () => {
+  const { session, state: s0, machineAttempt, store, port, machinePayload } = buildMixedExecFixture();
+  const s1 = recordRouteOutcome(session, s0, {
+    attemptId: machineAttempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 3,
+    ...machinePayload,
+  });
+  port.commitDeliberationState(s1);
+  assert.throws(
+    () => claimRouteExecution(session, s0, store, port, ENABLED_POLICY(10), { attemptId: machineAttempt.attemptId }),
+    /already has a RouteOutcome/
+  );
+  assert.equal(store.getCheckpoint(machineAttempt.attemptId), undefined);
+});
+
+// --- §40 / §45. Checkpoint-backed exclusivity, no direct-write bypass -------
+
+check('checkpoint exclusivity: a direct coordinated FAILED write with retyped failure data is rejected before any product mutation; only the exact replay persists, with the stored failure intact', () => {
+  const { session, state, attempt, store, port } = buildReplicateExecFixture();
+  const stored = { category: 'REFERENCE_RESOLUTION', message: 'X' };
+  recordExecutionPreCallFailure(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId, failure: stored });
+
+  assert.throws(
+    () =>
+      performCoordinatedLatencyWrite(store, port, state.id, attempt.attemptId, (current) =>
+        recordRouteOutcome(session, current, {
+          attemptId: attempt.attemptId,
+          status: 'FAILED',
+          latencyConsumed: 0,
+          failure: { category: 'EXECUTION', message: 'Y' },
+        })
+      ),
+    /already owns an execution checkpoint/
+  );
+  assert.equal(port.current().outcomes.length, 0, 'rejected before any product-domain mutation');
+
+  const next = persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attempt.attemptId });
+  const outcome = next.outcomes.find((o) => o.attemptId === attempt.attemptId);
+  assert.deepEqual(outcome.failure, { category: 'REFERENCE_RESOLUTION', message: 'X' });
+  assert.equal(outcome.latencyConsumed, 0);
+  assert.equal(JSON.stringify(next.outcomes).includes('"Y"'), false, 'no caller retyping survives anywhere in the resulting RouteOutcome');
+});
+
+check('checkpoint exclusivity: a zero-reservation checkpoint produced by the CLAIM admission path also blocks a direct write -- the bypass is gated on checkpoint existence, never on budget occupancy', () => {
+  const { session, state, attempt, store, port } = buildReplicateExecFixture({ latencyCeiling: 10 });
+  const rejected = claimRouteExecution(session, state, store, port, ENABLED_POLICY(11), { attemptId: attempt.attemptId });
+  assert.equal(rejected.reservedLatencyMs, 0);
+  assert.equal(effectiveLatencyEncumbrance(rejected, state), 0);
+  assert.throws(
+    () =>
+      performCoordinatedLatencyWrite(store, port, state.id, attempt.attemptId, (current) =>
+        recordRouteOutcome(session, current, {
+          attemptId: attempt.attemptId,
+          status: 'FAILED',
+          latencyConsumed: 0,
+          failure: { category: 'EXECUTION', message: 'retyped by a caller' },
+        })
+      ),
+    /already owns an execution checkpoint/
+  );
+  assert.equal(port.current().outcomes.length, 0);
+});
+
+check('checkpoint exclusivity: a direct coordinated write is rejected at every checkpoint phase where no RouteOutcome yet exists', () => {
+  const directWrite = (session, store, port, stateId, attemptId) =>
+    performCoordinatedLatencyWrite(store, port, stateId, attemptId, (current) =>
+      recordRouteOutcome(session, current, {
+        attemptId,
+        status: 'FAILED',
+        latencyConsumed: 0,
+        failure: { category: 'EXECUTION', message: 'direct uncheckpointed write' },
+      })
+    );
+
+  // CLAIMED
+  {
+    const { session, state, attempt, store, port } = buildReplicateExecFixture();
+    claimRouteExecution(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId });
+    assert.throws(() => directWrite(session, store, port, state.id, attempt.attemptId), /already owns an execution checkpoint/);
+  }
+  // PRE_CALL_FAILED
+  {
+    const { session, state, attempt, store, port } = buildReplicateExecFixture();
+    recordExecutionPreCallFailure(session, state, store, port, ENABLED_POLICY(50), {
+      attemptId: attempt.attemptId,
+      failure: { category: 'REFERENCE_RESOLUTION', message: 'unresolvable' },
+    });
+    assert.throws(() => directWrite(session, store, port, state.id, attempt.attemptId), /already owns an execution checkpoint/);
+  }
+  // TFR / SUCCEEDED and TFR / FAILED
+  for (const result of [
+    { kind: 'SUCCEEDED' },
+    { kind: 'FAILED', failure: { category: 'EXECUTION', message: 'already-obtained failure' } },
+  ]) {
+    const { session, state, attempt, store, port, successPayload } = buildReplicateExecFixture();
+    claimRouteExecution(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId });
+    recordExecutionTerminalFact(store, {
+      attemptId: attempt.attemptId,
+      actualLatencyMs: 2,
+      result: result.kind === 'SUCCEEDED' ? { kind: 'SUCCEEDED', payload: successPayload } : result,
+    });
+    assert.throws(() => directWrite(session, store, port, state.id, attempt.attemptId), /already owns an execution checkpoint/);
+  }
+  // TFR / INCONCLUSIVE
+  {
+    const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture(50, 100);
+    const store = createInMemoryRouteExecutionCheckpointStore();
+    const port = createInMemoryDeliberationStateAccessPort(state);
+    claimRouteExecution(session, state, store, port, ENABLED_POLICY(20), { attemptId: attempt.attemptId });
+    recordExecutionTerminalFact(store, {
+      attemptId: attempt.attemptId,
+      actualLatencyMs: 2,
+      result: { kind: 'INCONCLUSIVE', payload: { result: 'INCONCLUSIVE', evidenceSubjectId: evidenceSubject.id, citations: [] } },
+    });
+    assert.throws(() => directWrite(session, store, port, state.id, attempt.attemptId), /already owns an execution checkpoint/);
+  }
+  // DEADLINE_VIOLATION -- non-persistable entirely, by either path
+  {
+    const { session, state, attempt, store, port, successPayload } = buildReplicateExecFixture({ latencyLimitMs: 5 });
+    claimRouteExecution(session, state, store, port, ENABLED_POLICY(5), { attemptId: attempt.attemptId });
+    recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: 6, result: { kind: 'SUCCEEDED', payload: successPayload } });
+    assert.throws(() => directWrite(session, store, port, state.id, attempt.attemptId), /already owns an execution checkpoint/);
+    assert.throws(
+      () => persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attempt.attemptId }),
+      /non-committable/
+    );
+    assert.equal(port.current().outcomes.length, 0);
+  }
+});
+
+// --- §41. Legacy / no-checkpoint compatibility ------------------------------
+
+check('legacy compatibility: an attempt with no execution checkpoint still records an ordinary canonical RouteOutcome through the coordination wrapper, and no checkpoint is synthesized', () => {
+  const { session, state, machineAttempt, store, port, machinePayload } = buildMixedExecFixture();
+  const next = performCoordinatedLatencyWrite(store, port, state.id, machineAttempt.attemptId, (current) =>
+    recordRouteOutcome(session, current, { attemptId: machineAttempt.attemptId, status: 'SUCCEEDED', latencyConsumed: 4, ...machinePayload })
+  );
+  assert.equal(next.outcomes.length, 1);
+  assert.equal(next.latencyBudget.spent, 4);
+  assert.equal(store.getCheckpoint(machineAttempt.attemptId), undefined, 'no retroactive checkpoint synthesis');
+  assert.equal(store.listCheckpointsForDeliberationState(state.id).length, 0);
+  assertRouteExecutionCheckpointIntegrity(session, port.current(), store);
+});
+
+check('legacy compatibility: every ADD_CONTEXT latency-consuming closure runs through the coordination wrapper without provider execution', () => {
+  const { session, state, contextAttempt, contextRequest, store, port } = buildMixedExecFixture();
+  const declined = performCoordinatedLatencyWrite(store, port, state.id, contextAttempt.attemptId, (current) =>
+    recordRouteOutcome(session, current, {
+      attemptId: contextAttempt.attemptId,
+      status: 'SUCCEEDED',
+      latencyConsumed: 2,
+      result: 'DECLINED',
+      contextRequestId: contextRequest.id,
+    })
+  );
+  assert.equal(declined.outcomes[0].result, 'DECLINED');
+  assert.equal(declined.latencyBudget.spent, 2);
+
+  const noResponse = buildMixedExecFixture();
+  const closed = performCoordinatedLatencyWrite(
+    noResponse.store,
+    noResponse.port,
+    noResponse.state.id,
+    noResponse.contextAttempt.attemptId,
+    (current) =>
+      closeContextRequestWithoutResponse(noResponse.session, current, {
+        attemptId: noResponse.contextAttempt.attemptId,
+        latencyConsumed: 1,
+      })
+  );
+  assert.equal(closed.outcomes[0].result, 'NO_RESPONSE');
+  assert.equal(closed.latencyBudget.spent, 1);
+});
+
+// --- §42. Reservation handoff ------------------------------------------------
+
+check('reservation handoff: spent + SUM(effective encumbrance) stays exactly at 100 across the outcome/acknowledgement boundary, with no double-count and no apparent overrun', () => {
+  const { session, state, attemptA, attemptB, store, port, payloadA } = buildTwoMachineAttemptFixture(100);
+  const resolver = createStaticLiveExecutionPolicyResolver((a) => ({
+    status: 'ENABLED',
+    latencyLimitMs: a.attemptId === attemptA.attemptId ? 60 : 40,
+  }));
+  const a = claimRouteExecution(session, state, store, port, resolver, { attemptId: attemptA.attemptId });
+  const b = claimRouteExecution(session, state, store, port, resolver, { attemptId: attemptB.attemptId });
+  assert.equal(a.reservedLatencyMs, 60);
+  assert.equal(b.reservedLatencyMs, 40);
+
+  // Before A's RouteOutcome exists: 0 + 60 + 40 = 100.
+  let current = port.current();
+  assert.equal(current.latencyBudget.spent, 0);
+  assert.equal(effectiveLatencyEncumbrance(store.getCheckpoint(attemptA.attemptId), current), 60);
+  assert.equal(effectiveLatencyEncumbrance(store.getCheckpoint(attemptB.attemptId), current), 40);
+  assert.equal(current.latencyBudget.spent + totalEffectiveLatencyEncumbrance(store, current), 100);
+
+  recordExecutionTerminalFact(store, { attemptId: attemptA.attemptId, actualLatencyMs: 50, result: { kind: 'SUCCEEDED', payload: payloadA } });
+  persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attemptA.attemptId });
+
+  // After A's RouteOutcome persists, before acknowledgement: 50 + 10 + 40 = 100.
+  current = port.current();
+  assert.equal(current.latencyBudget.spent, 50);
+  assert.equal(effectiveLatencyEncumbrance(store.getCheckpoint(attemptA.attemptId), current), 10);
+  assert.equal(effectiveLatencyEncumbrance(store.getCheckpoint(attemptB.attemptId), current), 40);
+  assert.equal(current.latencyBudget.spent + totalEffectiveLatencyEncumbrance(store, current), 100);
+
+  markExecutionOutcomeCommitted(session, current, store, port, { attemptId: attemptA.attemptId });
+
+  // After acknowledgement: 50 + 0 + 40 = 90.
+  current = port.current();
+  assert.equal(effectiveLatencyEncumbrance(store.getCheckpoint(attemptA.attemptId), current), 0);
+  assert.equal(current.latencyBudget.spent + totalEffectiveLatencyEncumbrance(store, current), 90);
+  assertRouteExecutionCheckpointIntegrity(session, current, store);
+});
+
+check('reservation handoff: the residual reduction requires EXACT terminal agreement -- a disagreeing outcome leaves the full reservation encumbered', () => {
+  const { session, state, attempt, store, port, successPayload } = buildReplicateExecFixture({ latencyCeiling: 100, latencyLimitMs: 60 });
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(60), { attemptId: attempt.attemptId });
+  recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: 50, result: { kind: 'SUCCEEDED', payload: successPayload } });
+  const next = persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attempt.attemptId });
+  assert.equal(effectiveLatencyEncumbrance(store.getCheckpoint(attempt.attemptId), next), 10);
+
+  // Same attemptId, same latency, same envelope -- but a different route result.
+  const tampered = {
+    ...next,
+    outcomes: next.outcomes.map((o) => (o.attemptId === attempt.attemptId ? { ...o, result: 'NOT_REPRODUCED' } : o)),
+  };
+  assert.equal(
+    effectiveLatencyEncumbrance(store.getCheckpoint(attempt.attemptId), tampered),
+    60,
+    'same attemptId and same latency are not sufficient for the residual reduction'
+  );
+});
+
+// --- §43 / §44. Coordination races -------------------------------------------
+
+check('zero-encumbrance race: a claim and an uncheckpointed write both enter coordination; whichever wins first determines the only legal ordering, and 101 is never observed', () => {
+  // Case A -- the claim wins the critical section first.
+  {
+    const { session, state, machineAttempt, contextAttempt, store, port } = buildMixedExecFixture(100);
+    assert.equal(totalEffectiveLatencyEncumbrance(store, state), 0, 'the pre-boundary reading is zero -- and is never used to skip coordination');
+    const claimed = claimRouteExecution(session, state, store, port, ENABLED_POLICY(100), { attemptId: machineAttempt.attemptId });
+    assert.equal(claimed.reservedLatencyMs, 100);
+    assert.throws(
+      () =>
+        performCoordinatedLatencyWrite(store, port, state.id, contextAttempt.attemptId, (current) =>
+          closeContextRequestWithoutResponse(session, current, { attemptId: contextAttempt.attemptId, latencyConsumed: 1 })
+        ),
+      /active effective latency encumbrance/
+    );
+    const current = port.current();
+    assert.equal(current.latencyBudget.spent, 0);
+    assert.equal(current.latencyBudget.spent + totalEffectiveLatencyEncumbrance(store, current), 100);
+  }
+  // Case B -- the uncheckpointed write wins the critical section first.
+  {
+    const { session, state, machineAttempt, contextAttempt, store, port } = buildMixedExecFixture(100);
+    performCoordinatedLatencyWrite(store, port, state.id, contextAttempt.attemptId, (current) =>
+      closeContextRequestWithoutResponse(session, current, { attemptId: contextAttempt.attemptId, latencyConsumed: 1 })
+    );
+    assert.equal(port.current().latencyBudget.spent, 1);
+    const rejected = claimRouteExecution(session, state, store, port, ENABLED_POLICY(100), { attemptId: machineAttempt.attemptId });
+    assert.equal(rejected.phase, 'TERMINAL_FACT_READY', 'the claim sees the already-committed spend, not the stale pre-write value');
+    assert.equal(rejected.reservedLatencyMs, 0);
+    const current = port.current();
+    assert.equal(current.latencyBudget.spent + totalEffectiveLatencyEncumbrance(store, current), 1);
+  }
+});
+
+check('stale state under lock: a caller entering coordination second resolves the state the first caller committed, never its own captured snapshot', () => {
+  const { session, state: s0, machineAttempt, contextAttempt, store, port } = buildMixedExecFixture(100);
+  // B enters first and commits S1 (spent = 1), while A still holds S0.
+  performCoordinatedLatencyWrite(store, port, s0.id, contextAttempt.attemptId, (current) =>
+    closeContextRequestWithoutResponse(session, current, { attemptId: contextAttempt.attemptId, latencyConsumed: 1 })
+  );
+  assert.equal(s0.latencyBudget.spent, 0, "the caller's own snapshot still reads zero");
+  assert.equal(port.current().latencyBudget.spent, 1);
+  // A enters second with the stale S0 and asks for exactly the full ceiling.
+  const result = claimRouteExecution(session, s0, store, port, ENABLED_POLICY(100), { attemptId: machineAttempt.attemptId });
+  assert.equal(
+    result.phase,
+    'TERMINAL_FACT_READY',
+    'an implementation performing admission math against the captured S0 would have produced a CLAIMED checkpoint here'
+  );
+  assert.equal(result.reservedLatencyMs, 0);
+  // The same claim against a state with nothing spent does succeed -- proving
+  // the rejection above came from the re-resolved value, not a fixed limit.
+  const fresh = buildMixedExecFixture(100);
+  const ok = claimRouteExecution(fresh.session, fresh.state, fresh.store, fresh.port, ENABLED_POLICY(100), {
+    attemptId: fresh.machineAttempt.attemptId,
+  });
+  assert.equal(ok.phase, 'CLAIMED');
+});
+
+check('cross-aggregate coordination: a deferred uncheckpointed write becomes legal once the blocking encumbrance drops', () => {
+  const { session, state, machineAttempt, contextAttempt, store, port, machinePayload } = buildMixedExecFixture(100);
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(100), { attemptId: machineAttempt.attemptId });
+  const deferredWrite = () =>
+    performCoordinatedLatencyWrite(store, port, state.id, contextAttempt.attemptId, (current) =>
+      closeContextRequestWithoutResponse(session, current, { attemptId: contextAttempt.attemptId, latencyConsumed: 1 })
+    );
+  assert.throws(deferredWrite, /active effective latency encumbrance/);
+
+  recordExecutionTerminalFact(store, { attemptId: machineAttempt.attemptId, actualLatencyMs: 4, result: { kind: 'SUCCEEDED', payload: machinePayload } });
+  const persisted = persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: machineAttempt.attemptId });
+  markExecutionOutcomeCommitted(session, persisted, store, port, { attemptId: machineAttempt.attemptId });
+  assert.equal(totalEffectiveLatencyEncumbrance(store, port.current()), 0);
+
+  const next = deferredWrite();
+  assert.equal(next.latencyBudget.spent, 5);
+  assertRouteExecutionCheckpointIntegrity(session, port.current(), store);
+});
+
+// --- §46 / §47. Tamper detection ---------------------------------------------
+
+check('outcome tamper: a self-consistently altered REPLICATE RouteOutcome fails commit acknowledgement and later read integrity', () => {
+  const { session, state, attempt, store, port, successPayload } = buildReplicateExecFixture();
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId });
+  recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: 5, result: { kind: 'SUCCEEDED', payload: successPayload } });
+  const next = persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attempt.attemptId });
+
+  const tamper = (mutate) => ({ ...next, outcomes: next.outcomes.map((o) => (o.attemptId === attempt.attemptId ? mutate(o) : o)) });
+  const reproducedToNot = tamper((o) => ({ ...o, result: 'NOT_REPRODUCED' }));
+  port.commitDeliberationState(reproducedToNot);
+  assert.throws(
+    () => markExecutionOutcomeCommitted(session, reproducedToNot, store, port, { attemptId: attempt.attemptId }),
+    /does not exactly agree/
+  );
+  port.commitDeliberationState(next);
+  markExecutionOutcomeCommitted(session, next, store, port, { attemptId: attempt.attemptId });
+  assertRouteExecutionCheckpointIntegrity(session, next, store, attempt.attemptId);
+  assert.throws(
+    () => assertRouteExecutionCheckpointIntegrity(session, reproducedToNot, store, attempt.attemptId),
+    /no longer exactly agrees/
+  );
+});
+
+check('outcome tamper: a SEEK_EVIDENCE INCONCLUSIVE outcome altered to SUCCEEDED/SUPPORTIVE is rejected by the shared projection boundary', () => {
+  const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture(50, 100);
+  const store = createInMemoryRouteExecutionCheckpointStore();
+  const port = createInMemoryDeliberationStateAccessPort(state);
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(20), { attemptId: attempt.attemptId });
+  recordExecutionTerminalFact(store, {
+    attemptId: attempt.attemptId,
+    actualLatencyMs: 3,
+    result: { kind: 'INCONCLUSIVE', payload: { result: 'INCONCLUSIVE', evidenceSubjectId: evidenceSubject.id, citations: [VALID_CITATION] } },
+  });
+  const next = persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attempt.attemptId });
+  markExecutionOutcomeCommitted(session, next, store, port, { attemptId: attempt.attemptId });
+  const tampered = {
+    ...next,
+    outcomes: next.outcomes.map((o) => (o.attemptId === attempt.attemptId ? { ...o, status: 'SUCCEEDED', result: 'SUPPORTIVE' } : o)),
+  };
+  assert.throws(() => assertRouteExecutionCheckpointIntegrity(session, tampered, store, attempt.attemptId), /no longer exactly agrees/);
+});
+
+check('outcome tamper: a FAILED outcome whose FailureInfo category or message was altered is rejected -- category-only or envelope-only agreement is never sufficient', () => {
+  for (const mutate of [
+    (o) => ({ ...o, failure: { category: 'EXECUTION', message: o.failure.message } }),
+    (o) => ({ ...o, failure: { category: o.failure.category, message: 'a semantically similar but unequal message' } }),
+  ]) {
+    const { session, state, attempt, store, port } = buildReplicateExecFixture();
+    claimRouteExecution(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId });
+    recordExecutionTerminalFact(store, {
+      attemptId: attempt.attemptId,
+      actualLatencyMs: 5,
+      result: { kind: 'FAILED', failure: { category: 'TRANSPORT', message: 'already-obtained transport failure' } },
+    });
+    const next = persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attempt.attemptId });
+    markExecutionOutcomeCommitted(session, next, store, port, { attemptId: attempt.attemptId });
+    const tampered = { ...next, outcomes: next.outcomes.map((o) => (o.attemptId === attempt.attemptId ? mutate(o) : o)) };
+    assert.throws(() => assertRouteExecutionCheckpointIntegrity(session, tampered, store, attempt.attemptId), /no longer exactly agrees/);
+  }
+});
+
+check('global tamper: two individually well-formed checkpoints whose combined effective encumbrance exceeds the ceiling are rejected by global read integrity', () => {
+  const { session, state, attemptA, attemptB, store } = buildTwoMachineAttemptFixture(100);
+  const build = (attempt, reserved) => ({
+    phase: 'CLAIMED',
+    attemptId: attempt.attemptId,
+    deliberationStateId: state.id,
+    route: attempt.route,
+    claimedAt: new Date().toISOString(),
+    latencyLimitMs: reserved,
+    reservedLatencyMs: reserved,
+  });
+  store.insertCheckpointIfAbsent(build(attemptA, 60));
+  // Each is locally valid; only the SUM overruns.
+  assertRouteExecutionCheckpointIntegrity(session, state, store, attemptA.attemptId);
+  store.insertCheckpointIfAbsent(build(attemptB, 60));
+  assert.throws(
+    () => assertRouteExecutionCheckpointIntegrity(session, state, store, attemptA.attemptId),
+    /global latency integrity violated/
+  );
+  assert.throws(() => assertRouteExecutionCheckpointIntegrity(session, state, store), /global latency integrity violated/);
+});
+
+check('read integrity: a forged child checkpoint, an out-of-sync route, and a compacted OUTCOME_COMMITTED record are all rejected', () => {
+  const { session, state, attempt, store, port, successPayload } = buildReplicateExecFixture();
+  // Forged: a plausible checkpoint for an attemptId that does not resolve.
+  const forgedStore = createInMemoryRouteExecutionCheckpointStore();
+  forgedStore.insertCheckpointIfAbsent({
+    phase: 'CLAIMED',
+    attemptId: 'attempt-that-never-existed',
+    deliberationStateId: state.id,
+    route: 'REPLICATE',
+    claimedAt: new Date().toISOString(),
+    latencyLimitMs: 1,
+    reservedLatencyMs: 1,
+  });
+  assert.throws(
+    () => assertRouteExecutionCheckpointIntegrity(session, state, forgedStore, 'attempt-that-never-existed'),
+    /does not resolve to exactly one RouteAttempt/
+  );
+  // Route disagreement with the authoritative RouteAttempt.
+  const routeStore = createInMemoryRouteExecutionCheckpointStore();
+  routeStore.insertCheckpointIfAbsent({
+    phase: 'CLAIMED',
+    attemptId: attempt.attemptId,
+    deliberationStateId: state.id,
+    route: 'ADD_REVIEWER',
+    claimedAt: new Date().toISOString(),
+    latencyLimitMs: 1,
+    reservedLatencyMs: 1,
+  });
+  assert.throws(() => assertRouteExecutionCheckpointIntegrity(session, state, routeStore, attempt.attemptId), /disagrees with the authoritative RouteAttempt/);
+  // Compacted OUTCOME_COMMITTED -- terminalFact retention is required.
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId });
+  recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: 5, result: { kind: 'SUCCEEDED', payload: successPayload } });
+  const next = persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attempt.attemptId });
+  const committed = markExecutionOutcomeCommitted(session, next, store, port, { attemptId: attempt.attemptId });
+  const compactedStore = createInMemoryRouteExecutionCheckpointStore();
+  const { terminalFact, ...withoutFact } = committed;
+  compactedStore.insertCheckpointIfAbsent(withoutFact);
+  assert.throws(() => assertRouteExecutionCheckpointIntegrity(session, next, compactedStore, attempt.attemptId), /unexpected field|must be an object/);
+});
+
+// --- §48. Alias isolation ----------------------------------------------------
+
+check('alias isolation: mutating caller-owned failure, citation, ref, and excerpt inputs after the call never alters stored coordination history', () => {
+  // Pre-call failure.
+  {
+    const { session, state, attempt, store, port } = buildReplicateExecFixture();
+    const failure = { category: 'REFERENCE_RESOLUTION', message: 'original message' };
+    const cp = recordExecutionPreCallFailure(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId, failure });
+    failure.category = 'EXECUTION';
+    failure.message = 'mutated after the call';
+    assert.deepEqual(store.getCheckpoint(attempt.attemptId).terminalFact.failure, {
+      category: 'REFERENCE_RESOLUTION',
+      message: 'original message',
+    });
+    assert.deepEqual(cp.terminalFact.failure, { category: 'REFERENCE_RESOLUTION', message: 'original message' });
+  }
+  // SEEK_EVIDENCE citations + evidence payload.
+  {
+    const { session, state, attempt, evidenceSubject } = buildSeekEvidenceAttemptFixture(50, 100);
+    const store = createInMemoryRouteExecutionCheckpointStore();
+    const port = createInMemoryDeliberationStateAccessPort(state);
+    claimRouteExecution(session, state, store, port, ENABLED_POLICY(20), { attemptId: attempt.attemptId });
+    const citations = [{ ...VALID_CITATION }];
+    const payload = { result: 'INCONCLUSIVE', evidenceSubjectId: evidenceSubject.id, citations };
+    recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: 2, result: { kind: 'INCONCLUSIVE', payload } });
+    citations.push({ sourceIdentifier: 'injected', excerpt: 'injected after the fact' });
+    citations[0].excerpt = 'mutated excerpt';
+    payload.evidenceSubjectId = 'mutated-subject';
+    const stored = store.getCheckpoint(attempt.attemptId).terminalFact.payload;
+    assert.equal(stored.citations.length, 1);
+    assert.equal(stored.citations[0].excerpt, VALID_CITATION.excerpt);
+    assert.equal(stored.evidenceSubjectId, evidenceSubject.id);
+  }
+  // TARGETED_PEER_CHALLENGE refs + bounded excerpt + findingIds array.
+  {
+    const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT', 50, 100);
+    const attempt = state.attempts[0];
+    const store = createInMemoryRouteExecutionCheckpointStore();
+    const port = createInMemoryDeliberationStateAccessPort(state);
+    claimRouteExecution(session, state, store, port, ENABLED_POLICY(20), { attemptId: attempt.attemptId });
+    const targetRef = { ...decision.inputRefs[0] };
+    const sourceRef = { ...decision.inputRefs[1] };
+    const boundedExcerpt = { ...VALID_BOUNDED_EXCERPT };
+    const payload = { targetRef, sourceRef, boundedExcerpt, response: 'an already-obtained peer response', result: 'REBUTTAL' };
+    recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: 2, result: { kind: 'SUCCEEDED', payload } });
+    targetRef.id = 'mutated';
+    sourceRef.id = 'mutated';
+    boundedExcerpt.text = 'mutated excerpt text';
+    payload.result = 'CONCESSION';
+    const stored = store.getCheckpoint(attempt.attemptId).terminalFact.payload;
+    assert.deepEqual(stored.targetRef, decision.inputRefs[0]);
+    assert.deepEqual(stored.sourceRef, decision.inputRefs[1]);
+    assert.equal(stored.boundedExcerpt.text, VALID_BOUNDED_EXCERPT.text);
+    assert.equal(stored.result, 'REBUTTAL');
+  }
+  // ADD_REVIEWER findingIds array.
+  {
+    const { session, state, attemptA, store, port, payloadA } = buildTwoMachineAttemptFixture(100);
+    claimRouteExecution(session, state, store, port, ENABLED_POLICY(20), { attemptId: attemptA.attemptId });
+    const findingIds = [...payloadA.findingIds];
+    recordExecutionTerminalFact(store, {
+      attemptId: attemptA.attemptId,
+      actualLatencyMs: 2,
+      result: { kind: 'SUCCEEDED', payload: { reviewerRunId: payloadA.reviewerRunId, findingIds } },
+    });
+    findingIds.push('injected-finding-id');
+    assert.deepEqual(store.getCheckpoint(attemptA.attemptId).terminalFact.payload.findingIds, payloadA.findingIds);
+  }
+});
+
+// --- Lifecycle / transition-matrix conformance -------------------------------
+
+check('transition matrix: every illegal transition is rejected, never silently no-opped', () => {
+  const { session, state, attempt, store, port, successPayload } = buildReplicateExecFixture();
+  assert.throws(() => recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: 1, result: { kind: 'SUCCEEDED', payload: successPayload } }), /no execution checkpoint exists/);
+  assert.throws(() => markExecutionOutcomeCommitted(session, state, store, port, { attemptId: attempt.attemptId }), /no execution checkpoint exists/);
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId });
+  assert.throws(() => markExecutionOutcomeCommitted(session, state, store, port, { attemptId: attempt.attemptId }), /not in TERMINAL_FACT_READY/);
+  recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: 3, result: { kind: 'SUCCEEDED', payload: successPayload } });
+  assert.throws(
+    () => recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: 4, result: { kind: 'SUCCEEDED', payload: successPayload } }),
+    /is in phase TERMINAL_FACT_READY/
+  );
+  assert.throws(() => markExecutionOutcomeCommitted(session, state, store, port, { attemptId: attempt.attemptId }), /does not resolve to exactly one RouteOutcome/);
+  const next = persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attempt.attemptId });
+  markExecutionOutcomeCommitted(session, next, store, port, { attemptId: attempt.attemptId });
+  assert.throws(() => markExecutionOutcomeCommitted(session, next, store, port, { attemptId: attempt.attemptId }), /not in TERMINAL_FACT_READY/);
+  assert.throws(() => persistExecutionTerminalFactAsRouteOutcome(session, next, store, port, { attemptId: attempt.attemptId }), /not in TERMINAL_FACT_READY/);
+});
+
+check('persistExecutionTerminalFactAsRouteOutcome: the caller supplies { attemptId } only, and every terminal field is replayed exactly from the stored snapshot', () => {
+  const { session, state, attempt, store, port, successPayload } = buildReplicateExecFixture();
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId });
+  recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: 17, result: { kind: 'SUCCEEDED', payload: successPayload } });
+  for (const extra of [{ latencyConsumed: 18 }, { status: 'FAILED' }, { result: 'NOT_REPRODUCED' }, { failure: { category: 'EXECUTION', message: 'x' } }]) {
+    assert.throws(
+      () => persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attempt.attemptId, ...extra }),
+      /unexpected field/
+    );
+  }
+  const next = persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attempt.attemptId });
+  const outcome = next.outcomes.find((o) => o.attemptId === attempt.attemptId);
+  assert.equal(outcome.latencyConsumed, 17, 'replayed exactly -- never 16.5, 18, or 0');
+  assert.equal(outcome.result, 'REPRODUCED');
+  assert.deepEqual(outcome.targetRef, successPayload.targetRef);
+  assert.equal(next.latencyBudget.spent, 17);
+});
+
+check('persistExecutionTerminalFactAsRouteOutcome: a rejected product write commits nothing and leaves the checkpoint, terminal fact, and reservation intact for later persistence-only reconciliation', () => {
+  const { session, state, attempt, store, port, successPayload } = buildReplicateExecFixture();
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId });
+  recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: 6, result: { kind: 'SUCCEEDED', payload: successPayload } });
+  // Make the canonical product validator reject this write.
+  port.commitDeliberationState({ ...port.current(), stopReason: 'budget_exhausted' });
+  assert.throws(() => persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attempt.attemptId }), /already stopped/);
+  const cp = store.getCheckpoint(attempt.attemptId);
+  assert.equal(cp.phase, 'TERMINAL_FACT_READY');
+  assert.equal(cp.terminalFact.kind, 'SUCCEEDED');
+  assert.equal(cp.reservedLatencyMs, 50);
+  assert.equal(port.current().outcomes.length, 0);
+  assert.equal(port.current().latencyBudget.spent, 0);
+});
+
+check('projectRouteOutcomeToTerminalFact: a pure symmetric projection whose result exactly round-trips every checkpoint-backed lifecycle', () => {
+  const { session, state, attempt, store, port, successPayload } = buildReplicateExecFixture();
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId });
+  recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: 9, result: { kind: 'SUCCEEDED', payload: successPayload } });
+  const next = persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attempt.attemptId });
+  const projected = projectRouteOutcomeToTerminalFact(next.outcomes.find((o) => o.attemptId === attempt.attemptId));
+  assert.equal(projected.kind, 'SUCCEEDED');
+  assert.equal(projected.actualLatencyMs, 9);
+  assert.equal(terminalFactsExactlyAgree(projected, store.getCheckpoint(attempt.attemptId).terminalFact), true);
+  assert.equal(terminalFactsExactlyAgree(projected, { ...projected, actualLatencyMs: 10 }), false);
+});
+
+check('execution coordination: costBudget.spent is never charged a second time by any checkpoint operation', () => {
+  const { session, state, attempt, store, port, successPayload } = buildReplicateExecFixture();
+  const costAtStart = state.costBudget.spent;
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId });
+  assert.equal(port.current().costBudget.spent, costAtStart);
+  recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: 2, result: { kind: 'SUCCEEDED', payload: successPayload } });
+  assert.equal(port.current().costBudget.spent, costAtStart);
+  const next = persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attempt.attemptId });
+  assert.equal(next.costBudget.spent, costAtStart);
+  markExecutionOutcomeCommitted(session, next, store, port, { attemptId: attempt.attemptId });
+  assert.equal(port.current().costBudget.spent, costAtStart);
+});
+
+check('RouteExecutionCheckpointStore: no generic partial-update escape hatch exists, and a phase replacement can never rewrite identity or binding', () => {
+  const store = createInMemoryRouteExecutionCheckpointStore();
+  assert.equal('updateCheckpoint' in store, false);
+  assert.deepEqual(Object.keys(store).sort(), [
+    'getCheckpoint',
+    'insertCheckpointIfAbsent',
+    'listCheckpointsForDeliberationState',
+    'replaceCheckpointPhase',
+    'withDeliberationStateCoordination',
+  ]);
+  const { session, state, attempt, port } = buildReplicateExecFixture();
+  const local = createInMemoryRouteExecutionCheckpointStore();
+  const claimed = claimRouteExecution(session, state, local, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId });
+  assert.throws(
+    () => local.replaceCheckpointPhase(attempt.attemptId, 'CLAIMED', { ...claimed, route: 'ADD_REVIEWER' }),
+    /never change a checkpoint's attemptId, parent binding, or route/
+  );
+  assert.throws(() => local.replaceCheckpointPhase(attempt.attemptId, 'OUTCOME_COMMITTED', claimed), /not the expected OUTCOME_COMMITTED/);
+  assert.throws(() => local.insertCheckpointIfAbsent(claimed), /already exists/);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
