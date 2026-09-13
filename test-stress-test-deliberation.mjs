@@ -8325,6 +8325,31 @@ check('recordRouteOutcome: after one successful TARGETED_PEER_CHALLENGE outcome,
 const ENABLED_POLICY = (latencyLimitMs) => createStaticLiveExecutionPolicyResolver({ status: 'ENABLED', latencyLimitMs });
 const DISABLED_POLICY = createStaticLiveExecutionPolicyResolver({ status: 'DISABLED' });
 
+/**
+ * A minimal read-only store stub returning exactly the raw checkpoint
+ * objects it is given, with none of createInMemoryRouteExecutionCheckpointStore's
+ * ingress cloning. The real store's write boundary legitimately assumes a
+ * well-formed checkpoint (every current runtime operation only ever
+ * constructs complete ones) -- a manually-compacted/forged adversarial
+ * record used ONLY to exercise assertRouteExecutionCheckpointIntegrity's own
+ * defense-in-depth must be injected here instead, exactly as a corrupted
+ * record from outside this reference runtime's control would reach a real
+ * store's read methods in production.
+ */
+function rawCheckpointStore(checkpoints) {
+  return {
+    getCheckpoint: (attemptId) => checkpoints.find((c) => c.attemptId === attemptId),
+    listCheckpointsForDeliberationState: (deliberationStateId) => checkpoints.filter((c) => c.deliberationStateId === deliberationStateId),
+    insertCheckpointIfAbsent: () => {
+      throw new Error('rawCheckpointStore: read-only stub, insertCheckpointIfAbsent is not supported');
+    },
+    replaceCheckpointPhase: () => {
+      throw new Error('rawCheckpointStore: read-only stub, replaceCheckpointPhase is not supported');
+    },
+    withDeliberationStateCoordination: (_deliberationStateId, operation) => operation(),
+  };
+}
+
 /** A started REPLICATE (machine) attempt plus a fresh in-memory coordination runtime. */
 function buildReplicateExecFixture({ latencyCeiling = 100, latencyLimitMs = 50 } = {}) {
   const { session, state, decision, question, issueId } = buildStartedAttemptFixture('STABILITY_QUESTION', 50, latencyCeiling);
@@ -8803,14 +8828,10 @@ check('checkpoint exclusivity: a direct coordinated FAILED write with retyped fa
 
   assert.throws(
     () =>
-      performCoordinatedLatencyWrite(store, port, state.id, attempt.attemptId, (current) =>
-        recordRouteOutcome(session, current, {
-          attemptId: attempt.attemptId,
-          status: 'FAILED',
-          latencyConsumed: 0,
-          failure: { category: 'EXECUTION', message: 'Y' },
-        })
-      ),
+      performCoordinatedLatencyWrite(session, state, store, port, {
+        kind: 'ROUTE_OUTCOME',
+        input: { attemptId: attempt.attemptId, status: 'FAILED', latencyConsumed: 0, failure: { category: 'EXECUTION', message: 'Y' } },
+      }),
     /already owns an execution checkpoint/
   );
   assert.equal(port.current().outcomes.length, 0, 'rejected before any product-domain mutation');
@@ -8829,35 +8850,32 @@ check('checkpoint exclusivity: a zero-reservation checkpoint produced by the CLA
   assert.equal(effectiveLatencyEncumbrance(rejected, state), 0);
   assert.throws(
     () =>
-      performCoordinatedLatencyWrite(store, port, state.id, attempt.attemptId, (current) =>
-        recordRouteOutcome(session, current, {
+      performCoordinatedLatencyWrite(session, state, store, port, {
+        kind: 'ROUTE_OUTCOME',
+        input: {
           attemptId: attempt.attemptId,
           status: 'FAILED',
           latencyConsumed: 0,
           failure: { category: 'EXECUTION', message: 'retyped by a caller' },
-        })
-      ),
+        },
+      }),
     /already owns an execution checkpoint/
   );
   assert.equal(port.current().outcomes.length, 0);
 });
 
 check('checkpoint exclusivity: a direct coordinated write is rejected at every checkpoint phase where no RouteOutcome yet exists', () => {
-  const directWrite = (session, store, port, stateId, attemptId) =>
-    performCoordinatedLatencyWrite(store, port, stateId, attemptId, (current) =>
-      recordRouteOutcome(session, current, {
-        attemptId,
-        status: 'FAILED',
-        latencyConsumed: 0,
-        failure: { category: 'EXECUTION', message: 'direct uncheckpointed write' },
-      })
-    );
+  const directWrite = (session, state, store, port, attemptId) =>
+    performCoordinatedLatencyWrite(session, state, store, port, {
+      kind: 'ROUTE_OUTCOME',
+      input: { attemptId, status: 'FAILED', latencyConsumed: 0, failure: { category: 'EXECUTION', message: 'direct uncheckpointed write' } },
+    });
 
   // CLAIMED
   {
     const { session, state, attempt, store, port } = buildReplicateExecFixture();
     claimRouteExecution(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId });
-    assert.throws(() => directWrite(session, store, port, state.id, attempt.attemptId), /already owns an execution checkpoint/);
+    assert.throws(() => directWrite(session, state, store, port, attempt.attemptId), /already owns an execution checkpoint/);
   }
   // PRE_CALL_FAILED
   {
@@ -8866,7 +8884,7 @@ check('checkpoint exclusivity: a direct coordinated write is rejected at every c
       attemptId: attempt.attemptId,
       failure: { category: 'REFERENCE_RESOLUTION', message: 'unresolvable' },
     });
-    assert.throws(() => directWrite(session, store, port, state.id, attempt.attemptId), /already owns an execution checkpoint/);
+    assert.throws(() => directWrite(session, state, store, port, attempt.attemptId), /already owns an execution checkpoint/);
   }
   // TFR / SUCCEEDED and TFR / FAILED
   for (const result of [
@@ -8880,7 +8898,7 @@ check('checkpoint exclusivity: a direct coordinated write is rejected at every c
       actualLatencyMs: 2,
       result: result.kind === 'SUCCEEDED' ? { kind: 'SUCCEEDED', payload: successPayload } : result,
     });
-    assert.throws(() => directWrite(session, store, port, state.id, attempt.attemptId), /already owns an execution checkpoint/);
+    assert.throws(() => directWrite(session, state, store, port, attempt.attemptId), /already owns an execution checkpoint/);
   }
   // TFR / INCONCLUSIVE
   {
@@ -8893,14 +8911,14 @@ check('checkpoint exclusivity: a direct coordinated write is rejected at every c
       actualLatencyMs: 2,
       result: { kind: 'INCONCLUSIVE', payload: { result: 'INCONCLUSIVE', evidenceSubjectId: evidenceSubject.id, citations: [] } },
     });
-    assert.throws(() => directWrite(session, store, port, state.id, attempt.attemptId), /already owns an execution checkpoint/);
+    assert.throws(() => directWrite(session, state, store, port, attempt.attemptId), /already owns an execution checkpoint/);
   }
   // DEADLINE_VIOLATION -- non-persistable entirely, by either path
   {
     const { session, state, attempt, store, port, successPayload } = buildReplicateExecFixture({ latencyLimitMs: 5 });
     claimRouteExecution(session, state, store, port, ENABLED_POLICY(5), { attemptId: attempt.attemptId });
     recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: 6, result: { kind: 'SUCCEEDED', payload: successPayload } });
-    assert.throws(() => directWrite(session, store, port, state.id, attempt.attemptId), /already owns an execution checkpoint/);
+    assert.throws(() => directWrite(session, state, store, port, attempt.attemptId), /already owns an execution checkpoint/);
     assert.throws(
       () => persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attempt.attemptId }),
       /non-committable/
@@ -8913,9 +8931,10 @@ check('checkpoint exclusivity: a direct coordinated write is rejected at every c
 
 check('legacy compatibility: an attempt with no execution checkpoint still records an ordinary canonical RouteOutcome through the coordination wrapper, and no checkpoint is synthesized', () => {
   const { session, state, machineAttempt, store, port, machinePayload } = buildMixedExecFixture();
-  const next = performCoordinatedLatencyWrite(store, port, state.id, machineAttempt.attemptId, (current) =>
-    recordRouteOutcome(session, current, { attemptId: machineAttempt.attemptId, status: 'SUCCEEDED', latencyConsumed: 4, ...machinePayload })
-  );
+  const next = performCoordinatedLatencyWrite(session, state, store, port, {
+    kind: 'ROUTE_OUTCOME',
+    input: { attemptId: machineAttempt.attemptId, status: 'SUCCEEDED', latencyConsumed: 4, ...machinePayload },
+  });
   assert.equal(next.outcomes.length, 1);
   assert.equal(next.latencyBudget.spent, 4);
   assert.equal(store.getCheckpoint(machineAttempt.attemptId), undefined, 'no retroactive checkpoint synthesis');
@@ -8925,30 +8944,24 @@ check('legacy compatibility: an attempt with no execution checkpoint still recor
 
 check('legacy compatibility: every ADD_CONTEXT latency-consuming closure runs through the coordination wrapper without provider execution', () => {
   const { session, state, contextAttempt, contextRequest, store, port } = buildMixedExecFixture();
-  const declined = performCoordinatedLatencyWrite(store, port, state.id, contextAttempt.attemptId, (current) =>
-    recordRouteOutcome(session, current, {
+  const declined = performCoordinatedLatencyWrite(session, state, store, port, {
+    kind: 'ROUTE_OUTCOME',
+    input: {
       attemptId: contextAttempt.attemptId,
       status: 'SUCCEEDED',
       latencyConsumed: 2,
       result: 'DECLINED',
       contextRequestId: contextRequest.id,
-    })
-  );
+    },
+  });
   assert.equal(declined.outcomes[0].result, 'DECLINED');
   assert.equal(declined.latencyBudget.spent, 2);
 
   const noResponse = buildMixedExecFixture();
-  const closed = performCoordinatedLatencyWrite(
-    noResponse.store,
-    noResponse.port,
-    noResponse.state.id,
-    noResponse.contextAttempt.attemptId,
-    (current) =>
-      closeContextRequestWithoutResponse(noResponse.session, current, {
-        attemptId: noResponse.contextAttempt.attemptId,
-        latencyConsumed: 1,
-      })
-  );
+  const closed = performCoordinatedLatencyWrite(noResponse.session, noResponse.state, noResponse.store, noResponse.port, {
+    kind: 'ADD_CONTEXT_NO_RESPONSE',
+    input: { attemptId: noResponse.contextAttempt.attemptId, latencyConsumed: 1 },
+  });
   assert.equal(closed.outcomes[0].result, 'NO_RESPONSE');
   assert.equal(closed.latencyBudget.spent, 1);
 });
@@ -9022,9 +9035,10 @@ check('zero-encumbrance race: a claim and an uncheckpointed write both enter coo
     assert.equal(claimed.reservedLatencyMs, 100);
     assert.throws(
       () =>
-        performCoordinatedLatencyWrite(store, port, state.id, contextAttempt.attemptId, (current) =>
-          closeContextRequestWithoutResponse(session, current, { attemptId: contextAttempt.attemptId, latencyConsumed: 1 })
-        ),
+        performCoordinatedLatencyWrite(session, state, store, port, {
+          kind: 'ADD_CONTEXT_NO_RESPONSE',
+          input: { attemptId: contextAttempt.attemptId, latencyConsumed: 1 },
+        }),
       /active effective latency encumbrance/
     );
     const current = port.current();
@@ -9034,9 +9048,10 @@ check('zero-encumbrance race: a claim and an uncheckpointed write both enter coo
   // Case B -- the uncheckpointed write wins the critical section first.
   {
     const { session, state, machineAttempt, contextAttempt, store, port } = buildMixedExecFixture(100);
-    performCoordinatedLatencyWrite(store, port, state.id, contextAttempt.attemptId, (current) =>
-      closeContextRequestWithoutResponse(session, current, { attemptId: contextAttempt.attemptId, latencyConsumed: 1 })
-    );
+    performCoordinatedLatencyWrite(session, state, store, port, {
+      kind: 'ADD_CONTEXT_NO_RESPONSE',
+      input: { attemptId: contextAttempt.attemptId, latencyConsumed: 1 },
+    });
     assert.equal(port.current().latencyBudget.spent, 1);
     const rejected = claimRouteExecution(session, state, store, port, ENABLED_POLICY(100), { attemptId: machineAttempt.attemptId });
     assert.equal(rejected.phase, 'TERMINAL_FACT_READY', 'the claim sees the already-committed spend, not the stale pre-write value');
@@ -9049,9 +9064,10 @@ check('zero-encumbrance race: a claim and an uncheckpointed write both enter coo
 check('stale state under lock: a caller entering coordination second resolves the state the first caller committed, never its own captured snapshot', () => {
   const { session, state: s0, machineAttempt, contextAttempt, store, port } = buildMixedExecFixture(100);
   // B enters first and commits S1 (spent = 1), while A still holds S0.
-  performCoordinatedLatencyWrite(store, port, s0.id, contextAttempt.attemptId, (current) =>
-    closeContextRequestWithoutResponse(session, current, { attemptId: contextAttempt.attemptId, latencyConsumed: 1 })
-  );
+  performCoordinatedLatencyWrite(session, s0, store, port, {
+    kind: 'ADD_CONTEXT_NO_RESPONSE',
+    input: { attemptId: contextAttempt.attemptId, latencyConsumed: 1 },
+  });
   assert.equal(s0.latencyBudget.spent, 0, "the caller's own snapshot still reads zero");
   assert.equal(port.current().latencyBudget.spent, 1);
   // A enters second with the stale S0 and asks for exactly the full ceiling.
@@ -9075,9 +9091,10 @@ check('cross-aggregate coordination: a deferred uncheckpointed write becomes leg
   const { session, state, machineAttempt, contextAttempt, store, port, machinePayload } = buildMixedExecFixture(100);
   claimRouteExecution(session, state, store, port, ENABLED_POLICY(100), { attemptId: machineAttempt.attemptId });
   const deferredWrite = () =>
-    performCoordinatedLatencyWrite(store, port, state.id, contextAttempt.attemptId, (current) =>
-      closeContextRequestWithoutResponse(session, current, { attemptId: contextAttempt.attemptId, latencyConsumed: 1 })
-    );
+    performCoordinatedLatencyWrite(session, state, store, port, {
+      kind: 'ADD_CONTEXT_NO_RESPONSE',
+      input: { attemptId: contextAttempt.attemptId, latencyConsumed: 1 },
+    });
   assert.throws(deferredWrite, /active effective latency encumbrance/);
 
   recordExecutionTerminalFact(store, { attemptId: machineAttempt.attemptId, actualLatencyMs: 4, result: { kind: 'SUCCEEDED', payload: machinePayload } });
@@ -9208,9 +9225,8 @@ check('read integrity: a forged child checkpoint, an out-of-sync route, and a co
   recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: 5, result: { kind: 'SUCCEEDED', payload: successPayload } });
   const next = persistExecutionTerminalFactAsRouteOutcome(session, state, store, port, { attemptId: attempt.attemptId });
   const committed = markExecutionOutcomeCommitted(session, next, store, port, { attemptId: attempt.attemptId });
-  const compactedStore = createInMemoryRouteExecutionCheckpointStore();
   const { terminalFact, ...withoutFact } = committed;
-  compactedStore.insertCheckpointIfAbsent(withoutFact);
+  const compactedStore = rawCheckpointStore([withoutFact]);
   assert.throws(() => assertRouteExecutionCheckpointIntegrity(session, next, compactedStore, attempt.attemptId), /unexpected field|must be an object/);
 });
 
@@ -9381,6 +9397,218 @@ check('RouteExecutionCheckpointStore: no generic partial-update escape hatch exi
   );
   assert.throws(() => local.replaceCheckpointPhase(attempt.attemptId, 'OUTCOME_COMMITTED', claimed), /not the expected OUTCOME_COMMITTED/);
   assert.throws(() => local.insertCheckpointIfAbsent(claimed), /already exists/);
+});
+
+// ==================================================================
+// D1-A Amendment 1 — checkpoint snapshot isolation / coordinated-write
+// identity authority. No provider/model calls anywhere below.
+// ==================================================================
+
+// --- §11-14. Required alias tests -------------------------------------------
+
+check('alias test — claim return: mutating the returned ClaimedCheckpoint never alters the authoritative stored record, and DEADLINE_VIOLATION derivation uses the real limit', () => {
+  const { session, state, attempt, store, port, successPayload } = buildReplicateExecFixture({ latencyLimitMs: 50 });
+  const claimed = claimRouteExecution(session, state, store, port, ENABLED_POLICY(50), { attemptId: attempt.attemptId });
+  assert.equal(claimed.latencyLimitMs, 50);
+
+  claimed.latencyLimitMs = 100;
+  claimed.reservedLatencyMs = 100;
+
+  const authoritative = store.getCheckpoint(attempt.attemptId);
+  assert.equal(authoritative.latencyLimitMs, 50, 'caller mutation of the returned checkpoint must not reach the store');
+  assert.equal(authoritative.reservedLatencyMs, 50);
+
+  const tfr = recordExecutionTerminalFact(store, {
+    attemptId: attempt.attemptId,
+    actualLatencyMs: 75,
+    result: { kind: 'SUCCEEDED', payload: successPayload },
+  });
+  // 75 > the REAL limit (50) -> DEADLINE_VIOLATION, never SUCCEEDED, even
+  // though the caller's mutated copy would have admitted it as 75 <= 100.
+  assert.equal(tfr.terminalFact.kind, 'DEADLINE_VIOLATION');
+  assert.equal(tfr.terminalFact.actualLatencyMs, 75);
+  assert.equal(tfr.latencyLimitMs, 50);
+});
+
+check('alias test — get: mutating a fetched checkpoint (top-level, terminalFact, nested payload/failure/refs/arrays) never alters the authoritative stored record', () => {
+  const { session, state, decision } = buildStartedAttemptFixture('DECISION_SENSITIVE_CONFLICT', 50, 100);
+  const attempt = state.attempts[0];
+  const store = createInMemoryRouteExecutionCheckpointStore();
+  const port = createInMemoryDeliberationStateAccessPort(state);
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(20), { attemptId: attempt.attemptId });
+  const payload = {
+    targetRef: decision.inputRefs[0],
+    sourceRef: decision.inputRefs[1],
+    boundedExcerpt: VALID_BOUNDED_EXCERPT,
+    response: 'an already-obtained peer response',
+    result: 'REBUTTAL',
+  };
+  recordExecutionTerminalFact(store, { attemptId: attempt.attemptId, actualLatencyMs: 5, result: { kind: 'SUCCEEDED', payload } });
+
+  const returned = store.getCheckpoint(attempt.attemptId);
+  returned.latencyLimitMs = 999;
+  returned.reservedLatencyMs = 999;
+  returned.terminalFact.actualLatencyMs = 999;
+  returned.terminalFact.payload.result = 'CONCESSION';
+  returned.terminalFact.payload.response = 'mutated response';
+  returned.terminalFact.payload.targetRef.id = 'mutated-id';
+  returned.terminalFact.payload.boundedExcerpt.text = 'mutated excerpt text';
+
+  const again = store.getCheckpoint(attempt.attemptId);
+  assert.equal(again.latencyLimitMs, 20);
+  assert.equal(again.reservedLatencyMs, 20);
+  assert.equal(again.terminalFact.actualLatencyMs, 5);
+  assert.equal(again.terminalFact.payload.result, 'REBUTTAL');
+  assert.equal(again.terminalFact.payload.response, 'an already-obtained peer response');
+  assert.deepEqual(again.terminalFact.payload.targetRef, decision.inputRefs[0]);
+  assert.equal(again.terminalFact.payload.boundedExcerpt.text, VALID_BOUNDED_EXCERPT.text);
+});
+
+check('alias test — list: mutating a returned checkpoint list entry (top-level and a nested mutable field) never alters the authoritative stored record', () => {
+  const { session, state, attemptA, store, port, payloadA } = buildTwoMachineAttemptFixture(100);
+  claimRouteExecution(session, state, store, port, ENABLED_POLICY(20), { attemptId: attemptA.attemptId });
+  recordExecutionTerminalFact(store, { attemptId: attemptA.attemptId, actualLatencyMs: 3, result: { kind: 'SUCCEEDED', payload: payloadA } });
+
+  const list = store.listCheckpointsForDeliberationState(state.id);
+  const entry = list.find((c) => c.attemptId === attemptA.attemptId);
+  entry.reservedLatencyMs = 12345;
+  entry.terminalFact.payload.findingIds.push('injected-finding-id');
+  entry.terminalFact.payload.reviewerRunId = 'mutated-run-id';
+
+  const again = store.listCheckpointsForDeliberationState(state.id).find((c) => c.attemptId === attemptA.attemptId);
+  assert.equal(again.reservedLatencyMs, 20);
+  assert.deepEqual(again.terminalFact.payload.findingIds, payloadA.findingIds);
+  assert.equal(again.terminalFact.payload.reviewerRunId, payloadA.reviewerRunId);
+});
+
+check('alias test — store input: mutating the original object after insertCheckpointIfAbsent never alters the stored authoritative record (the store\'s own write boundary, independent of higher-level cloning)', () => {
+  const store = createInMemoryRouteExecutionCheckpointStore();
+  const original = {
+    phase: 'CLAIMED',
+    attemptId: 'raw-attempt-id',
+    deliberationStateId: 'raw-state-id',
+    route: 'REPLICATE',
+    claimedAt: new Date().toISOString(),
+    latencyLimitMs: 42,
+    reservedLatencyMs: 42,
+  };
+  store.insertCheckpointIfAbsent(original);
+  original.latencyLimitMs = 999;
+  original.reservedLatencyMs = 999;
+  original.route = 'ADD_REVIEWER';
+
+  const stored = store.getCheckpoint('raw-attempt-id');
+  assert.equal(stored.latencyLimitMs, 42, 'mutating the caller-owned object after insertion must not reach the authoritative Map');
+  assert.equal(stored.reservedLatencyMs, 42);
+  assert.equal(stored.route, 'REPLICATE');
+});
+
+// --- §26-29. Coordinated-write identity authority ---------------------------
+
+check('coordinated write — cross-identity bypass: there is no legal way to state "coordinate B, write A"; a ROUTE_OUTCOME descriptor targeting a checkpointed attempt is rejected before any product mutation, and the uncheckpointed sibling is irrelevant and untouched', () => {
+  const { session, state, attemptA, attemptB, store, port } = buildTwoMachineAttemptFixture(100);
+  recordExecutionPreCallFailure(session, state, store, port, ENABLED_POLICY(50), {
+    attemptId: attemptA.attemptId,
+    failure: { category: 'REFERENCE_RESOLUTION', message: 'unresolvable' },
+  });
+  assert.equal(effectiveLatencyEncumbrance(store.getCheckpoint(attemptA.attemptId), state), 0);
+  assert.equal(store.getCheckpoint(attemptB.attemptId), undefined, 'B owns no checkpoint at all');
+
+  // The new API structurally has no field through which a caller could name
+  // a different "coordination identity" than the one actually written -- the
+  // only identity that ever exists is write.input.attemptId. Here it names A.
+  assert.throws(
+    () =>
+      performCoordinatedLatencyWrite(session, state, store, port, {
+        kind: 'ROUTE_OUTCOME',
+        input: { attemptId: attemptA.attemptId, status: 'FAILED', latencyConsumed: 0, failure: { category: 'EXECUTION', message: 'retyped' } },
+      }),
+    new RegExp(`attempt ${attemptA.attemptId} already owns an execution checkpoint`)
+  );
+  assert.equal(port.current().outcomes.length, 0, 'rejected before any product-domain mutation');
+  assert.equal(store.getCheckpoint(attemptB.attemptId), undefined, 'B was never consulted, claimed, or written -- it is not even nameable in this call');
+});
+
+check('coordinated write — legacy ROUTE_OUTCOME: an uncheckpointed attempt records a canonical RouteOutcome through the closed-dispatch wrapper, subject to ordinary product validation and latency coordination, with no checkpoint synthesized', () => {
+  const { session, state, machineAttempt, store, port, machinePayload } = buildMixedExecFixture();
+  const next = performCoordinatedLatencyWrite(session, state, store, port, {
+    kind: 'ROUTE_OUTCOME',
+    input: { attemptId: machineAttempt.attemptId, status: 'SUCCEEDED', latencyConsumed: 6, ...machinePayload },
+  });
+  assert.equal(next.outcomes[0].attemptId, machineAttempt.attemptId);
+  assert.equal(next.latencyBudget.spent, 6);
+  assert.equal(store.getCheckpoint(machineAttempt.attemptId), undefined);
+  // Ordinary product validation still applies -- a second ROUTE_OUTCOME for
+  // the same already-terminalized attempt is rejected by recordRouteOutcome
+  // itself, not weakened or bypassed by the coordination layer.
+  assert.throws(
+    () =>
+      performCoordinatedLatencyWrite(session, next, store, port, {
+        kind: 'ROUTE_OUTCOME',
+        input: { attemptId: machineAttempt.attemptId, status: 'SUCCEEDED', latencyConsumed: 1, ...machinePayload },
+      }),
+    /already has a RouteOutcome/
+  );
+});
+
+check('coordinated write — ADD_CONTEXT_NO_RESPONSE: the target attemptId is derived from the closure input itself, the checkpoint gate is applied to that exact identity, and the canonical closure operation is invoked with no provider call', () => {
+  const { session, state, contextAttempt, store, port } = buildMixedExecFixture();
+  // Prove the gate is keyed on the DERIVED identity, not a separate one: hand-
+  // construct a checkpoint for this exact (anomalous, non-machine) attempt --
+  // §28.36.5 -- via the store directly, since recordExecutionPreCallFailure
+  // itself correctly rejects ADD_CONTEXT as non-machine -- then confirm the
+  // closure descriptor targeting the same identity is rejected.
+  store.insertCheckpointIfAbsent({
+    phase: 'TERMINAL_FACT_READY',
+    attemptId: contextAttempt.attemptId,
+    deliberationStateId: state.id,
+    route: 'ADD_CONTEXT',
+    claimedAt: new Date().toISOString(),
+    reservedLatencyMs: 0,
+    terminalFactReadyAt: new Date().toISOString(),
+    terminalFact: { kind: 'FAILED', actualLatencyMs: 0, failure: { category: 'EXECUTION', message: 'anomalous pre-existing checkpoint on a non-machine attempt' } },
+  });
+  assert.throws(
+    () =>
+      performCoordinatedLatencyWrite(session, state, store, port, {
+        kind: 'ADD_CONTEXT_NO_RESPONSE',
+        input: { attemptId: contextAttempt.attemptId, latencyConsumed: 1 },
+      }),
+    /already owns an execution checkpoint/
+  );
+
+  // Without a checkpoint, the same descriptor legally dispatches to the
+  // canonical closeContextRequestWithoutResponse and commits the result.
+  const fresh = buildMixedExecFixture();
+  const next = performCoordinatedLatencyWrite(fresh.session, fresh.state, fresh.store, fresh.port, {
+    kind: 'ADD_CONTEXT_NO_RESPONSE',
+    input: { attemptId: fresh.contextAttempt.attemptId, latencyConsumed: 1 },
+  });
+  assert.equal(next.outcomes[0].result, 'NO_RESPONSE');
+  assert.equal(next.outcomes[0].attemptId, fresh.contextAttempt.attemptId);
+  assert.equal(fresh.port.current().id, next.id);
+  assert.equal(fresh.store.getCheckpoint(fresh.contextAttempt.attemptId), undefined, 'no checkpoint synthesized for the ADD_CONTEXT closure');
+});
+
+check('coordinated write — no arbitrary callback surface: neither a bare callback nor the retired (store, port, stateId, attemptId, operation) positional shape is accepted; both fail closed with no product mutation', () => {
+  const { session, state, contextAttempt, store, port } = buildMixedExecFixture();
+
+  // A bare operation callback where a CoordinatedLatencyWriteInput descriptor
+  // is structurally required.
+  assert.throws(() => performCoordinatedLatencyWrite(session, state, store, port, (current) => current), /write must be an object/);
+
+  // The retired 5-positional-argument shape: every former parameter now
+  // occupies the wrong slot in the corrected signature, so no legal path
+  // exists through it to a state mutation -- it must throw somewhere, never
+  // silently succeed.
+  assert.throws(() =>
+    performCoordinatedLatencyWrite(store, port, state.id, contextAttempt.attemptId, (current) =>
+      closeContextRequestWithoutResponse(session, current, { attemptId: contextAttempt.attemptId, latencyConsumed: 1 })
+    )
+  );
+
+  assert.equal(port.current().outcomes.length, 0, 'no product mutation occurred through either malformed call shape');
+  assert.equal(store.listCheckpointsForDeliberationState(state.id).length, 0);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

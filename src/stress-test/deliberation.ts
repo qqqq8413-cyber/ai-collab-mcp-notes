@@ -4629,6 +4629,77 @@ function cloneReservedTerminalFact(fact: ReservedTerminalFact): ReservedTerminal
   }
 }
 
+/**
+ * Independent snapshot of one execution checkpoint, at whatever phase it
+ * currently occupies (§28.22; alias-isolation gap closed by D1-A Amendment
+ * 1, Blocker A). Every nested mutable field -- a `FailureInfo`, or a
+ * `ReservedTerminalFact`'s route-specific payload (which itself bottoms out
+ * in the same `cloneFailureInfo`/`cloneRouteInputRef`/`cloneEvidenceCitations`/
+ * `cloneTargetedPeerChallengeBoundedExcerpt` helpers the product layer
+ * already uses) -- is cloned via `cloneReservedTerminalFact`, never
+ * reimplemented here. Top-level fields are scalars (strings/numbers), so
+ * they need no cloning, but are always copied into a genuinely new object:
+ * the return value never shares object identity with either its input or
+ * any other snapshot of the same checkpoint. This is the ONE place a
+ * `RouteExecutionCheckpointStore` (§28.2/§28.23) trusts to produce the
+ * independent copies its own write/read boundary requires (§28.34.5's
+ * store-boundary correction) -- no generic deep-clone/deep-freeze
+ * infrastructure is introduced.
+ */
+function cloneRouteExecutionCheckpoint(checkpoint: RouteExecutionCheckpoint): RouteExecutionCheckpoint {
+  if (checkpoint.phase === 'CLAIMED') {
+    return {
+      phase: 'CLAIMED',
+      attemptId: checkpoint.attemptId,
+      deliberationStateId: checkpoint.deliberationStateId,
+      route: checkpoint.route,
+      claimedAt: checkpoint.claimedAt,
+      latencyLimitMs: checkpoint.latencyLimitMs,
+      reservedLatencyMs: checkpoint.reservedLatencyMs,
+    };
+  }
+  if (checkpoint.phase === 'TERMINAL_FACT_READY') {
+    if (isPreCallFailedCheckpoint(checkpoint)) {
+      return {
+        phase: 'TERMINAL_FACT_READY',
+        attemptId: checkpoint.attemptId,
+        deliberationStateId: checkpoint.deliberationStateId,
+        route: checkpoint.route,
+        claimedAt: checkpoint.claimedAt,
+        reservedLatencyMs: 0,
+        terminalFactReadyAt: checkpoint.terminalFactReadyAt,
+        terminalFact: { kind: 'FAILED', actualLatencyMs: 0, failure: cloneFailureInfo(checkpoint.terminalFact.failure) },
+      };
+    }
+    const reserved = checkpoint as ReservedTerminalFactReadyCheckpoint;
+    return {
+      phase: 'TERMINAL_FACT_READY',
+      attemptId: reserved.attemptId,
+      deliberationStateId: reserved.deliberationStateId,
+      route: reserved.route,
+      claimedAt: reserved.claimedAt,
+      latencyLimitMs: reserved.latencyLimitMs,
+      reservedLatencyMs: reserved.reservedLatencyMs,
+      terminalFactReadyAt: reserved.terminalFactReadyAt,
+      terminalFact: cloneReservedTerminalFact(reserved.terminalFact),
+    };
+  }
+  if (checkpoint.phase === 'OUTCOME_COMMITTED') {
+    return {
+      phase: 'OUTCOME_COMMITTED',
+      attemptId: checkpoint.attemptId,
+      deliberationStateId: checkpoint.deliberationStateId,
+      route: checkpoint.route,
+      claimedAt: checkpoint.claimedAt,
+      terminalFactReadyAt: checkpoint.terminalFactReadyAt,
+      outcomeCommittedAt: checkpoint.outcomeCommittedAt,
+      terminalFact: cloneReservedTerminalFact(checkpoint.terminalFact),
+    };
+  }
+  const exhaustive: never = checkpoint;
+  throw new Error(`cloneRouteExecutionCheckpoint: invalid phase ${JSON.stringify((exhaustive as { phase: unknown }).phase)}`);
+}
+
 // --- Route-specific payload validation -------------------------------------
 // Structural/vocabulary validation only. Deep product re-verification
 // (findings resolve, refs belong to the decision's inputRefs, evidence
@@ -5572,40 +5643,93 @@ export function markExecutionOutcomeCommitted(
 // --- performCoordinatedLatencyWrite (§28.34.5/§28.36.4) -------------------
 
 /**
+ * The closed set of canonical product operations `performCoordinatedLatencyWrite`
+ * may dispatch to (D1-A Amendment 1, Blocker B). Deliberately NOT an arbitrary
+ * `operation: (currentState) => DeliberationState` callback -- see the
+ * function doc below for the identity-authority gap that shape permitted.
+ * `input.attemptId` is the SAME value used for the checkpoint-existence gate
+ * and for the canonical write itself; no second, independently-selected
+ * attempt identity can exist.
+ */
+export type CoordinatedLatencyWriteInput =
+  | { kind: 'ROUTE_OUTCOME'; input: RecordRouteOutcomeInput }
+  | { kind: 'ADD_CONTEXT_NO_RESPONSE'; input: { attemptId: string; latencyConsumed: number } };
+
+/**
  * The coordinated wrapper for every NEW latency-consuming write that is NOT
  * checkpoint-backed replay -- `recordRouteOutcome`'s `ADD_CONTEXT`
- * `SUPPLIED`/`DECLINED` and generic-`FAILED` branches, and
- * `closeContextRequestWithoutResponse`'s `NO_RESPONSE` closure.
+ * `SUPPLIED`/`DECLINED`/generic-`FAILED` branches (and every other route's
+ * generic `FAILED`), and `closeContextRequestWithoutResponse`'s
+ * `NO_RESPONSE` closure.
+ *
+ * **Runtime-discovered correction (D1-A Amendment 1, Blocker B):** the prior
+ * shape took a caller-supplied `attemptId` for the checkpoint-existence gate
+ * and a SEPARATE, arbitrary `operation: (currentState) => DeliberationState`
+ * callback for the actual write. Those were two independently caller-chosen
+ * facts that could disagree -- a caller could coordinate on attempt B (no
+ * checkpoint, admits) while the callback silently persisted a `RouteOutcome`
+ * for a DIFFERENT attempt A that already owned a checkpoint, reopening
+ * exactly the EC-30/§28.36 direct-write bypass checkpoint-backed exclusivity
+ * exists to close. Corrected by removing the arbitrary-callback surface
+ * entirely: the caller supplies a closed `CoordinatedLatencyWriteInput`
+ * descriptor naming one of the two canonical product operations plus its
+ * own exact input, and the target `attemptId` is derived EXACTLY ONCE, from
+ * `write.input.attemptId` -- there is no second field through which a
+ * caller could make the identity checked disagree with the identity written.
+ * EC-30's meaning is unchanged; this closes the gap between that already-
+ * frozen rule and a runtime shape that could not prove the two identities
+ * were the same one.
  *
  * Enters coordination UNCONDITIONALLY (EC-26): the question "is effective
  * encumbrance currently positive?" is answered only INSIDE the boundary,
  * never as a pre-boundary gate used to decide whether to enter it -- that
  * pre-check is itself racy across the zero-to-positive transition.
  *
- * Rejects outright if any checkpoint exists for `attemptId`, regardless of its
- * phase, `reservedLatencyMs`, or `effectiveLatencyEncumbrance` (§28.36) -- an
- * identity/authority gate, not a budget gate. Zero reservation never restores
- * an uncheckpointed write path (EC-30).
+ * Rejects outright if any checkpoint exists for the derived `attemptId`,
+ * regardless of its phase, `reservedLatencyMs`, or `effectiveLatencyEncumbrance`
+ * (§28.36) -- an identity/authority gate, not a budget gate. Zero reservation
+ * never restores an uncheckpointed write path (EC-30).
  *
- * The canonical product validators are called unmodified and are never made to
- * inspect checkpoint state themselves (§28.34.8/EC-25). No automatic retry.
+ * The wrapper validates only its own closed descriptor shape (`kind`,
+ * `input`, and the single `attemptId` it derives) -- it never reimplements
+ * `RecordRouteOutcomeInput` or `ADD_CONTEXT`-closure semantic validation,
+ * which stay exclusively inside the two canonical operations it dispatches
+ * to, called unmodified (§28.34.8/EC-25). No automatic retry.
  */
 export function performCoordinatedLatencyWrite(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
   store: RouteExecutionCheckpointStore,
   deliberationStateAccessPort: DeliberationStateAccessPort,
-  deliberationStateId: string,
-  attemptId: string,
-  operation: (currentState: DeliberationState) => DeliberationState
+  write: CoordinatedLatencyWriteInput
 ): DeliberationState {
-  assertNonEmptyString(deliberationStateId, 'performCoordinatedLatencyWrite: deliberationStateId');
-  assertNonEmptyString(attemptId, 'performCoordinatedLatencyWrite: attemptId');
-  if (typeof operation !== 'function') {
-    throw new Error('performCoordinatedLatencyWrite: operation must be a function');
+  if (write === null || typeof write !== 'object') {
+    throw new Error('performCoordinatedLatencyWrite: write must be an object');
   }
+  assertExactKeys(write, ['kind', 'input'], 'performCoordinatedLatencyWrite: write');
+  if (write.kind !== 'ROUTE_OUTCOME' && write.kind !== 'ADD_CONTEXT_NO_RESPONSE') {
+    throw new Error(
+      `performCoordinatedLatencyWrite: write.kind ${JSON.stringify((write as { kind: unknown }).kind)} is not a legal CoordinatedLatencyWriteInput kind`
+    );
+  }
+  if (write.input === null || typeof write.input !== 'object') {
+    throw new Error('performCoordinatedLatencyWrite: write.input must be an object');
+  }
+  // ONE authority for the identity being written: derived here, once, from
+  // the canonical product-write input itself -- never restated separately.
+  const targetAttemptId = write.input.attemptId;
+  assertNonEmptyString(targetAttemptId, 'performCoordinatedLatencyWrite: write.input.attemptId');
+
+  // Caller state identifies the intended DeliberationState only; re-verified
+  // against the current authoritative state inside coordination below.
+  verifyDeliberationBinding(session, deliberationState);
+  const deliberationStateId = deliberationState.id;
+
   return withCurrentDeliberationState(store, deliberationStateAccessPort, deliberationStateId, (currentState) => {
-    if (store.getCheckpoint(attemptId) !== undefined) {
+    verifyDeliberationBinding(session, currentState);
+    if (store.getCheckpoint(targetAttemptId) !== undefined) {
       throw new Error(
-        `performCoordinatedLatencyWrite: attempt ${attemptId} already owns an execution checkpoint; the only legal path to a new RouteOutcome for it is persistExecutionTerminalFactAsRouteOutcome (§28.36)`
+        `performCoordinatedLatencyWrite: attempt ${targetAttemptId} already owns an execution checkpoint; the only legal path to a new RouteOutcome for it is persistExecutionTerminalFactAsRouteOutcome (§28.36)`
       );
     }
     const encumbrance = totalEffectiveLatencyEncumbrance(store, currentState);
@@ -5614,10 +5738,12 @@ export function performCoordinatedLatencyWrite(
         `performCoordinatedLatencyWrite: DeliberationState ${deliberationStateId} currently holds ${encumbrance}ms of active effective latency encumbrance; this uncheckpointed write is deferred rather than permitted to bypass the reservation`
       );
     }
-    const nextState = operation(currentState);
-    if (nextState === null || typeof nextState !== 'object' || nextState.id !== deliberationStateId) {
-      throw new Error('performCoordinatedLatencyWrite: operation must return a DeliberationState for the same deliberationStateId');
-    }
+    // Dispatch to exactly the canonical operation the descriptor names --
+    // never a duplicated/weakened reimplementation of either validator.
+    const nextState =
+      write.kind === 'ROUTE_OUTCOME'
+        ? recordRouteOutcome(session, currentState, write.input)
+        : closeContextRequestWithoutResponse(session, currentState, write.input);
     return { nextState, result: nextState };
   });
 }
@@ -5855,20 +5981,29 @@ export function createInMemoryRouteExecutionCheckpointStore(): RouteExecutionChe
   const checkpoints = new Map<string, RouteExecutionCheckpoint>();
   const held = new Set<string>();
   return {
+    // Read boundary (D1-A Amendment 1, Blocker A): the authoritative stored
+    // record is never returned by reference. A caller mutating what it gets
+    // back -- top-level fields, terminalFact, nested failure/payload fields,
+    // arrays/refs -- can never rewrite execution history.
     getCheckpoint(attemptId: string): RouteExecutionCheckpoint | undefined {
-      return checkpoints.get(attemptId);
+      const existing = checkpoints.get(attemptId);
+      return existing === undefined ? undefined : cloneRouteExecutionCheckpoint(existing);
     },
     listCheckpointsForDeliberationState(deliberationStateId: string): RouteExecutionCheckpoint[] {
-      return [...checkpoints.values()].filter((c) => c.deliberationStateId === deliberationStateId);
+      return [...checkpoints.values()].filter((c) => c.deliberationStateId === deliberationStateId).map(cloneRouteExecutionCheckpoint);
     },
+    // Write boundary (D1-A Amendment 1, Blocker A): the authoritative Map
+    // never retains a reference owned outside the store, and the caller
+    // never receives the same object the store now holds -- ingress and
+    // egress are each independently cloned.
     insertCheckpointIfAbsent(checkpoint: RouteExecutionCheckpoint): RouteExecutionCheckpoint {
       if (checkpoints.has(checkpoint.attemptId)) {
         throw new Error(
           `RouteExecutionCheckpointStore: a checkpoint already exists for attempt ${checkpoint.attemptId}; insert-if-absent is atomic and never overwrites (EC-3/EC-6)`
         );
       }
-      checkpoints.set(checkpoint.attemptId, checkpoint);
-      return checkpoint;
+      checkpoints.set(checkpoint.attemptId, cloneRouteExecutionCheckpoint(checkpoint));
+      return cloneRouteExecutionCheckpoint(checkpoint);
     },
     replaceCheckpointPhase(
       attemptId: string,
@@ -5889,8 +6024,8 @@ export function createInMemoryRouteExecutionCheckpointStore(): RouteExecutionChe
           `RouteExecutionCheckpointStore: a phase transition may never change a checkpoint's attemptId, parent binding, or route`
         );
       }
-      checkpoints.set(attemptId, next);
-      return next;
+      checkpoints.set(attemptId, cloneRouteExecutionCheckpoint(next));
+      return cloneRouteExecutionCheckpoint(next);
     },
     withDeliberationStateCoordination<T>(deliberationStateId: string, operation: () => T): T {
       // Deterministic single-process ownership. Re-entry is a programming
