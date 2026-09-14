@@ -1841,5 +1841,105 @@ check('P2-B AE. a valid historical verification remains readable after the sourc
   assert.doesNotThrow(() => assertRevisionVerificationIntegrity(completed, successorSession, recordId));
 });
 
+console.log('\nRevision verification ledger integrity at write boundary (P2-B Amendment 1)');
+
+function buildVerifiableFixtureWithTwoActions() {
+  const { session, actionId1, actionId2 } = buildTwoImplementedActionsFixtureSession();
+  const { sourceSession, successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  return { sourceSession, successorSession, actionId1, actionId2 };
+}
+
+check(
+  'Amendment 1 #1. an existing unrelated corrupt record (illegal verdict) blocks a new, otherwise-valid write',
+  () => {
+    const { sourceSession, successorSession, actionId1, actionId2 } = buildVerifiableFixtureWithTwoActions();
+    const corruptRecordId = 'a-corrupt-existing-record';
+    const corrupted = {
+      ...sourceSession,
+      revisionVerifications: {
+        [corruptRecordId]: {
+          id: corruptRecordId,
+          revisionActionId: actionId1,
+          verdict: 'SOMEWHAT_PRESENT',
+          evidence: 'Corrupt pre-existing record.',
+          verifiedAt: new Date().toISOString(),
+        },
+      },
+    };
+    assert.throws(
+      () =>
+        recordRevisionVerification(corrupted, successorSession, {
+          revisionActionId: actionId2,
+          verdict: 'VERIFIED_PRESENT',
+          evidence: 'Valid evidence for the unrelated action.',
+        }),
+      /has an invalid verdict/
+    );
+  }
+);
+
+check(
+  'Amendment 1 #2. an existing hidden duplicate for RA-1 blocks a new, otherwise-valid write for separate RA-2',
+  () => {
+    const { sourceSession, successorSession, actionId1, actionId2 } = buildVerifiableFixtureWithTwoActions();
+    const firstId = 'hidden-duplicate-a';
+    const secondId = 'hidden-duplicate-b';
+    const corrupted = {
+      ...sourceSession,
+      revisionVerifications: {
+        [firstId]: {
+          id: firstId,
+          revisionActionId: actionId1,
+          verdict: 'VERIFIED_PRESENT',
+          evidence: 'First duplicate.',
+          verifiedAt: new Date().toISOString(),
+        },
+        [secondId]: {
+          id: secondId,
+          revisionActionId: actionId1,
+          verdict: 'NOT_PRESENT',
+          evidence: 'Second, hidden duplicate for the same action.',
+          verifiedAt: new Date().toISOString(),
+        },
+      },
+    };
+    assert.throws(
+      () =>
+        recordRevisionVerification(corrupted, successorSession, {
+          revisionActionId: actionId2,
+          verdict: 'VERIFIED_PRESENT',
+          evidence: 'Valid evidence for the unrelated action.',
+        }),
+      /0\.\.1 cardinality violated/
+    );
+  }
+);
+
+check('Amendment 1 #3. an existing map-key/record.id mismatch blocks an otherwise-valid new write', () => {
+  const { sourceSession, successorSession, actionId1, actionId2 } = buildVerifiableFixtureWithTwoActions();
+  const realId = 'the-real-id';
+  const corrupted = {
+    ...sourceSession,
+    revisionVerifications: {
+      'a-different-key': {
+        id: realId,
+        revisionActionId: actionId1,
+        verdict: 'VERIFIED_PRESENT',
+        evidence: 'Otherwise valid record stored under the wrong map key.',
+        verifiedAt: new Date().toISOString(),
+      },
+    },
+  };
+  assert.throws(
+    () =>
+      recordRevisionVerification(corrupted, successorSession, {
+        revisionActionId: actionId2,
+        verdict: 'VERIFIED_PRESENT',
+        evidence: 'Valid evidence for the unrelated action.',
+      }),
+    /map key .* does not match record\.id/
+  );
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed === 0 ? 0 : 1);

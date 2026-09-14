@@ -586,12 +586,72 @@ function isNonEmptyNonWhitespaceString(value: unknown): value is string {
 }
 
 /**
+ * Canonical, internal ledger-wide validator shared by both the write
+ * boundary (recordRevisionVerification) and the later-read boundary
+ * (assertRevisionVerificationIntegrity) -- P2-B Amendment 1. Validates EVERY
+ * existing entry in `sourceSession.revisionVerifications`, never only the
+ * one a caller is about to touch or request: before either boundary trusts
+ * anything about the ledger -- including before appending a brand-new,
+ * otherwise-unrelated record -- the whole ledger must already be
+ * structurally/provenance-consistent. This is the same "global integrity
+ * before local filtering" rule already applied at read time in P2-B,
+ * extended here to the write path so a hidden corrupt or duplicate record
+ * can never be built on top of, only ever caught.
+ */
+function assertRevisionVerificationLedgerIntegrity(sourceSession: StressTestSession): void {
+  const seenRevisionActionIds = new Set<string>();
+  for (const [key, record] of Object.entries(sourceSession.revisionVerifications)) {
+    if (key !== record.id) {
+      throw new Error(
+        `assertRevisionVerificationLedgerIntegrity: revisionVerifications map key "${key}" does not match record.id "${record.id}"`
+      );
+    }
+    if (!isNonEmptyString(record.id)) {
+      throw new Error(`assertRevisionVerificationLedgerIntegrity: record at key "${key}" has an invalid id`);
+    }
+    const referencedAction = sourceSession.revisionActions[record.revisionActionId];
+    if (!referencedAction) {
+      throw new Error(
+        `assertRevisionVerificationLedgerIntegrity: record ${record.id} references unknown revisionActionId ${record.revisionActionId}`
+      );
+    }
+    if (referencedAction.status !== 'IMPLEMENTED') {
+      throw new Error(
+        `assertRevisionVerificationLedgerIntegrity: record ${record.id} references revision action ${record.revisionActionId}, which is not IMPLEMENTED (status=${referencedAction.status})`
+      );
+    }
+    if (!REVISION_VERIFICATION_VERDICTS.includes(record.verdict)) {
+      throw new Error(
+        `assertRevisionVerificationLedgerIntegrity: record ${record.id} has an invalid verdict ${JSON.stringify(record.verdict)}`
+      );
+    }
+    if (!isNonEmptyNonWhitespaceString(record.evidence)) {
+      throw new Error(`assertRevisionVerificationLedgerIntegrity: record ${record.id} has empty/whitespace-only evidence`);
+    }
+    if (!isNonEmptyString(record.verifiedAt)) {
+      throw new Error(`assertRevisionVerificationLedgerIntegrity: record ${record.id} has an invalid verifiedAt`);
+    }
+    if (seenRevisionActionIds.has(record.revisionActionId)) {
+      throw new Error(
+        `assertRevisionVerificationLedgerIntegrity: more than one RevisionVerification references revisionActionId ${record.revisionActionId} -- 0..1 cardinality violated`
+      );
+    }
+    seenRevisionActionIds.add(record.revisionActionId);
+  }
+}
+
+/**
  * Records one immutable, human-confirmed RevisionVerification against
  * `input.revisionActionId` (REVISION_VERIFICATION_CONTRACT.md §8, §10, §13.B).
  * `verdict`/`evidence` are always caller-supplied -- this function never
  * compares `sourceSession.artifactText` against `successorSession.artifactText`
  * to derive a verdict; it is a human-confirmation recorder, not a comparator
  * (§10 of this contract's own human authority model).
+ *
+ * Before appending the new record, the ENTIRE existing ledger is validated
+ * (assertRevisionVerificationLedgerIntegrity) -- a pre-existing corrupt or
+ * duplicate record elsewhere in the ledger blocks this write too, even one
+ * unrelated to `input.revisionActionId` (P2-B Amendment 1).
  */
 export function recordRevisionVerification(
   sourceSession: StressTestSession,
@@ -599,6 +659,7 @@ export function recordRevisionVerification(
   input: { revisionActionId: string; verdict: RevisionVerificationVerdict; evidence: string }
 ): StressTestSession {
   assertRevisionSuccessorIntegrity(sourceSession, successorSession);
+  assertRevisionVerificationLedgerIntegrity(sourceSession);
 
   const action = sourceSession.revisionActions[input.revisionActionId];
   if (!action) {
@@ -659,46 +720,7 @@ export function assertRevisionVerificationIntegrity(
   revisionVerificationId: string
 ): void {
   assertRevisionSuccessorIntegrity(sourceSession, successorSession);
-
-  const seenRevisionActionIds = new Set<string>();
-  for (const [key, record] of Object.entries(sourceSession.revisionVerifications)) {
-    if (key !== record.id) {
-      throw new Error(
-        `assertRevisionVerificationIntegrity: revisionVerifications map key "${key}" does not match record.id "${record.id}"`
-      );
-    }
-    if (!isNonEmptyString(record.id)) {
-      throw new Error(`assertRevisionVerificationIntegrity: record at key "${key}" has an invalid id`);
-    }
-    const referencedAction = sourceSession.revisionActions[record.revisionActionId];
-    if (!referencedAction) {
-      throw new Error(
-        `assertRevisionVerificationIntegrity: record ${record.id} references unknown revisionActionId ${record.revisionActionId}`
-      );
-    }
-    if (referencedAction.status !== 'IMPLEMENTED') {
-      throw new Error(
-        `assertRevisionVerificationIntegrity: record ${record.id} references revision action ${record.revisionActionId}, which is not IMPLEMENTED (status=${referencedAction.status})`
-      );
-    }
-    if (!REVISION_VERIFICATION_VERDICTS.includes(record.verdict)) {
-      throw new Error(
-        `assertRevisionVerificationIntegrity: record ${record.id} has an invalid verdict ${JSON.stringify(record.verdict)}`
-      );
-    }
-    if (!isNonEmptyNonWhitespaceString(record.evidence)) {
-      throw new Error(`assertRevisionVerificationIntegrity: record ${record.id} has empty/whitespace-only evidence`);
-    }
-    if (!isNonEmptyString(record.verifiedAt)) {
-      throw new Error(`assertRevisionVerificationIntegrity: record ${record.id} has an invalid verifiedAt`);
-    }
-    if (seenRevisionActionIds.has(record.revisionActionId)) {
-      throw new Error(
-        `assertRevisionVerificationIntegrity: more than one RevisionVerification references revisionActionId ${record.revisionActionId} -- 0..1 cardinality violated`
-      );
-    }
-    seenRevisionActionIds.add(record.revisionActionId);
-  }
+  assertRevisionVerificationLedgerIntegrity(sourceSession);
 
   const record = sourceSession.revisionVerifications[revisionVerificationId];
   if (!record) {
