@@ -17,6 +17,7 @@ import {
   recordRouteOutcome,
   recordQuestionDisposition,
   registerEvidenceSubject,
+  assertRouteOutcomeIntegrity,
   generateIntegratedDecisionReport,
   generateDecisionRecord,
 } from './dist/stress-test/index.js';
@@ -532,6 +533,70 @@ check('generateIntegratedDecisionReport: generation has no side effects -- sessi
 // §27. Tampered provenance -- fails closed
 // ==================================================================
 
+function buildHiddenDisposedEvidenceFixture() {
+  const { session, findingId } = addFindingTracked(createFrozenSession());
+  let state = createDeliberationState(session, { costCeiling: 50, latencyCeiling: 100 });
+  const sourceRef = { kind: 'FINDING', id: findingId };
+  const question = createUnresolvedQuestion(session, {
+    rootCause: 'EVIDENCE_GAP',
+    materialityReason: 'Independent evidence is required for the vendor claim.',
+    inputRefs: [sourceRef],
+  });
+  state = registerUnresolvedQuestion(session, state, question);
+  const registered = registerEvidenceSubject(session, state, {
+    questionId: question.id,
+    sourceRef,
+    originatingFindingId: findingId,
+    claimText: 'Switching vendors requires a full data migration.',
+  });
+  state = registered.deliberationState;
+  const decision = planRouteForQuestion(session, state, question);
+  state = recordRouteDecision(session, state, decision);
+  state = recordRouteAttemptStart(session, state, decision.id);
+  const attempt = state.attempts[0];
+  state = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 1,
+    result: 'SUPPORTIVE',
+    evidenceSubjectId: registered.evidenceSubject.id,
+    citations: [{ sourceIdentifier: 'synthetic-migration-notes', excerpt: 'A full migration is required.' }],
+  });
+  state = recordQuestionDisposition(session, state, {
+    attemptId: attempt.attemptId,
+    disposition: 'RESOLVED',
+    reason: 'The evidence question was reviewed and closed.',
+  });
+  return { session, state, attempt };
+}
+
+check('generateIntegratedDecisionReport: disposed FINDING-only evidence remains readable without a detail path', () => {
+  const { session, state, attempt } = buildHiddenDisposedEvidenceFixture();
+  const before = structuredClone({ session, state });
+  assertRouteOutcomeIntegrity(session, state, attempt.attemptId);
+  const report = generateIntegratedDecisionReport(session, state);
+  assert.deepEqual(report.issues, []);
+  assert.deepEqual(report.unresolvedRisks, []);
+  assert.equal(report.summary.evidenceSupportive, 1);
+  assert.equal(report.summary.disposedQuestions, 1);
+  assert.equal(report.summary.unresolvedQuestions, 0);
+  assert.deepEqual({ session, state }, before);
+});
+
+check('generateIntegratedDecisionReport: hidden disposed evidence cannot bypass canonical integrity through summary counts', () => {
+  const { session, state, attempt } = buildHiddenDisposedEvidenceFixture();
+  assert.equal(generateIntegratedDecisionReport(session, state).summary.evidenceSupportive, 1);
+  const tampered = structuredClone(state);
+  tampered.outcomes[0].decisionId = 'wrong-historical-decision';
+  assert.equal(tampered.outcomes[0].route, 'SEEK_EVIDENCE');
+  assert.equal(tampered.outcomes[0].status, 'SUCCEEDED');
+  assert.equal(tampered.outcomes[0].result, 'SUPPORTIVE');
+  const before = structuredClone({ session, tampered });
+  assert.throws(() => assertRouteOutcomeIntegrity(session, tampered, attempt.attemptId), /outcome\.decisionId does not match/);
+  assert.throws(() => generateIntegratedDecisionReport(session, tampered), /outcome\.decisionId does not match/);
+  assert.deepEqual({ session, tampered }, before);
+});
+
 check('generateIntegratedDecisionReport: duplicate RouteAttempts for one RouteDecision fail closed', () => {
   const { session, state, decision, attempt } = buildSeekEvidenceFixture('SUPPORTIVE');
   const tampered = {
@@ -549,7 +614,7 @@ check('generateIntegratedDecisionReport: duplicate RouteOutcomes for one RouteAt
   const tampered = { ...state, outcomes: [...state.outcomes, { ...state.outcomes[0] }] };
   assert.throws(
     () => generateIntegratedDecisionReport(session, tampered),
-    new RegExp(`RouteAttempt ${attempt.attemptId} resolves to more than one RouteOutcome`)
+    new RegExp(`assertRouteOutcomeIntegrity: attemptId ${attempt.attemptId} resolves to more than one RouteOutcome`)
   );
 });
 

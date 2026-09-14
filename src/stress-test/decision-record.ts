@@ -552,6 +552,10 @@ export function generateIntegratedDecisionReport(
   deliberationState: DeliberationState
 ): IntegratedDecisionReport {
   verifyDeliberationBinding(session, deliberationState);
+  // Validate historical outcomes even when no detail view traverses them.
+  for (const outcome of deliberationState.outcomes) {
+    assertRouteOutcomeIntegrity(session, deliberationState, outcome.attemptId);
+  }
 
   const issues: IntegratedDecisionReportIssue[] = Object.values(session.semanticIssues).map((issue) => {
     const artifactLocations = issue.findingIds.map((findingId) => {
