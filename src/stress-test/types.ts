@@ -143,6 +143,26 @@ export interface RevisionAction {
   createdAt: string;
 }
 
+/**
+ * The authoritative fact that `successorSessionId` is `sourceSessionId`'s one
+ * direct revised-artifact successor (V0 -> V1). This is version/successor
+ * authority only -- it never implies any `RevisionAction` was verified
+ * present in the successor; that is `RevisionVerification` (P2-B,
+ * REVISION_VERIFICATION_CONTRACT.md). All six identity/hash fields are kept
+ * so write-boundary and later-read checks can compare against whichever
+ * session objects a caller actually supplies, rather than trusting either
+ * session's own copy of the other's identity.
+ */
+export interface RevisionSuccessorBinding {
+  sourceSessionId: string;
+  sourceArtifactHash: string;
+  sourceAuthorContextHash: string;
+  successorSessionId: string;
+  successorArtifactHash: string;
+  successorAuthorContextHash: string;
+  createdAt: string;
+}
+
 export type SessionState =
   | 'DRAFT'
   | 'INPUT_FROZEN'
@@ -170,4 +190,5 @@ export interface StressTestSession {
   semanticIssues: Record<string, SemanticIssue>;
   adjudications: Record<string, HumanAdjudication>;
   revisionActions: Record<string, RevisionAction>;
+  revisionSuccessor: RevisionSuccessorBinding | null;
 }

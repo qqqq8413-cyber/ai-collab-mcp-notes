@@ -10,6 +10,8 @@ import {
   implementRevisionAction,
   rejectRevisionAction,
   completeSession,
+  createRevisionSuccessorSession,
+  assertRevisionSuccessorIntegrity,
   generateDecisionRecord,
   renderDecisionRecordMarkdown,
   sha256Text,
@@ -929,6 +931,329 @@ check('DecisionRecord.openQuestions includes only CURRENT items; RESOLVED/SUPERS
   assert.equal(md.includes('Resolved question'), false);
   assert.equal(md.includes('Superseded question'), false);
 });
+
+console.log('\nRevision successor binding (P2-A)');
+
+const AUTHOR_CONTEXT_CATEGORIES = ['confirmedFacts', 'knownRisks', 'openQuestions', 'constraints'];
+
+const REVISED_ARTIFACT_TEXT = `Project Comet — Internal Launch Memo
+
+We are rolling out TaskFlow Lite to all 500 employees over a two-week window.
+Pilot testing with 20 employees ran for two weeks with no major issues.
+Total budget for licensing is capped at $8,000, with no additional headcount
+available for the rollout. IT has confirmed capacity to provision all 500
+accounts within the rollout window, beginning one week before go-live.`;
+
+function buildImplementedFixtureSession() {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  const withAction = planRevisionAction(session, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+    description: 'Add a paragraph confirming IT provisioning capacity and an explicit provisioning timeline.',
+    targetLocation: 'Rollout Plan section',
+  });
+  const actionId = Object.keys(withAction.revisionActions)[0];
+  const implemented = implementRevisionAction(withAction, actionId);
+  return { session: implemented, actionId };
+}
+
+check('A. an IMPLEMENTED RevisionAction allows createRevisionSuccessorSession to produce a successor', () => {
+  const { session } = buildImplementedFixtureSession();
+  const { successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  assert.equal(successorSession.state, 'INPUT_FROZEN');
+  assert.equal(successorSession.artifactText, REVISED_ARTIFACT_TEXT);
+  assert.notEqual(successorSession.artifactHash, null);
+});
+
+check('B. the returned sourceSession has a non-null revisionSuccessor binding', () => {
+  const { session } = buildImplementedFixtureSession();
+  const { sourceSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  assert.notEqual(sourceSession.revisionSuccessor, null);
+  assert.equal(typeof sourceSession.revisionSuccessor.createdAt, 'string');
+});
+
+check("C. binding's six identity/hash facts exactly match source/successor", () => {
+  const { session } = buildImplementedFixtureSession();
+  const { sourceSession, successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  const binding = sourceSession.revisionSuccessor;
+  assert.equal(binding.sourceSessionId, session.id);
+  assert.equal(binding.sourceArtifactHash, session.artifactHash);
+  assert.equal(binding.sourceAuthorContextHash, session.authorContextHash);
+  assert.equal(binding.successorSessionId, successorSession.id);
+  assert.equal(binding.successorArtifactHash, successorSession.artifactHash);
+  assert.equal(binding.successorAuthorContextHash, successorSession.authorContextHash);
+});
+
+check('D. successor artifactHash differs from source artifactHash', () => {
+  const { session } = buildImplementedFixtureSession();
+  const { successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  assert.notEqual(successorSession.artifactHash, session.artifactHash);
+});
+
+check('E. successor AuthorContext has the same semantic text/sourceType/status per category as source', () => {
+  const { session } = buildImplementedFixtureSession();
+  const { successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  for (const category of AUTHOR_CONTEXT_CATEGORIES) {
+    const sourceItems = session.authorContext[category];
+    const successorItems = successorSession.authorContext[category];
+    assert.equal(successorItems.length, sourceItems.length);
+    for (let i = 0; i < sourceItems.length; i++) {
+      assert.equal(successorItems[i].text, sourceItems[i].text);
+      assert.equal(successorItems[i].sourceType, sourceItems[i].sourceType);
+      assert.equal(successorItems[i].status, sourceItems[i].status);
+    }
+  }
+});
+
+check('F. successor AuthorContext item ids are freshly minted, never reused from source', () => {
+  const { session } = buildImplementedFixtureSession();
+  const { successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  for (const category of AUTHOR_CONTEXT_CATEGORIES) {
+    const sourceIds = new Set(session.authorContext[category].map((item) => item.id));
+    for (const item of successorSession.authorContext[category]) {
+      assert.equal(sourceIds.has(item.id), false);
+    }
+  }
+});
+
+check('G. successor AuthorContext arrays/items do not alias source arrays/items', () => {
+  const { session } = buildImplementedFixtureSession();
+  const { successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  for (const category of AUTHOR_CONTEXT_CATEGORIES) {
+    assert.notStrictEqual(successorSession.authorContext[category], session.authorContext[category]);
+    for (let i = 0; i < session.authorContext[category].length; i++) {
+      assert.notStrictEqual(successorSession.authorContext[category][i], session.authorContext[category][i]);
+    }
+  }
+});
+
+check('H. the caller-supplied sourceSession object is not mutated in place', () => {
+  const { session } = buildImplementedFixtureSession();
+  const snapshotJson = JSON.stringify(session);
+  createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  assert.equal(JSON.stringify(session), snapshotJson);
+  assert.equal(session.revisionSuccessor, null);
+});
+
+check('I. assertRevisionSuccessorIntegrity accepts a genuinely valid source/successor pair', () => {
+  const { session } = buildImplementedFixtureSession();
+  const { sourceSession, successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  assert.doesNotThrow(() => assertRevisionSuccessorIntegrity(sourceSession, successorSession));
+});
+
+check('J. a whitespace-only revised artifact is a legal successor as long as the hash changes', () => {
+  const { session } = buildImplementedFixtureSession();
+  const whitespaceOnly = session.artifactText + ' ';
+  const { successorSession } = createRevisionSuccessorSession(session, whitespaceOnly);
+  assert.notEqual(successorSession.artifactHash, session.artifactHash);
+  assert.equal(successorSession.artifactText, whitespaceOnly);
+});
+
+check('K. a DRAFT source is rejected (frozen-or-later required)', () => {
+  const draft = createSession(ARTIFACT_TEXT);
+  assert.throws(() => createRevisionSuccessorSession(draft, REVISED_ARTIFACT_TEXT), /frozen first/);
+});
+
+check('L. a source with zero RevisionActions is rejected', () => {
+  const session = freezeInput(createSession(ARTIFACT_TEXT));
+  assert.throws(() => createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT), /no IMPLEMENTED RevisionAction/);
+});
+
+check('M. a source whose only RevisionAction is still PLANNED is rejected', () => {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  const withAction = planRevisionAction(session, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+    description: 'x',
+    targetLocation: 'x',
+  });
+  assert.throws(
+    () => createRevisionSuccessorSession(withAction, REVISED_ARTIFACT_TEXT),
+    /no IMPLEMENTED RevisionAction/
+  );
+});
+
+check('N. a source whose only RevisionAction is REJECTED is rejected', () => {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  const withAction = planRevisionAction(session, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+    description: 'x',
+    targetLocation: 'x',
+  });
+  const actionId = Object.keys(withAction.revisionActions)[0];
+  const rejected = rejectRevisionAction(withAction, actionId);
+  assert.throws(
+    () => createRevisionSuccessorSession(rejected, REVISED_ARTIFACT_TEXT),
+    /no IMPLEMENTED RevisionAction/
+  );
+});
+
+check('O. an identical artifact text is rejected (successor must be a changed snapshot)', () => {
+  const { session } = buildImplementedFixtureSession();
+  assert.throws(
+    () => createRevisionSuccessorSession(session, session.artifactText),
+    /must be a changed artifact snapshot/
+  );
+});
+
+check("P. an empty revised artifact is rejected through createSession's existing non-empty rule", () => {
+  const { session } = buildImplementedFixtureSession();
+  assert.throws(() => createRevisionSuccessorSession(session, ''), /non-empty string/);
+});
+
+check('Q. a second direct successor for the same source is rejected', () => {
+  const { session } = buildImplementedFixtureSession();
+  const { sourceSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  assert.throws(
+    () => createRevisionSuccessorSession(sourceSession, REVISED_ARTIFACT_TEXT + ' Again, revised once more.'),
+    /already has a direct revision successor/
+  );
+});
+
+check('R. an unrelated successor object is rejected by the canonical validator', () => {
+  const { session } = buildImplementedFixtureSession();
+  const { sourceSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  const unrelated = freezeInput(createSession('Some wholly unrelated artifact text.'));
+  assert.throws(
+    () => assertRevisionSuccessorIntegrity(sourceSession, unrelated),
+    /binding\.successorSessionId does not match/
+  );
+});
+
+check('S. a tampered binding.sourceSessionId is rejected', () => {
+  const { session } = buildImplementedFixtureSession();
+  const { sourceSession, successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  const tampered = { ...sourceSession, revisionSuccessor: { ...sourceSession.revisionSuccessor, sourceSessionId: 'wrong-id' } };
+  assert.throws(
+    () => assertRevisionSuccessorIntegrity(tampered, successorSession),
+    /binding\.sourceSessionId does not match/
+  );
+});
+
+check('T. a tampered binding.sourceArtifactHash is rejected', () => {
+  const { session } = buildImplementedFixtureSession();
+  const { sourceSession, successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  const tampered = {
+    ...sourceSession,
+    revisionSuccessor: { ...sourceSession.revisionSuccessor, sourceArtifactHash: 'deadbeef' },
+  };
+  assert.throws(
+    () => assertRevisionSuccessorIntegrity(tampered, successorSession),
+    /binding\.sourceArtifactHash does not match/
+  );
+});
+
+check('U. a tampered binding.sourceAuthorContextHash is rejected', () => {
+  const { session } = buildImplementedFixtureSession();
+  const { sourceSession, successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  const tampered = {
+    ...sourceSession,
+    revisionSuccessor: { ...sourceSession.revisionSuccessor, sourceAuthorContextHash: 'deadbeef' },
+  };
+  assert.throws(
+    () => assertRevisionSuccessorIntegrity(tampered, successorSession),
+    /binding\.sourceAuthorContextHash does not match/
+  );
+});
+
+check('V. a tampered binding.successorSessionId is rejected', () => {
+  const { session } = buildImplementedFixtureSession();
+  const { sourceSession, successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  const tampered = {
+    ...sourceSession,
+    revisionSuccessor: { ...sourceSession.revisionSuccessor, successorSessionId: 'wrong-id' },
+  };
+  assert.throws(
+    () => assertRevisionSuccessorIntegrity(tampered, successorSession),
+    /binding\.successorSessionId does not match/
+  );
+});
+
+check('W. a tampered binding.successorArtifactHash is rejected', () => {
+  const { session } = buildImplementedFixtureSession();
+  const { sourceSession, successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  const tampered = {
+    ...sourceSession,
+    revisionSuccessor: { ...sourceSession.revisionSuccessor, successorArtifactHash: 'deadbeef' },
+  };
+  assert.throws(
+    () => assertRevisionSuccessorIntegrity(tampered, successorSession),
+    /binding\.successorArtifactHash does not match/
+  );
+});
+
+check('X. a tampered binding.successorAuthorContextHash is rejected', () => {
+  const { session } = buildImplementedFixtureSession();
+  const { sourceSession, successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  const tampered = {
+    ...sourceSession,
+    revisionSuccessor: { ...sourceSession.revisionSuccessor, successorAuthorContextHash: 'deadbeef' },
+  };
+  assert.throws(
+    () => assertRevisionSuccessorIntegrity(tampered, successorSession),
+    /binding\.successorAuthorContextHash does not match/
+  );
+});
+
+check('Y. a tampered successor artifact text with a stale hash is rejected by verifyFrozenInputIntegrity', () => {
+  const { session } = buildImplementedFixtureSession();
+  const { sourceSession, successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  const tamperedSuccessor = { ...successorSession, artifactText: successorSession.artifactText + ' TAMPERED' };
+  assert.throws(
+    () => assertRevisionSuccessorIntegrity(sourceSession, tamperedSuccessor),
+    /no longer matches its frozen artifactHash/
+  );
+});
+
+check('Z. tampered successor AuthorContext content with a stale authorContextHash is rejected', () => {
+  const { session } = buildImplementedFixtureSession();
+  const { sourceSession, successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  const tamperedItems = successorSession.authorContext.confirmedFacts.map((item, i) =>
+    i === 0 ? { ...item, text: 'A completely different claim never copied from source.' } : item
+  );
+  const tamperedSuccessor = {
+    ...successorSession,
+    authorContext: { ...successorSession.authorContext, confirmedFacts: tamperedItems },
+  };
+  assert.throws(
+    () => assertRevisionSuccessorIntegrity(sourceSession, tamperedSuccessor),
+    /no longer matches its frozen authorContextHash/
+  );
+});
+
+check(
+  'AA. a self-consistent semantic-context tamper (successor hash and binding hash refreshed to agree) is still rejected',
+  () => {
+    const { session } = buildImplementedFixtureSession();
+    const { sourceSession, successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+
+    const tamperedItems = successorSession.authorContext.confirmedFacts.map((item, i) =>
+      i === 0 ? { ...item, text: 'A completely different claim never copied from source.' } : item
+    );
+    const tamperedAuthorContext = { ...successorSession.authorContext, confirmedFacts: tamperedItems };
+    const refreshedAuthorContextHash = sha256AuthorContext(tamperedAuthorContext);
+    // The successor's own stored hash is refreshed to match its own tampered
+    // content, so verifyFrozenInputIntegrity alone would now pass on it.
+    const tamperedSuccessor = {
+      ...successorSession,
+      authorContext: tamperedAuthorContext,
+      authorContextHash: refreshedAuthorContextHash,
+    };
+    // The binding's stored hash is refreshed to agree with the tampered
+    // successor too -- every downstream record is now self-consistent with
+    // every other one, and only the semantic-copy-policy check (independent
+    // of any stored hash) can still catch this.
+    const tamperedSource = {
+      ...sourceSession,
+      revisionSuccessor: {
+        ...sourceSession.revisionSuccessor,
+        successorAuthorContextHash: refreshedAuthorContextHash,
+      },
+    };
+    assert.throws(
+      () => assertRevisionSuccessorIntegrity(tamperedSource, tamperedSuccessor),
+      /does not semantically match source/
+    );
+  }
+);
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed === 0 ? 0 : 1);

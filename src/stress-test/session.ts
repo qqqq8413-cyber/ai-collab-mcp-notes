@@ -10,6 +10,7 @@ import type {
   ReviewFinding,
   RevisionAction,
   RevisionSourceRef,
+  RevisionSuccessorBinding,
   SemanticIssue,
   SessionState,
   StressTestSession,
@@ -37,6 +38,7 @@ export function createSession(artifactText: string): StressTestSession {
     semanticIssues: {},
     adjudications: {},
     revisionActions: {},
+    revisionSuccessor: null,
   };
 }
 
@@ -398,4 +400,174 @@ export function completeSession(session: StressTestSession): StressTestSession {
     throw new Error(`completeSession: ${stillPlanned.length} revision action(s) are still PLANNED`);
   }
   return { ...session, state: 'COMPLETED' };
+}
+
+/**
+ * Creates V1: a wholly fresh, frozen StressTestSession holding the revised
+ * artifact text, and binds it to `sourceSession` as its one authoritative
+ * direct revision successor (0..1 -- first pilot is one-shot, see
+ * REVISION_VERIFICATION_CONTRACT.md). This answers only "which frozen
+ * session is sourceSession's successor" -- it never marks any RevisionAction
+ * verified, creates a QuestionDisposition, or touches SessionVersionLineage
+ * or DeliberationState; whether a specific RevisionAction actually reached
+ * the successor is RevisionVerification (P2-B, not implemented here).
+ */
+export function createRevisionSuccessorSession(
+  sourceSession: StressTestSession,
+  revisedArtifactText: string
+): { sourceSession: StressTestSession; successorSession: StressTestSession } {
+  verifyFrozenInputIntegrity(sourceSession);
+  assertFrozenOrLater(sourceSession, 'createRevisionSuccessorSession');
+  if (sourceSession.revisionSuccessor !== null) {
+    throw new Error(
+      'createRevisionSuccessorSession: sourceSession already has a direct revision successor -- first pilot supports at most one (0..1)'
+    );
+  }
+  const hasImplementedRevisionAction = Object.values(sourceSession.revisionActions).some(
+    (a) => a.status === 'IMPLEMENTED'
+  );
+  if (!hasImplementedRevisionAction) {
+    throw new Error(
+      'createRevisionSuccessorSession: sourceSession has no IMPLEMENTED RevisionAction -- nothing to check a successor against'
+    );
+  }
+
+  // Wholly fresh session -- never a copy-then-mutate of sourceSession. Every
+  // AuthorContextItem below is a newly constructed object via the existing
+  // addAuthorContextItem API, so nothing here aliases sourceSession's arrays
+  // or item objects.
+  let successorSession = createSession(revisedArtifactText);
+  for (const category of AUTHOR_CONTEXT_CATEGORIES) {
+    for (const item of sourceSession.authorContext[category]) {
+      successorSession = addAuthorContextItem(successorSession, category, {
+        text: item.text,
+        sourceType: item.sourceType,
+        status: item.status,
+      });
+    }
+  }
+  successorSession = freezeInput(successorSession);
+  verifyFrozenInputIntegrity(successorSession);
+
+  if (successorSession.id === sourceSession.id) {
+    throw new Error(
+      'createRevisionSuccessorSession: internal invariant violated -- successorSession.id equals sourceSession.id'
+    );
+  }
+  if (!sourceSession.artifactHash || !sourceSession.authorContextHash) {
+    throw new Error('createRevisionSuccessorSession: sourceSession is missing its frozen artifactHash/authorContextHash');
+  }
+  if (!successorSession.artifactHash || !successorSession.authorContextHash) {
+    throw new Error(
+      'createRevisionSuccessorSession: internal invariant violated -- successorSession is missing frozen hashes'
+    );
+  }
+  if (successorSession.artifactHash === sourceSession.artifactHash) {
+    throw new Error(
+      'createRevisionSuccessorSession: revisedArtifactText produced the same artifactHash as sourceSession -- the successor must be a changed artifact snapshot'
+    );
+  }
+
+  const binding: RevisionSuccessorBinding = {
+    sourceSessionId: sourceSession.id,
+    sourceArtifactHash: sourceSession.artifactHash,
+    sourceAuthorContextHash: sourceSession.authorContextHash,
+    successorSessionId: successorSession.id,
+    successorArtifactHash: successorSession.artifactHash,
+    successorAuthorContextHash: successorSession.authorContextHash,
+    createdAt: nowIso(),
+  };
+
+  return {
+    sourceSession: { ...sourceSession, revisionSuccessor: binding },
+    successorSession,
+  };
+}
+
+/**
+ * Canonical, reusable later-read validator (REVISION_VERIFICATION_CONTRACT.md
+ * §14/§24): fails closed unless `successorSession` is genuinely
+ * `sourceSession`'s authoritative RevisionSuccessorBinding successor, per
+ * every fact recorded at write time -- never trusted merely because the two
+ * supplied objects agree with each other. P2-B and later report projections
+ * must reuse this boundary rather than duplicate its checks.
+ *
+ * Proves only domain-boundary / later-read consistency within this in-memory
+ * architecture -- not cryptographic immutability, not that any specific
+ * RevisionAction's change appears in the successor's artifact text, and not
+ * final delivery status.
+ */
+export function assertRevisionSuccessorIntegrity(
+  sourceSession: StressTestSession,
+  successorSession: StressTestSession
+): void {
+  verifyFrozenInputIntegrity(sourceSession);
+  verifyFrozenInputIntegrity(successorSession);
+  assertFrozenOrLater(sourceSession, 'assertRevisionSuccessorIntegrity');
+  assertFrozenOrLater(successorSession, 'assertRevisionSuccessorIntegrity');
+
+  const binding = sourceSession.revisionSuccessor;
+  if (!binding) {
+    throw new Error('assertRevisionSuccessorIntegrity: sourceSession has no RevisionSuccessorBinding');
+  }
+  if (binding.sourceSessionId !== sourceSession.id) {
+    throw new Error('assertRevisionSuccessorIntegrity: binding.sourceSessionId does not match sourceSession.id');
+  }
+  if (binding.sourceArtifactHash !== sourceSession.artifactHash) {
+    throw new Error(
+      'assertRevisionSuccessorIntegrity: binding.sourceArtifactHash does not match sourceSession.artifactHash'
+    );
+  }
+  if (binding.sourceAuthorContextHash !== sourceSession.authorContextHash) {
+    throw new Error(
+      'assertRevisionSuccessorIntegrity: binding.sourceAuthorContextHash does not match sourceSession.authorContextHash'
+    );
+  }
+  if (binding.successorSessionId !== successorSession.id) {
+    throw new Error('assertRevisionSuccessorIntegrity: binding.successorSessionId does not match successorSession.id');
+  }
+  if (binding.successorArtifactHash !== successorSession.artifactHash) {
+    throw new Error(
+      'assertRevisionSuccessorIntegrity: binding.successorArtifactHash does not match successorSession.artifactHash'
+    );
+  }
+  if (binding.successorAuthorContextHash !== successorSession.authorContextHash) {
+    throw new Error(
+      'assertRevisionSuccessorIntegrity: binding.successorAuthorContextHash does not match successorSession.authorContextHash'
+    );
+  }
+  if (sourceSession.id === successorSession.id) {
+    throw new Error('assertRevisionSuccessorIntegrity: sourceSession.id equals successorSession.id');
+  }
+  if (sourceSession.artifactHash === successorSession.artifactHash) {
+    throw new Error('assertRevisionSuccessorIntegrity: sourceSession.artifactHash equals successorSession.artifactHash');
+  }
+  const hasImplementedRevisionAction = Object.values(sourceSession.revisionActions).some(
+    (a) => a.status === 'IMPLEMENTED'
+  );
+  if (!hasImplementedRevisionAction) {
+    throw new Error('assertRevisionSuccessorIntegrity: sourceSession no longer contains an IMPLEMENTED RevisionAction');
+  }
+  for (const category of AUTHOR_CONTEXT_CATEGORIES) {
+    const sourceItems = sourceSession.authorContext[category];
+    const successorItems = successorSession.authorContext[category];
+    if (successorItems.length !== sourceItems.length) {
+      throw new Error(
+        `assertRevisionSuccessorIntegrity: successor AuthorContext category "${category}" does not have the same number of items as source`
+      );
+    }
+    for (let i = 0; i < sourceItems.length; i++) {
+      const sourceItem = sourceItems[i];
+      const successorItem = successorItems[i];
+      if (
+        successorItem.text !== sourceItem.text ||
+        successorItem.sourceType !== sourceItem.sourceType ||
+        successorItem.status !== sourceItem.status
+      ) {
+        throw new Error(
+          `assertRevisionSuccessorIntegrity: successor AuthorContext category "${category}" item ${i} does not semantically match source (expected copied text/sourceType/status)`
+        );
+      }
+    }
+  }
 }
