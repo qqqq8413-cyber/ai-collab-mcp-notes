@@ -1734,6 +1734,110 @@ function validateAttemptProvenanceForOutcome(
   return decision;
 }
 
+function assertAddReviewerOutcomePayloadIntegrity(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  attempt: RouteAttempt,
+  reviewerRunId: string,
+  findingIds: string[],
+  label: string
+): void {
+  assertNonEmptyString(reviewerRunId, `${label}: reviewerRunId`);
+  if (reviewerRunId === attempt.attemptId) {
+    throw new Error(`${label}: reviewerRunId must not equal attemptId -- they are separate identities, never made equal`);
+  }
+  if (!Array.isArray(findingIds)) {
+    throw new Error(`${label}: findingIds must be an array`);
+  }
+  const seenFindingIds = new Set<string>();
+  for (const findingId of findingIds) {
+    assertNonEmptyString(findingId, `${label}: findingIds[]`);
+    if (seenFindingIds.has(findingId)) {
+      throw new Error(`${label}: duplicate findingId ${findingId}`);
+    }
+    seenFindingIds.add(findingId);
+    const finding = session.findings[findingId];
+    if (!finding) {
+      throw new Error(`${label}: unknown findingId ${findingId}`);
+    }
+    if (finding.reviewerRunId !== reviewerRunId) {
+      throw new Error(`${label}: finding ${findingId}'s reviewerRunId does not match the supplied reviewerRunId`);
+    }
+    const findingCreatedAtMs = Date.parse(finding.createdAt);
+    if (Number.isNaN(findingCreatedAtMs)) {
+      throw new Error(`${label}: finding ${findingId} has an unparseable createdAt`);
+    }
+    if (findingCreatedAtMs < Date.parse(attempt.startedAt)) {
+      throw new Error(`${label}: finding ${findingId}.createdAt is before the attempt's startedAt`);
+    }
+  }
+  const reviewerRunIdReused = deliberationState.outcomes.some(
+    (outcome): outcome is AddReviewerRouteOutcome =>
+      outcome.attemptId !== attempt.attemptId &&
+      outcome.route === 'ADD_REVIEWER' &&
+      outcome.status === 'SUCCEEDED' &&
+      outcome.reviewerRunId === reviewerRunId
+  );
+  if (reviewerRunIdReused) {
+    throw new Error(`${label}: reviewerRunId ${reviewerRunId} was already claimed by an earlier successful ADD_REVIEWER RouteOutcome in this session`);
+  }
+}
+
+function assertAddContextOutcomePayloadIntegrity(
+  deliberationState: DeliberationState,
+  attempt: RouteAttempt,
+  result: AddContextResult,
+  contextRequestId: string,
+  responseText: string | undefined,
+  label: string
+): void {
+  if (result !== 'SUPPLIED' && result !== 'DECLINED' && result !== 'NO_RESPONSE') {
+    throw new Error(`${label}: invalid or unsupported ADD_CONTEXT result ${JSON.stringify(result)}`);
+  }
+  assertNonEmptyString(contextRequestId, `${label}: contextRequestId`);
+  assertContextRequestLedgerIntegrity(deliberationState);
+  const matchingRequests = effectiveContextRequests(deliberationState).filter((request) => request.id === contextRequestId);
+  if (matchingRequests.length !== 1) {
+    throw new Error(`${label}: contextRequestId ${contextRequestId} does not resolve to exactly one ContextRequest`);
+  }
+  const contextRequest = matchingRequests[0];
+  if (contextRequest.originatingAttemptId !== attempt.attemptId) {
+    throw new Error(`${label}: contextRequest.originatingAttemptId does not match the attempt being terminalized`);
+  }
+  if (
+    contextRequest.originatingQuestionId !== attempt.questionId ||
+    contextRequest.originatingSessionId !== attempt.sessionId ||
+    contextRequest.artifactHash !== attempt.artifactHash ||
+    contextRequest.authorContextHash !== attempt.authorContextHash
+  ) {
+    throw new Error(`${label}: contextRequest binding does not match the resolved attempt`);
+  }
+  if (result === 'SUPPLIED') {
+    assertNonEmptyString(responseText as string, `${label}: responseText`);
+  }
+}
+
+function assertReplicationOutcomePayloadIntegrity(
+  session: StressTestSession,
+  decision: RouteDecision,
+  result: ReplicationResult,
+  targetRef: RouteInputRef,
+  label: string
+): void {
+  assertValidReplicationResult(result, `${label}: result`);
+  if (targetRef === null || typeof targetRef !== 'object') {
+    throw new Error(`${label}: targetRef must be an object`);
+  }
+  validateRouteInputRef(session, targetRef);
+  if (targetRef.kind === 'AUTHOR_CONTEXT_ITEM') {
+    throw new Error(`${label}: REPLICATE targetRef must be FINDING or SEMANTIC_ISSUE, not AUTHOR_CONTEXT_ITEM`);
+  }
+  const targetRefMatchesDecision = decision.inputRefs.some((ref) => ref.kind === targetRef.kind && ref.id === targetRef.id);
+  if (!targetRefMatchesDecision) {
+    throw new Error(`${label}: REPLICATE targetRef must exactly match one of the recorded RouteDecision.inputRefs`);
+  }
+}
+
 /** The caller-suppliable shape for `recordRouteOutcome`. Every field this module derives/generates (route, decisionId, originatingQuestionId, sessionId, artifactHash, authorContextHash, logicalCost, completedAt) is deliberately absent -- accepting them here would let a caller restate a binding fact inconsistently, which `assertExactKeys` independently rejects at runtime regardless of what TypeScript's optional fields imply. */
 export interface RecordRouteOutcomeInput {
   attemptId: string;
@@ -1980,44 +2084,14 @@ export function recordRouteOutcome(
 
   if (attempt.route === 'ADD_REVIEWER') {
     const reviewerRunId = input.reviewerRunId as string;
-    assertNonEmptyString(reviewerRunId, 'recordRouteOutcome: reviewerRunId');
-    if (reviewerRunId === attempt.attemptId) {
-      throw new Error('recordRouteOutcome: reviewerRunId must not equal attemptId -- they are separate identities, never made equal');
-    }
-    if (!Array.isArray(input.findingIds)) {
-      throw new Error('recordRouteOutcome: findingIds must be an array');
-    }
-    const seenFindingIds = new Set<string>();
-    for (const findingId of input.findingIds) {
-      assertNonEmptyString(findingId, 'recordRouteOutcome: findingIds[]');
-      if (seenFindingIds.has(findingId)) {
-        throw new Error(`recordRouteOutcome: duplicate findingId ${findingId}`);
-      }
-      seenFindingIds.add(findingId);
-      const finding = session.findings[findingId];
-      if (!finding) {
-        throw new Error(`recordRouteOutcome: unknown findingId ${findingId}`);
-      }
-      if (finding.reviewerRunId !== reviewerRunId) {
-        throw new Error(`recordRouteOutcome: finding ${findingId}'s reviewerRunId does not match the supplied reviewerRunId`);
-      }
-      const findingCreatedAtMs = Date.parse(finding.createdAt);
-      if (Number.isNaN(findingCreatedAtMs)) {
-        throw new Error(`recordRouteOutcome: finding ${findingId} has an unparseable createdAt`);
-      }
-      if (findingCreatedAtMs < Date.parse(attempt.startedAt)) {
-        throw new Error(`recordRouteOutcome: finding ${findingId}.createdAt is before the attempt's startedAt`);
-      }
-    }
-    const reviewerRunIdReused = deliberationState.outcomes.some(
-      (o): o is AddReviewerRouteOutcome =>
-        o.route === 'ADD_REVIEWER' && o.status === 'SUCCEEDED' && o.reviewerRunId === reviewerRunId
+    assertAddReviewerOutcomePayloadIntegrity(
+      session,
+      deliberationState,
+      attempt,
+      reviewerRunId,
+      input.findingIds as string[],
+      'recordRouteOutcome'
     );
-    if (reviewerRunIdReused) {
-      throw new Error(
-        `recordRouteOutcome: reviewerRunId ${reviewerRunId} was already claimed by an earlier successful ADD_REVIEWER RouteOutcome in this session`
-      );
-    }
 
     const withLatency = applyLatencySpend(deliberationState, input.latencyConsumed);
     verifyDeliberationBinding(session, deliberationState);
@@ -2035,7 +2109,7 @@ export function recordRouteOutcome(
       logicalCost: attempt.logicalCost,
       latencyConsumed: input.latencyConsumed,
       reviewerRunId,
-      findingIds: [...input.findingIds],
+      findingIds: [...(input.findingIds as string[])],
     };
     return { ...withLatency, outcomes: [...withLatency.outcomes, outcome] };
   }
@@ -2043,42 +2117,17 @@ export function recordRouteOutcome(
   if (attempt.route === 'ADD_CONTEXT') {
     const result = input.result as 'SUPPLIED' | 'DECLINED';
     const contextRequestId = input.contextRequestId as string;
-    assertNonEmptyString(contextRequestId, 'recordRouteOutcome: contextRequestId');
-
-    // Mandatory: the COMPLETE ContextRequest ledger must be sound before a
-    // single selected request from it is ever trusted -- agreement between
-    // the outcome input and one request alone is insufficient if the
-    // request/attempt/state chain elsewhere in the ledger is already corrupt
-    // (ROUTE_OUTCOME_QUESTION_LIFECYCLE_CONTRACT.md §7, Slice 2D-C2;
-    // reaffirms the Slice 2D-C1 amendment's authoritative-upstream posture).
-    assertContextRequestLedgerIntegrity(deliberationState);
-
-    const matchingRequests = effectiveContextRequests(deliberationState).filter((r) => r.id === contextRequestId);
-    if (matchingRequests.length !== 1) {
-      throw new Error(`recordRouteOutcome: contextRequestId ${contextRequestId} does not resolve to exactly one ContextRequest`);
-    }
-    const contextRequest = matchingRequests[0];
-    if (contextRequest.originatingAttemptId !== attempt.attemptId) {
-      throw new Error(
-        'recordRouteOutcome: contextRequest.originatingAttemptId does not match the attempt being terminalized -- a request from another attempt is never valid provenance'
-      );
-    }
-    if (contextRequest.originatingQuestionId !== attempt.questionId) {
-      throw new Error('recordRouteOutcome: contextRequest.originatingQuestionId does not match attempt.questionId');
-    }
-    if (contextRequest.originatingSessionId !== attempt.sessionId) {
-      throw new Error('recordRouteOutcome: contextRequest.originatingSessionId does not match the attempt session binding');
-    }
-    if (contextRequest.artifactHash !== attempt.artifactHash) {
-      throw new Error('recordRouteOutcome: contextRequest.artifactHash does not match the attempt binding');
-    }
-    if (contextRequest.authorContextHash !== attempt.authorContextHash) {
-      throw new Error('recordRouteOutcome: contextRequest.authorContextHash does not match the attempt binding');
-    }
+    assertAddContextOutcomePayloadIntegrity(
+      deliberationState,
+      attempt,
+      result,
+      contextRequestId,
+      input.responseText,
+      'recordRouteOutcome'
+    );
 
     if (result === 'SUPPLIED') {
       const responseText = input.responseText as string;
-      assertNonEmptyString(responseText, 'recordRouteOutcome: responseText');
 
       const withLatency = applyLatencySpend(deliberationState, input.latencyConsumed);
       verifyDeliberationBinding(session, deliberationState);
@@ -2175,19 +2224,8 @@ export function recordRouteOutcome(
 
   // attempt.route === 'REPLICATE'
   const result = input.result as ReplicationResult;
-  assertValidReplicationResult(result, 'recordRouteOutcome: result');
   const targetRef = input.targetRef as RouteInputRef;
-  if (targetRef === null || typeof targetRef !== 'object') {
-    throw new Error('recordRouteOutcome: targetRef must be an object');
-  }
-  validateRouteInputRef(session, targetRef);
-  if (targetRef.kind === 'AUTHOR_CONTEXT_ITEM') {
-    throw new Error('recordRouteOutcome: REPLICATE targetRef must be FINDING or SEMANTIC_ISSUE, not AUTHOR_CONTEXT_ITEM');
-  }
-  const targetRefMatchesDecision = decision.inputRefs.some((ref) => ref.kind === targetRef.kind && ref.id === targetRef.id);
-  if (!targetRefMatchesDecision) {
-    throw new Error('recordRouteOutcome: REPLICATE targetRef must exactly match one of the recorded RouteDecision.inputRefs');
-  }
+  assertReplicationOutcomePayloadIntegrity(session, decision, result, targetRef, 'recordRouteOutcome');
 
   const withLatency = applyLatencySpend(deliberationState, input.latencyConsumed);
   verifyDeliberationBinding(session, deliberationState);
@@ -4126,27 +4164,39 @@ function assertTargetedPeerChallengeInputRefs(session: StressTestSession, inputR
  * never-trust-an-upstream-boundary posture already governing invariant 74's
  * `SEEK_EVIDENCE` gates.
  */
+function assertTargetedPeerChallengeQuestionIntegrity(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  questionId: string,
+  label: string
+): UnresolvedQuestion {
+  verifyDeliberationBinding(session, deliberationState);
+  const matchingQuestions = deliberationState.unresolvedQuestions.filter((question) => question.id === questionId);
+  if (matchingQuestions.length !== 1) {
+    throw new Error(`${label}: questionId ${questionId} does not resolve to exactly one registered UnresolvedQuestion`);
+  }
+  const question = matchingQuestions[0];
+  if (question.rootCause !== 'DECISION_SENSITIVE_CONFLICT') {
+    throw new Error(`${label}: question ${questionId} has rootCause ${question.rootCause}, not DECISION_SENSITIVE_CONFLICT`);
+  }
+  assertTargetedPeerChallengeInputRefs(session, question.inputRefs, label);
+  return question;
+}
+
 function assertTargetedPeerChallengeReady(
   session: StressTestSession,
   deliberationState: DeliberationState,
   questionId: string
 ): UnresolvedQuestion {
-  verifyDeliberationBinding(session, deliberationState);
-  const question = deliberationState.unresolvedQuestions.find((q) => q.id === questionId);
-  if (!question) {
-    throw new Error(
-      `assertTargetedPeerChallengeReady: questionId ${questionId} is not a currently registered unresolved question`
-    );
-  }
-  if (question.rootCause !== 'DECISION_SENSITIVE_CONFLICT') {
-    throw new Error(
-      `assertTargetedPeerChallengeReady: question ${questionId} has rootCause ${question.rootCause}, not DECISION_SENSITIVE_CONFLICT`
-    );
-  }
+  const question = assertTargetedPeerChallengeQuestionIntegrity(
+    session,
+    deliberationState,
+    questionId,
+    'assertTargetedPeerChallengeReady'
+  );
   if (!isQuestionCurrent(deliberationState, questionId)) {
     throw new Error(`assertTargetedPeerChallengeReady: question ${questionId} is not current`);
   }
-  assertTargetedPeerChallengeInputRefs(session, question.inputRefs, 'assertTargetedPeerChallengeReady');
   return question;
 }
 
@@ -4322,10 +4372,16 @@ function assertTargetedPeerChallengeOutcomeIntegrity(
     throw new Error(`${label}: outcome session/hash binding does not match the resolved attempt`);
   }
 
-  // Never assume C6-A's earlier planning/recording/attempt-start gates
-  // remain trustworthy for later/tampered state -- readiness is re-derived
-  // in full, including the currently-registered question's inputRefs.
-  assertTargetedPeerChallengeReady(session, deliberationState, attempt.questionId);
+  // Historical outcome integrity revalidates the registered conflict shape
+  // without requiring the question to remain current. Currentness is an
+  // execution-readiness rule; a later RESOLVED/SUPERSEDED disposition must
+  // not make an already-recorded outcome unreadable.
+  assertTargetedPeerChallengeQuestionIntegrity(
+    session,
+    deliberationState,
+    attempt.questionId,
+    label
+  );
 
   assertTargetedPeerChallengeResultPayload(
     outcome.status,
@@ -4338,6 +4394,182 @@ function assertTargetedPeerChallengeOutcomeIntegrity(
     session,
     label
   );
+}
+
+function assertRouteOutcomeEnvelopeIntegrity(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  attempt: RouteAttempt,
+  outcome: RouteOutcome,
+  label: string
+): RouteDecision {
+  const decision = validateAttemptProvenanceForOutcome(session, deliberationState, attempt);
+  assertValidAttemptStatus(outcome.status, `${label}: status`);
+  assertFiniteNonNegative(outcome.logicalCost, `${label}: logicalCost`);
+  assertFiniteNonNegative(outcome.latencyConsumed, `${label}: latencyConsumed`);
+  if (Number.isNaN(Date.parse(outcome.completedAt))) {
+    throw new Error(`${label}: completedAt is not a valid parseable timestamp`);
+  }
+  if (outcome.attemptId !== attempt.attemptId) {
+    throw new Error(`${label}: outcome.attemptId does not match the resolved attempt`);
+  }
+  if (outcome.decisionId !== decision.id) {
+    throw new Error(`${label}: outcome.decisionId does not match the resolved attempt's RouteDecision`);
+  }
+  if (outcome.originatingQuestionId !== attempt.questionId) {
+    throw new Error(`${label}: outcome.originatingQuestionId does not match the resolved attempt`);
+  }
+  if (outcome.route !== attempt.route) {
+    throw new Error(`${label}: outcome.route does not match the resolved attempt`);
+  }
+  if (
+    outcome.sessionId !== attempt.sessionId ||
+    outcome.artifactHash !== attempt.artifactHash ||
+    outcome.authorContextHash !== attempt.authorContextHash
+  ) {
+    throw new Error(`${label}: outcome session/hash binding does not match the resolved attempt`);
+  }
+  if (outcome.logicalCost !== attempt.logicalCost) {
+    throw new Error(`${label}: outcome.logicalCost does not match the resolved attempt`);
+  }
+
+  const commonKeys = [
+    'attemptId',
+    'decisionId',
+    'originatingQuestionId',
+    'route',
+    'sessionId',
+    'artifactHash',
+    'authorContextHash',
+    'completedAt',
+    'status',
+    'logicalCost',
+    'latencyConsumed',
+  ];
+  if (outcome.status === 'FAILED') {
+    assertExactKeys(outcome, [...commonKeys, 'failure'], label);
+  } else {
+    switch (outcome.route) {
+      case 'ADD_REVIEWER':
+        assertExactKeys(outcome, [...commonKeys, 'reviewerRunId', 'findingIds'], label);
+        break;
+      case 'REPLICATE':
+        assertExactKeys(outcome, [...commonKeys, 'result', 'targetRef'], label);
+        break;
+      case 'ADD_CONTEXT':
+        assertExactKeys(
+          outcome,
+          outcome.result === 'SUPPLIED'
+            ? [...commonKeys, 'result', 'contextRequestId', 'responseText']
+            : [...commonKeys, 'result', 'contextRequestId'],
+          label
+        );
+        break;
+      case 'SEEK_EVIDENCE':
+        assertExactKeys(outcome, [...commonKeys, 'result', 'evidenceSubjectId', 'citations'], label);
+        break;
+      case 'TARGETED_PEER_CHALLENGE':
+        assertExactKeys(outcome, [...commonKeys, 'targetRef', 'sourceRef', 'boundedExcerpt', 'response', 'result'], label);
+        break;
+      default: {
+        const exhaustive: never = outcome;
+        throw new Error(`${label}: unsupported RouteOutcome ${JSON.stringify(exhaustive)}`);
+      }
+    }
+  }
+  return decision;
+}
+
+/**
+ * Pure canonical later-read boundary for one RouteAttempt and its optional
+ * RouteOutcome. Both identities resolve with exact cardinality. A missing
+ * outcome is a legal open attempt; duplicate outcomes or any provenance,
+ * envelope, or route-specific mismatch fail closed.
+ */
+export function assertRouteOutcomeIntegrity(
+  session: StressTestSession,
+  deliberationState: DeliberationState,
+  attemptId: string
+): void {
+  verifyDeliberationBinding(session, deliberationState);
+  assertNonEmptyString(attemptId, 'assertRouteOutcomeIntegrity: attemptId');
+  const matchingAttempts = deliberationState.attempts.filter((attempt) => attempt.attemptId === attemptId);
+  if (matchingAttempts.length !== 1) {
+    throw new Error(`assertRouteOutcomeIntegrity: attemptId ${attemptId} does not resolve to exactly one RouteAttempt`);
+  }
+  const attempt = matchingAttempts[0];
+  const matchingOutcomes = deliberationState.outcomes.filter((outcome) => outcome.attemptId === attemptId);
+  if (matchingOutcomes.length > 1) {
+    throw new Error(`assertRouteOutcomeIntegrity: attemptId ${attemptId} resolves to more than one RouteOutcome`);
+  }
+  if (matchingOutcomes.length === 0) {
+    validateAttemptProvenanceForOutcome(session, deliberationState, attempt);
+    return;
+  }
+
+  const outcome = matchingOutcomes[0];
+  const decision = assertRouteOutcomeEnvelopeIntegrity(
+    session,
+    deliberationState,
+    attempt,
+    outcome,
+    'assertRouteOutcomeIntegrity'
+  );
+  if (outcome.status === 'FAILED') {
+    assertValidFailureInfo(outcome.failure, 'assertRouteOutcomeIntegrity: failure');
+    return;
+  }
+
+  switch (outcome.route) {
+    case 'ADD_REVIEWER':
+      if (outcome.status !== 'SUCCEEDED') {
+        throw new Error('assertRouteOutcomeIntegrity: ADD_REVIEWER outcome must have status SUCCEEDED');
+      }
+      assertAddReviewerOutcomePayloadIntegrity(
+        session,
+        deliberationState,
+        attempt,
+        outcome.reviewerRunId,
+        outcome.findingIds,
+        'assertRouteOutcomeIntegrity'
+      );
+      return;
+    case 'REPLICATE':
+      if (outcome.status !== 'SUCCEEDED') {
+        throw new Error('assertRouteOutcomeIntegrity: REPLICATE outcome must have status SUCCEEDED');
+      }
+      assertReplicationOutcomePayloadIntegrity(
+        session,
+        decision,
+        outcome.result,
+        outcome.targetRef,
+        'assertRouteOutcomeIntegrity'
+      );
+      return;
+    case 'ADD_CONTEXT':
+      if (outcome.status !== 'SUCCEEDED') {
+        throw new Error('assertRouteOutcomeIntegrity: ADD_CONTEXT outcome must have status SUCCEEDED');
+      }
+      assertAddContextOutcomePayloadIntegrity(
+        deliberationState,
+        attempt,
+        outcome.result,
+        outcome.contextRequestId,
+        outcome.result === 'SUPPLIED' ? outcome.responseText : undefined,
+        'assertRouteOutcomeIntegrity'
+      );
+      return;
+    case 'SEEK_EVIDENCE':
+      assertSeekEvidenceOutcomeIntegrity(session, deliberationState, outcome);
+      return;
+    case 'TARGETED_PEER_CHALLENGE':
+      assertTargetedPeerChallengeOutcomeIntegrity(session, deliberationState, outcome);
+      return;
+    default: {
+      const exhaustive: never = outcome;
+      throw new Error(`assertRouteOutcomeIntegrity: unsupported RouteOutcome ${JSON.stringify(exhaustive)}`);
+    }
+  }
 }
 
 // ===========================================================================

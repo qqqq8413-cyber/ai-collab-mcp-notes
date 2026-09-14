@@ -177,7 +177,47 @@ function buildSeekEvidenceFixture(result) {
       : { attemptId: attempt.attemptId, status: 'SUCCEEDED', latencyConsumed: 3, result, evidenceSubjectId: evidenceSubject.id, citations: [citation] };
   state = recordRouteOutcome(session, state, outcomeInput);
 
-  return { session, state, issueId, findingId: base.findingId, question, attempt, evidenceSubject, citation };
+  return { session, state, issueId, findingId: base.findingId, question, decision, attempt, evidenceSubject, citation };
+}
+
+/** A successful TARGETED_PEER_CHALLENGE fixture with two authoritative, distinct refs. */
+function buildTargetedPeerChallengeFixture() {
+  const base = addFindingTracked(createFrozenSession(), {
+    title: 'Conflicting vendor-risk assessments',
+    artifactLocation: 'paragraph 2',
+  });
+  const session = createSemanticIssue(base.session, {
+    title: 'Conflicting vendor-risk assessments',
+    description: 'The finding and consolidated issue require direct comparison.',
+    findingIds: [base.findingId],
+    evidenceState: 'CONFLICTING',
+  });
+  const issueId = Object.keys(session.semanticIssues)[0];
+  let state = createDeliberationState(session, { costCeiling: 50, latencyCeiling: 100 });
+  const question = createUnresolvedQuestion(session, {
+    rootCause: 'DECISION_SENSITIVE_CONFLICT',
+    materialityReason: 'The conflicting assessments can change the recommendation.',
+    inputRefs: [
+      { kind: 'FINDING', id: base.findingId },
+      { kind: 'SEMANTIC_ISSUE', id: issueId },
+    ],
+  });
+  state = registerUnresolvedQuestion(session, state, question);
+  const decision = planRouteForQuestion(session, state, question);
+  state = recordRouteDecision(session, state, decision);
+  state = recordRouteAttemptStart(session, state, decision.id);
+  const attempt = state.attempts[0];
+  state = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 2,
+    targetRef: decision.inputRefs[0],
+    sourceRef: decision.inputRefs[1],
+    boundedExcerpt: { text: 'The assessments disagree on exit-cost exposure.', truncated: false, charLimit: 80 },
+    response: 'The disagreement remains material after direct comparison.',
+    result: 'QUALIFICATION',
+  });
+  return { session, state, question, decision, attempt };
 }
 
 // ==================================================================
@@ -236,7 +276,29 @@ check('generateIntegratedDecisionReport: joins the full chain (finding -> issue 
   assert.equal(report.summary.revisionActionsImplemented, 1);
   assert.equal(report.summary.revisionActionsPlanned, 0);
   assert.equal(report.summary.unresolvedQuestions, 0);
-  assert.equal(report.summary.resolvedQuestions, 1);
+  assert.equal(report.summary.disposedQuestions, 1);
+  assert.equal('resolvedQuestions' in report.summary, false);
+});
+
+check('generateIntegratedDecisionReport: SUPERSEDED_RECLASSIFIED counts the old question as disposed, not resolved', () => {
+  const { session, state, question, attempt } = buildSeekEvidenceFixture('INCONCLUSIVE');
+  const replacementQuestion = createUnresolvedQuestion(session, {
+    rootCause: 'COVERAGE_GAP',
+    materialityReason: 'The inconclusive evidence search requires broader review coverage.',
+    inputRefs: [...question.inputRefs],
+    derivedFromQuestionId: question.id,
+  });
+  const superseded = recordQuestionDisposition(session, state, {
+    attemptId: attempt.attemptId,
+    disposition: 'SUPERSEDED_RECLASSIFIED',
+    reason: 'The remaining uncertainty is now a coverage question.',
+    replacementQuestion,
+  });
+
+  const report = generateIntegratedDecisionReport(session, superseded);
+  assert.equal(report.summary.unresolvedQuestions, 1);
+  assert.equal(report.summary.disposedQuestions, 1);
+  assert.equal('resolvedQuestions' in report.summary, false);
 });
 
 // ==================================================================
@@ -470,13 +532,58 @@ check('generateIntegratedDecisionReport: generation has no side effects -- sessi
 // §27. Tampered provenance -- fails closed
 // ==================================================================
 
+check('generateIntegratedDecisionReport: duplicate RouteAttempts for one RouteDecision fail closed', () => {
+  const { session, state, decision, attempt } = buildSeekEvidenceFixture('SUPPORTIVE');
+  const tampered = {
+    ...state,
+    attempts: [...state.attempts, { ...attempt, attemptId: `${attempt.attemptId}-duplicate` }],
+  };
+  assert.throws(
+    () => generateIntegratedDecisionReport(session, tampered),
+    new RegExp(`RouteDecision ${decision.id} resolves to more than one RouteAttempt`)
+  );
+});
+
+check('generateIntegratedDecisionReport: duplicate RouteOutcomes for one RouteAttempt fail closed', () => {
+  const { session, state, attempt } = buildSeekEvidenceFixture('SUPPORTIVE');
+  const tampered = { ...state, outcomes: [...state.outcomes, { ...state.outcomes[0] }] };
+  assert.throws(
+    () => generateIntegratedDecisionReport(session, tampered),
+    new RegExp(`RouteAttempt ${attempt.attemptId} resolves to more than one RouteOutcome`)
+  );
+});
+
+check('generateIntegratedDecisionReport: SEEK_EVIDENCE deeper outcome provenance tampering fails canonical read integrity', () => {
+  const { session, state } = buildSeekEvidenceFixture('SUPPORTIVE');
+  const tampered = {
+    ...state,
+    outcomes: state.outcomes.map((outcome) =>
+      outcome.route === 'SEEK_EVIDENCE' ? { ...outcome, decisionId: 'wrong-decision-id' } : outcome
+    ),
+  };
+  assert.throws(() => generateIntegratedDecisionReport(session, tampered), /outcome\.decisionId does not match/);
+});
+
+check('generateIntegratedDecisionReport: TARGETED_PEER_CHALLENGE malformed boundedExcerpt fails canonical read integrity', () => {
+  const { session, state } = buildTargetedPeerChallengeFixture();
+  const tampered = {
+    ...state,
+    outcomes: state.outcomes.map((outcome) =>
+      outcome.route === 'TARGETED_PEER_CHALLENGE'
+        ? { ...outcome, boundedExcerpt: { ...outcome.boundedExcerpt, truncated: true } }
+        : outcome
+    ),
+  };
+  assert.throws(() => generateIntegratedDecisionReport(session, tampered), /truncated excerpt must have text\.length exactly equal to charLimit/);
+});
+
 check('generateIntegratedDecisionReport: a SEEK_EVIDENCE outcome whose evidenceSubjectId no longer resolves fails closed rather than silently omitting it', () => {
   const { session, state } = buildSeekEvidenceFixture('SUPPORTIVE');
   const tampered = {
     ...state,
     outcomes: state.outcomes.map((o) => (o.route === 'SEEK_EVIDENCE' ? { ...o, evidenceSubjectId: 'nonexistent-subject-id' } : o)),
   };
-  assert.throws(() => generateIntegratedDecisionReport(session, tampered), /does not resolve to any recorded EvidenceSubject/);
+  assert.throws(() => generateIntegratedDecisionReport(session, tampered), /does not resolve to exactly one EvidenceSubject/);
 });
 
 check('generateIntegratedDecisionReport: a REPLICATE outcome whose targetRef no longer resolves fails closed', () => {

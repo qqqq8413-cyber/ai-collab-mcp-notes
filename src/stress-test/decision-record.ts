@@ -22,7 +22,12 @@ import type {
   SeekEvidenceSupportiveOrContradictoryRouteOutcome,
   TargetedPeerChallengeRouteOutcome,
 } from './deliberation.js';
-import { isQuestionCurrent, validateRouteInputRef, verifyDeliberationBinding } from './deliberation.js';
+import {
+  assertRouteOutcomeIntegrity,
+  isQuestionCurrent,
+  validateRouteInputRef,
+  verifyDeliberationBinding,
+} from './deliberation.js';
 
 export interface DecisionRecordIssueEntry {
   semanticIssueId: string;
@@ -371,7 +376,7 @@ export interface IntegratedDecisionReportSummary {
   revisionActionsPlanned: number;
   revisionActionsImplemented: number;
   unresolvedQuestions: number;
-  resolvedQuestions: number;
+  disposedQuestions: number;
   evidenceSupportive: number;
   evidenceContradictory: number;
   evidenceInconclusive: number;
@@ -419,18 +424,13 @@ function buildEvidencePresentation(
   deliberationState: DeliberationState,
   outcome: SeekEvidenceRouteOutcome
 ): IntegratedDecisionReportEvidencePresentation {
-  const subject = deliberationState.evidenceSubjects.find((s) => s.id === outcome.evidenceSubjectId);
-  if (!subject) {
+  const matchingSubjects = deliberationState.evidenceSubjects.filter((subject) => subject.id === outcome.evidenceSubjectId);
+  if (matchingSubjects.length !== 1) {
     throw new Error(
-      `generateIntegratedDecisionReport: SEEK_EVIDENCE outcome for attempt ${outcome.attemptId} references evidenceSubjectId ${outcome.evidenceSubjectId}, which does not resolve to any recorded EvidenceSubject -- provenance is corrupted`
+      `generateIntegratedDecisionReport: SEEK_EVIDENCE outcome for attempt ${outcome.attemptId} references evidenceSubjectId ${outcome.evidenceSubjectId}, which does not resolve to exactly one recorded EvidenceSubject`
     );
   }
-  validateRouteInputRef(session, subject.sourceRef);
-  if (!session.findings[subject.originatingFindingId]) {
-    throw new Error(
-      `generateIntegratedDecisionReport: EvidenceSubject ${subject.id} references originatingFindingId ${subject.originatingFindingId}, which does not resolve to any recorded ReviewFinding -- provenance is corrupted`
-    );
-  }
+  const subject = matchingSubjects[0];
   return {
     evidenceSubjectId: subject.id,
     claimText: subject.claimText,
@@ -459,7 +459,11 @@ function buildRouteCycle(
   const route: NonStopDeliberationRoute = decision.route;
   for (const ref of decision.inputRefs) validateRouteInputRef(session, ref);
 
-  const attempt = deliberationState.attempts.find((a) => a.decisionId === decision.id) ?? null;
+  const matchingAttempts = deliberationState.attempts.filter((attempt) => attempt.decisionId === decision.id);
+  if (matchingAttempts.length > 1) {
+    throw new Error(`generateIntegratedDecisionReport: RouteDecision ${decision.id} resolves to more than one RouteAttempt`);
+  }
+  const attempt = matchingAttempts[0] ?? null;
   let attemptStatus: AttemptStatus | null = null;
   let resultSummary: string | null = null;
   let failure: { category: FailureCategory; message: string } | null = null;
@@ -467,7 +471,12 @@ function buildRouteCycle(
   let dispositions: IntegratedDecisionReportDisposition[] = [];
 
   if (attempt) {
-    const outcome = deliberationState.outcomes.find((o) => o.attemptId === attempt.attemptId) ?? null;
+    const matchingOutcomes = deliberationState.outcomes.filter((outcome) => outcome.attemptId === attempt.attemptId);
+    if (matchingOutcomes.length > 1) {
+      throw new Error(`generateIntegratedDecisionReport: RouteAttempt ${attempt.attemptId} resolves to more than one RouteOutcome`);
+    }
+    assertRouteOutcomeIntegrity(session, deliberationState, attempt.attemptId);
+    const outcome = matchingOutcomes[0] ?? null;
     if (outcome) {
       attemptStatus = outcome.status;
       if (outcome.status === 'FAILED') {
@@ -478,22 +487,12 @@ function buildRouteCycle(
         evidence = buildEvidencePresentation(session, deliberationState, seek);
       } else if (route === 'ADD_REVIEWER') {
         const reviewed = outcome as AddReviewerRouteOutcome;
-        for (const id of reviewed.findingIds) {
-          if (!session.findings[id]) {
-            throw new Error(
-              `generateIntegratedDecisionReport: ADD_REVIEWER outcome for attempt ${attempt.attemptId} references unknown findingId ${id} -- provenance is corrupted`
-            );
-          }
-        }
         resultSummary = `${reviewed.findingIds.length} finding(s) added via reviewer run ${reviewed.reviewerRunId}`;
       } else if (route === 'REPLICATE') {
         const replicated = outcome as ReplicationRouteOutcome;
-        validateRouteInputRef(session, replicated.targetRef);
         resultSummary = replicated.result;
       } else if (route === 'TARGETED_PEER_CHALLENGE') {
         const challenged = outcome as TargetedPeerChallengeRouteOutcome;
-        validateRouteInputRef(session, challenged.targetRef);
-        validateRouteInputRef(session, challenged.sourceRef);
         resultSummary = challenged.result;
       } else if (route === 'ADD_CONTEXT') {
         resultSummary = (outcome as AddContextRouteOutcome).result;
@@ -629,7 +628,7 @@ export function generateIntegratedDecisionReport(
     revisionActionsPlanned: revisionStatuses.filter((s) => s === 'PLANNED').length,
     revisionActionsImplemented: revisionStatuses.filter((s) => s === 'IMPLEMENTED').length,
     unresolvedQuestions: unresolvedQuestionsCount,
-    resolvedQuestions: totalQuestions - unresolvedQuestionsCount,
+    disposedQuestions: totalQuestions - unresolvedQuestionsCount,
     evidenceSupportive: seekEvidenceOutcomes.filter((o) => o.status === 'SUCCEEDED' && (o as SeekEvidenceSupportiveOrContradictoryRouteOutcome).result === 'SUPPORTIVE').length,
     evidenceContradictory: seekEvidenceOutcomes.filter((o) => o.status === 'SUCCEEDED' && (o as SeekEvidenceSupportiveOrContradictoryRouteOutcome).result === 'CONTRADICTORY').length,
     evidenceInconclusive: seekEvidenceOutcomes.filter((o) => o.status === 'INCONCLUSIVE').length,
