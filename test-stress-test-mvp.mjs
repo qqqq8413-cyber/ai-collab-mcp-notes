@@ -12,6 +12,8 @@ import {
   completeSession,
   createRevisionSuccessorSession,
   assertRevisionSuccessorIntegrity,
+  recordRevisionVerification,
+  assertRevisionVerificationIntegrity,
   generateDecisionRecord,
   renderDecisionRecordMarkdown,
   sha256Text,
@@ -1254,6 +1256,590 @@ check(
     );
   }
 );
+
+console.log('\nRevision verification (P2-B)');
+
+function buildVerifiableFixture() {
+  const { session, actionId } = buildImplementedFixtureSession();
+  const { sourceSession, successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  return { sourceSession, successorSession, actionId };
+}
+
+function buildTwoImplementedActionsFixtureSession() {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  let withActions = planRevisionAction(session, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+    description: 'Add a paragraph confirming IT provisioning capacity.',
+    targetLocation: 'Rollout Plan section',
+  });
+  const actionId1 = Object.keys(withActions.revisionActions)[0];
+  withActions = planRevisionAction(withActions, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+    description: 'Add an explicit provisioning timeline.',
+    targetLocation: 'Rollout Plan section, timeline paragraph',
+  });
+  const actionId2 = Object.keys(withActions.revisionActions).find((id) => id !== actionId1);
+  let implemented = implementRevisionAction(withActions, actionId1);
+  implemented = implementRevisionAction(implemented, actionId2);
+  return { session: implemented, actionId1, actionId2 };
+}
+
+function buildVerifiableFixtureWithExtraPlannedAndRejectedActions() {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  let withActions = planRevisionAction(session, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+    description: 'Implemented change.',
+    targetLocation: 'Rollout Plan section',
+  });
+  const implementedActionId = Object.keys(withActions.revisionActions)[0];
+  withActions = implementRevisionAction(withActions, implementedActionId);
+
+  withActions = planRevisionAction(withActions, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+    description: 'Still-planned change.',
+    targetLocation: 'Rollout Plan section, second paragraph',
+  });
+  const plannedActionId = Object.keys(withActions.revisionActions).find((id) => id !== implementedActionId);
+
+  withActions = planRevisionAction(withActions, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+    description: 'Rejected change.',
+    targetLocation: 'Rollout Plan section, third paragraph',
+  });
+  const rejectedActionId = Object.keys(withActions.revisionActions).find(
+    (id) => id !== implementedActionId && id !== plannedActionId
+  );
+  withActions = rejectRevisionAction(withActions, rejectedActionId);
+
+  const { sourceSession, successorSession } = createRevisionSuccessorSession(withActions, REVISED_ARTIFACT_TEXT);
+  return { sourceSession, successorSession, implementedActionId, plannedActionId, rejectedActionId };
+}
+
+check('P2-B A. VERIFIED_PRESENT can be recorded for an IMPLEMENTED action against its authoritative successor', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'The successor now states IT has confirmed capacity to provision all 500 accounts.',
+  });
+  const recordId = Object.keys(updated.revisionVerifications)[0];
+  assert.equal(updated.revisionVerifications[recordId].verdict, 'VERIFIED_PRESENT');
+});
+
+check('P2-B B. NOT_PRESENT can be recorded', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'NOT_PRESENT',
+    evidence: 'The successor text was checked and the IT capacity confirmation is not present.',
+  });
+  const recordId = Object.keys(updated.revisionVerifications)[0];
+  assert.equal(updated.revisionVerifications[recordId].verdict, 'NOT_PRESENT');
+});
+
+check('P2-B C. INCONCLUSIVE can be recorded', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'INCONCLUSIVE',
+    evidence: 'The successor text was checked but the provisioning claim is ambiguous.',
+  });
+  const recordId = Object.keys(updated.revisionVerifications)[0];
+  assert.equal(updated.revisionVerifications[recordId].verdict, 'INCONCLUSIVE');
+});
+
+check('P2-B D. no verification record remains distinct from INCONCLUSIVE', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const before = Object.values(sourceSession.revisionVerifications).filter((v) => v.revisionActionId === actionId);
+  assert.equal(before.length, 0);
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'INCONCLUSIVE',
+    evidence: 'Ambiguous successor evidence.',
+  });
+  const after = Object.values(updated.revisionVerifications).filter((v) => v.revisionActionId === actionId);
+  assert.equal(after.length, 1);
+  assert.equal(after[0].verdict, 'INCONCLUSIVE');
+});
+
+check('P2-B E. record fields are fresh id, exact revisionActionId/verdict/evidence, and a verifiedAt string', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const evidence = 'Confirmed: successor paragraph now states the IT capacity confirmation.';
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence,
+  });
+  const recordId = Object.keys(updated.revisionVerifications)[0];
+  const record = updated.revisionVerifications[recordId];
+  assert.equal(record.id, recordId);
+  assert.equal(typeof record.id, 'string');
+  assert.ok(record.id.length > 0);
+  assert.equal(record.revisionActionId, actionId);
+  assert.equal(record.verdict, 'VERIFIED_PRESENT');
+  assert.equal(record.evidence, evidence);
+  assert.equal(typeof record.verifiedAt, 'string');
+  assert.ok(record.verifiedAt.length > 0);
+});
+
+check('P2-B F. the caller-supplied sourceSession object is not mutated in place', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const snapshotJson = JSON.stringify(sourceSession);
+  recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'Confirmed present.',
+  });
+  assert.equal(JSON.stringify(sourceSession), snapshotJson);
+  assert.deepEqual(sourceSession.revisionVerifications, {});
+});
+
+check('P2-B G. different IMPLEMENTED RevisionActions may each receive their own one verification against the same V1', () => {
+  const { session, actionId1, actionId2 } = buildTwoImplementedActionsFixtureSession();
+  const { sourceSession, successorSession } = createRevisionSuccessorSession(session, REVISED_ARTIFACT_TEXT);
+  let updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId1,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'First revision is present.',
+  });
+  updated = recordRevisionVerification(updated, successorSession, {
+    revisionActionId: actionId2,
+    verdict: 'NOT_PRESENT',
+    evidence: 'Second revision is not present.',
+  });
+  assert.equal(Object.keys(updated.revisionVerifications).length, 2);
+  const byAction = Object.values(updated.revisionVerifications).reduce(
+    (acc, v) => ({ ...acc, [v.revisionActionId]: v }),
+    {}
+  );
+  assert.equal(byAction[actionId1].verdict, 'VERIFIED_PRESENT');
+  assert.equal(byAction[actionId2].verdict, 'NOT_PRESENT');
+});
+
+check('P2-B H. verification can be recorded when the source session is COMPLETED', () => {
+  const { sourceSession: boundSource, successorSession, actionId } = buildVerifiableFixture();
+  const completed = completeSession(boundSource);
+  assert.equal(completed.state, 'COMPLETED');
+  const updated = recordRevisionVerification(completed, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'Confirmed present even after session completion.',
+  });
+  const recordId = Object.keys(updated.revisionVerifications)[0];
+  assert.equal(updated.revisionVerifications[recordId].verdict, 'VERIFIED_PRESENT');
+});
+
+check('P2-B I. assertRevisionVerificationIntegrity accepts a genuinely valid record', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'Confirmed present.',
+  });
+  const recordId = Object.keys(updated.revisionVerifications)[0];
+  assert.doesNotThrow(() => assertRevisionVerificationIntegrity(updated, successorSession, recordId));
+});
+
+check('P2-B J. no revision successor is rejected', () => {
+  const { session, actionId } = buildImplementedFixtureSession();
+  const someSuccessor = freezeInput(createSession('Some other artifact text, unrelated to session.'));
+  assert.throws(
+    () =>
+      recordRevisionVerification(session, someSuccessor, {
+        revisionActionId: actionId,
+        verdict: 'VERIFIED_PRESENT',
+        evidence: 'x',
+      }),
+    /has no RevisionSuccessorBinding/
+  );
+});
+
+check('P2-B K. an unrelated successor is rejected through the canonical P2-A boundary', () => {
+  const { sourceSession, actionId } = buildVerifiableFixture();
+  const unrelated = freezeInput(createSession('A wholly unrelated artifact text.'));
+  assert.throws(
+    () =>
+      recordRevisionVerification(sourceSession, unrelated, {
+        revisionActionId: actionId,
+        verdict: 'VERIFIED_PRESENT',
+        evidence: 'x',
+      }),
+    /binding\.successorSessionId does not match/
+  );
+});
+
+check('P2-B L. a tampered binding is rejected through the canonical P2-A boundary', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const tamperedSource = {
+    ...sourceSession,
+    revisionSuccessor: { ...sourceSession.revisionSuccessor, successorArtifactHash: 'deadbeef' },
+  };
+  assert.throws(
+    () =>
+      recordRevisionVerification(tamperedSource, successorSession, {
+        revisionActionId: actionId,
+        verdict: 'VERIFIED_PRESENT',
+        evidence: 'x',
+      }),
+    /binding\.successorArtifactHash does not match/
+  );
+});
+
+check('P2-B M. an unknown revisionActionId is rejected', () => {
+  const { sourceSession, successorSession } = buildVerifiableFixture();
+  assert.throws(
+    () =>
+      recordRevisionVerification(sourceSession, successorSession, {
+        revisionActionId: 'not-a-real-action-id',
+        verdict: 'VERIFIED_PRESENT',
+        evidence: 'x',
+      }),
+    /unknown revisionActionId/
+  );
+});
+
+check('P2-B N. a PLANNED RevisionAction is rejected', () => {
+  const { sourceSession, successorSession, plannedActionId } = buildVerifiableFixtureWithExtraPlannedAndRejectedActions();
+  assert.throws(
+    () =>
+      recordRevisionVerification(sourceSession, successorSession, {
+        revisionActionId: plannedActionId,
+        verdict: 'VERIFIED_PRESENT',
+        evidence: 'x',
+      }),
+    /is not IMPLEMENTED \(status=PLANNED\)/
+  );
+});
+
+check('P2-B O. a REJECTED RevisionAction is rejected', () => {
+  const { sourceSession, successorSession, rejectedActionId } = buildVerifiableFixtureWithExtraPlannedAndRejectedActions();
+  assert.throws(
+    () =>
+      recordRevisionVerification(sourceSession, successorSession, {
+        revisionActionId: rejectedActionId,
+        verdict: 'VERIFIED_PRESENT',
+        evidence: 'x',
+      }),
+    /is not IMPLEMENTED \(status=REJECTED\)/
+  );
+});
+
+check('P2-B P. an invalid runtime verdict is rejected', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  assert.throws(
+    () =>
+      recordRevisionVerification(sourceSession, successorSession, {
+        revisionActionId: actionId,
+        verdict: 'MOSTLY_PRESENT',
+        evidence: 'x',
+      }),
+    /invalid verdict/
+  );
+});
+
+check('P2-B Q. empty evidence is rejected', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  assert.throws(
+    () =>
+      recordRevisionVerification(sourceSession, successorSession, {
+        revisionActionId: actionId,
+        verdict: 'VERIFIED_PRESENT',
+        evidence: '',
+      }),
+    /non-empty, non-whitespace-only string/
+  );
+});
+
+check('P2-B R. whitespace-only evidence is rejected', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  assert.throws(
+    () =>
+      recordRevisionVerification(sourceSession, successorSession, {
+        revisionActionId: actionId,
+        verdict: 'VERIFIED_PRESENT',
+        evidence: '   \n\t  ',
+      }),
+    /non-empty, non-whitespace-only string/
+  );
+});
+
+check('P2-B S. a duplicate verification for the same revisionActionId is rejected', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'First.',
+  });
+  assert.throws(
+    () =>
+      recordRevisionVerification(updated, successorSession, {
+        revisionActionId: actionId,
+        verdict: 'NOT_PRESENT',
+        evidence: 'Second.',
+      }),
+    /already has a RevisionVerification/
+  );
+});
+
+check('P2-B T. a rejected duplicate attempt does not overwrite the first verification', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'First.',
+  });
+  assert.throws(() =>
+    recordRevisionVerification(updated, successorSession, {
+      revisionActionId: actionId,
+      verdict: 'NOT_PRESENT',
+      evidence: 'Second.',
+    })
+  );
+  assert.equal(Object.keys(updated.revisionVerifications).length, 1);
+  const only = Object.values(updated.revisionVerifications)[0];
+  assert.equal(only.verdict, 'VERIFIED_PRESENT');
+  assert.equal(only.evidence, 'First.');
+});
+
+check('P2-B U. an unknown revisionVerificationId is rejected', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'x',
+  });
+  assert.throws(
+    () => assertRevisionVerificationIntegrity(updated, successorSession, 'not-a-real-verification-id'),
+    /unknown revisionVerificationId/
+  );
+});
+
+check('P2-B V. a map key that does not match record.id is rejected', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'x',
+  });
+  const recordId = Object.keys(updated.revisionVerifications)[0];
+  const record = updated.revisionVerifications[recordId];
+  const tampered = { ...updated, revisionVerifications: { 'a-different-key': record } };
+  assert.throws(
+    () => assertRevisionVerificationIntegrity(tampered, successorSession, recordId),
+    /map key .* does not match record\.id/
+  );
+});
+
+check('P2-B W. a stored verification pointing to an unknown RevisionAction is rejected', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'x',
+  });
+  const recordId = Object.keys(updated.revisionVerifications)[0];
+  const tampered = {
+    ...updated,
+    revisionVerifications: {
+      [recordId]: { ...updated.revisionVerifications[recordId], revisionActionId: 'not-a-real-action-id' },
+    },
+  };
+  assert.throws(
+    () => assertRevisionVerificationIntegrity(tampered, successorSession, recordId),
+    /references unknown revisionActionId/
+  );
+});
+
+check('P2-B X. a stored verification pointing to a PLANNED action is rejected', () => {
+  const { sourceSession, successorSession, implementedActionId, plannedActionId } =
+    buildVerifiableFixtureWithExtraPlannedAndRejectedActions();
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: implementedActionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'x',
+  });
+  const recordId = Object.keys(updated.revisionVerifications)[0];
+  const tampered = {
+    ...updated,
+    revisionVerifications: {
+      [recordId]: { ...updated.revisionVerifications[recordId], revisionActionId: plannedActionId },
+    },
+  };
+  assert.throws(
+    () => assertRevisionVerificationIntegrity(tampered, successorSession, recordId),
+    /is not IMPLEMENTED \(status=PLANNED\)/
+  );
+});
+
+check('P2-B Y. a stored verification pointing to a REJECTED action is rejected', () => {
+  const { sourceSession, successorSession, implementedActionId, rejectedActionId } =
+    buildVerifiableFixtureWithExtraPlannedAndRejectedActions();
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: implementedActionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'x',
+  });
+  const recordId = Object.keys(updated.revisionVerifications)[0];
+  const tampered = {
+    ...updated,
+    revisionVerifications: {
+      [recordId]: { ...updated.revisionVerifications[recordId], revisionActionId: rejectedActionId },
+    },
+  };
+  assert.throws(
+    () => assertRevisionVerificationIntegrity(tampered, successorSession, recordId),
+    /is not IMPLEMENTED \(status=REJECTED\)/
+  );
+});
+
+check('P2-B Z. a stored verification with an illegal verdict is rejected', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'x',
+  });
+  const recordId = Object.keys(updated.revisionVerifications)[0];
+  const tampered = {
+    ...updated,
+    revisionVerifications: {
+      [recordId]: { ...updated.revisionVerifications[recordId], verdict: 'MOSTLY_PRESENT' },
+    },
+  };
+  assert.throws(
+    () => assertRevisionVerificationIntegrity(tampered, successorSession, recordId),
+    /has an invalid verdict/
+  );
+});
+
+check('P2-B AA. a stored verification with empty/whitespace evidence is rejected', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'x',
+  });
+  const recordId = Object.keys(updated.revisionVerifications)[0];
+  const tampered = {
+    ...updated,
+    revisionVerifications: {
+      [recordId]: { ...updated.revisionVerifications[recordId], evidence: '   ' },
+    },
+  };
+  assert.throws(
+    () => assertRevisionVerificationIntegrity(tampered, successorSession, recordId),
+    /empty\/whitespace-only evidence/
+  );
+});
+
+check(
+  'P2-B AB. two stored verification records referencing the same revisionActionId are rejected globally, even if the requested one looks valid',
+  () => {
+    const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+    const updated = recordRevisionVerification(sourceSession, successorSession, {
+      revisionActionId: actionId,
+      verdict: 'VERIFIED_PRESENT',
+      evidence: 'First, individually valid-looking record.',
+    });
+    const firstRecordId = Object.keys(updated.revisionVerifications)[0];
+    const secondRecordId = 'a-second-verification-id';
+    const tampered = {
+      ...updated,
+      revisionVerifications: {
+        ...updated.revisionVerifications,
+        [secondRecordId]: {
+          id: secondRecordId,
+          revisionActionId: actionId,
+          verdict: 'NOT_PRESENT',
+          evidence: 'A second, illegally duplicate record for the same action.',
+          verifiedAt: new Date().toISOString(),
+        },
+      },
+    };
+    assert.throws(
+      () => assertRevisionVerificationIntegrity(tampered, successorSession, firstRecordId),
+      /0\.\.1 cardinality violated/
+    );
+  }
+);
+
+check(
+  'P2-B AC. an unrelated invalid record elsewhere in the ledger rejects the read globally, even for an otherwise-valid requested record',
+  () => {
+    const { session, itIssueId } = buildAdjudicatedFixtureSession();
+    let withActions = planRevisionAction(session, {
+      sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+      description: 'First change.',
+      targetLocation: 'Rollout Plan section',
+    });
+    const actionId1 = Object.keys(withActions.revisionActions)[0];
+    withActions = planRevisionAction(withActions, {
+      sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+      description: 'Second change.',
+      targetLocation: 'Rollout Plan section, second paragraph',
+    });
+    const actionId2 = Object.keys(withActions.revisionActions).find((id) => id !== actionId1);
+    withActions = implementRevisionAction(withActions, actionId1);
+    withActions = implementRevisionAction(withActions, actionId2);
+
+    const { sourceSession, successorSession } = createRevisionSuccessorSession(withActions, REVISED_ARTIFACT_TEXT);
+    const updated = recordRevisionVerification(sourceSession, successorSession, {
+      revisionActionId: actionId1,
+      verdict: 'VERIFIED_PRESENT',
+      evidence: 'Valid record for action 1.',
+    });
+    const validRecordId = Object.keys(updated.revisionVerifications)[0];
+
+    const corruptRecordId = 'a-corrupt-unrelated-record';
+    const tampered = {
+      ...updated,
+      revisionVerifications: {
+        ...updated.revisionVerifications,
+        [corruptRecordId]: {
+          id: corruptRecordId,
+          revisionActionId: actionId2,
+          verdict: 'SOMEWHAT_PRESENT',
+          evidence: 'Corrupt unrelated record.',
+          verifiedAt: new Date().toISOString(),
+        },
+      },
+    };
+    assert.throws(
+      () => assertRevisionVerificationIntegrity(tampered, successorSession, validRecordId),
+      /has an invalid verdict/
+    );
+  }
+);
+
+check('P2-B AD. later-read rejects when the source/successor binding becomes invalid after verification was stored', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'x',
+  });
+  const recordId = Object.keys(updated.revisionVerifications)[0];
+  const tamperedBinding = {
+    ...updated,
+    revisionSuccessor: { ...updated.revisionSuccessor, successorArtifactHash: 'deadbeef' },
+  };
+  assert.throws(
+    () => assertRevisionVerificationIntegrity(tamperedBinding, successorSession, recordId),
+    /binding\.successorArtifactHash does not match/
+  );
+});
+
+check('P2-B AE. a valid historical verification remains readable after the source session becomes COMPLETED', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'x',
+  });
+  const recordId = Object.keys(updated.revisionVerifications)[0];
+  const completed = completeSession(updated);
+  assert.doesNotThrow(() => assertRevisionVerificationIntegrity(completed, successorSession, recordId));
+});
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed === 0 ? 0 : 1);

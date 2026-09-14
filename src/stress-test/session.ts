@@ -11,6 +11,8 @@ import type {
   RevisionAction,
   RevisionSourceRef,
   RevisionSuccessorBinding,
+  RevisionVerification,
+  RevisionVerificationVerdict,
   SemanticIssue,
   SessionState,
   StressTestSession,
@@ -39,6 +41,7 @@ export function createSession(artifactText: string): StressTestSession {
     adjudications: {},
     revisionActions: {},
     revisionSuccessor: null,
+    revisionVerifications: {},
   };
 }
 
@@ -569,5 +572,141 @@ export function assertRevisionSuccessorIntegrity(
         );
       }
     }
+  }
+}
+
+const REVISION_VERIFICATION_VERDICTS: RevisionVerificationVerdict[] = ['VERIFIED_PRESENT', 'NOT_PRESENT', 'INCONCLUSIVE'];
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
+function isNonEmptyNonWhitespaceString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+/**
+ * Records one immutable, human-confirmed RevisionVerification against
+ * `input.revisionActionId` (REVISION_VERIFICATION_CONTRACT.md §8, §10, §13.B).
+ * `verdict`/`evidence` are always caller-supplied -- this function never
+ * compares `sourceSession.artifactText` against `successorSession.artifactText`
+ * to derive a verdict; it is a human-confirmation recorder, not a comparator
+ * (§10 of this contract's own human authority model).
+ */
+export function recordRevisionVerification(
+  sourceSession: StressTestSession,
+  successorSession: StressTestSession,
+  input: { revisionActionId: string; verdict: RevisionVerificationVerdict; evidence: string }
+): StressTestSession {
+  assertRevisionSuccessorIntegrity(sourceSession, successorSession);
+
+  const action = sourceSession.revisionActions[input.revisionActionId];
+  if (!action) {
+    throw new Error(`recordRevisionVerification: unknown revisionActionId ${input.revisionActionId}`);
+  }
+  if (action.status !== 'IMPLEMENTED') {
+    throw new Error(
+      `recordRevisionVerification: revision action ${input.revisionActionId} is not IMPLEMENTED (status=${action.status})`
+    );
+  }
+  if (!REVISION_VERIFICATION_VERDICTS.includes(input.verdict)) {
+    throw new Error(`recordRevisionVerification: invalid verdict ${JSON.stringify(input.verdict)}`);
+  }
+  if (!isNonEmptyNonWhitespaceString(input.evidence)) {
+    throw new Error('recordRevisionVerification: evidence must be a non-empty, non-whitespace-only string');
+  }
+  const isDuplicate = Object.values(sourceSession.revisionVerifications).some(
+    (v) => v.revisionActionId === input.revisionActionId
+  );
+  if (isDuplicate) {
+    throw new Error(
+      `recordRevisionVerification: revision action ${input.revisionActionId} already has a RevisionVerification -- RevisionAction -> RevisionVerification is 0..1; no amendment, no overwrite`
+    );
+  }
+
+  const record: RevisionVerification = {
+    id: randomUUID(),
+    revisionActionId: input.revisionActionId,
+    verdict: input.verdict,
+    evidence: input.evidence,
+    verifiedAt: nowIso(),
+  };
+
+  return {
+    ...sourceSession,
+    revisionVerifications: { ...sourceSession.revisionVerifications, [record.id]: record },
+  };
+}
+
+/**
+ * Canonical, reusable later-read validator for one RevisionVerification
+ * (REVISION_VERIFICATION_CONTRACT.md §14, this packet's §12-§15). Begins by
+ * reusing assertRevisionSuccessorIntegrity rather than restating P2-A's
+ * binding checks, then validates the ENTIRE revisionVerifications ledger --
+ * not merely the requested record -- before trusting anything about it
+ * (global integrity before local lookup): a hidden duplicate or a corrupt,
+ * unrelated record elsewhere in the same session must never be masked by a
+ * caller that only looked up one id.
+ *
+ * Proves only domain-boundary / later-read provenance and cardinality
+ * consistency within this in-memory architecture -- never that the stored
+ * human verdict is epistemically correct, and never protection against an
+ * attacker able to coherently rewrite every authoritative object at once.
+ */
+export function assertRevisionVerificationIntegrity(
+  sourceSession: StressTestSession,
+  successorSession: StressTestSession,
+  revisionVerificationId: string
+): void {
+  assertRevisionSuccessorIntegrity(sourceSession, successorSession);
+
+  const seenRevisionActionIds = new Set<string>();
+  for (const [key, record] of Object.entries(sourceSession.revisionVerifications)) {
+    if (key !== record.id) {
+      throw new Error(
+        `assertRevisionVerificationIntegrity: revisionVerifications map key "${key}" does not match record.id "${record.id}"`
+      );
+    }
+    if (!isNonEmptyString(record.id)) {
+      throw new Error(`assertRevisionVerificationIntegrity: record at key "${key}" has an invalid id`);
+    }
+    const referencedAction = sourceSession.revisionActions[record.revisionActionId];
+    if (!referencedAction) {
+      throw new Error(
+        `assertRevisionVerificationIntegrity: record ${record.id} references unknown revisionActionId ${record.revisionActionId}`
+      );
+    }
+    if (referencedAction.status !== 'IMPLEMENTED') {
+      throw new Error(
+        `assertRevisionVerificationIntegrity: record ${record.id} references revision action ${record.revisionActionId}, which is not IMPLEMENTED (status=${referencedAction.status})`
+      );
+    }
+    if (!REVISION_VERIFICATION_VERDICTS.includes(record.verdict)) {
+      throw new Error(
+        `assertRevisionVerificationIntegrity: record ${record.id} has an invalid verdict ${JSON.stringify(record.verdict)}`
+      );
+    }
+    if (!isNonEmptyNonWhitespaceString(record.evidence)) {
+      throw new Error(`assertRevisionVerificationIntegrity: record ${record.id} has empty/whitespace-only evidence`);
+    }
+    if (!isNonEmptyString(record.verifiedAt)) {
+      throw new Error(`assertRevisionVerificationIntegrity: record ${record.id} has an invalid verifiedAt`);
+    }
+    if (seenRevisionActionIds.has(record.revisionActionId)) {
+      throw new Error(
+        `assertRevisionVerificationIntegrity: more than one RevisionVerification references revisionActionId ${record.revisionActionId} -- 0..1 cardinality violated`
+      );
+    }
+    seenRevisionActionIds.add(record.revisionActionId);
+  }
+
+  const record = sourceSession.revisionVerifications[revisionVerificationId];
+  if (!record) {
+    throw new Error(`assertRevisionVerificationIntegrity: unknown revisionVerificationId ${revisionVerificationId}`);
+  }
+  if (record.id !== revisionVerificationId) {
+    throw new Error(
+      `assertRevisionVerificationIntegrity: record.id "${record.id}" does not match requested revisionVerificationId "${revisionVerificationId}"`
+    );
   }
 }

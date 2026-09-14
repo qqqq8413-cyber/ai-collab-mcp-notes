@@ -163,6 +163,35 @@ export interface RevisionSuccessorBinding {
   createdAt: string;
 }
 
+/**
+ * Closed verdict vocabulary for whether one `RevisionAction` was actually
+ * reflected in its `sourceSession`'s authoritative `RevisionSuccessorBinding`
+ * successor. The absence of any `RevisionVerification` for a given
+ * `revisionActionId` is a fourth, distinct state -- "no verification
+ * recorded" -- and must never be encoded as `INCONCLUSIVE` or `NOT_PRESENT`
+ * (REVISION_VERIFICATION_CONTRACT.md §9).
+ */
+export type RevisionVerificationVerdict = 'VERIFIED_PRESENT' | 'NOT_PRESENT' | 'INCONCLUSIVE';
+
+/**
+ * An immutable, human-confirmed audit fact: whether `revisionActionId`'s
+ * change is reflected in the exact successor artifact named by the owning
+ * session's `RevisionSuccessorBinding`. `verdict`/`evidence` are always
+ * caller-supplied, never derived by comparing artifact text -- see
+ * `recordRevisionVerification`'s contract. No `sourceSessionId` /
+ * `successorSessionId` / hash fields are duplicated here; those are always
+ * authoritatively derivable through `revisionActionId -> RevisionAction ->
+ * owning StressTestSession -> revisionSuccessor` (REVISION_VERIFICATION_CONTRACT.md
+ * §8).
+ */
+export interface RevisionVerification {
+  id: string;
+  revisionActionId: string;
+  verdict: RevisionVerificationVerdict;
+  evidence: string;
+  verifiedAt: string;
+}
+
 export type SessionState =
   | 'DRAFT'
   | 'INPUT_FROZEN'
@@ -191,4 +220,5 @@ export interface StressTestSession {
   adjudications: Record<string, HumanAdjudication>;
   revisionActions: Record<string, RevisionAction>;
   revisionSuccessor: RevisionSuccessorBinding | null;
+  revisionVerifications: Record<string, RevisionVerification>;
 }
