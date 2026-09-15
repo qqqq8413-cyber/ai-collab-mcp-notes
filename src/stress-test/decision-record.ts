@@ -4,7 +4,7 @@ import type {
   RevisionActionStatus,
   StressTestSession,
 } from './types.js';
-import { verifyFrozenInputIntegrity } from './session.js';
+import { assertRevisionActionLedgerIntegrity, verifyFrozenInputIntegrity } from './session.js';
 import type {
   AddReviewerRouteOutcome,
   AddContextRouteOutcome,
@@ -89,6 +89,7 @@ export interface DecisionRecord {
  */
 export function generateDecisionRecord(session: StressTestSession): DecisionRecord {
   verifyFrozenInputIntegrity(session);
+  assertRevisionActionLedgerIntegrity(session);
   const issueAdjudications = new Map<string, { judgment: Judgment; actionChange: ActionChange }>();
   const findingAdjudications = new Map<string, { judgment: Judgment; actionChange: ActionChange }>();
   for (const adjudication of Object.values(session.adjudications)) {
@@ -556,6 +557,10 @@ export function generateIntegratedDecisionReport(
   for (const outcome of deliberationState.outcomes) {
     assertRouteOutcomeIntegrity(session, deliberationState, outcome.attemptId);
   }
+  // P2-C0 Amendment 3: composes assertHumanAdjudicationLedgerIntegrity
+  // transitively -- global RevisionAction/adjudication integrity before any
+  // issue/revision/adjudication projection below trusts either ledger.
+  assertRevisionActionLedgerIntegrity(session);
 
   const issues: IntegratedDecisionReportIssue[] = Object.values(session.semanticIssues).map((issue) => {
     const artifactLocations = issue.findingIds.map((findingId) => {

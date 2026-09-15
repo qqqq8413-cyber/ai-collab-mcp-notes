@@ -234,6 +234,188 @@ export function createSemanticIssue(
   };
 }
 
+const JUDGMENTS: Judgment[] = ['KNOWN_PRE_DISPATCH', 'NEW_NON_MATERIAL', 'NEW_MATERIAL', 'WRONG'];
+const ACTION_CHANGES: ActionChange[] = ['YES', 'NO'];
+const REVISION_ACTION_STATUSES: RevisionAction['status'][] = ['PLANNED', 'IMPLEMENTED', 'REJECTED'];
+
+/**
+ * Canonical later-read/write-boundary validator for the entire
+ * `session.adjudications` ledger (P2-C0 Amendment 3). Validates EVERY
+ * existing entry globally, never only the one a caller is about to touch --
+ * the same "global integrity before local lookup" discipline already
+ * established for `assertRevisionVerificationLedgerIntegrity`. Existence by
+ * map key alone is never sufficient: the resolved SemanticIssue/ReviewFinding
+ * object's own `id` field must also equal the stored target id. Cardinality
+ * (at most one adjudication per exact target) is tracked separately per
+ * target *kind* -- a SemanticIssue and a ReviewFinding may legally share an
+ * id-shaped string, so collapsing by id alone would be a false-positive
+ * duplicate.
+ */
+export function assertHumanAdjudicationLedgerIntegrity(session: StressTestSession): void {
+  const seenTargets = new Set<string>();
+  for (const [key, adjudication] of Object.entries(session.adjudications)) {
+    if (key !== adjudication.id) {
+      throw new Error(
+        `assertHumanAdjudicationLedgerIntegrity: adjudications map key "${key}" does not match adjudication.id "${adjudication.id}"`
+      );
+    }
+    if (!isNonEmptyString(adjudication.id)) {
+      throw new Error(`assertHumanAdjudicationLedgerIntegrity: adjudication at key "${key}" has an invalid id`);
+    }
+    const hasIssue = adjudication.semanticIssueId !== undefined;
+    const hasFinding = adjudication.findingId !== undefined;
+    if (hasIssue === hasFinding) {
+      throw new Error(
+        `assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id} must target exactly one of semanticIssueId/findingId`
+      );
+    }
+    let targetKey: string;
+    if (hasIssue) {
+      const semanticIssueId = adjudication.semanticIssueId as string;
+      if (!isNonEmptyString(semanticIssueId)) {
+        throw new Error(
+          `assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id} has an invalid semanticIssueId`
+        );
+      }
+      const issue = session.semanticIssues[semanticIssueId];
+      if (!issue) {
+        throw new Error(
+          `assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id} references unknown semanticIssueId ${semanticIssueId}`
+        );
+      }
+      if (issue.id !== semanticIssueId) {
+        throw new Error(
+          `assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id}'s semanticIssueId "${semanticIssueId}" resolves by map key but the resolved SemanticIssue.id "${issue.id}" differs`
+        );
+      }
+      targetKey = `SEMANTIC_ISSUE:${semanticIssueId}`;
+    } else {
+      const findingId = adjudication.findingId as string;
+      if (!isNonEmptyString(findingId)) {
+        throw new Error(`assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id} has an invalid findingId`);
+      }
+      const finding = session.findings[findingId];
+      if (!finding) {
+        throw new Error(
+          `assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id} references unknown findingId ${findingId}`
+        );
+      }
+      if (finding.id !== findingId) {
+        throw new Error(
+          `assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id}'s findingId "${findingId}" resolves by map key but the resolved ReviewFinding.id "${finding.id}" differs`
+        );
+      }
+      targetKey = `FINDING:${findingId}`;
+    }
+    if (!JUDGMENTS.includes(adjudication.judgment)) {
+      throw new Error(
+        `assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id} has an invalid judgment ${JSON.stringify(adjudication.judgment)}`
+      );
+    }
+    if (!ACTION_CHANGES.includes(adjudication.actionChange)) {
+      throw new Error(
+        `assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id} has an invalid actionChange ${JSON.stringify(adjudication.actionChange)}`
+      );
+    }
+    if (typeof adjudication.note !== 'string') {
+      throw new Error(`assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id} has a non-string note`);
+    }
+    if (!isNonEmptyString(adjudication.adjudicatedAt)) {
+      throw new Error(`assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id} has an invalid adjudicatedAt`);
+    }
+    if (seenTargets.has(targetKey)) {
+      throw new Error(
+        `assertHumanAdjudicationLedgerIntegrity: more than one HumanAdjudication targets ${targetKey} -- 0..1 cardinality violated`
+      );
+    }
+    seenTargets.add(targetKey);
+  }
+}
+
+/**
+ * Canonical later-read/write-boundary validator for the entire
+ * `session.revisionActions` ledger (P2-C0 Amendment 2/3) -- not
+ * report-specific. Begins by validating the upstream `session.adjudications`
+ * ledger (`assertHumanAdjudicationLedgerIntegrity`): the authorization check
+ * below (item J) can never be trusted if that upstream ledger is corrupt.
+ * Existence-by-map-key alone is never sufficient for a sourceRef's target
+ * either -- the resolved SemanticIssue/ReviewFinding's own `id` must match.
+ * Required dependency direction: HumanAdjudication integrity ->
+ * RevisionAction integrity -> RevisionSuccessor/RevisionVerification
+ * integrity; never reversed.
+ */
+export function assertRevisionActionLedgerIntegrity(session: StressTestSession): void {
+  assertHumanAdjudicationLedgerIntegrity(session);
+
+  for (const [key, action] of Object.entries(session.revisionActions)) {
+    if (key !== action.id) {
+      throw new Error(
+        `assertRevisionActionLedgerIntegrity: revisionActions map key "${key}" does not match action.id "${action.id}"`
+      );
+    }
+    if (!isNonEmptyString(action.id)) {
+      throw new Error(`assertRevisionActionLedgerIntegrity: action at key "${key}" has an invalid id`);
+    }
+    if (!Array.isArray(action.sourceRefs) || action.sourceRefs.length === 0) {
+      throw new Error(`assertRevisionActionLedgerIntegrity: action ${action.id} has empty or non-array sourceRefs`);
+    }
+    if (!REVISION_ACTION_STATUSES.includes(action.status)) {
+      throw new Error(
+        `assertRevisionActionLedgerIntegrity: action ${action.id} has an invalid status ${JSON.stringify(action.status)}`
+      );
+    }
+    if (!isNonEmptyString(action.createdAt)) {
+      throw new Error(`assertRevisionActionLedgerIntegrity: action ${action.id} has an invalid createdAt`);
+    }
+
+    let authorized = false;
+    for (const ref of action.sourceRefs) {
+      if (ref === null || typeof ref !== 'object' || (ref.kind !== 'SEMANTIC_ISSUE' && ref.kind !== 'FINDING')) {
+        throw new Error(
+          `assertRevisionActionLedgerIntegrity: action ${action.id} has a sourceRef with an invalid kind ${JSON.stringify((ref as { kind?: unknown } | null)?.kind)}`
+        );
+      }
+      if (!isNonEmptyString(ref.id)) {
+        throw new Error(`assertRevisionActionLedgerIntegrity: action ${action.id} has a sourceRef with an invalid id`);
+      }
+      if (ref.kind === 'SEMANTIC_ISSUE') {
+        const issue = session.semanticIssues[ref.id];
+        if (!issue) {
+          throw new Error(
+            `assertRevisionActionLedgerIntegrity: action ${action.id} references unknown semantic issue ${ref.id}`
+          );
+        }
+        if (issue.id !== ref.id) {
+          throw new Error(
+            `assertRevisionActionLedgerIntegrity: action ${action.id}'s sourceRef "${ref.id}" resolves by map key but the resolved SemanticIssue.id "${issue.id}" differs`
+          );
+        }
+        if (Object.values(session.adjudications).some((a) => a.actionChange === 'YES' && a.semanticIssueId === ref.id)) {
+          authorized = true;
+        }
+      } else {
+        const finding = session.findings[ref.id];
+        if (!finding) {
+          throw new Error(`assertRevisionActionLedgerIntegrity: action ${action.id} references unknown finding ${ref.id}`);
+        }
+        if (finding.id !== ref.id) {
+          throw new Error(
+            `assertRevisionActionLedgerIntegrity: action ${action.id}'s sourceRef "${ref.id}" resolves by map key but the resolved ReviewFinding.id "${finding.id}" differs`
+          );
+        }
+        if (Object.values(session.adjudications).some((a) => a.actionChange === 'YES' && a.findingId === ref.id)) {
+          authorized = true;
+        }
+      }
+    }
+    if (!authorized) {
+      throw new Error(
+        `assertRevisionActionLedgerIntegrity: action ${action.id} has no sourceRef that still resolves to a HumanAdjudication with actionChange=YES`
+      );
+    }
+  }
+}
+
 /**
  * Records one human adjudication, targeting exactly one of a semantic issue
  * or a bare finding. Adjudicating a semantic issue marks it ADJUDICATED;
@@ -254,6 +436,7 @@ export function adjudicate(
   verifyFrozenInputIntegrity(session);
   assertFrozenOrLater(session, 'adjudicate');
   assertStateIn(session, 'adjudicate', ['REVIEWED', 'ADJUDICATED']);
+  assertHumanAdjudicationLedgerIntegrity(session);
   const hasIssue = input.semanticIssueId !== undefined;
   const hasFinding = input.findingId !== undefined;
   if (hasIssue === hasFinding) {
@@ -303,6 +486,17 @@ export function adjudicate(
 }
 
 /**
+ * Domain-specific clone for one RevisionSourceRef -- containing only its
+ * two discriminant fields, never a caller-owned object reference. Not a
+ * generic deep-clone utility; this is the exact minimum needed to isolate
+ * `RevisionAction.sourceRefs` from the caller's own input objects (P2-C0
+ * Amendment 2).
+ */
+function cloneRevisionSourceRef(ref: RevisionSourceRef): RevisionSourceRef {
+  return { kind: ref.kind, id: ref.id } as RevisionSourceRef;
+}
+
+/**
  * Plans a revision action against the artifact, tied back to the
  * semantic issue(s)/adjudicated finding(s) that motivated it via an explicit
  * discriminated RevisionSourceRef — never inferred from the shape of an id.
@@ -317,6 +511,7 @@ export function planRevisionAction(
   verifyFrozenInputIntegrity(session);
   assertFrozenOrLater(session, 'planRevisionAction');
   assertStateIn(session, 'planRevisionAction', ['ADJUDICATED', 'REVISION_PLANNED']);
+  assertRevisionActionLedgerIntegrity(session);
   if (input.sourceRefs.length === 0) {
     throw new Error('planRevisionAction: sourceRefs must be non-empty');
   }
@@ -352,7 +547,7 @@ export function planRevisionAction(
   }
   const action: RevisionAction = {
     id: randomUUID(),
-    sourceRefs: [...input.sourceRefs],
+    sourceRefs: input.sourceRefs.map(cloneRevisionSourceRef),
     description: input.description,
     targetLocation: input.targetLocation,
     status: 'PLANNED',
@@ -373,6 +568,7 @@ function setRevisionStatus(
 ): StressTestSession {
   verifyFrozenInputIntegrity(session);
   assertStateIn(session, action, ['REVISION_PLANNED']);
+  assertRevisionActionLedgerIntegrity(session);
   const existing = session.revisionActions[revisionActionId];
   if (!existing) throw new Error(`${action}: unknown revisionActionId ${revisionActionId}`);
   if (existing.status !== 'PLANNED') {
@@ -398,6 +594,7 @@ export function completeSession(session: StressTestSession): StressTestSession {
   if (session.state !== 'ADJUDICATED' && session.state !== 'REVISION_PLANNED') {
     throw new Error(`completeSession: session must be ADJUDICATED or REVISION_PLANNED (state=${session.state})`);
   }
+  assertRevisionActionLedgerIntegrity(session);
   const stillPlanned = Object.values(session.revisionActions).filter((a) => a.status === 'PLANNED');
   if (stillPlanned.length > 0) {
     throw new Error(`completeSession: ${stillPlanned.length} revision action(s) are still PLANNED`);
@@ -421,6 +618,7 @@ export function createRevisionSuccessorSession(
 ): { sourceSession: StressTestSession; successorSession: StressTestSession } {
   verifyFrozenInputIntegrity(sourceSession);
   assertFrozenOrLater(sourceSession, 'createRevisionSuccessorSession');
+  assertRevisionActionLedgerIntegrity(sourceSession);
   if (sourceSession.revisionSuccessor !== null) {
     throw new Error(
       'createRevisionSuccessorSession: sourceSession already has a direct revision successor -- first pilot supports at most one (0..1)'
@@ -545,6 +743,7 @@ export function assertRevisionSuccessorIntegrity(
   if (sourceSession.artifactHash === successorSession.artifactHash) {
     throw new Error('assertRevisionSuccessorIntegrity: sourceSession.artifactHash equals successorSession.artifactHash');
   }
+  assertRevisionActionLedgerIntegrity(sourceSession);
   const hasImplementedRevisionAction = Object.values(sourceSession.revisionActions).some(
     (a) => a.status === 'IMPLEMENTED'
   );
@@ -596,9 +795,15 @@ function isNonEmptyNonWhitespaceString(value: unknown): value is string {
  * structurally/provenance-consistent. This is the same "global integrity
  * before local filtering" rule already applied at read time in P2-B,
  * extended here to the write path so a hidden corrupt or duplicate record
+ * -- and, since P2-C0 Amendment 3, first composes
+ * `assertRevisionActionLedgerIntegrity` (which itself composes
+ * `assertHumanAdjudicationLedgerIntegrity`), so a corrupt upstream
+ * RevisionAction or HumanAdjudication ledger can never be silently trusted
+ * merely because `record.revisionActionId`/`.status` happen to match
  * can never be built on top of, only ever caught.
  */
 function assertRevisionVerificationLedgerIntegrity(sourceSession: StressTestSession): void {
+  assertRevisionActionLedgerIntegrity(sourceSession);
   const seenRevisionActionIds = new Set<string>();
   for (const [key, record] of Object.entries(sourceSession.revisionVerifications)) {
     if (key !== record.id) {

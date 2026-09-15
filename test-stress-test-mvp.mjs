@@ -12,6 +12,8 @@ import {
   completeSession,
   createRevisionSuccessorSession,
   assertRevisionSuccessorIntegrity,
+  assertHumanAdjudicationLedgerIntegrity,
+  assertRevisionActionLedgerIntegrity,
   recordRevisionVerification,
   assertRevisionVerificationIntegrity,
   generateDecisionRecord,
@@ -1938,6 +1940,534 @@ check('Amendment 1 #3. an existing map-key/record.id mismatch blocks an otherwis
         evidence: 'Valid evidence for the unrelated action.',
       }),
     /map key .* does not match record\.id/
+  );
+});
+
+console.log('\nRevision action provenance hardening (RevisionAction Provenance Hardening runtime)');
+
+check('Hardening A. mutating the original sourceRefs array after planRevisionAction does not mutate stored action', () => {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  const sourceRefs = [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }];
+  const withAction = planRevisionAction(session, { sourceRefs, description: 'x', targetLocation: 'x' });
+  const actionId = Object.keys(withAction.revisionActions)[0];
+  sourceRefs.push({ kind: 'FINDING', id: 'injected-after-return' });
+  assert.equal(withAction.revisionActions[actionId].sourceRefs.length, 1);
+});
+
+check('Hardening B. mutating an original RevisionSourceRef object after planRevisionAction does not mutate stored action', () => {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  const ref = { kind: 'SEMANTIC_ISSUE', id: itIssueId };
+  const withAction = planRevisionAction(session, { sourceRefs: [ref], description: 'x', targetLocation: 'x' });
+  const actionId = Object.keys(withAction.revisionActions)[0];
+  ref.id = 'tampered-after-return';
+  assert.equal(withAction.revisionActions[actionId].sourceRefs[0].id, itIssueId);
+});
+
+function buildTwoIssueSourceRefFixture() {
+  const session = buildReviewedFixtureSession();
+  const byTitle = (fragment) => Object.values(session.findings).find((f) => f.title.includes(fragment));
+  const itFindingIds = [byTitle('IT capacity').id, byTitle('Two-week timeline').id];
+  const withIssue1 = createSemanticIssue(session, {
+    title: 'Issue 1 (authorizing)',
+    description: 'The authorizing issue for this fixture.',
+    findingIds: itFindingIds,
+    evidenceState: 'UNSUPPORTED_IN_MATERIAL',
+  });
+  const issue1Id = Object.keys(withIssue1.semanticIssues)[0];
+  const withIssue2 = createSemanticIssue(withIssue1, {
+    title: 'Issue 2 (unrelated, unadjudicated)',
+    description: 'An unrelated second issue, never itself adjudicated.',
+    findingIds: [byTitle('rollback plan').id],
+    evidenceState: 'NOT_APPLICABLE',
+  });
+  const issue2Id = Object.keys(withIssue2.semanticIssues).find((id) => id !== issue1Id);
+  const adjudicated = adjudicate(withIssue2, {
+    semanticIssueId: issue1Id,
+    judgment: 'NEW_MATERIAL',
+    actionChange: 'YES',
+    note: 'Authorizes via issue 1 only.',
+  });
+  const withAction = planRevisionAction(adjudicated, {
+    sourceRefs: [
+      { kind: 'SEMANTIC_ISSUE', id: issue1Id },
+      { kind: 'SEMANTIC_ISSUE', id: issue2Id },
+    ],
+    description: 'x',
+    targetLocation: 'x',
+  });
+  return { session: withAction, issue2Id };
+}
+
+check('Hardening C. a stored sourceRef pointing to a missing SemanticIssue is rejected', () => {
+  const { session, issue2Id } = buildTwoIssueSourceRefFixture();
+  const { [issue2Id]: _removed, ...remainingIssues } = session.semanticIssues;
+  const tampered = { ...session, semanticIssues: remainingIssues };
+  assert.throws(() => assertRevisionActionLedgerIntegrity(tampered), /references unknown semantic issue/);
+});
+
+function buildFindingAuthorizedFixture() {
+  const session = buildReviewedFixtureSession();
+  const findingId = Object.keys(session.findings)[0];
+  const adjudicated = adjudicate(session, {
+    findingId,
+    judgment: 'NEW_MATERIAL',
+    actionChange: 'YES',
+    note: 'Directly authorized at the finding level.',
+  });
+  return { session: adjudicated, findingId };
+}
+
+check('Hardening D. a stored sourceRef pointing to a missing ReviewFinding is rejected', () => {
+  const { session, findingId } = buildFindingAuthorizedFixture();
+  const withAction = planRevisionAction(session, {
+    sourceRefs: [{ kind: 'FINDING', id: findingId }],
+    description: 'x',
+    targetLocation: 'x',
+  });
+  const tampered = { ...withAction, findings: {} };
+  assert.throws(() => assertRevisionActionLedgerIntegrity(tampered), /references unknown finding/);
+});
+
+check('Hardening E. a stored action with empty sourceRefs is rejected', () => {
+  const { session } = buildImplementedFixtureSession();
+  const actionId = Object.keys(session.revisionActions)[0];
+  const tampered = {
+    ...session,
+    revisionActions: { ...session.revisionActions, [actionId]: { ...session.revisionActions[actionId], sourceRefs: [] } },
+  };
+  assert.throws(() => assertRevisionActionLedgerIntegrity(tampered), /empty or non-array sourceRefs/);
+});
+
+check('Hardening F. a revisionActions map key that does not match action.id is rejected', () => {
+  const { session } = buildImplementedFixtureSession();
+  const actionId = Object.keys(session.revisionActions)[0];
+  const action = session.revisionActions[actionId];
+  const tampered = { ...session, revisionActions: { 'a-different-key': action } };
+  assert.throws(
+    () => assertRevisionActionLedgerIntegrity(tampered),
+    /revisionActions map key .* does not match action\.id/
+  );
+});
+
+check('Hardening G. an illegal runtime RevisionAction status is rejected', () => {
+  const { session } = buildImplementedFixtureSession();
+  const actionId = Object.keys(session.revisionActions)[0];
+  const tampered = {
+    ...session,
+    revisionActions: {
+      ...session.revisionActions,
+      [actionId]: { ...session.revisionActions[actionId], status: 'SOMETHING_ELSE' },
+    },
+  };
+  assert.throws(() => assertRevisionActionLedgerIntegrity(tampered), /has an invalid status/);
+});
+
+check('Hardening H. no sourceRef retaining actionChange=YES authorization is rejected', () => {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  const withAction = planRevisionAction(session, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+    description: 'x',
+    targetLocation: 'x',
+  });
+  const adjudicationId = Object.keys(withAction.adjudications).find(
+    (id) => withAction.adjudications[id].semanticIssueId === itIssueId
+  );
+  const tampered = {
+    ...withAction,
+    adjudications: {
+      ...withAction.adjudications,
+      [adjudicationId]: { ...withAction.adjudications[adjudicationId], actionChange: 'NO' },
+    },
+  };
+  assert.throws(
+    () => assertRevisionActionLedgerIntegrity(tampered),
+    /has no sourceRef that still resolves to a HumanAdjudication with actionChange=YES/
+  );
+});
+
+check('Hardening I. a hidden unrelated corrupt RevisionAction blocks a new planRevisionAction write', () => {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  const withAction = planRevisionAction(session, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+    description: 'first',
+    targetLocation: 'x',
+  });
+  const actionId = Object.keys(withAction.revisionActions)[0];
+  const corrupted = {
+    ...withAction,
+    revisionActions: {
+      ...withAction.revisionActions,
+      [actionId]: { ...withAction.revisionActions[actionId], status: 'SOMETHING_ELSE' },
+    },
+  };
+  assert.throws(
+    () =>
+      planRevisionAction(corrupted, {
+        sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+        description: 'second',
+        targetLocation: 'y',
+      }),
+    /has an invalid status/
+  );
+});
+
+function buildTwoPlannedActionsFixtureSession() {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  let withActions = planRevisionAction(session, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+    description: 'first',
+    targetLocation: 'x',
+  });
+  const firstId = Object.keys(withActions.revisionActions)[0];
+  withActions = planRevisionAction(withActions, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+    description: 'second',
+    targetLocation: 'y',
+  });
+  const secondId = Object.keys(withActions.revisionActions).find((id) => id !== firstId);
+  return { session: withActions, actionId1: firstId, actionId2: secondId };
+}
+
+check('Hardening J. a hidden unrelated corrupt RevisionAction blocks a status transition on a different action', () => {
+  const { session, actionId1, actionId2 } = buildTwoPlannedActionsFixtureSession();
+  const corrupted = {
+    ...session,
+    revisionActions: {
+      ...session.revisionActions,
+      [actionId1]: { ...session.revisionActions[actionId1], sourceRefs: [] },
+    },
+  };
+  assert.throws(() => implementRevisionAction(corrupted, actionId2), /empty or non-array sourceRefs/);
+});
+
+check('Hardening K. a hidden unrelated corrupt RevisionAction blocks createRevisionSuccessorSession', () => {
+  const { session, actionId1, actionId2 } = buildTwoImplementedActionsFixtureSession();
+  const corrupted = {
+    ...session,
+    revisionActions: {
+      ...session.revisionActions,
+      [actionId2]: { ...session.revisionActions[actionId2], createdAt: '' },
+    },
+  };
+  assert.throws(() => createRevisionSuccessorSession(corrupted, REVISED_ARTIFACT_TEXT), /has an invalid createdAt/);
+});
+
+check('Hardening L. a hidden unrelated corrupt RevisionAction blocks completeSession', () => {
+  const { session, actionId1, actionId2 } = buildTwoImplementedActionsFixtureSession();
+  const corrupted = {
+    ...session,
+    revisionActions: {
+      ...session.revisionActions,
+      [actionId2]: { ...session.revisionActions[actionId2], sourceRefs: [] },
+    },
+  };
+  assert.throws(() => completeSession(corrupted), /empty or non-array sourceRefs/);
+});
+
+check('Hardening M. assertRevisionSuccessorIntegrity rejects when the source RevisionAction ledger is corrupt', () => {
+  const { sourceSession, successorSession } = buildVerifiableFixture();
+  const actionId = Object.keys(sourceSession.revisionActions)[0];
+  const corrupted = {
+    ...sourceSession,
+    revisionActions: {
+      ...sourceSession.revisionActions,
+      [actionId]: { ...sourceSession.revisionActions[actionId], status: 'BOGUS' },
+    },
+  };
+  assert.throws(() => assertRevisionSuccessorIntegrity(corrupted, successorSession), /has an invalid status/);
+});
+
+check('Hardening N. assertRevisionVerificationIntegrity rejects when the upstream RevisionAction ledger is corrupt', () => {
+  const { sourceSession, successorSession, actionId } = buildVerifiableFixture();
+  const updated = recordRevisionVerification(sourceSession, successorSession, {
+    revisionActionId: actionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'x',
+  });
+  const recordId = Object.keys(updated.revisionVerifications)[0];
+  const corrupted = {
+    ...updated,
+    revisionActions: {
+      ...updated.revisionActions,
+      [actionId]: { ...updated.revisionActions[actionId], sourceRefs: [] },
+    },
+  };
+  assert.throws(
+    () => assertRevisionVerificationIntegrity(corrupted, successorSession, recordId),
+    /empty or non-array sourceRefs/
+  );
+});
+
+console.log('\nHuman adjudication ledger integrity (RevisionAction Provenance Hardening runtime)');
+
+check('Hardening O. an adjudications map key that does not match adjudication.id is rejected', () => {
+  const { session } = buildAdjudicatedFixtureSession();
+  const adjId = Object.keys(session.adjudications)[0];
+  const adjudication = session.adjudications[adjId];
+  const tampered = { ...session, adjudications: { 'a-different-key': adjudication } };
+  assert.throws(
+    () => assertHumanAdjudicationLedgerIntegrity(tampered),
+    /adjudications map key .* does not match adjudication\.id/
+  );
+});
+
+check('Hardening P. an adjudication with both semanticIssueId and findingId is rejected', () => {
+  const { session, itIssueId, rollbackFindingId } = buildAdjudicatedFixtureSession();
+  const adjId = Object.keys(session.adjudications).find((id) => session.adjudications[id].semanticIssueId === itIssueId);
+  const tampered = {
+    ...session,
+    adjudications: {
+      ...session.adjudications,
+      [adjId]: { ...session.adjudications[adjId], findingId: rollbackFindingId },
+    },
+  };
+  assert.throws(
+    () => assertHumanAdjudicationLedgerIntegrity(tampered),
+    /must target exactly one of semanticIssueId\/findingId/
+  );
+});
+
+check('Hardening Q. an adjudication with neither target is rejected', () => {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  const adjId = Object.keys(session.adjudications).find((id) => session.adjudications[id].semanticIssueId === itIssueId);
+  const { semanticIssueId, ...rest } = session.adjudications[adjId];
+  const tampered = { ...session, adjudications: { ...session.adjudications, [adjId]: rest } };
+  assert.throws(
+    () => assertHumanAdjudicationLedgerIntegrity(tampered),
+    /must target exactly one of semanticIssueId\/findingId/
+  );
+});
+
+check('Hardening R. an adjudication targeting an unknown SemanticIssue is rejected', () => {
+  const { session } = buildAdjudicatedFixtureSession();
+  const tampered = { ...session, semanticIssues: {} };
+  assert.throws(() => assertHumanAdjudicationLedgerIntegrity(tampered), /references unknown semanticIssueId/);
+});
+
+check('Hardening S. an adjudication targeting an unknown ReviewFinding is rejected', () => {
+  const { session } = buildAdjudicatedFixtureSession();
+  const tampered = { ...session, findings: {} };
+  assert.throws(() => assertHumanAdjudicationLedgerIntegrity(tampered), /references unknown findingId/);
+});
+
+check(
+  "Hardening T. an adjudication whose semanticIssueId resolves by map key but the resolved SemanticIssue.id differs is rejected",
+  () => {
+    const { session, itIssueId } = buildAdjudicatedFixtureSession();
+    const tampered = {
+      ...session,
+      semanticIssues: {
+        ...session.semanticIssues,
+        [itIssueId]: { ...session.semanticIssues[itIssueId], id: 'a-different-id' },
+      },
+    };
+    assert.throws(
+      () => assertHumanAdjudicationLedgerIntegrity(tampered),
+      /resolves by map key but the resolved SemanticIssue\.id .* differs/
+    );
+  }
+);
+
+check(
+  "Hardening U. an adjudication whose findingId resolves by map key but the resolved ReviewFinding.id differs is rejected",
+  () => {
+    const { session, rollbackFindingId } = buildAdjudicatedFixtureSession();
+    const tampered = {
+      ...session,
+      findings: {
+        ...session.findings,
+        [rollbackFindingId]: { ...session.findings[rollbackFindingId], id: 'a-different-id' },
+      },
+    };
+    assert.throws(
+      () => assertHumanAdjudicationLedgerIntegrity(tampered),
+      /resolves by map key but the resolved ReviewFinding\.id .* differs/
+    );
+  }
+);
+
+check('Hardening V. duplicate adjudications for the same SemanticIssue are rejected globally', () => {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  const duplicateId = 'a-duplicate-adjudication';
+  const tampered = {
+    ...session,
+    adjudications: {
+      ...session.adjudications,
+      [duplicateId]: {
+        id: duplicateId,
+        semanticIssueId: itIssueId,
+        judgment: 'NEW_MATERIAL',
+        actionChange: 'YES',
+        note: 'duplicate',
+        adjudicatedAt: new Date().toISOString(),
+      },
+    },
+  };
+  assert.throws(
+    () => assertHumanAdjudicationLedgerIntegrity(tampered),
+    /more than one HumanAdjudication targets SEMANTIC_ISSUE/
+  );
+});
+
+check('Hardening W. duplicate adjudications for the same ReviewFinding are rejected globally', () => {
+  const { session, rollbackFindingId } = buildAdjudicatedFixtureSession();
+  const duplicateId = 'a-duplicate-finding-adjudication';
+  const tampered = {
+    ...session,
+    adjudications: {
+      ...session.adjudications,
+      [duplicateId]: {
+        id: duplicateId,
+        findingId: rollbackFindingId,
+        judgment: 'WRONG',
+        actionChange: 'NO',
+        note: 'duplicate',
+        adjudicatedAt: new Date().toISOString(),
+      },
+    },
+  };
+  assert.throws(
+    () => assertHumanAdjudicationLedgerIntegrity(tampered),
+    /more than one HumanAdjudication targets FINDING/
+  );
+});
+
+check(
+  'Hardening X. a SemanticIssue and a ReviewFinding sharing the same id-shaped string are not treated as a duplicate target',
+  () => {
+    const session = buildReviewedFixtureSession();
+    const findingId = Object.keys(session.findings)[0];
+    const sharedId = findingId;
+    const withIssue = {
+      ...session,
+      semanticIssues: {
+        ...session.semanticIssues,
+        [sharedId]: {
+          id: sharedId,
+          title: 'Collision issue',
+          description: 'Shares an id-shaped string with a ReviewFinding.',
+          findingIds: [],
+          evidenceState: 'NOT_APPLICABLE',
+          status: 'OPEN',
+        },
+      },
+    };
+    let withBoth = adjudicate(withIssue, {
+      semanticIssueId: sharedId,
+      judgment: 'NEW_MATERIAL',
+      actionChange: 'YES',
+      note: 'issue-level',
+    });
+    withBoth = adjudicate(withBoth, {
+      findingId: sharedId,
+      judgment: 'WRONG',
+      actionChange: 'NO',
+      note: 'finding-level',
+    });
+    assert.doesNotThrow(() => assertHumanAdjudicationLedgerIntegrity(withBoth));
+  }
+);
+
+check('Hardening Y. an illegal runtime judgment is rejected', () => {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  const adjId = Object.keys(session.adjudications).find((id) => session.adjudications[id].semanticIssueId === itIssueId);
+  const tampered = {
+    ...session,
+    adjudications: { ...session.adjudications, [adjId]: { ...session.adjudications[adjId], judgment: 'MADE_UP' } },
+  };
+  assert.throws(() => assertHumanAdjudicationLedgerIntegrity(tampered), /has an invalid judgment/);
+});
+
+check('Hardening Z. an illegal runtime actionChange is rejected', () => {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  const adjId = Object.keys(session.adjudications).find((id) => session.adjudications[id].semanticIssueId === itIssueId);
+  const tampered = {
+    ...session,
+    adjudications: { ...session.adjudications, [adjId]: { ...session.adjudications[adjId], actionChange: 'MAYBE' } },
+  };
+  assert.throws(() => assertHumanAdjudicationLedgerIntegrity(tampered), /has an invalid actionChange/);
+});
+
+check('Hardening AA. a non-string note is rejected', () => {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  const adjId = Object.keys(session.adjudications).find((id) => session.adjudications[id].semanticIssueId === itIssueId);
+  const tampered = {
+    ...session,
+    adjudications: { ...session.adjudications, [adjId]: { ...session.adjudications[adjId], note: 12345 } },
+  };
+  assert.throws(() => assertHumanAdjudicationLedgerIntegrity(tampered), /has a non-string note/);
+});
+
+check('Hardening AB. an empty adjudicatedAt is rejected', () => {
+  const { session, itIssueId } = buildAdjudicatedFixtureSession();
+  const adjId = Object.keys(session.adjudications).find((id) => session.adjudications[id].semanticIssueId === itIssueId);
+  const tampered = {
+    ...session,
+    adjudications: { ...session.adjudications, [adjId]: { ...session.adjudications[adjId], adjudicatedAt: '' } },
+  };
+  assert.throws(() => assertHumanAdjudicationLedgerIntegrity(tampered), /has an invalid adjudicatedAt/);
+});
+
+check('Hardening AC. a hidden unrelated corrupt adjudication blocks a new adjudicate() write', () => {
+  const session = buildReviewedFixtureSession();
+  const byTitle = (fragment) => Object.values(session.findings).find((f) => f.title.includes(fragment));
+  const rollbackFindingId = byTitle('rollback plan').id;
+  const budgetFindingId = byTitle('$8,000 budget figure').id;
+  const withOne = adjudicate(session, {
+    findingId: rollbackFindingId,
+    judgment: 'KNOWN_PRE_DISPATCH',
+    actionChange: 'NO',
+    note: 'x',
+  });
+  const adjId = Object.keys(withOne.adjudications)[0];
+  const corrupted = {
+    ...withOne,
+    adjudications: { ...withOne.adjudications, [adjId]: { ...withOne.adjudications[adjId], actionChange: 'MAYBE' } },
+  };
+  assert.throws(
+    () => adjudicate(corrupted, { findingId: budgetFindingId, judgment: 'WRONG', actionChange: 'NO', note: 'y' }),
+    /has an invalid actionChange/
+  );
+});
+
+check('Hardening AD. a hidden unrelated corrupt adjudication blocks planRevisionAction', () => {
+  const { session, itIssueId, rollbackFindingId } = buildAdjudicatedFixtureSession();
+  const rollbackAdjId = Object.keys(session.adjudications).find(
+    (id) => session.adjudications[id].findingId === rollbackFindingId
+  );
+  const corrupted = {
+    ...session,
+    adjudications: {
+      ...session.adjudications,
+      [rollbackAdjId]: { ...session.adjudications[rollbackAdjId], judgment: 'MADE_UP' },
+    },
+  };
+  assert.throws(
+    () =>
+      planRevisionAction(corrupted, {
+        sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: itIssueId }],
+        description: 'x',
+        targetLocation: 'x',
+      }),
+    /has an invalid judgment/
+  );
+});
+
+check("Hardening AE. a RevisionAction sourceRef resolving by map key whose target's own id differs is rejected", () => {
+  const { session } = buildImplementedFixtureSession();
+  const actionId = Object.keys(session.revisionActions)[0];
+  const sourceRef = session.revisionActions[actionId].sourceRefs[0];
+  const issueId = sourceRef.id;
+  const tampered = {
+    ...session,
+    semanticIssues: {
+      ...session.semanticIssues,
+      [issueId]: { ...session.semanticIssues[issueId], id: 'a-different-id' },
+    },
+  };
+  assert.throws(
+    () => assertRevisionActionLedgerIntegrity(tampered),
+    /resolves by map key but the resolved SemanticIssue\.id .* differs/
   );
 });
 

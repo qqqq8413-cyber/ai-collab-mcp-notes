@@ -677,5 +677,97 @@ check('generateDecisionRecord: unaffected by this slice -- still generates from 
   assert.equal(record.issues.length, 1);
 });
 
+console.log('\nReport trust-boundary hardening (RevisionAction Provenance Hardening runtime)');
+
+/** Like buildFullChainFixture, but with one extra, unrelated finding-level adjudication to corrupt. */
+function buildFullChainWithExtraAdjudicationFixture() {
+  const base = addFindingTracked(createFrozenSession());
+  const extra = addFindingTracked(base.session, {
+    title: 'Unrelated second finding, adjudicated but never revised',
+    artifactLocation: 'paragraph 1',
+  });
+  let session = createSemanticIssue(extra.session, {
+    title: 'Vendor switching cost understated',
+    description: 'The memo recommends a vendor without pricing in the cost of a future exit.',
+    findingIds: [base.findingId],
+    evidenceState: 'UNSUPPORTED_IN_MATERIAL',
+  });
+  const issueId = Object.keys(session.semanticIssues)[0];
+  session = adjudicate(session, {
+    semanticIssueId: issueId,
+    judgment: 'NEW_MATERIAL',
+    actionChange: 'YES',
+    note: 'Must add a switching-cost estimate before sending.',
+  });
+  session = adjudicate(session, {
+    findingId: extra.findingId,
+    judgment: 'WRONG',
+    actionChange: 'NO',
+    note: 'Unrelated to the revision below.',
+  });
+  session = planRevisionAction(session, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    description: 'Add an estimated vendor-switching cost to paragraph 2.',
+    targetLocation: 'paragraph 2',
+  });
+  const revisionActionId = Object.keys(session.revisionActions)[0];
+  session = implementRevisionAction(session, revisionActionId);
+  const extraAdjudicationId = Object.keys(session.adjudications).find(
+    (id) => session.adjudications[id].findingId === extra.findingId
+  );
+  return { session, issueId, revisionActionId, extraAdjudicationId };
+}
+
+check('generateDecisionRecord: rejects a hidden corrupt RevisionAction ledger', () => {
+  const { session, revisionActionId } = buildFullChainWithExtraAdjudicationFixture();
+  const corrupted = {
+    ...session,
+    revisionActions: {
+      ...session.revisionActions,
+      [revisionActionId]: { ...session.revisionActions[revisionActionId], status: 'BOGUS' },
+    },
+  };
+  assert.throws(() => generateDecisionRecord(corrupted), /has an invalid status/);
+});
+
+check('generateDecisionRecord: rejects a hidden corrupt HumanAdjudication ledger even when the displayed target itself looks valid', () => {
+  const { session, extraAdjudicationId } = buildFullChainWithExtraAdjudicationFixture();
+  const corrupted = {
+    ...session,
+    adjudications: {
+      ...session.adjudications,
+      [extraAdjudicationId]: { ...session.adjudications[extraAdjudicationId], judgment: 'MADE_UP' },
+    },
+  };
+  assert.throws(() => generateDecisionRecord(corrupted), /has an invalid judgment/);
+});
+
+check('generateIntegratedDecisionReport: rejects a hidden corrupt RevisionAction ledger before normal projection', () => {
+  const { session, state, revisionActionId } = buildFullChainFixture();
+  const corrupted = {
+    ...session,
+    revisionActions: {
+      ...session.revisionActions,
+      [revisionActionId]: { ...session.revisionActions[revisionActionId], status: 'BOGUS' },
+    },
+  };
+  assert.throws(() => generateIntegratedDecisionReport(corrupted, state), /has an invalid status/);
+});
+
+check('generateIntegratedDecisionReport: rejects a hidden corrupt HumanAdjudication ledger before normal projection', () => {
+  const { session, state, issueId } = buildFullChainFixture();
+  const adjudicationId = Object.keys(session.adjudications).find(
+    (id) => session.adjudications[id].semanticIssueId === issueId
+  );
+  const corrupted = {
+    ...session,
+    adjudications: {
+      ...session.adjudications,
+      [adjudicationId]: { ...session.adjudications[adjudicationId], judgment: 'MADE_UP' },
+    },
+  };
+  assert.throws(() => generateIntegratedDecisionReport(corrupted, state), /has an invalid judgment/);
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed === 0 ? 0 : 1);
