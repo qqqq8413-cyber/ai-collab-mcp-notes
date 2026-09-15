@@ -14,6 +14,8 @@ This document freezes the minimum authority/interface contract required for `gen
 
 **Amendment 1 incorporated.** This revision resolves both blocking open decisions the original P2-C0 analysis left open (§19), freezes a machine-readable verification-state vocabulary and its display labels (§11 — freshly issued by GPT, not recovered historical wording, §12), corrects a provenance defect in the original document's own non-goals list (§17), and records one pre-existing, unrelated report gap as tracked debt (§19a) rather than solving it here.
 
+**Amendment 2 incorporated.** Before any P2-C report may project `RevisionAction.sourceRefs` as trusted provenance, this revision freezes a new canonical `assertRevisionActionLedgerIntegrity(session)` validator (§3a) closing a confirmed ingress-aliasing defect in `planRevisionAction` and a gap where no validator globally checks `RevisionAction` provenance today. §7's integrity ordering is revised to compose this validator unconditionally. **P2-C runtime remains blocked until a separately-authorized RevisionAction Provenance Hardening runtime is independently accepted first** (§18a) — this amendment does not itself authorize or implement that hardening.
+
 ---
 
 ## 1. Current authority inventory
@@ -29,6 +31,7 @@ Confirmed by direct inspection of `src/stress-test/types.ts`, `src/stress-test/s
    - `assertRevisionVerificationLedgerIntegrity(sourceSession): void` (session.ts:601) — **module-internal, not exported.** Contains the actual whole-ledger scan (map-key/id match, revisionActionId resolution, IMPLEMENTED status, legal verdict, non-empty/non-whitespace evidence, non-empty verifiedAt, no duplicate revisionActionId). Both public validators above call it; no other copy of this logic exists anywhere in the repository (confirmed by `grep`).
 5. `RevisionAction.status === IMPLEMENTED` still means only "marked implemented" (unchanged, `decision-record.ts:399-401`, `labelForRevisionStatus`).
 6. `generateIntegratedDecisionReport` currently has **no parameter of any kind for successor-session information** and performs **zero** RevisionVerification-aware logic.
+7. **(Amendment 2.)** `planRevisionAction` (session.ts:355) stores `sourceRefs: [...input.sourceRefs]` — confirmed by direct inspection to be a **shallow array clone only**: each `RevisionSourceRef` element (`{kind, id}`) inside remains the same object reference as `input.sourceRefs[i]`. A caller mutating an original `RevisionSourceRef` object after `planRevisionAction` returns silently alters stored, authoritative provenance. No canonical validator today globally checks `RevisionAction.sourceRefs` provenance — `verifyFrozenInputIntegrity` protects only `artifactText`/`authorContext`, never `revisionActions`, and neither `assertRevisionSuccessorIntegrity` nor `assertRevisionVerificationLedgerIntegrity` inspects `sourceRefs` at all. See §3a.
 
 ---
 
@@ -81,6 +84,114 @@ assertRevisionSuccessorIntegrity(sourceSession, successorSession)
 `assertRevisionSuccessorIntegrity` itself (session.ts:503-576) requires, among other checks: both sessions frozen-or-later, `verifyFrozenInputIntegrity` on both, the six binding fields matching both supplied session objects exactly, `sourceSession.id !== successorSession.id`, `sourceSession.artifactHash !== successorSession.artifactHash`, **≥1 `IMPLEMENTED` `RevisionAction` still present on `sourceSession`**, and the per-category semantic-copy-policy check against `successorSession.authorContext`. It throws immediately if `sourceSession.revisionSuccessor` is `null` — this single fact is load-bearing for §6 CASE 9 and CASE 2 below.
 
 No report-specific weaker duplicate of either function is proposed anywhere in this document (§5 of the governing packet is honored throughout).
+
+---
+
+## 3a. RevisionAction provenance integrity boundary (Amendment 2)
+
+The confirmed defect and gap are stated in §1.7. This section freezes the canonical fix — architecture only, no runtime implemented here.
+
+### 3a.1 Canonical validator
+
+```ts
+assertRevisionActionLedgerIntegrity(session: StressTestSession): void
+```
+
+**Not report-specific.** This is the canonical later-read/write-boundary validator for the entire `revisionActions` ledger, exactly parallel in role to `assertRevisionVerificationLedgerIntegrity` for the verification ledger (§3, §9).
+
+For every `[key, action]` in `session.revisionActions`, required checks:
+
+| # | Check |
+|---|---|
+| A | `key === action.id` |
+| B | `action.id` is a non-empty string |
+| C | `action.sourceRefs` is non-empty |
+| D | every `sourceRef.kind` is exactly `SEMANTIC_ISSUE` or `FINDING` |
+| E | every `sourceRef.id` is a non-empty string |
+| F | `SEMANTIC_ISSUE` refs resolve against `session.semanticIssues[ref.id]` |
+| G | `FINDING` refs resolve against `session.findings[ref.id]` |
+| H | `action.status` is one of `PLANNED`/`IMPLEMENTED`/`REJECTED` |
+| I | `action.createdAt` is a non-empty string |
+| J | at least one `sourceRef` still resolves to a `HumanAdjudication` with `actionChange === 'YES'` against that exact referenced `SemanticIssue`/`ReviewFinding` — the same authorization rule `planRevisionAction` already enforces at write time (`session.ts:336-347`), re-verified rather than merely trusted from history |
+
+**Deliberately not required** — never a write-time requirement, not invented here: every ref (not just one) having `actionChange=YES`; every ref being adjudicated at all; unique `sourceRefs`; any ordering semantics.
+
+### 3a.2 Threat-model limit
+
+Unchanged from the accepted in-memory model (§3, §14 of `REVISION_VERIFICATION_CONTRACT.md`): `assertRevisionActionLedgerIntegrity` detects structural and provenance-invalid stored state. It does **not** cryptographically prove that a caller did not coherently rewrite every mutually-consistent authority object at once. This limit is neither widened nor narrowed by this amendment.
+
+### 3a.3 Ingress alias isolation (future runtime requirement)
+
+`planRevisionAction` must stop storing caller-owned `RevisionSourceRef` objects directly. Frozen minimum fix — an explicit domain clone helper, never a generic deep-clone utility, mirroring the same clone-on-ingress discipline already established elsewhere in this codebase (P2-A's `AuthorContext` copy, D1-A's checkpoint store):
+
+```ts
+function cloneRevisionSourceRef(ref: RevisionSourceRef): RevisionSourceRef {
+  return { kind: ref.kind, id: ref.id } as RevisionSourceRef;
+}
+```
+
+stored as `sourceRefs: input.sourceRefs.map(cloneRevisionSourceRef)` — never `sourceRefs: [...input.sourceRefs]`. Required invariant: mutating the caller's original `sourceRefs` array, or any original `RevisionSourceRef` object, after `planRevisionAction` returns must never change the stored `RevisionAction`.
+
+### 3a.4 Write-boundary composition (future runtime requirement)
+
+Global integrity before authoritative mutation. `assertRevisionActionLedgerIntegrity(session)` must be called and must pass before any of these existing write paths proceed:
+
+- `planRevisionAction` — validate the existing ledger before appending a new `RevisionAction`.
+- `setRevisionStatus` (backing `implementRevisionAction`/`rejectRevisionAction`) — validate the entire existing ledger before any status transition.
+- `completeSession` — validate the ledger before trusting which actions are `PLANNED`/`IMPLEMENTED`/`REJECTED`.
+- `createRevisionSuccessorSession` — validate the ledger before deciding whether an `IMPLEMENTED` action exists (§6 of `REVISION_VERIFICATION_CONTRACT.md`).
+
+A valid, local, well-formed new/transitioning `RevisionAction` must never be appended or transitioned on top of an unrelated, already-corrupt `RevisionAction` elsewhere in the same ledger.
+
+### 3a.5 Later-read/downstream composition (future runtime requirement)
+
+Both existing P2 canonical validators must compose this new one, never merely trust matching ids/statuses:
+
+```
+assertRevisionSuccessorIntegrity(sourceSession, successorSession)
+  must call assertRevisionActionLedgerIntegrity(sourceSession)
+  before trusting sourceSession's IMPLEMENTED RevisionAction existence
+
+assertRevisionVerificationLedgerIntegrity(sourceSession)
+  must call assertRevisionActionLedgerIntegrity(sourceSession)
+  before trusting any revisionActionId/status it resolves
+```
+
+This changes the authority chain from `RevisionVerification → some object with matching id/status` to the correct `RevisionVerification → RevisionAction → valid sourceRefs → authoritative source-session entities`.
+
+### 3a.6 Report-boundary composition
+
+P2-C report generation must **always** call `assertRevisionActionLedgerIntegrity(session)` before any `RevisionAction` projection — even when `session.revisionSuccessor === null`, because `allRevisionActions` (§13) is still displayed in the pre-successor `AWAITING_SUCCESSOR` state and must not project unvalidated provenance. §7's integrity ordering (below) is revised accordingly — superseding, not merely supplementing, the Amendment-1 sequence, with exactly one new step (C) inserted unconditionally before the successor/verification branch begins.
+
+### 3a.7 Report egress alias isolation
+
+`allRevisionActions[].sourceRefs` and `issues[].revisionActions[].sourceRefs` (§11.3) must contain cloned `RevisionSourceRef` objects (the same `cloneRevisionSourceRef` semantics as §3a.3) — a report consumer must never receive a reference that aliases the authoritative session's own nested `RevisionSourceRef` objects.
+
+### 3a.8 `generateDecisionRecord` parity
+
+`generateDecisionRecord` (`decision-record.ts:90`) also trusts `session.revisionActions` and projects `RevisionAction.sourceRefs` (via `revisionActionsForIssue`/`revisionActionsForFinding`, `decision-record.ts:112-120`) — with **no validator at all** today. Since a canonical validator now exists, future hardening must not leave `generateDecisionRecord` with a weaker `RevisionAction` trust boundary than `IntegratedDecisionReport`: `generateDecisionRecord(session)` must call `assertRevisionActionLedgerIntegrity(session)` before trusting/projecting `revisionActions`. No other redesign of `DecisionRecord` is authorized or implied by this amendment.
+
+### 3a.9 Required adversarial tests for future hardening
+
+At minimum:
+
+| # | Test |
+|---|---|
+| A | Caller mutates the original `sourceRefs` array after `planRevisionAction` → stored action unchanged |
+| B | Caller mutates an original `RevisionSourceRef` object after `planRevisionAction` → stored action unchanged |
+| C | Stored `sourceRef` points to a missing `SEMANTIC_ISSUE` → canonical validator rejects |
+| D | Stored `sourceRef` points to a missing `FINDING` → rejects |
+| E | Stored action has empty `sourceRefs` → rejects |
+| F | `revisionActions` map key `!==` `action.id` → rejects |
+| G | Stored action has an illegal runtime `status` → rejects |
+| H | None of the action's refs still resolves to an adjudication with `actionChange=YES` → rejects |
+| I | A hidden, unrelated corrupt `RevisionAction` blocks a new `planRevisionAction` write |
+| J | A hidden, unrelated corrupt `RevisionAction` blocks a status transition |
+| K | A hidden, unrelated corrupt `RevisionAction` blocks `createRevisionSuccessorSession` |
+| L | A hidden corrupt `RevisionAction` blocks report generation even when the displayed target action itself is valid |
+| M | Returned report `sourceRefs` are alias-isolated from the authoritative session's `sourceRefs` |
+
+Out of scope for this document — these are requirements for the separately-authorized hardening runtime, not tests this analysis performs.
 
 ---
 
@@ -151,27 +262,28 @@ Row 2 and row 9 are the two cases that require the "validate whenever any of the
 Step A. verifyDeliberationBinding(session, deliberationState)          [existing, unchanged — already calls verifyFrozenInputIntegrity(session)]
 Step B. for every deliberationState.outcomes entry:
           assertRouteOutcomeIntegrity(session, deliberationState, attemptId)   [existing, unchanged]
-Step C. determine "successor authority in play" =
+Step C. assertRevisionActionLedgerIntegrity(session)                    [NEW — Amendment 2, unconditional, §3a]
+Step D. determine "successor authority in play" =
           session.revisionSuccessor !== null
           OR Object.keys(session.revisionVerifications).length > 0
           OR successorSession !== undefined
-Step D. if authority is in play (Step C) and successorSession is undefined:
+Step E. if authority is in play (Step D) and successorSession is undefined:
           FAIL CLOSED (explicit "successorSession required" error) before any further step
-Step E. if successorSession supplied / authority in play:
+Step F. if successorSession supplied / authority in play:
           assertRevisionSuccessorIntegrity(session, successorSession)
-Step F. if Object.keys(session.revisionVerifications).length > 0:
+Step G. if Object.keys(session.revisionVerifications).length > 0:
           assertRevisionVerificationLedgerIntegrity(session)     [promoted to exported — see §9, "new public aggregate validator"]
-Step G. only after A–F succeed without throwing:
+Step H. only after A–G succeed without throwing:
           build the COMPLETE allRevisionActions projection (§13) — every
           session.revisionActions entry, via one shared projection
           function, never filtered by sourceRefs kind
-Step H. derive issues[].revisionActions from the SAME projection
-          function/semantics as Step G, filtered to SEMANTIC_ISSUE-linked
+Step I. derive issues[].revisionActions from the SAME projection
+          function/semantics as Step H, filtered to SEMANTIC_ISSUE-linked
           entries only — never a second, independently-written mapping (§13)
-Step I. only then build and return the final IntegratedDecisionReport value
+Step J. only then build and return the final IntegratedDecisionReport value
 ```
 
-(Amendment 1 renumbers the original Step D/E/F into D–I above to make room for the explicit fail-closed step and the shared-projection requirement; no governing rule from the original ordering is weakened, only made more precise.)
+(Amendment 1 renumbered the original Step D/E/F into D–I. **Amendment 2 inserts one further new step, C — `assertRevisionActionLedgerIntegrity`, unconditional, immediately after the two existing P1 checks and before the successor/verification branch — shifting every subsequent step down one letter, D–J.** No governing rule from either amendment's ordering is weakened by the other, only made more precise; §3a.6 explains why Step C must run even when no successor exists.)
 
 This is **global integrity before local filtering**: every existing ledger record is validated once, up front, regardless of which RevisionActions the caller will end up looking at — never only the ones that happen to be displayed (§10/§22.I of the governing packet).
 
@@ -179,7 +291,7 @@ This is **global integrity before local filtering**: every existing ledger recor
 
 ## 8. Zero-verification handling
 
-CASE 4 in §6. When `session.revisionVerifications` is empty, `assertRevisionVerificationIntegrity(sourceSession, successorSession, id)` cannot be called at all — there is no `id` to pass, and the governing packet explicitly forbids fabricating one merely to make a validator callable (§11 of the governing packet). The correct minimum path is: run **only** `assertRevisionSuccessorIntegrity(session, successorSession)` (Step E). Step F is skipped entirely — an empty ledger trivially satisfies whole-ledger integrity by having nothing to violate it. No new validator or special-case function is needed for this case.
+CASE 4 in §6. When `session.revisionVerifications` is empty, `assertRevisionVerificationIntegrity(sourceSession, successorSession, id)` cannot be called at all — there is no `id` to pass, and the governing packet explicitly forbids fabricating one merely to make a validator callable (§11 of the governing packet). The correct minimum path is: run **only** `assertRevisionSuccessorIntegrity(session, successorSession)` (Step F). Step G is skipped entirely — an empty ledger trivially satisfies whole-ledger integrity by having nothing to violate it. No new validator or special-case function is needed for this case.
 
 ---
 
@@ -191,7 +303,7 @@ Three strategies were evaluated (governing packet §12):
 
 **A′ — call `assertRevisionVerificationIntegrity` once, with an arbitrarily chosen existing id, purely to trigger its internal global scan.** Rejected: this repurposes a function whose documented contract is "verify *this one* record" for an undocumented side effect (that its internals happen to scan globally first). It is a fragile, implicit coupling — if that function's internals ever stopped scanning globally up front, this trick would silently stop providing the guarantee the report relies on. It also has no principled way to choose *which* id to pass, which brushes against the "no first/latest heuristic" spirit of §4.G even though that clause is literally about successor selection, not this.
 
-**B — export the existing internal `assertRevisionVerificationLedgerIntegrity(sourceSession)` as public API, with no signature or logic change at all.** It already does exactly and only what Step F needs — a pure structural/provenance scan over `sourceSession.revisionVerifications` against `sourceSession.revisionActions`, requiring no `successorSession` argument at all (confirmed by direct inspection: the function never references `successorSession`). Making it `export function` instead of `function` is the entire change.
+**B — export the existing internal `assertRevisionVerificationLedgerIntegrity(sourceSession)` as public API, with no signature or logic change at all.** It already does exactly and only what Step G needs — a pure structural/provenance scan over `sourceSession.revisionVerifications` against `sourceSession.revisionActions`, requiring no `successorSession` argument at all (confirmed by direct inspection: the function never references `successorSession`). Making it `export function` instead of `function` is the entire change.
 
 **Recommendation: B.** This is not "exporting an internal helper merely for convenience" (governing packet §5's caution) — there is a concrete correctness need: without it, the only way to achieve whole-ledger validation using solely already-public functions is strategy A′, which is a worse design than simply exposing the one function that already, correctly, does the job. **New public aggregate validator required: YES — but it is a one-line visibility change to code that already exists, not new logic.**
 
@@ -203,13 +315,13 @@ assertRevisionSuccessorIntegrity(sourceSession, successorSession)
 assertRevisionVerificationLedgerIntegrity(sourceSession)
 ```
 
-never the ledger check alone. This is already the exact order Step E→Step F (§7) enforces; this paragraph exists so a future reader of the promoted-to-public function cannot mistake it for a self-sufficient check.
+never the ledger check alone. This is already the exact order Step F→Step G (§7) enforces; this paragraph exists so a future reader of the promoted-to-public function cannot mistake it for a self-sufficient check.
 
 ---
 
 ## 10. RevisionAction → RevisionVerification cardinality (projection)
 
-Accepted domain cardinality: 0..1 (unchanged, P2-B). After Step E (§7) has globally validated the ledger — which already makes a duplicate `revisionActionId` structurally impossible to survive — the per-RevisionAction projection step must still not use a bare `.find()` (governing packet §13's explicit instruction). Minimum recommended pattern:
+Accepted domain cardinality: 0..1 (unchanged, P2-B). After Step G (§7) has globally validated the ledger — which already makes a duplicate `revisionActionId` structurally impossible to survive — the per-RevisionAction projection step must still not use a bare `.find()` (governing packet §13's explicit instruction). Minimum recommended pattern:
 
 ```ts
 const matches = Object.values(session.revisionVerifications).filter(
@@ -221,7 +333,7 @@ if (matches.length > 1) {
 const verification = matches[0] ?? null;
 ```
 
-This is defense-in-depth, not redundant paranoia: it keeps the projection step's own correctness independent of Step F's implementation detail, exactly mirroring how `assertRevisionSuccessorIntegrity`/`assertRevisionVerificationIntegrity` themselves never rely on "the global check already ran" as an excuse to skip a local structural check. This exact lookup belongs inside the one shared per-action projection function §13 (Amendment 1) requires — it must not be reimplemented separately for `allRevisionActions` versus `issues[].revisionActions`.
+This is defense-in-depth, not redundant paranoia: it keeps the projection step's own correctness independent of Step G's implementation detail, exactly mirroring how `assertRevisionSuccessorIntegrity`/`assertRevisionVerificationIntegrity` themselves never rely on "the global check already ran" as an excuse to skip a local structural check. This exact lookup belongs inside the one shared per-action projection function §13 (Amendment 1) requires — it must not be reimplemented separately for `allRevisionActions` versus `issues[].revisionActions`.
 
 ---
 
@@ -302,7 +414,7 @@ export interface IntegratedDecisionReport {
 }
 ```
 
-- `revisionSuccessor` is `null` exactly when `session.revisionSuccessor === null`; non-null **only** after `assertRevisionSuccessorIntegrity` has succeeded (Step E, §7), and its two fields are read from the **actual validated `successorSession` object**, never copied from the stored `RevisionSuccessorBinding` alone — a corrupted state could in principle have the binding disagree with the object actually supplied, and this field must reflect what was proven, not what was merely stored (§15).
+- `revisionSuccessor` is `null` exactly when `session.revisionSuccessor === null`; non-null **only** after `assertRevisionSuccessorIntegrity` has succeeded (Step F, §7), and its two fields are read from the **actual validated `successorSession` object**, never copied from the stored `RevisionSuccessorBinding` alone — a corrupted state could in principle have the binding disagree with the object actually supplied, and this field must reflect what was proven, not what was merely stored (§15).
 - This field exists once, at the top level — `IntegratedDecisionReportRevisionAction` does **not** carry its own copy of successor identity; a `VERIFIED_PRESENT` entry is understood in the context of the single `report.revisionSuccessor` value, never a per-action restatement of it.
 - Explicitly not added: `authorContextHash`, any version string, a "latest" marker, or any delivery-state field (unchanged prohibition, §17).
 
@@ -347,7 +459,7 @@ allRevisionActions: IntegratedDecisionReportRevisionAction[]
 
 containing **every** `session.revisionActions` entry — `Object.values(session.revisionActions)`, no `sourceRefs`-kind filter — each entry carrying its own `sourceRefs` (§11.3) so a `FINDING`-only entry retains full provenance without a second source/provenance authority being invented.
 
-`issues[].revisionActions` is **retained, unchanged in shape**, for backward compatibility — still filtered to `SEMANTIC_ISSUE`-linked entries only. The future P2-C runtime **must** derive both `allRevisionActions` and `issues[].revisionActions` from one shared per-action projection function (build the full `IntegratedDecisionReportRevisionAction` object once per `RevisionAction`, then filter the already-built list two ways) — never two independently-written semantic mappings that could silently drift apart (governing amendment §7, Step G/H). This is also the exact mechanism that finally reconciles the discrepancy this document's own §21 (Counterintuitive observation) identified: `summary.revisionActionsImplemented` already counts `FINDING`-only actions, and now the detail view will too.
+`issues[].revisionActions` **retains its field name and nesting location** for backward compatibility — still filtered to `SEMANTIC_ISSUE`-linked entries only. **Correction (Amendment 2):** this is not "unchanged in shape" — `IntegratedDecisionReportRevisionAction` itself is additively extended by §11.3 (`sourceRefs`, `verificationState`, verification fields), and every entry under `issues[].revisionActions`, exactly like every entry under `allRevisionActions`, uses that same newly-extended shape. Only the field's own name and its nesting location are retained unchanged; its element type is not. The future P2-C runtime **must** derive both `allRevisionActions` and `issues[].revisionActions` from one shared per-action projection function (build the full, newly-extended `IntegratedDecisionReportRevisionAction` object once per `RevisionAction`, then filter the already-built list two ways) — never two independently-written semantic mappings that could silently drift apart (governing amendment §7, Step H/I). This is also the exact mechanism that finally reconciles the discrepancy this document's own §21 (Counterintuitive observation) identified: `summary.revisionActionsImplemented` already counts `FINDING`-only actions, and now the detail view will too.
 
 This decision is no longer blocking (§19).
 
@@ -373,7 +485,7 @@ This decision is no longer blocking (§19).
 - A duplicate `RevisionVerification` for the same `revisionActionId` anywhere in the ledger.
 - A `RevisionVerification` whose `revisionActionId` does not resolve within the exact `sourceSession` being reported on.
 
-The dividing line is exactly what P2-A/P2-B's own canonical validators already enforce — §7's Step E/F ordering is what carries that same dividing line into report generation, rather than the report re-deriving its own, possibly weaker, notion of "corrupted."
+The dividing line is exactly what P2-A/P2-B's own canonical validators already enforce — §7's Step F/G ordering is what carries that same dividing line into report generation, rather than the report re-deriving its own, possibly weaker, notion of "corrupted."
 
 ---
 
@@ -386,17 +498,19 @@ The dividing line is exactly what P2-A/P2-B's own canonical validators already e
 | C | `VERIFIED_PRESENT` with exact correct successor | Yes | verdict/evidence/`verifiedAt` shown, `report.revisionSuccessor` identifies exact V1 | `assertRevisionSuccessorIntegrity` + ledger integrity | No |
 | D | `NOT_PRESENT` exists | Yes | same as C, verdict `NOT_PRESENT` | same as C | No |
 | E | `INCONCLUSIVE` exists | Yes | same as C, verdict `INCONCLUSIVE` | same as C | No |
-| F | verification exists, successor omitted | No | — (throws) | report's own required-parameter check (§5/§7 Step D) | No |
+| F | verification exists, successor omitted | No | — (throws) | report's own required-parameter check (§5/§7 Step E) | No |
 | G | verification exists, unrelated successor supplied | No | — (throws) | `assertRevisionSuccessorIntegrity` (successorSessionId mismatch) | No |
 | H | verification exists, binding successor hash tampered | No | — (throws) | `assertRevisionSuccessorIntegrity` (hash cross-check / `verifyFrozenInputIntegrity`) | No |
-| I | hidden unrelated corrupt record, displayed one looks valid | No | — (throws, whole report) | ledger integrity (Step F), global-before-local | No |
-| J | duplicate records for same RA | No | — (throws, whole report) | ledger integrity (Step F), cardinality check | No |
-| K | verification references another session's RA id | No | — (throws, whole report) | ledger integrity (Step F), resolution against exact `sourceSession` | No |
+| I | hidden unrelated corrupt record, displayed one looks valid | No | — (throws, whole report) | ledger integrity (Step G), global-before-local | No |
+| J | duplicate records for same RA | No | — (throws, whole report) | ledger integrity (Step G), cardinality check | No |
+| K | verification references another session's RA id | No | — (throws, whole report) | ledger integrity (Step G), resolution against exact `sourceSession` | No |
 | L | binding/successor self-consistent, violates semantic-copy policy | No | — (throws) | `assertRevisionSuccessorIntegrity` (semantic-copy check) | No |
 | M | caller supplies successor, no `RevisionSuccessorBinding` exists | No | — (throws) | `assertRevisionSuccessorIntegrity` (`revisionSuccessor===null`) — requires unconditional validation whenever supplied (§5) | No |
 | N | `RevisionAction` linked only to `FINDING` | Legal to verify; now presentable via `allRevisionActions` (§13) | Appears in `allRevisionActions` with its own `sourceRefs`; still absent from `issues[].revisionActions` (unchanged, by design) | n/a — resolved by the shared-projection top-level array, not a corruption case | **No — resolved, §13 (Amendment 1)** |
 
-Every counterexample is now fully resolved by existing, accepted P2-A/P2-B validators once the report calls them in the order fixed in §7 (A–I) — no new validation logic is required anywhere in this matrix beyond the report's own required-parameter check (Step D) and the shared-projection mechanism (Step G/H) that closes N.
+Every counterexample is now fully resolved by existing, accepted P2-A/P2-B validators once the report calls them in the order fixed in §7 (A–J) — no new validation logic is required anywhere in this matrix beyond the report's own required-parameter check (Step E) and the shared-projection mechanism (Step H/I) that closes N.
+
+**Amendment 2 note.** This matrix predates and is unaffected in its own rows by `RevisionAction`-provenance corruption (a tampered/missing `sourceRef`, an ingress-aliased `RevisionSourceRef`, a hidden corrupt `RevisionAction` elsewhere in the ledger) — those counterexamples are enumerated separately in §3a.9, since they are caught by the new §7 Step C (`assertRevisionActionLedgerIntegrity`), unconditionally, before Step D even runs. They are not duplicated into this table to avoid two lists drifting apart.
 
 ---
 
@@ -419,24 +533,46 @@ This document does **not** authorize, and P2-C runtime must not introduce, any o
 
 If/when a P2-C runtime packet is authorized:
 
-1. `src/stress-test/session.ts` — one-line visibility change: `function assertRevisionVerificationLedgerIntegrity` → `export function assertRevisionVerificationLedgerIntegrity`. No logic change.
-2. `src/stress-test/decision-record.ts` — extend `generateIntegratedDecisionReport`'s signature (§5); implement the integrity-ordering steps A–I (§7); add `IntegratedDecisionReportRevisionVerificationState` and its mapping/labels (§11.1/§11.2); extend `IntegratedDecisionReportRevisionAction` with `sourceRefs`/`verificationState`/verification fields (§11.3); add the top-level `allRevisionActions` array and `revisionSuccessor` field to `IntegratedDecisionReport` (§11.4/§13 — now a required part of this contract, no longer contingent); implement `allRevisionActions` and `issues[].revisionActions` as two filters over one shared per-action projection function (§13), never two independently-written mappings.
+**(Amendment 2 splits this scope across two separately-accepted runtime slices — see §18a. The file list below is unchanged in content; only its sequencing changes.)**
+
+1. `src/stress-test/session.ts` — one-line visibility change: `function assertRevisionVerificationLedgerIntegrity` → `export function assertRevisionVerificationLedgerIntegrity`; **plus (Amendment 2, hardening slice)** the new `assertRevisionActionLedgerIntegrity` export (§3a.1), the `cloneRevisionSourceRef` ingress fix in `planRevisionAction` (§3a.3), and composing calls into `planRevisionAction`/`setRevisionStatus`/`completeSession`/`createRevisionSuccessorSession` (§3a.4) and into `assertRevisionSuccessorIntegrity`/`assertRevisionVerificationLedgerIntegrity` (§3a.5).
+2. `src/stress-test/decision-record.ts` — extend `generateIntegratedDecisionReport`'s signature (§5); implement the integrity-ordering steps A–J (§7); add `IntegratedDecisionReportRevisionVerificationState` and its mapping/labels (§11.1/§11.2); extend `IntegratedDecisionReportRevisionAction` with `sourceRefs`/`verificationState`/verification fields (§11.3); add the top-level `allRevisionActions` array and `revisionSuccessor` field to `IntegratedDecisionReport` (§11.4/§13 — now a required part of this contract, no longer contingent); implement `allRevisionActions` and `issues[].revisionActions` as two filters over one shared per-action projection function (§13), never two independently-written mappings; egress-clone `sourceRefs` on every projected entry (§3a.7); **plus (Amendment 2)** compose `assertRevisionActionLedgerIntegrity` into `generateDecisionRecord` for parity (§3a.8).
 3. `src/stress-test/types.ts` — no change anticipated; `RevisionVerificationVerdict`/`RevisionVerification` already live there (P2-B) and `IntegratedDecisionReport*` types live in `decision-record.ts`, matching existing P1 precedent.
 4. `src/stress-test/deliberation.ts`, `hash.ts`, `index.ts` — no change anticipated. `index.ts` already wildcard-re-exports `decision-record.js`/`session.js`, so any newly-exported symbol above surfaces automatically (confirmed precedent from P2-A/P2-B).
-5. `test-stress-test-decision-record.mjs` — new tests covering the requiredness matrix (§6) and counterexample matrix (§16); out of scope for this document (docs-only, no test authorization).
+5. `test-stress-test-mvp.mjs` — new adversarial tests for `assertRevisionActionLedgerIntegrity` and ingress alias isolation (§3a.9); out of scope for this document (docs-only, no test authorization).
+6. `test-stress-test-decision-record.mjs` — new tests covering the requiredness matrix (§6), counterexample matrix (§16), and egress alias isolation (§3a.7/§3a.9.M); out of scope for this document (docs-only, no test authorization).
+
+---
+
+## 18a. Required implementation sequencing (Amendment 2)
+
+Frozen order, **not to be combined into one acceptance unit** — the two slices have different failure modes (provenance/aliasing correctness vs. report presentation correctness), and combining them would make a review of one mask a defect in the other:
+
+```
+P2-C0 (+ Amendment 1 + Amendment 2) accepted
+  → RevisionAction Provenance Hardening runtime  (§3a — session.ts changes, §18 item 1)
+  → independent GPT acceptance
+  → P2-C IntegratedDecisionReport runtime         (§5–§17 — decision-record.ts changes, §18 items 2, 5, 6)
+  → independent GPT acceptance
+```
+
+P2-C report runtime (`generateIntegratedDecisionReport`'s new signature, `allRevisionActions`, `revisionSuccessor`, verification presentation) must not begin until the RevisionAction Provenance Hardening runtime above is separately authorized and accepted — because §7 Step C (`assertRevisionActionLedgerIntegrity`) is a load-bearing precondition the report's own integrity ordering depends on, and it does not yet exist in `src/**`.
 
 ---
 
 ## 19. Blocking open decisions
 
-**BLOCKING OPEN DECISIONS: NONE** (as of Amendment 1).
+**BLOCKING OPEN ARCHITECTURE DECISIONS: NONE** (as of Amendment 2).
 
-Both decisions originally left open here are now resolved by fresh, explicitly-issued GPT architecture decisions — neither by this document reconstructing or inferring an answer on its own:
+Three decisions originally left open, or newly identified, are now resolved by fresh, explicitly-issued GPT architecture decisions — none by this document reconstructing or inferring an answer on its own:
 
 1. **Presentation label vocabulary** — resolved in §11.1/§11.2. The underlying historical `§26` citation (`REVISION_VERIFICATION_CONTRACT.md` §19) remains genuinely unrecoverable from repository authority (§12) — that finding is superseded for P2-C's purposes, not solved by reconstruction.
 2. **`FINDING`-only `RevisionAction` coverage** — resolved in §13. `allRevisionActions` is now a required part of the minimum P2-C contract, not an open interface-shape question.
+3. **`RevisionAction` provenance trust boundary (Amendment 2)** — resolved in §3a: `assertRevisionActionLedgerIntegrity` is frozen as the canonical validator, `cloneRevisionSourceRef` as the frozen ingress-fix, and its write/read/report/egress composition points are all specified.
 
-No other schema, validator, or ordering question in this document is left open — §4/§7/§9/§10/§11 are each resolved with a stated recommendation and rationale. One related, pre-existing gap is recorded — not resolved — as tracked debt below.
+No other schema, validator, or ordering question in this document is left open — §3a/§4/§7/§9/§10/§11 are each resolved with a stated recommendation and rationale. One related, pre-existing gap is recorded — not resolved — as tracked debt below.
+
+**However, "no blocking architecture decision" is not "cleared to build the report."** P2-C's own IntegratedDecisionReport runtime remains **blocked** until the RevisionAction Provenance Hardening runtime (§3a, §18 item 1) is separately authorized, implemented, and accepted — see §18a's frozen sequencing. This is a sequencing/dependency gate, not an open decision: nothing about *what* to build is undecided, only *when* the second slice may begin.
 
 ---
 
@@ -452,8 +588,12 @@ Confirmed by direct inspection: `IntegratedDecisionReport` — unlike the older 
 
 ## 20. Professional recommendation
 
-**(Amendment 1.)** 兩個原本阻塞的決策現在都已凍結，但這次修訂引入了一項新的實作紀律要求：`allRevisionActions` 與 `issues[].revisionActions` 必須共用同一個 per-action 投影函式（§7 Step G/H、§13）。建議未來 P2-C 實際落地時，把「兩個陣列對同一筆 RevisionAction 永遠回傳完全相同物件」這條測試寫在最前面，先鎖死「只能有一個真相來源」這個新規則，再接著補完 successor/verification 的完整性測試——這樣可以避免測試套件在兩份投影邏輯已經分岔之後，才被動地去追殺分岔的結果。
+**(Amendment 1.)** 兩個原本阻塞的決策現在都已凍結，但這次修訂引入了一項新的實作紀律要求：`allRevisionActions` 與 `issues[].revisionActions` 必須共用同一個 per-action 投影函式（§7 Step H/I、§13）。建議未來 P2-C 實際落地時，把「兩個陣列對同一筆 RevisionAction 永遠回傳完全相同物件」這條測試寫在最前面，先鎖死「只能有一個真相來源」這個新規則，再接著補完 successor/verification 的完整性測試——這樣可以避免測試套件在兩份投影邏輯已經分岔之後，才被動地去追殺分岔的結果。
+
+**（Amendment 2。）** 建議把 §18a 的兩階段驗收順序視為硬性規定，而不只是建議：先驗收 RevisionAction Provenance Hardening（`assertRevisionActionLedgerIntegrity` + ingress/egress clone），單獨跑完 §3a.9 列出的全部對抗性測試並取得驗收，再開始動 `generateIntegratedDecisionReport` 的簽章與投影邏輯。原因是 §7 Step C 是後面所有 successor/verification 檢查的前置條件——如果兩個切片被壓縮成一次驗收，一旦報表層測試通過，很容易誤以為 provenance 邊界也一併被驗證過，但實際上那是兩組完全獨立的正確性斷言。
 
 ## 21. Counterintuitive observation
 
 這次調查裡最值得注意的發現,不是「報表少了什麼功能」,而是「報表原本就已經展示的東西,其實已經悄悄地在說謊」:`summary.revisionActionsImplemented` 這個彙總數字,從一開始就把 FINDING-only 的 RevisionAction 算進去了(因為它是對全部 `session.revisionActions` 計數,不分 sourceRef 種類),但同一份報表的詳細畫面卻完全不會顯示那筆記錄本身。也就是說,在 P2-C 讓這個問題變得更嚴重之前,P1 現在的行為就已經是「數字說有,細節說沒有」——這不是 P2-C 引入的新風險,而是一個已經存在、只是直到現在才被系統性地檢查出來的既有落差。**（Amendment 1 已將此落差正式列為必須解決項目：§13 的 `allRevisionActions` 決定即是對這個觀察的直接回應。）**
+
+**（Amendment 2。）** 更值得注意的是：Amendment 1 原本打算讓 `allRevisionActions[].sourceRefs` 承載「權威 provenance」，但當時完全沒有人問過一個更早的問題——`RevisionAction.sourceRefs` 從被 `planRevisionAction` 寫入的那一刻起，本來就沒有真正屬於自己過。`sourceRefs: [...input.sourceRefs]` 這行程式碼看起來完全正常（甚至是這整個檔案裡最不起眼的一行），但它從一開始就只複製了陣列容器，從未複製容器裡的物件本身。也就是說，在追問「報表要不要把 provenance 秀出來」之前，其實還有一個更根本、更早就該問的問題：「這個 provenance 從被寫入的第一天起，究竟屬不屬於 domain 自己？」這次修訂能發現這件事，不是因為 P2-C 的報表設計特別縝密，而是因為要替一個新功能設計信任邊界時，反而照出了一個與這個新功能完全無關、卻已經存在了好幾個切片的舊缺口。
