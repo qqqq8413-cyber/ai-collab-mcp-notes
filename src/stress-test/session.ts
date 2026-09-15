@@ -785,24 +785,33 @@ function isNonEmptyNonWhitespaceString(value: unknown): value is string {
 }
 
 /**
- * Canonical, internal ledger-wide validator shared by both the write
- * boundary (recordRevisionVerification) and the later-read boundary
- * (assertRevisionVerificationIntegrity) -- P2-B Amendment 1. Validates EVERY
- * existing entry in `sourceSession.revisionVerifications`, never only the
- * one a caller is about to touch or request: before either boundary trusts
- * anything about the ledger -- including before appending a brand-new,
+ * Canonical ledger-wide validator shared by the write boundary
+ * (recordRevisionVerification), the later-read boundary
+ * (assertRevisionVerificationIntegrity), and P2-C report generation --
+ * exported since P2-C0's own §9 recommendation (promoted from
+ * module-internal with no signature/logic change). Validates EVERY existing
+ * entry in `sourceSession.revisionVerifications`, never only the one a
+ * caller is about to touch or request: before any boundary trusts anything
+ * about the ledger -- including before appending a brand-new,
  * otherwise-unrelated record -- the whole ledger must already be
- * structurally/provenance-consistent. This is the same "global integrity
- * before local filtering" rule already applied at read time in P2-B,
- * extended here to the write path so a hidden corrupt or duplicate record
- * -- and, since P2-C0 Amendment 3, first composes
+ * structurally/provenance-consistent (the same "global integrity before
+ * local filtering" rule already applied elsewhere in P2-B), so a hidden
+ * corrupt or duplicate record can never be built on top of, only ever
+ * caught. Since P2-C0 Amendment 3, first composes
  * `assertRevisionActionLedgerIntegrity` (which itself composes
  * `assertHumanAdjudicationLedgerIntegrity`), so a corrupt upstream
  * RevisionAction or HumanAdjudication ledger can never be silently trusted
- * merely because `record.revisionActionId`/`.status` happen to match
- * can never be built on top of, only ever caught.
+ * merely because `record.revisionActionId`/`.status` happen to match.
+ *
+ * IMPORTANT -- this validator ALONE is NOT sufficient to trust or display a
+ * RevisionVerification against a successor artifact: it says nothing about
+ * whether any `successorSession` a caller may have in hand is genuinely
+ * `sourceSession`'s authoritative V1. Callers (report generation included)
+ * must always call `assertRevisionSuccessorIntegrity(sourceSession,
+ * successorSession)` first, THEN this function -- never this function
+ * alone.
  */
-function assertRevisionVerificationLedgerIntegrity(sourceSession: StressTestSession): void {
+export function assertRevisionVerificationLedgerIntegrity(sourceSession: StressTestSession): void {
   assertRevisionActionLedgerIntegrity(sourceSession);
   const seenRevisionActionIds = new Set<string>();
   for (const [key, record] of Object.entries(sourceSession.revisionVerifications)) {

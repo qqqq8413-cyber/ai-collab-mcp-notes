@@ -8,6 +8,10 @@ import {
   adjudicate,
   planRevisionAction,
   implementRevisionAction,
+  rejectRevisionAction,
+  createRevisionSuccessorSession,
+  recordRevisionVerification,
+  sha256AuthorContext,
   createDeliberationState,
   createUnresolvedQuestion,
   registerUnresolvedQuestion,
@@ -510,10 +514,20 @@ check('generateIntegratedDecisionReport: a RevisionAction with status IMPLEMENTE
   const revision = report.issues[0].revisionActions[0];
   assert.equal(revision.status, 'IMPLEMENTED');
   assert.equal(revision.statusLabel, 'Revision action marked implemented');
-  const serialized = JSON.stringify(revision).toLowerCase();
-  assert.equal(serialized.includes('verified'), false);
-  assert.equal(serialized.includes('confirmed'), false);
-  assert.equal(serialized.includes('final artifact'), false);
+  // status/statusLabel themselves never claim verification -- checked
+  // independently of the separate, P2-C-introduced verification fields
+  // below, which legitimately carry that word by design (real, human-
+  // confirmed verification presentation, not IMPLEMENTED overloaded).
+  const statusSerialized = JSON.stringify({ status: revision.status, statusLabel: revision.statusLabel }).toLowerCase();
+  assert.equal(statusSerialized.includes('verif'), false);
+  assert.equal(statusSerialized.includes('confirmed'), false);
+  assert.equal(statusSerialized.includes('final artifact'), false);
+  // This fixture has no RevisionSuccessorBinding -- IMPLEMENTED alone must
+  // never itself produce a verified/present/inconclusive claim.
+  assert.equal(revision.verificationState, 'AWAITING_SUCCESSOR');
+  assert.equal(revision.verificationVerdict, null);
+  assert.equal(revision.verificationEvidence, null);
+  assert.equal(revision.verifiedAt, null);
 });
 
 // ==================================================================
@@ -767,6 +781,528 @@ check('generateIntegratedDecisionReport: rejects a hidden corrupt HumanAdjudicat
     },
   };
   assert.throws(() => generateIntegratedDecisionReport(corrupted, state), /has an invalid judgment/);
+});
+
+console.log('\nP2-C: IntegratedDecisionReport revision verification runtime');
+
+const REVISED_ARTIFACT_TEXT = `Project Comet — Vendor Consolidation Memo
+
+We recommend consolidating all analytics tooling onto VendorX within Q1.
+VendorX's pricing is stable for the first year at $12,000 total. Switching
+away from VendorX later would require a full data-migration effort; based on
+prior vendor transitions, we estimate this migration effort at roughly
+$3,000 and four weeks of engineering time, citing our 2023 CRM migration as
+the closest comparable. The pilot with three teams over four weeks showed no
+major issues.`;
+
+/**
+ * A richer session than buildFullChainFixture: one SEMANTIC_ISSUE-linked
+ * IMPLEMENTED action, one FINDING-only IMPLEMENTED action, one still-PLANNED
+ * action, and one REJECTED action -- all sharing one DeliberationState, none
+ * yet bound to any successor.
+ */
+function buildRichFixture() {
+  const base = addFindingTracked(createFrozenSession());
+  const extraBase = addFindingTracked(base.session, {
+    title: 'Migration cost estimate is unsupported',
+    artifactLocation: 'paragraph 3',
+  });
+  let session = createSemanticIssue(extraBase.session, {
+    title: 'Vendor switching cost understated',
+    description: 'The memo recommends a vendor without pricing in the cost of a future exit.',
+    findingIds: [base.findingId],
+    evidenceState: 'UNSUPPORTED_IN_MATERIAL',
+  });
+  const issueId = Object.keys(session.semanticIssues)[0];
+
+  // createDeliberationState requires session.state === 'REVIEWED'.
+  let state = createDeliberationState(session, { costCeiling: 50, latencyCeiling: 100 });
+  const question = createUnresolvedQuestion(session, {
+    rootCause: 'STABILITY_QUESTION',
+    materialityReason: 'The switching-cost claim needs replication before it can be trusted.',
+    inputRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+  });
+  state = registerUnresolvedQuestion(session, state, question);
+  const decision = planRouteForQuestion(session, state, question);
+  state = recordRouteDecision(session, state, decision);
+  state = recordRouteAttemptStart(session, state, decision.id);
+  const attempt = state.attempts[0];
+  state = recordRouteOutcome(session, state, {
+    attemptId: attempt.attemptId,
+    status: 'SUCCEEDED',
+    latencyConsumed: 2,
+    result: 'REPRODUCED',
+    targetRef: { kind: 'SEMANTIC_ISSUE', id: issueId },
+  });
+  state = recordQuestionDisposition(session, state, {
+    attemptId: attempt.attemptId,
+    disposition: 'RESOLVED',
+    reason: 'Replication confirmed the instability claim; the switching-cost gap is real.',
+  });
+
+  session = adjudicate(session, {
+    semanticIssueId: issueId,
+    judgment: 'NEW_MATERIAL',
+    actionChange: 'YES',
+    note: 'Must add a switching-cost estimate before sending.',
+  });
+  session = adjudicate(session, {
+    findingId: extraBase.findingId,
+    judgment: 'NEW_MATERIAL',
+    actionChange: 'YES',
+    note: 'The migration-cost estimate itself needs support too.',
+  });
+
+  // IMPLEMENTED, SEMANTIC_ISSUE-linked.
+  session = planRevisionAction(session, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    description: 'Add an estimated vendor-switching cost to paragraph 2.',
+    targetLocation: 'paragraph 2',
+  });
+  const issueActionId = Object.keys(session.revisionActions)[0];
+  session = implementRevisionAction(session, issueActionId);
+
+  // IMPLEMENTED, FINDING-only -- exercises the P2-C0 coverage gap fix.
+  session = planRevisionAction(session, {
+    sourceRefs: [{ kind: 'FINDING', id: extraBase.findingId }],
+    description: 'Support the migration-cost estimate with a citation.',
+    targetLocation: 'paragraph 3',
+  });
+  const findingActionId = Object.keys(session.revisionActions).find((id) => id !== issueActionId);
+  session = implementRevisionAction(session, findingActionId);
+
+  // PLANNED -- never resolved.
+  session = planRevisionAction(session, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    description: 'A still-planned, unresolved revision.',
+    targetLocation: 'paragraph 2',
+  });
+  const plannedActionId = Object.keys(session.revisionActions).find(
+    (id) => id !== issueActionId && id !== findingActionId
+  );
+
+  // REJECTED.
+  session = planRevisionAction(session, {
+    sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }],
+    description: 'A rejected candidate revision.',
+    targetLocation: 'paragraph 2',
+  });
+  const rejectedActionId = Object.keys(session.revisionActions).find(
+    (id) => id !== issueActionId && id !== findingActionId && id !== plannedActionId
+  );
+  session = rejectRevisionAction(session, rejectedActionId);
+
+  return { session, state, issueId, findingId: extraBase.findingId, issueActionId, findingActionId, plannedActionId, rejectedActionId };
+}
+
+function buildRichFixtureWithSuccessor() {
+  const fixture = buildRichFixture();
+  const { sourceSession, successorSession } = createRevisionSuccessorSession(fixture.session, REVISED_ARTIFACT_TEXT);
+  return { ...fixture, session: sourceSession, successorSession };
+}
+
+console.log('\nBackward compatibility (§22)');
+
+check('generateIntegratedDecisionReport: A. existing two-argument call still works when no successor authority is in play', () => {
+  const { session, state } = buildFullChainFixture();
+  assert.doesNotThrow(() => generateIntegratedDecisionReport(session, state));
+});
+
+check('generateIntegratedDecisionReport: B. existing summary semantics remain unchanged', () => {
+  const { session, state } = buildFullChainFixture();
+  const report = generateIntegratedDecisionReport(session, state);
+  assert.equal(report.summary.reviewFindings, 1);
+  assert.equal(report.summary.semanticIssues, 1);
+  assert.equal(report.summary.revisionActionsImplemented, 1);
+  assert.equal(report.summary.revisionActionsPlanned, 0);
+});
+
+check('generateIntegratedDecisionReport: C. IMPLEMENTED statusLabel is unchanged', () => {
+  const { session, state } = buildFullChainFixture();
+  const report = generateIntegratedDecisionReport(session, state);
+  assert.equal(report.allRevisionActions[0].statusLabel, 'Revision action marked implemented');
+});
+
+console.log('\nSix presentation states (§23)');
+
+check('generateIntegratedDecisionReport: D. PLANNED maps to NOT_APPLICABLE with all verification fields null', () => {
+  const { session, state, plannedActionId } = buildRichFixture();
+  const report = generateIntegratedDecisionReport(session, state);
+  const presentation = report.allRevisionActions.find((a) => a.id === plannedActionId);
+  assert.equal(presentation.verificationState, 'NOT_APPLICABLE');
+  assert.equal(presentation.verificationStatusLabel, 'Verification not applicable');
+  assert.equal(presentation.verificationVerdict, null);
+  assert.equal(presentation.verificationEvidence, null);
+  assert.equal(presentation.verifiedAt, null);
+});
+
+check('generateIntegratedDecisionReport: E. REJECTED maps to NOT_APPLICABLE with all verification fields null', () => {
+  const { session, state, rejectedActionId } = buildRichFixture();
+  const report = generateIntegratedDecisionReport(session, state);
+  const presentation = report.allRevisionActions.find((a) => a.id === rejectedActionId);
+  assert.equal(presentation.verificationState, 'NOT_APPLICABLE');
+  assert.equal(presentation.verificationVerdict, null);
+  assert.equal(presentation.verificationEvidence, null);
+  assert.equal(presentation.verifiedAt, null);
+});
+
+check('generateIntegratedDecisionReport: F. IMPLEMENTED with no successor maps to AWAITING_SUCCESSOR with all verification fields null', () => {
+  const { session, state, issueActionId } = buildRichFixture();
+  const report = generateIntegratedDecisionReport(session, state);
+  const presentation = report.allRevisionActions.find((a) => a.id === issueActionId);
+  assert.equal(presentation.verificationState, 'AWAITING_SUCCESSOR');
+  assert.equal(presentation.verificationStatusLabel, 'Awaiting successor artifact');
+  assert.equal(presentation.verificationVerdict, null);
+  assert.equal(presentation.verificationEvidence, null);
+  assert.equal(presentation.verifiedAt, null);
+});
+
+check('generateIntegratedDecisionReport: G. IMPLEMENTED with a valid successor but no verification maps to NO_VERIFICATION_RECORDED', () => {
+  const { session, state, successorSession, issueActionId } = buildRichFixtureWithSuccessor();
+  const report = generateIntegratedDecisionReport(session, state, successorSession);
+  const presentation = report.allRevisionActions.find((a) => a.id === issueActionId);
+  assert.equal(presentation.verificationState, 'NO_VERIFICATION_RECORDED');
+  assert.equal(presentation.verificationStatusLabel, 'No verification recorded');
+  assert.equal(presentation.verificationVerdict, null);
+  assert.equal(presentation.verificationEvidence, null);
+  assert.equal(presentation.verifiedAt, null);
+});
+
+check('generateIntegratedDecisionReport: H. VERIFIED_PRESENT is projected verbatim', () => {
+  const { session, state, successorSession, issueActionId } = buildRichFixtureWithSuccessor();
+  const verified = recordRevisionVerification(session, successorSession, {
+    revisionActionId: issueActionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'Paragraph 2 now states an estimated $3,000 switching cost.',
+  });
+  const report = generateIntegratedDecisionReport(verified, state, successorSession);
+  const presentation = report.allRevisionActions.find((a) => a.id === issueActionId);
+  assert.equal(presentation.verificationState, 'VERIFIED_PRESENT');
+  assert.equal(presentation.verificationStatusLabel, 'Revision verified in successor artifact');
+  assert.equal(presentation.verificationVerdict, 'VERIFIED_PRESENT');
+  assert.equal(presentation.verificationEvidence, 'Paragraph 2 now states an estimated $3,000 switching cost.');
+  assert.equal(typeof presentation.verifiedAt, 'string');
+  assert.ok(presentation.verifiedAt.length > 0);
+});
+
+check('generateIntegratedDecisionReport: I. NOT_PRESENT is projected verbatim', () => {
+  const { session, state, successorSession, issueActionId } = buildRichFixtureWithSuccessor();
+  const verified = recordRevisionVerification(session, successorSession, {
+    revisionActionId: issueActionId,
+    verdict: 'NOT_PRESENT',
+    evidence: 'Paragraph 2 was checked and no switching-cost figure was added.',
+  });
+  const report = generateIntegratedDecisionReport(verified, state, successorSession);
+  const presentation = report.allRevisionActions.find((a) => a.id === issueActionId);
+  assert.equal(presentation.verificationState, 'NOT_PRESENT');
+  assert.equal(presentation.verificationStatusLabel, 'Revision not present in successor artifact');
+  assert.equal(presentation.verificationVerdict, 'NOT_PRESENT');
+});
+
+check('generateIntegratedDecisionReport: J. INCONCLUSIVE is projected verbatim', () => {
+  const { session, state, successorSession, issueActionId } = buildRichFixtureWithSuccessor();
+  const verified = recordRevisionVerification(session, successorSession, {
+    revisionActionId: issueActionId,
+    verdict: 'INCONCLUSIVE',
+    evidence: 'Paragraph 2 changed but it is unclear whether a switching-cost figure was actually added.',
+  });
+  const report = generateIntegratedDecisionReport(verified, state, successorSession);
+  const presentation = report.allRevisionActions.find((a) => a.id === issueActionId);
+  assert.equal(presentation.verificationState, 'INCONCLUSIVE');
+  assert.equal(presentation.verificationStatusLabel, 'Revision verification inconclusive');
+  assert.equal(presentation.verificationVerdict, 'INCONCLUSIVE');
+});
+
+console.log('\nSuccessor authority (§24)');
+
+check('generateIntegratedDecisionReport: K. binding exists but successor omitted is rejected', () => {
+  const { session, state } = buildRichFixtureWithSuccessor();
+  assert.throws(() => generateIntegratedDecisionReport(session, state), /successorSession is required/);
+});
+
+check('generateIntegratedDecisionReport: L. verification exists but successor omitted is rejected, even if revisionSuccessor looks null', () => {
+  const { session, state, successorSession, issueActionId } = buildRichFixtureWithSuccessor();
+  const verified = recordRevisionVerification(session, successorSession, {
+    revisionActionId: issueActionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'x',
+  });
+  const corrupted = { ...verified, revisionSuccessor: null };
+  assert.throws(() => generateIntegratedDecisionReport(corrupted, state), /successorSession is required/);
+});
+
+check('generateIntegratedDecisionReport: M. an unrelated successor is rejected', () => {
+  const { session, state } = buildRichFixtureWithSuccessor();
+  const unrelated = freezeInput(createSession('A wholly unrelated artifact text.'));
+  assert.throws(
+    () => generateIntegratedDecisionReport(session, state, unrelated),
+    /binding\.successorSessionId does not match/
+  );
+});
+
+check('generateIntegratedDecisionReport: N. a tampered successor artifact/hash is rejected', () => {
+  const { session, state, successorSession } = buildRichFixtureWithSuccessor();
+  const tampered = { ...successorSession, artifactText: successorSession.artifactText + ' TAMPERED' };
+  assert.throws(
+    () => generateIntegratedDecisionReport(session, state, tampered),
+    /no longer matches its frozen artifactHash/
+  );
+});
+
+check('generateIntegratedDecisionReport: O. caller supplies a successor when the source has no binding, rejected', () => {
+  const { session, state } = buildFullChainFixture();
+  const unrelated = freezeInput(createSession('Some artifact with no binding.'));
+  assert.throws(
+    () => generateIntegratedDecisionReport(session, state, unrelated),
+    /has no RevisionSuccessorBinding/
+  );
+});
+
+check(
+  'generateIntegratedDecisionReport: P. a self-consistent but semantic-AuthorContext-copy-invalid successor is rejected through the canonical P2-A boundary',
+  () => {
+    const { session, state, successorSession } = buildRichFixtureWithSuccessor();
+    const tamperedItems = successorSession.authorContext.confirmedFacts.map((item, i) =>
+      i === 0 ? { ...item, text: 'A completely different claim never copied from source.' } : item
+    );
+    const tamperedAuthorContext = { ...successorSession.authorContext, confirmedFacts: tamperedItems };
+    const refreshedAuthorContextHash = sha256AuthorContext(tamperedAuthorContext);
+    const tamperedSuccessor = {
+      ...successorSession,
+      authorContext: tamperedAuthorContext,
+      authorContextHash: refreshedAuthorContextHash,
+    };
+    const tamperedSource = {
+      ...session,
+      revisionSuccessor: { ...session.revisionSuccessor, successorAuthorContextHash: refreshedAuthorContextHash },
+    };
+    assert.throws(
+      () => generateIntegratedDecisionReport(tamperedSource, state, tamperedSuccessor),
+      /does not semantically match source/
+    );
+  }
+);
+
+check('generateIntegratedDecisionReport: Q. report.revisionSuccessor uses the actual validated successor id/hash', () => {
+  const { session, state, successorSession } = buildRichFixtureWithSuccessor();
+  const report = generateIntegratedDecisionReport(session, state, successorSession);
+  assert.deepEqual(report.revisionSuccessor, {
+    sessionId: successorSession.id,
+    artifactHash: successorSession.artifactHash,
+  });
+});
+
+check('generateIntegratedDecisionReport: R. report.artifactHash remains the source V0 hash, distinct from the successor', () => {
+  const { session, state, successorSession } = buildRichFixtureWithSuccessor();
+  const report = generateIntegratedDecisionReport(session, state, successorSession);
+  assert.equal(report.artifactHash, session.artifactHash);
+  assert.notEqual(report.artifactHash, successorSession.artifactHash);
+});
+
+console.log('\nGlobal integrity before local filtering (§25)');
+
+check('generateIntegratedDecisionReport: S. a hidden unrelated corrupt RevisionVerification rejects the entire report', () => {
+  const { session, state, successorSession, issueActionId } = buildRichFixtureWithSuccessor();
+  const verified = recordRevisionVerification(session, successorSession, {
+    revisionActionId: issueActionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'x',
+  });
+  const corruptId = 'a-corrupt-unrelated-verification';
+  const corrupted = {
+    ...verified,
+    revisionVerifications: {
+      ...verified.revisionVerifications,
+      [corruptId]: {
+        id: corruptId,
+        revisionActionId: 'not-a-real-action-id',
+        verdict: 'VERIFIED_PRESENT',
+        evidence: 'corrupt',
+        verifiedAt: new Date().toISOString(),
+      },
+    },
+  };
+  assert.throws(
+    () => generateIntegratedDecisionReport(corrupted, state, successorSession),
+    /references unknown revisionActionId/
+  );
+});
+
+check(
+  'generateIntegratedDecisionReport: T. a hidden duplicate RevisionVerification for one action rejects the whole report while a different action is displayed',
+  () => {
+    const { session, state, successorSession, findingActionId } = buildRichFixtureWithSuccessor();
+    const updated = recordRevisionVerification(session, successorSession, {
+      revisionActionId: findingActionId,
+      verdict: 'VERIFIED_PRESENT',
+      evidence: 'The migration-cost estimate is now cited.',
+    });
+    const duplicateId = 'a-hidden-duplicate-for-finding-action';
+    const corrupted = {
+      ...updated,
+      revisionVerifications: {
+        ...updated.revisionVerifications,
+        [duplicateId]: {
+          id: duplicateId,
+          revisionActionId: findingActionId,
+          verdict: 'NOT_PRESENT',
+          evidence: 'A second, illegally duplicate record for the same action.',
+          verifiedAt: new Date().toISOString(),
+        },
+      },
+    };
+    assert.throws(
+      () => generateIntegratedDecisionReport(corrupted, state, successorSession),
+      /0\.\.1 cardinality violated/
+    );
+  }
+);
+
+console.log('\nFINDING-only coverage (§26)');
+
+check('generateIntegratedDecisionReport: W. a FINDING-only RevisionAction appears in allRevisionActions', () => {
+  const { session, state, findingActionId } = buildRichFixture();
+  const report = generateIntegratedDecisionReport(session, state);
+  assert.ok(report.allRevisionActions.some((a) => a.id === findingActionId));
+});
+
+check(
+  'generateIntegratedDecisionReport: X. the same FINDING-only action does not appear in an unrelated issue-scoped revisionActions array',
+  () => {
+    const { session, state, findingActionId } = buildRichFixture();
+    const report = generateIntegratedDecisionReport(session, state);
+    for (const issue of report.issues) {
+      assert.equal(issue.revisionActions.some((a) => a.id === findingActionId), false);
+    }
+  }
+);
+
+check(
+  'generateIntegratedDecisionReport: Y. summary.revisionActionsImplemented and allRevisionActions detail now agree for a FINDING-only action',
+  () => {
+    const { session, state } = buildRichFixture();
+    const report = generateIntegratedDecisionReport(session, state);
+    const implementedInDetail = report.allRevisionActions.filter((a) => a.status === 'IMPLEMENTED').length;
+    assert.equal(implementedInDetail, report.summary.revisionActionsImplemented);
+  }
+);
+
+check('generateIntegratedDecisionReport: Z. a FINDING-only implemented action projects its own valid RevisionVerification', () => {
+  const { session, state, successorSession, findingActionId } = buildRichFixtureWithSuccessor();
+  const verified = recordRevisionVerification(session, successorSession, {
+    revisionActionId: findingActionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'The migration-cost estimate now cites a source.',
+  });
+  const report = generateIntegratedDecisionReport(verified, state, successorSession);
+  const presentation = report.allRevisionActions.find((a) => a.id === findingActionId);
+  assert.equal(presentation.verificationState, 'VERIFIED_PRESENT');
+  assert.equal(presentation.verificationVerdict, 'VERIFIED_PRESENT');
+});
+
+console.log('\nShared projection (§27)');
+
+check('generateIntegratedDecisionReport: AA. allRevisionActions and issue-scoped representations are identical for a shared action', () => {
+  const { session, state, successorSession, issueActionId } = buildRichFixtureWithSuccessor();
+  const verified = recordRevisionVerification(session, successorSession, {
+    revisionActionId: issueActionId,
+    verdict: 'INCONCLUSIVE',
+    evidence: 'x',
+  });
+  const report = generateIntegratedDecisionReport(verified, state, successorSession);
+  const fromAll = report.allRevisionActions.find((a) => a.id === issueActionId);
+  const fromIssue = report.issues.flatMap((i) => i.revisionActions).find((a) => a.id === issueActionId);
+  assert.deepEqual(fromAll, fromIssue);
+  assert.strictEqual(fromAll, fromIssue, 'expected the same shared-projection object, not merely a deep-equal copy');
+});
+
+console.log('\nCardinality (§28)');
+
+check('generateIntegratedDecisionReport: AB. two stored RevisionVerification records for the same revisionActionId reject the report globally', () => {
+  const { session, state, successorSession, issueActionId } = buildRichFixtureWithSuccessor();
+  const updated = recordRevisionVerification(session, successorSession, {
+    revisionActionId: issueActionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'x',
+  });
+  const duplicateId = 'a-second-verification-for-the-same-action';
+  const corrupted = {
+    ...updated,
+    revisionVerifications: {
+      ...updated.revisionVerifications,
+      [duplicateId]: {
+        id: duplicateId,
+        revisionActionId: issueActionId,
+        verdict: 'NOT_PRESENT',
+        evidence: 'duplicate',
+        verifiedAt: new Date().toISOString(),
+      },
+    },
+  };
+  assert.throws(
+    () => generateIntegratedDecisionReport(corrupted, state, successorSession),
+    /0\.\.1 cardinality violated/
+  );
+});
+
+console.log('\nEgress alias isolation (§29)');
+
+check('generateIntegratedDecisionReport: AD. mutating report.allRevisionActions sourceRefs does not mutate session.revisionActions sourceRefs', () => {
+  const { session, state, issueActionId } = buildRichFixture();
+  const report = generateIntegratedDecisionReport(session, state);
+  const presentation = report.allRevisionActions.find((a) => a.id === issueActionId);
+  presentation.sourceRefs[0].id = 'tampered-after-report';
+  assert.notEqual(session.revisionActions[issueActionId].sourceRefs[0].id, 'tampered-after-report');
+});
+
+check(
+  'generateIntegratedDecisionReport: AE. mutating the issue-scoped sourceRefs view still never reaches authoritative session state',
+  () => {
+    const { session, state, issueActionId } = buildRichFixture();
+    const report = generateIntegratedDecisionReport(session, state);
+    const fromIssue = report.issues.flatMap((i) => i.revisionActions).find((a) => a.id === issueActionId);
+    fromIssue.sourceRefs[0].id = 'tampered-via-issue-view';
+    assert.notEqual(session.revisionActions[issueActionId].sourceRefs[0].id, 'tampered-via-issue-view');
+    // Internal report-view aliasing between the two presentation arrays is
+    // legal (P2-C0 §29) -- the mutation IS visible in allRevisionActions too,
+    // proving they share one object, while session remains untouched either way.
+    const fromAll = report.allRevisionActions.find((a) => a.id === issueActionId);
+    assert.equal(fromAll.sourceRefs[0].id, 'tampered-via-issue-view');
+  }
+);
+
+console.log('\nExact successor provenance (§30)');
+
+check('generateIntegratedDecisionReport: AF. a VERIFIED_PRESENT report unambiguously names both the source and successor artifact', () => {
+  const { session, state, successorSession, issueActionId } = buildRichFixtureWithSuccessor();
+  const verified = recordRevisionVerification(session, successorSession, {
+    revisionActionId: issueActionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'x',
+  });
+  const report = generateIntegratedDecisionReport(verified, state, successorSession);
+  assert.equal(report.artifactHash, session.artifactHash);
+  assert.equal(report.revisionSuccessor.sessionId, successorSession.id);
+  assert.equal(report.revisionSuccessor.artifactHash, successorSession.artifactHash);
+  assert.notEqual(report.artifactHash, report.revisionSuccessor.artifactHash);
+});
+
+console.log('\nNo report-owned authority (§31)');
+
+check('generateIntegratedDecisionReport: never mutates session, DeliberationState, or successorSession', () => {
+  const { session, state, successorSession, issueActionId } = buildRichFixtureWithSuccessor();
+  const verified = recordRevisionVerification(session, successorSession, {
+    revisionActionId: issueActionId,
+    verdict: 'VERIFIED_PRESENT',
+    evidence: 'x',
+  });
+  const sessionBefore = JSON.stringify(verified);
+  const stateBefore = JSON.stringify(state);
+  const successorBefore = JSON.stringify(successorSession);
+  generateIntegratedDecisionReport(verified, state, successorSession);
+  assert.equal(JSON.stringify(verified), sessionBefore);
+  assert.equal(JSON.stringify(state), stateBefore);
+  assert.equal(JSON.stringify(successorSession), successorBefore);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

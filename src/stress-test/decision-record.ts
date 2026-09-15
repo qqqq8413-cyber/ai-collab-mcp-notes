@@ -1,10 +1,18 @@
 import type {
   ActionChange,
   Judgment,
+  RevisionAction,
   RevisionActionStatus,
+  RevisionSourceRef,
+  RevisionVerificationVerdict,
   StressTestSession,
 } from './types.js';
-import { assertRevisionActionLedgerIntegrity, verifyFrozenInputIntegrity } from './session.js';
+import {
+  assertRevisionActionLedgerIntegrity,
+  assertRevisionSuccessorIntegrity,
+  assertRevisionVerificationLedgerIntegrity,
+  verifyFrozenInputIntegrity,
+} from './session.js';
 import type {
   AddReviewerRouteOutcome,
   AddContextRouteOutcome,
@@ -277,14 +285,46 @@ export function renderDecisionRecordMarkdown(record: DecisionRecord): string {
 // Execution-coordination checkpoints (RouteExecutionCheckpoint) are excluded
 // entirely — RouteOutcome remains the sole source of terminal result content.
 
-/** A finished revision, presented without claiming artifact-content verification exists. */
+/**
+ * The six-state, deterministic verification-presentation vocabulary frozen
+ * by P2-C0 (Amendment 1, §11.1) — a pure projection of already-authoritative
+ * facts, never a second semantic ledger. Absence of a RevisionVerification
+ * is never encoded as INCONCLUSIVE or NOT_PRESENT: it is its own distinct
+ * state (AWAITING_SUCCESSOR before a successor exists, NO_VERIFICATION_RECORDED
+ * once one does).
+ */
+export type IntegratedDecisionReportRevisionVerificationState =
+  | 'NOT_APPLICABLE'
+  | 'AWAITING_SUCCESSOR'
+  | 'NO_VERIFICATION_RECORDED'
+  | 'VERIFIED_PRESENT'
+  | 'NOT_PRESENT'
+  | 'INCONCLUSIVE';
+
+/**
+ * A finished revision, presented without claiming artifact-content
+ * verification exists merely because it was marked implemented --
+ * `verificationState`/`verificationVerdict`/`verificationEvidence`/
+ * `verifiedAt` carry that separate, human-confirmed fact (P2-C0 §11).
+ * `sourceRefs` is a cloned projection of the authoritative
+ * `RevisionAction.sourceRefs` (§11.3) -- never the same array/object
+ * references as `session.revisionActions[...].sourceRefs`.
+ */
 export interface IntegratedDecisionReportRevisionAction {
   id: string;
+  sourceRefs: RevisionSourceRef[];
   description: string;
   targetLocation: string;
   status: RevisionActionStatus;
   /** Human-readable status label. IMPLEMENTED is labeled "marked implemented" — never "verified in final artifact" (§14). */
   statusLabel: string;
+  verificationState: IntegratedDecisionReportRevisionVerificationState;
+  /** Verbatim from the stored RevisionVerification when one exists; null for NOT_APPLICABLE/AWAITING_SUCCESSOR/NO_VERIFICATION_RECORDED. */
+  verificationVerdict: RevisionVerificationVerdict | null;
+  verificationEvidence: string | null;
+  verifiedAt: string | null;
+  /** Exact P2-C0 §11.2 label for `verificationState` -- never recovered/guessed historical wording. */
+  verificationStatusLabel: string;
 }
 
 /** What a HumanAdjudication recorded — displayed alongside route evidence, never synthesized from it (§13). */
@@ -384,12 +424,24 @@ export interface IntegratedDecisionReportSummary {
 }
 
 export interface IntegratedDecisionReport {
+  /** The SOURCE (V0) session's own id -- never the successor's, see `revisionSuccessor` below. */
   sessionId: string;
+  /** The SOURCE (V0) session's frozen artifact hash -- never the successor's (P2-C0 §17). */
   artifactHash: string;
   generatedAt: string;
   summary: IntegratedDecisionReportSummary;
   issues: IntegratedDecisionReportIssue[];
   unresolvedRisks: IntegratedDecisionReportUnresolvedRisk[];
+  /** Every session.revisionActions entry, unfiltered by sourceRefs kind (P2-C0 §13) -- closes the FINDING-only coverage gap `issues[].revisionActions` alone cannot. */
+  allRevisionActions: IntegratedDecisionReportRevisionAction[];
+  /**
+   * Null exactly when `session.revisionSuccessor` is null; otherwise the
+   * exact validated successor's own identity -- read from the actual
+   * `successorSession` object supplied and proven via
+   * `assertRevisionSuccessorIntegrity`, never copied from the stored
+   * `RevisionSuccessorBinding` alone (P2-C0 §11.4).
+   */
+  revisionSuccessor: { sessionId: string; artifactHash: string } | null;
 }
 
 function labelForRevisionStatus(status: RevisionActionStatus): string {
@@ -411,6 +463,94 @@ function labelForRevisionStatus(status: RevisionActionStatus): string {
 
 function cloneRouteInputRefShallow(ref: RouteInputRef): RouteInputRef {
   return { kind: ref.kind, id: ref.id } as RouteInputRef;
+}
+
+/** Report-local clone -- never the same object as `session.revisionActions[...].sourceRefs[i]` (P2-C0 §12 egress isolation). */
+function cloneRevisionSourceRefShallow(ref: RevisionSourceRef): RevisionSourceRef {
+  return { kind: ref.kind, id: ref.id } as RevisionSourceRef;
+}
+
+function labelForRevisionVerificationState(state: IntegratedDecisionReportRevisionVerificationState): string {
+  switch (state) {
+    case 'NOT_APPLICABLE':
+      return 'Verification not applicable';
+    case 'AWAITING_SUCCESSOR':
+      return 'Awaiting successor artifact';
+    case 'NO_VERIFICATION_RECORDED':
+      return 'No verification recorded';
+    case 'VERIFIED_PRESENT':
+      return 'Revision verified in successor artifact';
+    case 'NOT_PRESENT':
+      return 'Revision not present in successor artifact';
+    case 'INCONCLUSIVE':
+      return 'Revision verification inconclusive';
+    default: {
+      const exhaustive: never = state;
+      throw new Error(`labelForRevisionVerificationState: invalid state ${JSON.stringify(exhaustive)}`);
+    }
+  }
+}
+
+/**
+ * The ONE shared per-`RevisionAction` projection (P2-C0 §15) -- both
+ * `allRevisionActions` and `issues[].revisionActions` reuse the exact object
+ * this returns, never two independently-written mappings. Callers must have
+ * already run the full integrity ordering (assertRevisionActionLedgerIntegrity,
+ * and -- whenever `session.revisionSuccessor !== null` --
+ * assertRevisionSuccessorIntegrity/assertRevisionVerificationLedgerIntegrity)
+ * before calling this; it trusts `session.revisionVerifications` without
+ * re-validating it.
+ */
+function buildRevisionActionPresentation(
+  session: StressTestSession,
+  action: RevisionAction
+): IntegratedDecisionReportRevisionAction {
+  const sourceRefs = action.sourceRefs.map(cloneRevisionSourceRefShallow);
+  const statusLabel = labelForRevisionStatus(action.status);
+
+  let verificationState: IntegratedDecisionReportRevisionVerificationState;
+  let verificationVerdict: RevisionVerificationVerdict | null = null;
+  let verificationEvidence: string | null = null;
+  let verifiedAt: string | null = null;
+
+  if (action.status === 'PLANNED' || action.status === 'REJECTED') {
+    verificationState = 'NOT_APPLICABLE';
+  } else if (session.revisionSuccessor === null) {
+    verificationState = 'AWAITING_SUCCESSOR';
+  } else {
+    // Defense-in-depth (P2-C0 §13): the global ledger validator this
+    // function's caller already ran makes >1 structurally impossible, but
+    // this projection step never relies on that alone -- no bare `.find()`.
+    const matches = Object.values(session.revisionVerifications).filter((v) => v.revisionActionId === action.id);
+    if (matches.length > 1) {
+      throw new Error(
+        `generateIntegratedDecisionReport: more than one RevisionVerification references revisionActionId ${action.id}`
+      );
+    }
+    const record = matches[0] ?? null;
+    if (!record) {
+      verificationState = 'NO_VERIFICATION_RECORDED';
+    } else {
+      verificationState = record.verdict;
+      verificationVerdict = record.verdict;
+      verificationEvidence = record.evidence;
+      verifiedAt = record.verifiedAt;
+    }
+  }
+
+  return {
+    id: action.id,
+    sourceRefs,
+    description: action.description,
+    targetLocation: action.targetLocation,
+    status: action.status,
+    statusLabel,
+    verificationState,
+    verificationVerdict,
+    verificationEvidence,
+    verifiedAt,
+    verificationStatusLabel: labelForRevisionVerificationState(verificationState),
+  };
 }
 
 /**
@@ -538,29 +678,82 @@ function buildQuestionThread(
  * Read-only, additive integrated projection over an already-frozen
  * StressTestSession and its DeliberationState — joins the review/adjudication
  * ledger to the deliberation/evidence/execution-outcome ledger through
- * existing authoritative identities only (Product Integration P1). Never
- * mutates either input, never introduces a new semantic ledger, and never
- * infers a judgment neither ledger already recorded.
+ * existing authoritative identities only (Product Integration P1), and,
+ * since P2-C, the revision-successor/revision-verification ledgers through
+ * the exact same canonical P2-A/P2-B validators the domain layer itself
+ * uses. Never mutates any input, never introduces a new semantic ledger,
+ * and never infers a judgment none of the ledgers already recorded --
+ * `verificationVerdict`/`verificationEvidence` are always restated verbatim
+ * from a stored, human-confirmed RevisionVerification, never derived by
+ * comparing artifact text.
  *
- * Fails closed (throws) if the session/state binding does not hold, or if
- * any reference this projection touches (a RouteInputRef, an
- * evidenceSubjectId, a findingId) does not resolve against the authoritative
- * ledgers it is drawn from -- see this file's own header comment for the
- * exact boundary of what that reuse covers.
+ * `successorSession` is optional at the type level, but conditionally
+ * required at runtime whenever "successor authority is in play" --
+ * `session.revisionSuccessor !== null`, `session.revisionVerifications` is
+ * non-empty, or the caller supplied it at all -- in which case it is always
+ * validated unconditionally, never silently ignored (P2-C0 §5/§6).
+ *
+ * Fails closed (throws) if the session/state binding does not hold, if any
+ * reference this projection touches (a RouteInputRef, an evidenceSubjectId,
+ * a findingId) does not resolve against the authoritative ledgers it is
+ * drawn from, if the RevisionAction/HumanAdjudication ledgers are corrupt,
+ * or if successor/verification authority is in play without a validated
+ * `successorSession` -- see this file's own header comment for the exact
+ * boundary the reused RouteOutcome-side validators cover.
  */
 export function generateIntegratedDecisionReport(
   session: StressTestSession,
-  deliberationState: DeliberationState
+  deliberationState: DeliberationState,
+  successorSession?: StressTestSession
 ): IntegratedDecisionReport {
   verifyDeliberationBinding(session, deliberationState);
   // Validate historical outcomes even when no detail view traverses them.
   for (const outcome of deliberationState.outcomes) {
     assertRouteOutcomeIntegrity(session, deliberationState, outcome.attemptId);
   }
-  // P2-C0 Amendment 3: composes assertHumanAdjudicationLedgerIntegrity
-  // transitively -- global RevisionAction/adjudication integrity before any
-  // issue/revision/adjudication projection below trusts either ledger.
+  // Composes assertHumanAdjudicationLedgerIntegrity transitively -- global
+  // RevisionAction/adjudication integrity before any issue/revision/
+  // adjudication projection below trusts either ledger. Unconditional: even
+  // a source with no successor yet still projects allRevisionActions in the
+  // AWAITING_SUCCESSOR state, which must not rest on unvalidated provenance.
   assertRevisionActionLedgerIntegrity(session);
+
+  const successorAuthorityInPlay =
+    session.revisionSuccessor !== null ||
+    Object.keys(session.revisionVerifications).length > 0 ||
+    successorSession !== undefined;
+  if (successorAuthorityInPlay && successorSession === undefined) {
+    throw new Error(
+      'generateIntegratedDecisionReport: successorSession is required -- session.revisionSuccessor exists and/or revisionVerifications is non-empty, but no successorSession was supplied'
+    );
+  }
+  // Validated unconditionally whenever supplied, even if the other two
+  // signals are both false -- this is what makes an unrelated/extraneous
+  // successor object fail closed rather than being silently ignored.
+  if (successorSession !== undefined) {
+    assertRevisionSuccessorIntegrity(session, successorSession);
+  }
+  if (Object.keys(session.revisionVerifications).length > 0) {
+    assertRevisionVerificationLedgerIntegrity(session);
+  }
+
+  let revisionSuccessor: { sessionId: string; artifactHash: string } | null = null;
+  if (session.revisionSuccessor !== null) {
+    if (successorSession === undefined || !successorSession.artifactHash) {
+      throw new Error(
+        'generateIntegratedDecisionReport: internal invariant violated -- session.revisionSuccessor exists but a validated successorSession.artifactHash is missing'
+      );
+    }
+    revisionSuccessor = { sessionId: successorSession.id, artifactHash: successorSession.artifactHash };
+  }
+
+  // The ONE shared projection (P2-C0 §15): built once per RevisionAction,
+  // then reused (never rebuilt) for both allRevisionActions and every
+  // issue's filtered revisionActions below.
+  const allRevisionActions: IntegratedDecisionReportRevisionAction[] = Object.values(session.revisionActions).map(
+    (action) => buildRevisionActionPresentation(session, action)
+  );
+  const revisionActionPresentationById = new Map(allRevisionActions.map((presentation) => [presentation.id, presentation]));
 
   const issues: IntegratedDecisionReportIssue[] = Object.values(session.semanticIssues).map((issue) => {
     const artifactLocations = issue.findingIds.map((findingId) => {
@@ -575,13 +768,15 @@ export function generateIntegratedDecisionReport(
     const adjudication = Object.values(session.adjudications).find((a) => a.semanticIssueId === issue.id) ?? null;
     const revisionActions = Object.values(session.revisionActions)
       .filter((action) => action.sourceRefs.some((ref) => ref.kind === 'SEMANTIC_ISSUE' && ref.id === issue.id))
-      .map((action) => ({
-        id: action.id,
-        description: action.description,
-        targetLocation: action.targetLocation,
-        status: action.status,
-        statusLabel: labelForRevisionStatus(action.status),
-      }));
+      .map((action) => {
+        const presentation = revisionActionPresentationById.get(action.id);
+        if (!presentation) {
+          throw new Error(
+            `generateIntegratedDecisionReport: internal invariant violated -- no shared projection found for revisionActionId ${action.id}`
+          );
+        }
+        return presentation;
+      });
     const linkedQuestions = deliberationState.unresolvedQuestions
       .filter((q) => q.inputRefs.some((ref) => ref.kind === 'SEMANTIC_ISSUE' && ref.id === issue.id))
       .map((q) => buildQuestionThread(session, deliberationState, q));
@@ -650,5 +845,7 @@ export function generateIntegratedDecisionReport(
     summary,
     issues,
     unresolvedRisks,
+    allRevisionActions,
+    revisionSuccessor,
   };
 }
