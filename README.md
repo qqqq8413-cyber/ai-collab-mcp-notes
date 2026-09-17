@@ -31,10 +31,11 @@ review → deliberation → human adjudication → revision → successor verifi
   (`VERIFIED_PRESENT` / `NOT_PRESENT` / `INCONCLUSIVE`) — closing the loop
   between "we said we'd fix it" and "it's actually in the file."
 
-**AI assists; human authority remains final.** Every write path in this
-system checks the full ledger before trusting or mutating anything locally —
-a model can raise an issue and propose a revision, but it cannot authorize
-its own action, and it cannot claim a verification it hasn't earned.
+**AI assists; human authority remains final.** Authoritative decision-audit
+write boundaries validate the relevant ledger integrity before accepting new
+domain state — a model can raise an issue and propose a revision, but it
+cannot authorize its own action, and it cannot claim a verification it
+hasn't earned.
 
 ## Current state
 
@@ -67,7 +68,7 @@ npm ci
 npm test
 ```
 
-`npm test` 先編譯 TypeScript,再執行 208 項離線測試與 MCP smoke tests。全部不需要 API key。其中 36 項是 execution-policy tests,另有 M2-A 的 stage instrumentation、call ceiling、best-effort parsing、issue 驗證、deterministic selection、selective peer context、失敗回退與 evidence 不變式測試。
+`npm test` 先編譯 TypeScript,再執行整套離線測試與 MCP smoke tests,全部不需要 API key(目前實測共 853 項全過,見上方「Current state」)。**208 項是 rev.19 當時的歷史數字**,此後測試持續增加,不是現在的 `npm test` 總數。當時的 208 項中,36 項是 execution-policy tests,另有 M2-A 的 stage instrumentation、call ceiling、best-effort parsing、issue 驗證、deterministic selection、selective peer context、失敗回退與 evidence 不變式測試。
 
 ### 啟動 MCP Server
 

@@ -2,9 +2,11 @@
 
 ## Supported versions
 
-This is a single-branch personal/research project. Only the latest commit on
-`main` is supported — there are no maintained release branches to backport
-fixes to.
+CHIEF is currently pre-release. Security fixes apply to the active CHIEF
+development line, not to any specific branch name as a permanent commitment
+— there are currently no maintained release branches and no backport
+guarantees. Once versioned releases exist, supported versions will be
+listed here explicitly.
 
 ## Reporting a vulnerability
 
