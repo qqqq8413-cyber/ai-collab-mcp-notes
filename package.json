@@ -1,7 +1,7 @@
 {
   "name": "ai-collab-mcp",
   "version": "1.0.0",
-  "description": "MCP server that lets Claude, GPT, and Gemini collaborate via orchestrator/worker, pipeline, and debate workflows",
+  "description": "CHIEF — decision-audit infrastructure for trustworthy AI-assisted review, revision, and human adjudication",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -15,7 +15,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "Apache-2.0",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",
     "@google/generative-ai": "^0.24.1",
