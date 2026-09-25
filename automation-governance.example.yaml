@@ -1,0 +1,72 @@
+# REFERENCE ONLY - NOT ENFORCED YET.
+# Non-executing G1-C0 policy example. The Markdown contract is canonical.
+version: g1-c0
+status: REFERENCE_ONLY_NOT_ENFORCED_YET
+repository:
+  name: qqqq8413-cyber/ai-collab-mcp-notes
+  canonical_branch: main
+  implementation_branch_pattern: work/**
+roles:
+  final_authority: HUMAN
+  architecture_and_acceptance: GPT_ARCHITECT
+  implementation: CODEX_IMPLEMENTER
+  deterministic_coordination: CONTROLLER
+  sha_ci_and_protection_truth: GITHUB
+authorization:
+  default: DENY
+  no_agent_may_expand_own_authority: true
+  classes: [ALLOW_AUTOMATIC, REQUIRE_GPT, REQUIRE_HUMAN, FORBIDDEN]
+  independent_acceptance: REQUIRE_GPT
+  fast_forward_main_initial_policy: REQUIRE_HUMAN
+  live_provider_call_default: REQUIRE_HUMAN
+  case_001_exact_action: REQUIRE_HUMAN
+  merge_commit: FORBIDDEN
+  squash_accepted_sha: FORBIDDEN
+  rebase_accepted_sha: FORBIDDEN
+  force_push: FORBIDDEN
+git:
+  no_direct_main_implementation: true
+  promotion: fast_forward_only
+  preserve_accepted_sha: true
+  require_expected_main_sha: true
+  require_ancestry_and_no_main_only_commits: true
+  require_ci_check: test
+  require_main_protection: true
+  moved_main_stop: ARCHITECTURE_STOP
+network:
+  default: OFFLINE
+  levels: [OFFLINE, READ_WEB, READ_EXTERNAL_API, WRITE_EXTERNAL, SENSITIVE_WRITE]
+  packet_must_name_destination_purpose_and_budget: true
+  github_branch_push_requires_explicit_write_external: true
+  provider_api_is_not_generic_web_read: true
+secrets:
+  general_purpose_access: false
+  task_scoped_least_privilege: true
+  no_prompt_log_or_artifact_copy: true
+  production_credential_gate: HUMAN_STOP
+limits:
+  max_implementation_iterations_per_slice: 3
+  max_acceptance_failures_per_slice: 3
+  max_parallel_implementation_agents: 1
+  max_runtime_minutes_per_iteration: 60
+  warning_changed_files: 10
+  warning_changed_diff_lines: 500
+  exhaustion_stop: HUMAN_STOP
+acceptance:
+  remote_exact_sha_required: true
+  independent_gpt_review_required: true
+  review: [scope_diff, invariants, build_tests, ci_status]
+  explicit_decision: [ACCEPT, REJECT]
+  implementer_self_acceptance: false
+human_gates:
+  - sensitive_or_destructive_action
+  - production_write_or_credentials
+  - repository_settings_or_workflow_change
+  - branch_deletion
+  - case_001_exact_action
+  - authority_or_security_boundary_change
+  - budget_exhaustion
+stop_rules:
+  operational_classes: [SOFT_STOP, ARCHITECTURE_STOP, HUMAN_STOP]
+  terminal_state: FAILED_CLOSED
+  no_uncertain_external_side_effect_replay: true

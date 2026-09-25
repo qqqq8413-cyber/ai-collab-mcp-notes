@@ -2250,3 +2250,14 @@ M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型�
 - Provider/model calls: 0; no live tests or CASE-001 access.
 - Validation: `npm run build` PASS; `npm test` PASS (874 passed, 0 failed across 11 offline suites); `git diff --check` PASS.
 - Next planned slice: **E0-R3 — Execution Boundary / Admission**. STOP for GPT independent acceptance; no automatic authorization to continue.
+
+---
+
+## G1-C0 — Automation Governance Contract (2026-09-26)
+
+- Base SHA: `9ad6dbbb7f318387e3a498fc91fae9910a37e638` (`origin/main`). Work branch: `work/g1-c0-automation-governance-contract`.
+- Created `AUTOMATION_GOVERNANCE_CONTRACT.md` and non-executing reference `automation-governance.example.yaml`. **DEFAULT DENY** and **NO AGENT MAY EXPAND ITS OWN AUTHORITY** are frozen.
+- The contract defines roles, authorization matrix, lifecycle states, exactly three operational stop classes, iteration budgets, Git/acceptance/promotion gates, network/secrets boundaries, audit fields, and fail-closed recovery. CASE-001 stays confidential and human-gated.
+- Controller runtime, autonomous actions, and E0-R3 are NOT implemented. Provider/model calls: 0; GitHub fetch/protection verification and authorized work-branch push are repository network operations, not zero external network activity.
+- Validation: `npm run build` PASS; `npm test` PASS (874 passed, 0 failed across 11 offline suites); `git diff --check` PASS. Completion is not GPT independent acceptance.
+- Next planned slice: **G1-R1 — Controller Runtime Foundation**. STOP for GPT independent acceptance; no automatic authorization to continue.
