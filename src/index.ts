@@ -126,22 +126,26 @@ server.registerTool(
   {
     title: 'Run a sequential AI pipeline',
     description:
-      'Runs a sequential pipeline where each step is handled by a chosen AI provider, and each step\'s output feeds into the next step\'s input (accessible via {{input}} in promptTemplate).',
+      'Runs a sequential pipeline where each step is handled by a chosen AI provider, and each step\'s output feeds into the next step\'s input (accessible via {{input}} in promptTemplate). Steps run one at a time in order, and a step sees only the previous step\'s output (step 1 sees `input`). Returns JSON with finalOutput (the last step\'s text) and history (per step: step number, provider, the model actually used, the exact prompt sent, and the output). Any failure - a missing API key, an empty model response, a provider error - aborts the whole call with an error; the steps completed so far are not returned. No retrieval or web search is attached to any step.',
     inputSchema: {
       input: z.string().describe('The initial input to the pipeline.'),
       steps: z
         .array(
           z.object({
             provider: providerEnum,
-            model: z.string().optional(),
-            system: z.string().optional(),
+            model: z
+              .string()
+              .optional()
+              .describe("Model id for this step. Omit to use the provider's default model (overridable with the CLAUDE_MODEL, OPENAI_MODEL or GEMINI_MODEL environment variable)."),
+            system: z.string().optional().describe('System prompt for this step only. Omit for none.'),
             promptTemplate: z
               .string()
               .optional()
               .describe('Prompt template for this step. Use {{input}} for the running input. If omitted, the running input is passed through as-is.'),
           })
         )
-        .min(1),
+        .min(1)
+        .describe('The steps, run in order. At least one is required.'),
     },
   },
   async ({ input, steps }) => {
@@ -261,7 +265,7 @@ server.registerTool(
   {
     title: 'Run a multi-model debate / cross-validation',
     description:
-      'Multiple AI providers independently answer the same question, then critique each other\'s answers over one or more rounds, and finally a judge provider synthesizes or selects the best final answer.',
+      'Multiple AI providers independently answer the same question, then critique each other\'s answers over one or more rounds, and finally a judge provider synthesizes or selects the best final answer. In each critique round every panelist sees the full text of the other panelists\' latest answers plus its own, and returns a revised answer; the judge sees only the last round\'s answers. Returns JSON with rounds (rounds[0] is the independent answers, then one array per critique round; each entry has panelistId, provider and answer) and finalAnswer (the judge\'s verdict). It makes panel.length * (rounds + 1) + 1 model calls, with each round\'s panelists running in parallel. It returns no run status: if any call fails, the whole debate fails with an error and no partial result is returned. No retrieval or web search is attached.',
     inputSchema: {
       question: z.string().describe('The question or problem for the panel to answer.'),
       panel: z
@@ -269,12 +273,19 @@ server.registerTool(
           z.object({
             id: z.string().describe('Unique id for this panelist.'),
             provider: providerEnum,
-            model: z.string().optional(),
+            model: z
+              .string()
+              .optional()
+              .describe("Model id for this panelist. Omit to use the provider's default model."),
           })
         )
-        .min(1),
+        .min(1)
+        .describe('The panelists who answer and critique. At least one is required.'),
       judge: z
-        .object({ provider: providerEnum, model: z.string().optional() })
+        .object({
+          provider: providerEnum,
+          model: z.string().optional().describe("Model id for the judge. Omit to use the provider's default model."),
+        })
         .optional()
         .describe('Provider that renders the final verdict. Defaults to the first panelist.'),
       rounds: z
@@ -283,7 +294,7 @@ server.registerTool(
         .min(0)
         .max(5)
         .optional()
-        .describe('Number of critique/revise rounds after the initial independent answers. Default 1.'),
+        .describe('Number of critique/revise rounds after the initial independent answers. Default 1. With 0, the judge sees the independent answers directly.'),
     },
   },
   async ({ question, panel, judge, rounds }) => {
