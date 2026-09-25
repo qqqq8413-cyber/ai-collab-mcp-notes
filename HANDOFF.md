@@ -2223,3 +2223,16 @@ M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型�
 - Historical sections above and older reconciliation snapshots remain preserved; current code takes precedence over historical unimplemented-route descriptions.
 - Validation: `npm run build` PASS; `npm test` PASS (853 passed, 0 failed across 9 offline suites). Historical HANDOFF prefix preserved byte-for-byte; `git diff --check` PASS. These checks do not establish live capability verification or architecture acceptance.
 - Next planned slice: **E0-R1 — Capability / Parameter Model**. STOP for GPT independent acceptance; no automatic authorization to continue.
+
+---
+
+## E0-R1 — Capability / Parameter Model (2026-09-26)
+
+- Base SHA: `41eaa1fcd86a0aa8ce93b9ed76a0667e7454c56d` (`main`).
+- Work branch: `work/e0-r1-capability-parameter-model`.
+- Implemented rich model-specific capability assessments with separate provider support, runtime enablement, readiness, and structured repository evidence. Legacy boolean fields/helpers remain as compatibility projections and continue to fail closed.
+- Added `temperature` and `max_output_tokens` parameter assessments with explicit-transmission state and constraint variants; added read-only cloned lookup APIs distinguishing unknown model, missing assessment, and recorded assessment.
+- H1 is represented for Claude temperature as WIRED_UNVERIFIED with UNKNOWN constraint/transmission, including current adapter source and both historical commits. It is NOT resolved; no fresh provider verification.
+- Provider adapters, CallOptions, admission, reconciliation, routing, and execution behavior are unchanged. Provider/model calls: 0.
+- Validation: `npm run build` PASS; `npm test` PASS (862 passed, 0 failed across 10 offline suites); `git diff --check` PASS.
+- Next planned slice: **E0-R2 — Provider Execution Contract**. STOP for GPT independent acceptance; no automatic authorization to continue.

@@ -1,150 +1,360 @@
 import type { ProviderName } from '../config.js';
 
-/**
- * What a model can do **as wired up in this codebase** — not what it is capable of in
- * principle, and not what its vendor advertises.
- *
- * The distinction is the whole point of this file. `market_researcher` was configured as
- * an evidence-gathering specialist and a run that recruited it was labelled
- * EVIDENCE_BACKED, while `src/providers/gemini.ts` was calling `generateContent` with no
- * tools at all. The label was reporting an intention as an accomplishment.
- *
- * Hence every capability carries two separate facts. Only `enabledInRuntime` may grant a
- * capability; `supportedByProvider` exists so the gap between "the vendor offers this"
- * and "we have wired it up" stays visible instead of being quietly conflated.
- */
 export type ModelCapability =
-  /** Spends hidden thinking tokens before answering. Measured, not assumed. */
   | 'reasoning'
-  /** Accepts a system prompt, so a specialist's role can be set separately from its mission. */
   | 'system_prompt'
-  /** Can fetch external information at call time: web search, search grounding, retrieval tools. */
   | 'grounded_retrieval'
-  /** Provider-enforced JSON schema, as opposed to parsing JSON out of prose. */
   | 'native_structured_output'
   | 'streaming';
 
-export interface CapabilityState {
-  /** The vendor offers this for this model. */
-  supportedByProvider: boolean;
-  /** This codebase actually calls it, and can read back what happened. */
-  enabledInRuntime: boolean;
+export type ProviderSupportState = 'SUPPORTED' | 'UNSUPPORTED' | 'UNKNOWN';
+export type RuntimeEnablementState = 'ENABLED' | 'DISABLED' | 'UNKNOWN';
+export type CapabilityReadiness = 'VERIFIED' | 'WIRED_UNVERIFIED' | 'UNSUPPORTED' | 'UNKNOWN';
+export type ParameterName = 'temperature' | 'max_output_tokens';
+export type ExplicitTransmission = 'ALLOWED' | 'DISALLOWED' | 'UNKNOWN';
+
+export type EvidenceScope =
+  | { kind: 'capability'; capability: ModelCapability }
+  | { kind: 'parameter'; parameter: ParameterName };
+
+export interface CapabilityEvidence {
+  kind: 'repository_fact' | 'runtime_observation' | 'vendor_documentation';
+  source: string;
+  provider: ProviderName;
+  model: string;
+  scope: EvidenceScope;
+  reviewedAt: string;
+  note: string;
+  limitations: string[];
+}
+
+export interface CapabilityAssessment {
+  providerSupport: ProviderSupportState;
+  runtimeEnablement: RuntimeEnablementState;
+  readiness: CapabilityReadiness;
+  evidence: CapabilityEvidence[];
+  notes?: string;
+  /** Compatibility projection for existing CLI/report consumers. */
+  supportedByProvider?: boolean;
+  /** Compatibility projection for existing CLI/report consumers. */
+  enabledInRuntime?: boolean;
+}
+
+type ParameterConstraintBase = { explicitTransmission: ExplicitTransmission };
+
+export type ParameterConstraint =
+  | ({ kind: 'UNSUPPORTED' | 'UNKNOWN' } & ParameterConstraintBase)
+  | ({ kind: 'FIXED'; value: number } & ParameterConstraintBase)
+  | ({
+      kind: 'NUMERIC_RANGE';
+      min: number;
+      max: number;
+      minInclusive: boolean;
+      maxInclusive: boolean;
+    } & ParameterConstraintBase)
+  | ({ kind: 'DISCRETE_VALUES'; values: number[] } & ParameterConstraintBase);
+
+export interface ParameterAssessment {
+  readiness: CapabilityReadiness;
+  constraint: ParameterConstraint;
+  evidence: CapabilityEvidence[];
   notes?: string;
 }
 
 export interface ModelPricing {
   inputPerMTokUsd: number;
   outputPerMTokUsd: number;
-  /** Where the figure came from, so it can be rechecked. */
   source: string;
-  /** ISO date the figure was last verified against that source. */
   checkedOn: string;
 }
 
 export interface ModelProfile {
   provider: ProviderName;
   model: string;
-  capabilities: Partial<Record<ModelCapability, CapabilityState>>;
-  /**
-   * Left unset until someone copies the real numbers from the provider's pricing page.
-   *
-   * Deliberately not guessed. A plausible-looking invented price would flow straight into
-   * cost reporting and become exactly the kind of unanchored quantitative claim this
-   * system exists to catch. Grounded search is billed on top of tokens, so this matters
-   * more now, not less.
-   */
+  capabilities: Partial<Record<ModelCapability, CapabilityAssessment>>;
+  parameters: Partial<Record<ParameterName, ParameterAssessment>>;
   pricing?: ModelPricing;
   notes?: string;
 }
 
-const on = (notes?: string): CapabilityState => ({
-  supportedByProvider: true,
-  enabledInRuntime: true,
-  notes,
-});
-const offeredButNotWired = (notes: string): CapabilityState => ({
-  supportedByProvider: true,
-  enabledInRuntime: false,
-  notes,
-});
+const reviewedAt = '2026-09-26';
+const repoLimitations = [
+  'Recorded from repository source/history only; not freshly verified against the vendor in E0-R1.',
+];
+
+function evidence(
+  provider: ProviderName,
+  model: string,
+  scope: EvidenceScope,
+  source: string,
+  note: string,
+  limitations: string[] = repoLimitations
+): CapabilityEvidence {
+  return {
+    kind: 'repository_fact',
+    source,
+    provider,
+    model,
+    scope,
+    reviewedAt,
+    note,
+    limitations: [...limitations],
+  };
+}
+
+function enabledCapability(
+  provider: ProviderName,
+  model: string,
+  capability: ModelCapability,
+  source: string,
+  note = 'The existing repository profile records this capability and the current adapter has a corresponding runtime path.'
+): CapabilityAssessment {
+  return {
+    providerSupport: 'SUPPORTED',
+    runtimeEnablement: 'ENABLED',
+    readiness: 'WIRED_UNVERIFIED',
+    evidence: [evidence(provider, model, { kind: 'capability', capability }, source, note)],
+    supportedByProvider: true,
+    enabledInRuntime: true,
+  };
+}
+
+function offeredNotWired(
+  provider: ProviderName,
+  model: string,
+  capability: ModelCapability,
+  source: string,
+  note: string
+): CapabilityAssessment {
+  return {
+    providerSupport: 'SUPPORTED',
+    runtimeEnablement: 'DISABLED',
+    readiness: 'UNSUPPORTED',
+    evidence: [evidence(provider, model, { kind: 'capability', capability }, source, note)],
+    notes: 'Repository profile records vendor support, but no runtime path is enabled.',
+    supportedByProvider: true,
+    enabledInRuntime: false,
+  };
+}
+
+function unknownParameter(
+  provider: ProviderName,
+  model: string,
+  parameter: ParameterName,
+  source: string,
+  note: string,
+  extraEvidence: CapabilityEvidence[] = []
+): ParameterAssessment {
+  return {
+    readiness: 'WIRED_UNVERIFIED',
+    constraint: { kind: 'UNKNOWN', explicitTransmission: 'UNKNOWN' },
+    evidence: [evidence(provider, model, { kind: 'parameter', parameter }, source, note), ...extraEvidence],
+    notes: 'The adapter path exists; supported values and permission to transmit remain unknown.',
+  };
+}
+
+function claudeTemperatureEvidence(): CapabilityEvidence[] {
+  return [
+    evidence(
+      'claude',
+      'claude-sonnet-5',
+      { kind: 'parameter', parameter: 'temperature' },
+      'src/providers/claude.ts',
+      'The current adapter forwards CallOptions.temperature.'
+    ),
+    {
+      ...evidence(
+        'claude',
+        'claude-sonnet-5',
+        { kind: 'parameter', parameter: 'temperature' },
+        '44d5fe9465fc9551174d69278415058b605cc8b6',
+        'Repository commit records an HTTP 400 rejection when claude-sonnet-5 received temperature.',
+        ['Historical repository record; not independently reproduced in E0-R1.']
+      ),
+    },
+    {
+      ...evidence(
+        'claude',
+        'claude-sonnet-5',
+        { kind: 'parameter', parameter: 'temperature' },
+        'cf074c2c640559eb40a578f921b82438b2e7fd96',
+        'Repository commit records deliberate restoration of temperature passthrough pending capability redesign.',
+        ['Historical repository record; does not establish vendor acceptance.']
+      ),
+    },
+  ];
+}
+
+function parameterAssessment(
+  provider: ProviderName,
+  model: string,
+  parameter: ParameterName,
+  source: string
+): ParameterAssessment {
+  if (provider === 'claude' && parameter === 'temperature') {
+    return {
+      readiness: 'WIRED_UNVERIFIED',
+      constraint: { kind: 'UNKNOWN', explicitTransmission: 'UNKNOWN' },
+      evidence: claudeTemperatureEvidence(),
+      notes: 'H1: passthrough is wired, but transmission authority and accepted values are unresolved.',
+    };
+  }
+
+  return unknownParameter(
+    provider,
+    model,
+    parameter,
+    source,
+    `The current adapter forwards ${parameter}; vendor support and accepted values are not established here.`
+  );
+}
 
 export const MODEL_REGISTRY: ModelProfile[] = [
   {
     provider: 'claude',
     model: 'claude-sonnet-5',
     capabilities: {
-      reasoning: on('Thinking measured at 3147 of 4096 output tokens (77%) on one planning call.'),
-      system_prompt: on(),
-      grounded_retrieval: offeredButNotWired(
-        'Anthropic offers a web search tool; src/providers/claude.ts does not use it.'
+      reasoning: {
+        ...enabledCapability('claude', 'claude-sonnet-5', 'reasoning', 'src/models/capabilities.ts'),
+        notes: 'Repository profile records one planning call with 3147 of 4096 output tokens as thinking.',
+      },
+      system_prompt: enabledCapability('claude', 'claude-sonnet-5', 'system_prompt', 'src/providers/claude.ts'),
+      grounded_retrieval: offeredNotWired(
+        'claude',
+        'claude-sonnet-5',
+        'grounded_retrieval',
+        'src/models/capabilities.ts',
+        'Previous repository profile records Anthropic web search as offered; src/providers/claude.ts does not invoke it.'
       ),
+    },
+    parameters: {
+      temperature: parameterAssessment('claude', 'claude-sonnet-5', 'temperature', 'src/providers/claude.ts'),
+      max_output_tokens: parameterAssessment('claude', 'claude-sonnet-5', 'max_output_tokens', 'src/providers/claude.ts'),
     },
   },
   {
     provider: 'openai',
     model: 'gpt-5',
     capabilities: {
-      reasoning: on('Reasoning measured at 3904 of 7893 completion tokens (49%).'),
-      system_prompt: on(),
-      grounded_retrieval: offeredButNotWired(
-        'OpenAI offers web search; src/providers/openai.ts does not use it.'
+      reasoning: {
+        ...enabledCapability('openai', 'gpt-5', 'reasoning', 'src/models/capabilities.ts'),
+        notes: 'Repository profile records one call with 3904 of 7893 completion tokens as reasoning.',
+      },
+      system_prompt: enabledCapability('openai', 'gpt-5', 'system_prompt', 'src/providers/openai.ts'),
+      grounded_retrieval: offeredNotWired(
+        'openai',
+        'gpt-5',
+        'grounded_retrieval',
+        'src/models/capabilities.ts',
+        'Previous repository profile records OpenAI web search as offered; src/providers/openai.ts does not invoke it.'
       ),
+    },
+    parameters: {
+      temperature: parameterAssessment('openai', 'gpt-5', 'temperature', 'src/providers/openai.ts'),
+      max_output_tokens: parameterAssessment('openai', 'gpt-5', 'max_output_tokens', 'src/providers/openai.ts'),
     },
   },
   {
     provider: 'gemini',
     model: 'gemini-3.1-pro-preview',
     capabilities: {
-      reasoning: on(),
-      system_prompt: on(),
-      grounded_retrieval: on(
-        'Google Search grounding, attached per call via CallOptions.retrieval and never by default.'
-      ),
+      reasoning: enabledCapability('gemini', 'gemini-3.1-pro-preview', 'reasoning', 'src/models/capabilities.ts'),
+      system_prompt: enabledCapability('gemini', 'gemini-3.1-pro-preview', 'system_prompt', 'src/providers/gemini.ts'),
+      grounded_retrieval: {
+        ...enabledCapability(
+          'gemini',
+          'gemini-3.1-pro-preview',
+          'grounded_retrieval',
+          'src/providers/gemini.ts',
+          'Google Search is attached per call when retrieval is requested; grounding metadata is read from the response.'
+        ),
+      },
+    },
+    parameters: {
+      temperature: parameterAssessment('gemini', 'gemini-3.1-pro-preview', 'temperature', 'src/providers/gemini.ts'),
+      max_output_tokens: parameterAssessment('gemini', 'gemini-3.1-pro-preview', 'max_output_tokens', 'src/providers/gemini.ts'),
     },
   },
 ];
 
 export function findProfile(provider: ProviderName, model?: string): ModelProfile | undefined {
   return MODEL_REGISTRY.find(
-    (p) => p.provider === provider && (model === undefined || p.model === model)
+    (profile) => profile.provider === provider && (model === undefined || profile.model === model)
   );
 }
 
-/**
- * Whether the given binding can do something **right now, in this codebase**.
- *
- * An unknown model answers `false` rather than being given the benefit of the doubt: the
- * Model Router will pick on capability, and an unlisted model is one nobody has checked.
- * Note that nothing here consults the provider's name — a brand never confers a
- * capability.
- */
+export type ModelProfileLookup =
+  | { status: 'FOUND'; profile: ModelProfile }
+  | { status: 'UNKNOWN_MODEL'; provider: ProviderName; model: string };
+
+export type AssessmentLookup<T> =
+  | { status: 'FOUND'; assessment: T }
+  | { status: 'UNKNOWN_MODEL'; provider: ProviderName; model: string }
+  | { status: 'MISSING_ASSESSMENT'; provider: ProviderName; model: string };
+
+export function getModelProfile(provider: ProviderName, model: string): ModelProfileLookup {
+  const profile = findProfile(provider, model);
+  return profile
+    ? { status: 'FOUND', profile: structuredClone(profile) }
+    : { status: 'UNKNOWN_MODEL', provider, model };
+}
+
+export function getCapabilityAssessment(
+  provider: ProviderName,
+  model: string,
+  capability: ModelCapability
+): AssessmentLookup<CapabilityAssessment> {
+  const profile = findProfile(provider, model);
+  if (!profile) return { status: 'UNKNOWN_MODEL', provider, model };
+  const assessment = profile.capabilities[capability];
+  return assessment
+    ? { status: 'FOUND', assessment: structuredClone(assessment) }
+    : { status: 'MISSING_ASSESSMENT', provider, model };
+}
+
+export function getParameterAssessment(
+  provider: ProviderName,
+  model: string,
+  parameter: ParameterName
+): AssessmentLookup<ParameterAssessment> {
+  const profile = findProfile(provider, model);
+  if (!profile) return { status: 'UNKNOWN_MODEL', provider, model };
+  const assessment = profile.parameters[parameter];
+  return assessment
+    ? { status: 'FOUND', assessment: structuredClone(assessment) }
+    : { status: 'MISSING_ASSESSMENT', provider, model };
+}
+
 export function providerSupports(
   provider: ProviderName,
   capability: ModelCapability,
   model?: string
 ): boolean {
-  return findProfile(provider, model)?.capabilities[capability]?.enabledInRuntime ?? false;
+  return findProfile(provider, model)?.capabilities[capability]?.runtimeEnablement === 'ENABLED';
 }
 
-/** Whether the vendor offers it, wired up here or not. Never grants a capability by itself. */
 export function providerCouldSupport(
   provider: ProviderName,
   capability: ModelCapability,
   model?: string
 ): boolean {
-  return findProfile(provider, model)?.capabilities[capability]?.supportedByProvider ?? false;
+  return findProfile(provider, model)?.capabilities[capability]?.providerSupport === 'SUPPORTED';
 }
 
 export function modelsWithCapability(capability: ModelCapability): ModelProfile[] {
-  return MODEL_REGISTRY.filter((p) => p.capabilities[capability]?.enabledInRuntime);
+  return MODEL_REGISTRY.filter(
+    (profile) => profile.capabilities[capability]?.runtimeEnablement === 'ENABLED'
+  );
 }
 
-/** Capabilities a vendor offers that this codebase has not wired up. */
 export function unwiredCapabilities(): Array<{ profile: ModelProfile; capability: ModelCapability }> {
   const gaps: Array<{ profile: ModelProfile; capability: ModelCapability }> = [];
   for (const profile of MODEL_REGISTRY) {
-    for (const [capability, state] of Object.entries(profile.capabilities)) {
-      if (state.supportedByProvider && !state.enabledInRuntime) {
+    for (const [capability, assessment] of Object.entries(profile.capabilities)) {
+      if (
+        assessment.providerSupport === 'SUPPORTED' &&
+        assessment.runtimeEnablement === 'DISABLED'
+      ) {
         gaps.push({ profile, capability: capability as ModelCapability });
       }
     }
@@ -152,7 +362,6 @@ export function unwiredCapabilities(): Array<{ profile: ModelProfile; capability
   return gaps;
 }
 
-/** Models with no verified pricing. Cost tracking must report these as unknown, not zero. */
 export function modelsMissingPricing(): ModelProfile[] {
-  return MODEL_REGISTRY.filter((p) => !p.pricing);
+  return MODEL_REGISTRY.filter((profile) => !profile.pricing);
 }
