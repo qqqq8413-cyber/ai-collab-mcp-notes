@@ -2261,3 +2261,14 @@ M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型�
 - Controller runtime, autonomous actions, and E0-R3 are NOT implemented. Provider/model calls: 0; GitHub fetch/protection verification and authorized work-branch push are repository network operations, not zero external network activity.
 - Validation: `npm run build` PASS; `npm test` PASS (874 passed, 0 failed across 11 offline suites); `git diff --check` PASS. Completion is not GPT independent acceptance.
 - Next planned slice: **G1-R1 — Controller Runtime Foundation**. STOP for GPT independent acceptance; no automatic authorization to continue.
+
+---
+
+## G1-R1 — Controller Runtime Foundation (2026-09-26)
+
+- Base SHA: `d96b18e28110d33cdd5473bfb859ad969f1dff6f` (`origin/main`). Work branch: `work/g1-r1-controller-runtime-foundation`.
+- Added isolated `src/automation/` deterministic controller core: G1-C0 state machine and operation policy, strict immutable implementation/correction packets with canonical SHA-256 hashes, SHA-bound remote acceptance, bounded iterations/runtime, action-specific authorization data, explicit stop/resume rules, defensive in-memory store, and append-only operational audit.
+- Promotion is a facts-only eligibility/state evaluation; no GitHub push, CI polling, or other repository side effect is performed by the controller. External SHA/CI/authorization inputs are data contracts, **not authenticated** by R1. Human resume records that external preconditions need rechecking.
+- GPT integration, Codex integration, GitHub adapter, durable persistence, E0-R3 integration, and unattended automation are NOT implemented or enabled. Provider/model calls: 0; no external runtime integration or CASE-001 access.
+- Added 40 fully offline controller tests. Validation: `npm run build` PASS; `npm test` PASS (914 passed, 0 failed across 12 offline suites); `git diff --check` PASS. The 500-line diff warning threshold is exceeded, triggering independent scope review, not automatic rejection; all changed files remain inside the packet allowlist.
+- Next planned slice: **G1-R2 — GitHub Reality + Durable State Boundary**. STOP for GPT independent acceptance; no automatic authorization to continue.
