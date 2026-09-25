@@ -2236,3 +2236,17 @@ M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型�
 - Provider adapters, CallOptions, admission, reconciliation, routing, and execution behavior are unchanged. Provider/model calls: 0.
 - Validation: `npm run build` PASS; `npm test` PASS (862 passed, 0 failed across 10 offline suites); `git diff --check` PASS.
 - Next planned slice: **E0-R2 — Provider Execution Contract**. STOP for GPT independent acceptance; no automatic authorization to continue.
+
+---
+
+## E0-R2 — Provider Execution Contract (2026-09-26)
+
+- Base SHA: `7c5d47112226a44d1fc3777f80bd0a60e3c993af` (`main`).
+- Work branch: `work/e0-r2-provider-execution-contract`.
+- Added provider-neutral `ExecutionRequest`, `ProviderBinding`, a future admission data contract, and `ProviderExecutor` under `src/execution/`. Explicit parameters retain normalized `temperature` and `max_output_tokens` names and preserve absent versus supplied values.
+- Added `NormalizedExecutionResult` with distinct SUCCESS, KNOWN_FAILURE, and UNCERTAIN outcomes; requested/effective/reported model facts remain separate. Usage, retrieval, finish reason, request ID, and allowlisted metadata remain absent unless supplied by a transport. Unknown thrown errors are conservatively UNCERTAIN.
+- Claude, OpenAI, and Gemini executor implementations accept injectable fake transports; their default transports delegate to existing provider functions. The existing adapters retain ownership of provider wire keys and message/tool translation.
+- New executor path is NOT wired into canonical runtime. Legacy `callProvider()` and provider adapter behavior are unchanged. Admission evaluation and parameter reconciliation are NOT implemented. H1 remains unresolved.
+- Provider/model calls: 0; no live tests or CASE-001 access.
+- Validation: `npm run build` PASS; `npm test` PASS (874 passed, 0 failed across 11 offline suites); `git diff --check` PASS.
+- Next planned slice: **E0-R3 — Execution Boundary / Admission**. STOP for GPT independent acceptance; no automatic authorization to continue.
