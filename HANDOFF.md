@@ -2209,3 +2209,17 @@ Decision Synthesis
 M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型、B 比 C 正確、gate recall 不足、NORMAL 應啟用 M2-A、應 productionize、latency/cost 值得。
 
 **#3 只證明了一件事:當合法前置條件存在時,gate 會執行,而它在這一次選擇不提報。**
+
+---
+
+## E0-R-C0 — Execution Runtime Contract Freeze (2026-09-26)
+
+- Base SHA: `4d8ee2ba387570d789c2c21dde0a197f623d64f8` (`origin/main`).
+- Work branch: `work/e0-r-c0-execution-runtime-contract`.
+- Created `EXECUTION_RUNTIME_CONTRACT.md`; contract/documentation only, pending GPT independent acceptance. Completion is not acceptance.
+- H1 formally carried into future capability/parameter reconciliation: globally expressible temperature is currently forwarded by Claude; repository history records a `claude-sonnet-5` HTTP 400 rejection and deliberate passthrough restoration pending redesign. No temperature hotfix or fresh vendor verification.
+- Future execution runtime implementation has NOT started. Existing runtime, HumanAdjudication, RouteOutcome, and D1-A boundaries remain unchanged.
+- Provider/model calls: 0. No CASE-001 access, review, or modification.
+- Historical sections above and older reconciliation snapshots remain preserved; current code takes precedence over historical unimplemented-route descriptions.
+- Validation: `npm run build` PASS; `npm test` PASS (853 passed, 0 failed across 9 offline suites). Historical HANDOFF prefix preserved byte-for-byte; `git diff --check` PASS. These checks do not establish live capability verification or architecture acceptance.
+- Next planned slice: **E0-R1 — Capability / Parameter Model**. STOP for GPT independent acceptance; no automatic authorization to continue.
