@@ -18,6 +18,7 @@ export async function callClaude(prompt: string, options: CallOptions = {}): Pro
   const response = await getClient().messages.create({
     model,
     max_tokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
+    temperature: options.temperature,
     system: options.system,
     messages: [{ role: 'user', content: prompt }],
   });

@@ -63,7 +63,6 @@ export type CallStage =
 export interface CallOptions {
   model?: string;
   system?: string;
-  /** Forwarded by the OpenAI and Gemini adapters. The Claude adapter does not send it: claude-sonnet-5 rejects sampling parameters with a 400. */
   temperature?: number;
   maxTokens?: number;
   retrieval?: RetrievalRequest;
