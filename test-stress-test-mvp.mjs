@@ -14,6 +14,7 @@ import {
   assertRevisionSuccessorIntegrity,
   assertHumanAdjudicationLedgerIntegrity,
   assertRevisionActionLedgerIntegrity,
+  assertSemanticIssueLedgerIntegrity,
   recordRevisionVerification,
   assertRevisionVerificationIntegrity,
   generateDecisionRecord,
@@ -878,7 +879,9 @@ check('DecisionRecord matches revision actions by kind AND id, never by id alone
         id: sharedId,
         title: 'Issue with a colliding id',
         description: 'x',
-        findingIds: [],
+        // A valid, exactly resolving member -- the finding that shares the
+        // issue's id string. The collision under test is unchanged.
+        findingIds: [sharedId],
         evidenceState: 'NOT_APPLICABLE',
         status: 'ADJUDICATED',
       },
@@ -905,6 +908,7 @@ check('DecisionRecord matches revision actions by kind AND id, never by id alone
     },
   };
 
+  assert.doesNotThrow(() => assertSemanticIssueLedgerIntegrity(session), 'the fixture is itself a canonically valid ledger');
   const record = generateDecisionRecord(session);
   // rev-1's ref is kind:FINDING -- it must attribute only to the standalone finding...
   assert.equal(record.standaloneFindingAdjudications.length, 1);
@@ -2247,7 +2251,12 @@ check('Hardening R. an adjudication targeting an unknown SemanticIssue is reject
 check('Hardening S. an adjudication targeting an unknown ReviewFinding is rejected', () => {
   const { session } = buildAdjudicatedFixtureSession();
   const tampered = { ...session, findings: {} };
-  assert.throws(() => assertHumanAdjudicationLedgerIntegrity(tampered), /references unknown findingId/);
+  // Removing every finding also empties the adjudicated issue's membership, so
+  // the canonical SemanticIssue ledger (composed first) rejects it earlier.
+  assert.throws(
+    () => assertHumanAdjudicationLedgerIntegrity(tampered),
+    /assertSemanticIssueLedgerIntegrity: SemanticIssue .* references findingId .* does not exactly resolve to a ReviewFinding/
+  );
 });
 
 check(
@@ -2261,9 +2270,11 @@ check(
         [itIssueId]: { ...session.semanticIssues[itIssueId], id: 'a-different-id' },
       },
     };
+    // Rejected by the canonical SemanticIssue ledger, composed first: an issue
+    // stored under a key it does not name never reaches adjudication lookup.
     assert.throws(
       () => assertHumanAdjudicationLedgerIntegrity(tampered),
-      /resolves by map key but the resolved SemanticIssue\.id .* differs/
+      /assertSemanticIssueLedgerIntegrity: semanticIssues map key .* does not match SemanticIssue\.id/
     );
   }
 );
@@ -2346,12 +2357,15 @@ check(
           id: sharedId,
           title: 'Collision issue',
           description: 'Shares an id-shaped string with a ReviewFinding.',
-          findingIds: [],
+          // A valid, exactly resolving member (the finding with the shared id);
+          // the id-string collision under test is unchanged.
+          findingIds: [findingId],
           evidenceState: 'NOT_APPLICABLE',
           status: 'OPEN',
         },
       },
     };
+    assert.doesNotThrow(() => assertSemanticIssueLedgerIntegrity(withIssue), 'the fixture issue is itself canonically valid');
     let withBoth = adjudicate(withIssue, {
       semanticIssueId: sharedId,
       judgment: 'NEW_MATERIAL',
@@ -2365,6 +2379,8 @@ check(
       note: 'finding-level',
     });
     assert.doesNotThrow(() => assertHumanAdjudicationLedgerIntegrity(withBoth));
+    const targets = Object.values(withBoth.adjudications).map((a) => (a.semanticIssueId !== undefined ? `SEMANTIC_ISSUE:${a.semanticIssueId}` : `FINDING:${a.findingId}`));
+    assert.deepEqual(targets.sort(), [`FINDING:${sharedId}`, `SEMANTIC_ISSUE:${sharedId}`]);
   }
 );
 
@@ -2465,9 +2481,11 @@ check("Hardening AE. a RevisionAction sourceRef resolving by map key whose targe
       [issueId]: { ...session.semanticIssues[issueId], id: 'a-different-id' },
     },
   };
+  // Rejected transitively by the canonical SemanticIssue ledger before the
+  // RevisionAction sourceRef is resolved.
   assert.throws(
     () => assertRevisionActionLedgerIntegrity(tampered),
-    /resolves by map key but the resolved SemanticIssue\.id .* differs/
+    /assertSemanticIssueLedgerIntegrity: semanticIssues map key .* does not match SemanticIssue\.id/
   );
 });
 

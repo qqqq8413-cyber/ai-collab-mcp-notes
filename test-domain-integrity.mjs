@@ -283,7 +283,9 @@ check('canonical ledgers reject adjudications and revision refs that name inheri
     assert.throws(() => assertHumanAdjudicationLedgerIntegrity(forgedFinding), /unknown findingId/, id);
   }
   const mismatched = { ...adjudicated, semanticIssues: { ...adjudicated.semanticIssues, [issueId]: { ...adjudicated.semanticIssues[issueId], id: findingIds[0] } } };
-  assert.throws(() => assertHumanAdjudicationLedgerIntegrity(mismatched), /differs/);
+  // An issue stored under a key it does not name is rejected by the SemanticIssue
+  // ledger, composed first, before any adjudication target is resolved.
+  assert.throws(() => assertHumanAdjudicationLedgerIntegrity(mismatched), /assertSemanticIssueLedgerIntegrity: semanticIssues map key/);
   const planned = planRevisionAction(adjudicated, { sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }], description: 'd', targetLocation: 'l' });
   const [actionId] = Object.keys(planned.revisionActions);
   const refForged = { ...planned, revisionActions: { [actionId]: { ...planned.revisionActions[actionId],
@@ -511,9 +513,13 @@ check('malformed, inherited, and mismatched targets are rejected', () => {
     throwsWithoutMutation(() => adjudicate(session, { ...target, ...good }), session);
   }
   const mismatched = { ...session, semanticIssues: { ...session.semanticIssues, [issueId]: { ...session.semanticIssues[issueId], id: 'other' } } };
-  assert.throws(() => adjudicate(mismatched, { semanticIssueId: issueId, ...good }), /unknown semanticIssueId/);
+  assert.throws(() => adjudicate(mismatched, { semanticIssueId: issueId, ...good }), /assertSemanticIssueLedgerIntegrity: semanticIssues map key/);
   const findingMismatch = { ...session, findings: { ...session.findings, [findingIds[0]]: { ...session.findings[findingIds[0]], id: findingIds[1] } } };
-  assert.throws(() => adjudicate(findingMismatch, { findingId: findingIds[0], ...good }), /unknown findingId/);
+  assert.throws(() => adjudicate(findingMismatch, { findingId: findingIds[0], ...good }), /assertSemanticIssueLedgerIntegrity/);
+  // With no SemanticIssue involved, adjudicate's own exact target resolution rejects it.
+  const { session: plain, findingIds: plainIds } = reviewed();
+  const plainMismatch = { ...plain, findings: { ...plain.findings, [plainIds[0]]: { ...plain.findings[plainIds[0]], id: plainIds[1] } } };
+  assert.throws(() => adjudicate(plainMismatch, { findingId: plainIds[0], ...good }), /unknown findingId/);
   for (const input of [null, undefined, 'NEW_MATERIAL']) assert.throws(() => adjudicate(session, input));
 });
 check('a second adjudication for the same exact target is rejected; the same id-string of the other kind is not a duplicate', () => {
@@ -691,6 +697,125 @@ check('createSemanticIssue refuses to build on a corrupt SemanticIssue ledger, a
   throwsWithoutMutation(() => createSemanticIssue(corrupt, { title: 't', description: 'd', findingIds: [findingIds[0]], evidenceState: 'UNSUPPORTED_IN_MATERIAL' }), corrupt);
   const next = createSemanticIssue(session, { title: 't', description: 'd', findingIds: [findingIds[1]], evidenceState: 'UNSUPPORTED_IN_MATERIAL' });
   assertSemanticIssueLedgerIntegrity(next);
+});
+
+// ===========================================================================
+console.log('\nCorrection #2 -- one canonical SemanticIssue ledger, upstream of every consumer');
+
+/**
+ * A valid session built only through public writes: issue X (findings f1, f2)
+ * is adjudicated and has a planned revision; issue Y (finding f3) is referenced
+ * by nothing -- no adjudication, no revision action, no question. The
+ * DeliberationState is created while the session is REVIEWED, as required.
+ */
+function ledgerChainFixture() {
+  let { session } = reviewed();
+  session = addFinding(session, findingInput({ title: 'Third finding, only in issue Y' }));
+  const [f1, f2, f3] = Object.keys(session.findings);
+  session = createSemanticIssue(session, { title: 'X', description: 'adjudicated', findingIds: [f1, f2], evidenceState: 'UNSUPPORTED_IN_MATERIAL' });
+  const x = Object.keys(session.semanticIssues)[0];
+  session = createSemanticIssue(session, { title: 'Y', description: 'unreferenced', findingIds: [f3], evidenceState: 'PARTIALLY_SUPPORTED' });
+  const y = Object.keys(session.semanticIssues).find((id) => id !== x);
+  const state = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });
+  session = adjudicate(session, { semanticIssueId: x, judgment: 'NEW_MATERIAL', actionChange: 'YES' });
+  session = planRevisionAction(session, { sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: x }], description: 'd', targetLocation: 'l' });
+  return { session, state, x, y, f3 };
+}
+const withIssueY = (session, y, issue) => ({ ...session, semanticIssues: { ...session.semanticIssues, [y]: issue } });
+const ISSUE_CORRUPTIONS = {
+  'map key != issue.id': ({ session, y }) => withIssueY(session, y, { ...session.semanticIssues[y], id: 'renamed-issue' }),
+  'issue stored under a second key': ({ session, y }) => ({ ...session, semanticIssues: { ...session.semanticIssues, 'second-key': session.semanticIssues[y] } }),
+  'malformed issue: non-string title': ({ session, y }) => withIssueY(session, y, { ...session.semanticIssues[y], title: 5 }),
+  'malformed issue: null record': ({ session, y }) => withIssueY(session, y, null),
+  'malformed issue: findingIds not an array': ({ session, y }) => withIssueY(session, y, { ...session.semanticIssues[y], findingIds: 'f3' }),
+  'empty findingIds': ({ session, y }) => withIssueY(session, y, { ...session.semanticIssues[y], findingIds: [] }),
+  'duplicate findingIds': ({ session, y, f3 }) => withIssueY(session, y, { ...session.semanticIssues[y], findingIds: [f3, f3] }),
+  'unknown findingId': ({ session, y }) => withIssueY(session, y, { ...session.semanticIssues[y], findingIds: ['no-such-finding'] }),
+  ...Object.fromEntries(INHERITED_IDS.map((id) => [`inherited findingId ${id}`,
+    ({ session, y }) => withIssueY(session, y, { ...session.semanticIssues[y], findingIds: [id] })])),
+  'ReviewFinding key/id mismatch': ({ session, f3 }) => ({ ...session, findings: { ...session.findings, [f3]: { ...session.findings[f3], id: 'other-finding' } } }),
+  'malformed ReviewFinding': ({ session, f3 }) => ({ ...session, findings: { ...session.findings, [f3]: { id: f3 } } }),
+};
+const CANONICAL_CONSUMERS = {
+  assertSemanticIssueLedgerIntegrity: (session) => assertSemanticIssueLedgerIntegrity(session),
+  assertHumanAdjudicationLedgerIntegrity: (session) => assertHumanAdjudicationLedgerIntegrity(session),
+  assertRevisionActionLedgerIntegrity: (session) => assertRevisionActionLedgerIntegrity(session),
+  generateDecisionRecord: (session) => generateDecisionRecord(session),
+  generateIntegratedDecisionReport: (session, state) => generateIntegratedDecisionReport(session, state),
+};
+
+check('A: empty findingIds on an issue no adjudication references fails the HumanAdjudication ledger', () => {
+  const fixture = ledgerChainFixture();
+  assert.equal(Object.values(fixture.session.adjudications).some((a) => a.semanticIssueId === fixture.y), false);
+  assert.throws(() => assertHumanAdjudicationLedgerIntegrity(ISSUE_CORRUPTIONS['empty findingIds'](fixture)), LEDGER);
+});
+check('B: an inherited findingId fails the HumanAdjudication ledger before any adjudication target is resolved', () => {
+  const fixture = ledgerChainFixture();
+  for (const id of INHERITED_IDS) {
+    assert.throws(() => assertHumanAdjudicationLedgerIntegrity(ISSUE_CORRUPTIONS[`inherited findingId ${id}`](fixture)), LEDGER, id);
+  }
+});
+check('C: a ReviewFinding key/id mismatch inside issue membership fails the HumanAdjudication ledger', () => {
+  const fixture = ledgerChainFixture();
+  assert.throws(() => assertHumanAdjudicationLedgerIntegrity(ISSUE_CORRUPTIONS['ReviewFinding key/id mismatch'](fixture)), LEDGER);
+});
+check('D: the same corruptions fail the RevisionAction ledger although no revision action references the corrupt issue', () => {
+  const fixture = ledgerChainFixture();
+  assert.equal(Object.values(fixture.session.revisionActions).some((a) => a.sourceRefs.some((r) => r.id === fixture.y)), false);
+  for (const name of ['empty findingIds', 'inherited findingId constructor', 'ReviewFinding key/id mismatch']) {
+    assert.throws(() => assertRevisionActionLedgerIntegrity(ISSUE_CORRUPTIONS[name](fixture)), LEDGER, name);
+  }
+});
+check('E: generateDecisionRecord fails in the upstream ledger check before projecting any corrupt membership', () => {
+  const fixture = ledgerChainFixture();
+  for (const name of ['empty findingIds', 'inherited findingId constructor', 'ReviewFinding key/id mismatch', 'duplicate findingIds']) {
+    assert.throws(() => generateDecisionRecord(ISSUE_CORRUPTIONS[name](fixture)), LEDGER, name);
+  }
+});
+check('F: generateIntegratedDecisionReport still rejects the same corruptions', () => {
+  const fixture = ledgerChainFixture();
+  for (const name of ['empty findingIds', 'inherited findingId constructor', 'ReviewFinding key/id mismatch', 'duplicate findingIds']) {
+    assert.throws(() => generateIntegratedDecisionReport(ISSUE_CORRUPTIONS[name](fixture), fixture.state), LEDGER, name);
+  }
+});
+check('G: a session built only through public writes passes every canonical consumer, through revision verification', () => {
+  const fixture = ledgerChainFixture();
+  for (const consume of Object.values(CANONICAL_CONSUMERS)) consume(fixture.session, fixture.state);
+  const record = generateDecisionRecord(fixture.session);
+  assert.deepEqual(record.issues.map((i) => i.findingIds).sort(), Object.values(fixture.session.semanticIssues).map((i) => i.findingIds).sort());
+  const [actionId] = Object.keys(fixture.session.revisionActions);
+  const implemented = implementRevisionAction(fixture.session, actionId);
+  const { sourceSession, successorSession } = createRevisionSuccessorSession(implemented, 'Synthetic memo, revised: notice periods confirmed.');
+  const verified = recordRevisionVerification(sourceSession, successorSession, { revisionActionId: actionId, verdict: 'VERIFIED_PRESENT', evidence: 'Section 2 names the notice periods.' });
+  for (const [consumer, consume] of Object.entries(CANONICAL_CONSUMERS)) {
+    if (consumer !== 'generateIntegratedDecisionReport') consume(verified, fixture.state);
+  }
+  assertRevisionVerificationLedgerIntegrity(verified);
+  // Successor authority is in play, so the report requires the validated successor.
+  generateIntegratedDecisionReport(verified, fixture.state, successorSession);
+});
+check('parity meta-invariant: whenever the SemanticIssue ledger rejects, every canonical consumer rejects too', () => {
+  const fixture = ledgerChainFixture();
+  for (const consume of Object.values(CANONICAL_CONSUMERS)) consume(fixture.session, fixture.state);
+  let cases = 0;
+  for (const [name, corrupt] of Object.entries(ISSUE_CORRUPTIONS)) {
+    const session = corrupt(fixture);
+    assert.throws(() => assertSemanticIssueLedgerIntegrity(session), LEDGER, `ledger should reject: ${name}`);
+    for (const [consumer, consume] of Object.entries(CANONICAL_CONSUMERS)) {
+      assert.throws(() => consume(session, fixture.state), undefined, `${consumer} accepted: ${name}`);
+      cases++;
+    }
+  }
+  assert.equal(cases, Object.keys(ISSUE_CORRUPTIONS).length * Object.keys(CANONICAL_CONSUMERS).length);
+});
+check('public writes refuse to build on a corrupt SemanticIssue ledger, whichever target they touch', () => {
+  const fixture = ledgerChainFixture();
+  for (const [name, corrupt] of Object.entries(ISSUE_CORRUPTIONS)) {
+    const session = corrupt(fixture);
+    throwsWithoutMutation(() => adjudicate(session, { findingId: Object.keys(fixture.session.findings)[0], judgment: 'WRONG', actionChange: 'NO' }), session);
+    throwsWithoutMutation(() => planRevisionAction(session, { sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: fixture.x }], description: 'd2', targetLocation: 'l2' }), session);
+    assert.throws(() => createSemanticIssue({ ...session, state: 'REVIEWED' }, { title: 't', description: 'd', findingIds: [Object.keys(fixture.session.findings)[0]], evidenceState: 'UNSUPPORTED_IN_MATERIAL' }), undefined, name);
+  }
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

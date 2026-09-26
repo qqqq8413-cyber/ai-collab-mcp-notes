@@ -259,8 +259,10 @@ export function createSemanticIssue(
  * SemanticIssue shape, and its `findingIds` must be a non-empty provenance
  * list with no repeats whose every entry resolves through the exact
  * ReviewFinding resolver (owned key, finding shape, finding.id === id).
- * Report projections call it before projecting anything; createSemanticIssue
- * calls it before and after its write.
+ * The head of the canonical ledger chain: the HumanAdjudication ledger (which
+ * targets SemanticIssues) composes it first, so RevisionAction, revision
+ * verification, and both decision reports depend on it transitively.
+ * createSemanticIssue also calls it before and after its write.
  */
 export function assertSemanticIssueLedgerIntegrity(session: StressTestSession): void {
   if (session.semanticIssues === null || typeof session.semanticIssues !== 'object') {
@@ -314,6 +316,9 @@ const REVISION_ACTION_STATUSES: RevisionAction['status'][] = ['PLANNED', 'IMPLEM
  * duplicate.
  */
 export function assertHumanAdjudicationLedgerIntegrity(session: StressTestSession): void {
+  // Global SemanticIssue integrity first: every issue, adjudicated or not, before
+  // any adjudication target is resolved locally.
+  assertSemanticIssueLedgerIntegrity(session);
   const seenTargets = new Set<string>();
   for (const [key, adjudication] of Object.entries(session.adjudications)) {
     if (key !== adjudication.id) {
