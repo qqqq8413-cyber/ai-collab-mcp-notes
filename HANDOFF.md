@@ -2348,3 +2348,23 @@ M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型�
 - Tests: new `test-legacy-delivery-integrity.mjs` (43; live/replay parity across 11 scenarios, the exported stage's fail-closed boundary, snapshot cases A–H with a deterministic barrier and a read-count proxy, and every delivery stage under truncation) and `test-provider-completion.mjs` (27; the real SDKs against an in-memory fetch with placeholder keys and closed-port base URLs, plus the finishReason bridge through the default executors). One status test added to `test-run-status.mjs`. A mutation check of 24 mutants over the compiled output is fully caught.
 - Not changed: the pipeline and debate modes (outside this packet's files) still deliver provider text without reading `completion`; SDK-internal transport retries are as documented in the Execution Runtime Contract §0; H1 and E0-R3 untouched.
 - Validation: `npm run build` PASS; `npm test` PASS (1112 passed, 0 failed across 17 offline suites); `git diff --check` PASS. Provider/model calls: 0. CASE-001 access: 0. STOP for GPT independent acceptance.
+
+---
+
+## G1-R1 Canonical Promotion Closure (2026-09-27)
+
+- Independently verified and CLOSED: canonical `main` advanced from `d96b18e28110d33cdd5473bfb859ad969f1dff6f` to `d01a1d356f28a7fb8dfe94a8f0a44580b5ab1542` by fast-forward only.
+- Main CI run `36255866580` and its required test check succeeded; `main` remained protected. This closure precedes G1-R2 work and does not authorize another main promotion.
+
+---
+
+## G1-R2 Durable State and Repository Reality Boundary (2026-09-27)
+
+- Work branch: `work/g1-r2-durable-state-repository-reality`, based exactly on `d01a1d356f28a7fb8dfe94a8f0a44580b5ab1542`. No main promotion is authorized in this slice.
+- `FileControllerStore` persists a version-1 envelope containing the complete run and an integrity checksum. A write takes a per-run exclusive lock, validates against the current canonical file, writes and flushes a private temp file, atomically renames it, and flushes the directory. An orphan temp is ignored; an orphan lock stops writes instead of being removed. Every load checks the envelope and `assertRunInvariants`; structurally corrupt files are not repaired.
+- The store gives one controller a private writer closure. Public `replace` cannot append repository-authority or recheck actions. Two controllers using separate store instances still serialize through the same per-run lock and reject a stale transition. Input and output objects are detached.
+- `RepositoryRealityPort` is read-only and injected at composition. Its branch, comparison, exact-SHA CI/required-check, and protection observations are strictly parsed and checked against the requested repository/branch/SHA and controller time. The current model verifies exactly one required check; multiple required checks fail closed until a complete all-checks observation is designed. The four former caller-fact paths (`recordRemoteSha`, `requestPromotion`, `recordPromotedMain`, `close`) reject extra fact arguments and read only this port. No live GitHub adapter or GitHub write is included.
+- Restart reconciliation reads current work/main state. PROMOTING plus accepted main records `RECOVER_PROMOTED_MAIN` and enters CANONICAL_CI; old main enters HUMAN_STOP with no retry; unrelated main enters ARCHITECTURE_STOP. CANONICAL_CI closes only on exact green CI/check and protection, stays open on pending, and stops on moved main, failure, missing check, or missing protection. A moved work branch stops stale SHA/acceptance from advancing.
+- Human resume continues to set `externalRecheckRequired`; external-sensitive transitions now refuse it. Successful port recheck records `RECHECK_EXTERNAL_REALITY` and clears it through the shared lifecycle/store; mismatched facts stop without clearing it. The lifecycle also validates audit action chains, counters, and loaded optional evidence more strictly.
+- Offline validation: `npm run build` PASS; `npm test` PASS (1,158 passed, 0 failed across 19 suites); `git diff --check` PASS. Provider/model calls: 0. CASE-001 access: 0. E0-R3: not implemented. Main: untouched.
+- Boundary still to bind in a later slice: the injected port is a trusted composition dependency, not a live authenticated GitHub adapter; authorization issuer identity also remains outside G1-R2. The checksum detects unsealed/torn writes, not a malicious actor with filesystem write access who can reseal a file. No production/autonomous GitHub use should be inferred from offline fake-port tests.

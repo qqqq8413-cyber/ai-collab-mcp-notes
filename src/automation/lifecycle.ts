@@ -89,7 +89,11 @@ const RULES: Readonly<Record<string, Rule>> = Object.freeze(Object.assign(Object
   AUTHORIZE_PROMOTION: rule(['HUMAN'], [['ACCEPTED', 'PROMOTION_READY']], ['promotionAuthorization', 'promotionPreflight']),
   MARK_PROMOTING: rule(['CONTROLLER'], [['PROMOTION_READY', 'PROMOTING']]),
   RECORD_PROMOTED_MAIN: rule(['CONTROLLER'], [['PROMOTING', 'CANONICAL_CI']], ['observedPromotedMainSha']),
+  RECOVER_PROMOTED_MAIN: rule(['CONTROLLER'], [['PROMOTING', 'CANONICAL_CI']], ['observedPromotedMainSha']),
   CLOSE_VERIFIED_RUN: rule(['CONTROLLER'], [['CANONICAL_CI', 'CLOSED']]),
+  RECOVER_CLOSE: rule(['CONTROLLER'], [['CANONICAL_CI', 'CLOSED']]),
+  RECONCILE_PENDING: rule(['CONTROLLER'], [['CANONICAL_CI', 'CANONICAL_CI']]),
+  RECHECK_EXTERNAL_REALITY: rule(['CONTROLLER'], fromActive((state) => [state]), ['externalRecheckRequired']),
   STOP: rule(['HUMAN', 'GPT_ARCHITECT', 'CONTROLLER'], fromActive(() => [...STOP_CLASSES]), STOP_FIELDS),
   BUDGET_EXHAUSTED: rule(['CONTROLLER'], [['SOFT_STOP', 'HUMAN_STOP']], ['stopReason', 'stopId']),
   RESUME_SOFT_WITH_REPAIR: rule(['CONTROLLER'], [...ACTIVE].map((state): [ControllerState, ControllerState] => ['SOFT_STOP', state]), STOP_FIELDS),
@@ -146,14 +150,47 @@ export function assertFreshRun(run: ControllerRun): void {
 /** Evidence each state requires, checked on every commit and every load. */
 export function assertRunInvariants(run: ControllerRun): void {
   if (!run || typeof run !== 'object' || Object.keys(run).some((key) => !RUN_KEYS.has(key))) fail('unrecognised run shape');
+  if (!nonEmpty(run.runId) || !nonEmpty(run.sliceId) || !nonEmpty(run.repository)) fail('invalid run identity');
   const state = run.state;
   if (!STATES.includes(state)) fail('unknown state');
   if (!Number.isSafeInteger(run.implementationIterations) || run.implementationIterations < 0 ||
       !Number.isSafeInteger(run.acceptanceFailures) || run.acceptanceFailures < 0) fail('invalid counters');
   if (!Array.isArray(run.audit) || run.audit.some((entry, index) => entry?.sequence !== index + 1)) fail('audit sequence broken');
+  let prior: ControllerState = 'IDLE';
+  let priorAt = -Infinity;
+  const usedGrants = new Set<string>();
+  for (const entry of run.audit) {
+    if (!entry || typeof entry !== 'object' || Object.keys(entry).some((key) => !ENTRY_KEYS.has(key)) ||
+        entry.runId !== run.runId || entry.sliceId !== run.sliceId || entry.repository !== run.repository ||
+        entry.previousState !== prior || !isInstant(entry.timestamp) || parseInstant(entry.timestamp)! < priorAt) fail('audit history broken');
+    const spec = Object.hasOwn(RULES, entry.action) ? RULES[entry.action] : undefined;
+    if (!spec || !spec.roles.includes(entry.role) || !spec.moves.has(move(prior, entry.nextState))) fail('audit action invalid');
+    if (entry.authorizationReference) {
+      if (usedGrants.has(entry.authorizationReference) ||
+          !['AUTHORIZE_PROMOTION', 'RESUME_HUMAN_STOP'].includes(entry.action)) fail('audit authorization replay');
+      usedGrants.add(entry.authorizationReference);
+    }
+    prior = entry.nextState;
+    priorAt = parseInstant(entry.timestamp)!;
+  }
+  if (run.implementationIterations !== run.audit.filter((entry) => entry.action === 'BEGIN_IMPLEMENTATION').length ||
+      run.acceptanceFailures !== run.audit.filter((entry) => entry.action === 'REJECT_EXACT_SHA').length) {
+    fail('counters disagree with audit history');
+  }
   const last = run.audit.at(-1);
   if (last ? last.nextState !== state : state !== 'IDLE') fail('state does not match the audit trail');
   const packet = run.activePacket;
+  if (run.externalRecheckRequired !== undefined && typeof run.externalRecheckRequired !== 'boolean') fail('invalid external recheck flag');
+  if (run.remoteSha !== undefined && !remoteSchema.safeParse(run.remoteSha).success) fail('invalid remote evidence');
+  if (run.acceptance !== undefined && !decisionSchema.safeParse(run.acceptance).success) fail('invalid acceptance evidence');
+  if (run.promotionPreflight !== undefined && !preflightSchema.safeParse(run.promotionPreflight).success) fail('invalid promotion preflight');
+  if (run.humanResumeAuthorization !== undefined && !parseAuthorization(run.humanResumeAuthorization)) fail('invalid resume authorization');
+  if (run.promotionAuthorization !== undefined && !parseAuthorization(run.promotionAuthorization)) fail('invalid promotion authorization');
+  if (run.correctionPacket !== undefined) {
+    try { validateCorrection(run.correctionPacket, packet!, run.activePacketHash!, run.correctionPacket.rejectedSha,
+      run.correctionPacket.reviewerFindings, run.correctionPacket.correctionIteration); }
+    catch { fail('invalid correction packet'); }
+  }
   if (packet !== undefined || run.activePacketHash !== undefined) {
     let hash: string | undefined;
     try { hash = packet && packetHash(packet); } catch { hash = undefined; }
@@ -168,11 +205,12 @@ export function assertRunInvariants(run: ControllerRun): void {
     if (ACTIVE.has(state) && (run.interruptedState !== undefined || run.stopReason !== undefined)) fail('stale stop data on an active state');
     if (state === 'FAILED_CLOSED' && !nonEmpty(run.stopReason)) fail('FAILED_CLOSED without a reason');
   }
-  if (WITH_PACKET.has(state) && !packet) fail(`${state} requires an active packet`);
+  const evidencedState = STOPS.has(state) ? run.interruptedState! : state;
+  if (WITH_PACKET.has(evidencedState) && !packet) fail(`${state} requires an active packet`);
   if (WITH_ITERATION.has(state) && (!isInstant(run.iterationStartedAt) || run.implementationIterations < 1)) {
     fail(`${state} requires a started iteration`);
   }
-  if (WITH_REMOTE.has(state)) {
+  if (WITH_REMOTE.has(evidencedState)) {
     const remote = remoteSchema.safeParse(run.remoteSha);
     if (!remote.success || remote.data.repository !== run.repository || remote.data.branch !== packet!.targetBranch) {
       fail(`${state} requires remote SHA evidence for the packet branch`);
@@ -184,9 +222,9 @@ export function assertRunInvariants(run: ControllerRun): void {
       decision.data.packetHash === run.activePacketHash && decision.data.reviewedSha === run.remoteSha!.sha &&
       (kind === 'ACCEPT' || decision.data.findings.length > 0);
   };
-  if (state === 'CORRECTION_REQUIRED' && !decisionBinds('REJECT')) fail('CORRECTION_REQUIRED requires a GPT rejection of the remote SHA');
-  if (WITH_ACCEPTANCE.has(state) && !decisionBinds('ACCEPT')) fail(`${state} requires a GPT acceptance of the exact remote SHA`);
-  if (WITH_PROMOTION.has(state)) {
+  if (evidencedState === 'CORRECTION_REQUIRED' && !decisionBinds('REJECT')) fail('CORRECTION_REQUIRED requires a GPT rejection of the remote SHA');
+  if (WITH_ACCEPTANCE.has(evidencedState) && !decisionBinds('ACCEPT')) fail(`${state} requires a GPT acceptance of the exact remote SHA`);
+  if (WITH_PROMOTION.has(evidencedState)) {
     const auth = parseAuthorization(run.promotionAuthorization);
     const facts = preflightSchema.safeParse(run.promotionPreflight);
     if (!auth || !authorizationBinds(auth, promotionBinding(run)) || !facts.success ||
@@ -194,7 +232,7 @@ export function assertRunInvariants(run: ControllerRun): void {
       fail(`${state} requires exact human promotion authorization and passing preflight`);
     }
   }
-  if (WITH_PROMOTED_MAIN.has(state) && run.observedPromotedMainSha !== run.acceptance!.reviewedSha) {
+  if (WITH_PROMOTED_MAIN.has(evidencedState) && run.observedPromotedMainSha !== run.acceptance!.reviewedSha) {
     fail(`${state} requires promoted main to equal the accepted SHA`);
   }
 }
@@ -288,7 +326,13 @@ export function assertTransition(before: ControllerRun, after: ControllerRun): v
       }
       break;
     case 'RECORD_PROMOTED_MAIN':
+    case 'RECOVER_PROMOTED_MAIN':
       if (entry.resultingSHA !== after.observedPromotedMainSha) fail('promoted main reference');
+      break;
+    case 'RECHECK_EXTERNAL_REALITY':
+      if (before.externalRecheckRequired !== true || after.externalRecheckRequired !== false) {
+        fail('external recheck must consume a pending recheck');
+      }
       break;
     case 'STOP':
       if (after.interruptedState !== before.state) fail('a stop records the state it interrupted');
@@ -310,6 +354,12 @@ export function assertTransition(before: ControllerRun, after: ControllerRun): v
     }
     default:
       break;
+  }
+  if (before.externalRecheckRequired === true &&
+      ['BEGIN_IMPLEMENTATION', 'RECORD_REMOTE_SHA', 'BEGIN_REMOTE_ACCEPTANCE', 'ACCEPT_EXACT_SHA',
+        'REJECT_EXACT_SHA', 'ISSUE_CORRECTION_PACKET', 'AUTHORIZE_PROMOTION',
+        'MARK_PROMOTING', 'RECORD_PROMOTED_MAIN', 'RECOVER_PROMOTED_MAIN', 'CLOSE_VERIFIED_RUN', 'RECOVER_CLOSE'].includes(entry.action)) {
+    fail('external reality recheck required');
   }
   assertRunInvariants(after);
 }

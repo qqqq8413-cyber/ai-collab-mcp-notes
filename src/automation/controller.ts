@@ -2,17 +2,19 @@ import { z } from 'zod';
 import { InMemoryControllerStore, type ControllerStore } from './audit.js';
 import {
   acceptedAt, assertRunInvariants, assertTransition, isActiveState, isStopState, isTerminalState, parseAcceptanceDecision,
-  parsePostPromotion, parsePromotionPreflight, parseRemoteSha, preflightPasses,
+  preflightPasses,
 } from './lifecycle.js';
 import { packetHash, parseCorrection, parsePacket, validateCorrection } from './packet.js';
 import { evaluatePolicy, matchAuthorization, parseAuthorization } from './policy.js';
+import { readBranch, readPostPromotion, readPreflight, unavailableRepositoryRealityPort,
+  type RepositoryRealityPort } from './repository-reality.js';
 import { parseInstant } from './time.js';
 import {
   ROLES, STOP_CLASSES, type Actor, type Clock, type ControllerRun, type ControllerState, type StopClass,
 } from './types.js';
 
-// External SHA, CI, and authorization records are data-only in R1. A later
-// adapter must authenticate issuers and verify facts before submitting them.
+// Authorization identity remains a later integration boundary. Repository facts
+// are now read only from the injected reality port, never from method arguments.
 
 const text = z.string().trim().min(1);
 const actorSchema = z.strictObject({ id: text, role: z.enum(ROLES) });
@@ -27,10 +29,15 @@ interface Instant { at: number; iso: string }
 export class AutomationController {
   readonly #clock: Clock;
   readonly #store: ControllerStore;
+  readonly #write: (run: ControllerRun) => void;
+  readonly #reality: RepositoryRealityPort;
 
-  constructor(clock: Clock, store: ControllerStore = new InMemoryControllerStore()) {
+  constructor(clock: Clock, store: ControllerStore = new InMemoryControllerStore(),
+    reality: RepositoryRealityPort = unavailableRepositoryRealityPort()) {
     this.#clock = clock;
     this.#store = store;
+    this.#write = store.bindController();
+    this.#reality = reality;
     Object.freeze(this);
   }
 
@@ -69,6 +76,12 @@ export class AutomationController {
   #consumed(run: ControllerRun, authorizationId: string): boolean {
     return run.audit.some((entry) => entry.authorizationReference === authorizationId);
   }
+  #workCurrent(run: ControllerRun, now: Instant): boolean {
+    return readBranch(this.#reality, run.repository, run.activePacket!.targetBranch, now.at).sha === run.remoteSha?.sha;
+  }
+  #needsRecheck(run: ControllerRun): void {
+    if (run.externalRecheckRequired === true) throw new Error('External reality recheck required');
+  }
   // Every state change goes through here and is checked against the shared lifecycle
   // before the store sees it; the store checks it again.
   #commit(run: ControllerRun, next: ControllerState, actor: Actor, action: string, now: Instant,
@@ -87,7 +100,7 @@ export class AutomationController {
       packetHash: run.activePacketHash, acceptanceSHA: extras.acceptanceSHA,
       stopReason: recordsStop ? run.stopReason : undefined, stopId: run.stopId });
     assertTransition(before, run);
-    this.#store.replace(run);
+    this.#write(run);
     return this.get(run.runId);
   }
 
@@ -120,6 +133,7 @@ export class AutomationController {
     const run = this.get(runId);
     if (who.role !== 'CODEX_IMPLEMENTER' ||
         !['PACKET_READY', 'CORRECTION_REQUIRED'].includes(run.state) || !run.activePacket) throw new Error('Illegal implementation start');
+    this.#needsRecheck(run);
     const now = this.#now();
     if (run.implementationIterations >= run.activePacket.iterationBudget.maxImplementationIterationsPerSlice) {
       return this.#halt(run, CONTROLLER, 'HUMAN_STOP', 'implementation iteration budget exhausted', now);
@@ -146,14 +160,14 @@ export class AutomationController {
     }
     return this.#commit(run, 'IMPLEMENTATION_COMPLETE', who, 'REPORT_IMPLEMENTATION_COMPLETE', now);
   }
-  recordRemoteSha(runId: string, actor: Actor, input: unknown): ControllerRun {
+  recordRemoteSha(runId: string, actor: Actor): ControllerRun {
+    if (arguments.length !== 2) throw new Error('Caller-supplied remote facts are forbidden');
     const who = this.#actor(actor);
     const run = this.get(runId);
     this.#require(run, 'IMPLEMENTATION_COMPLETE', who, 'CODEX_IMPLEMENTER');
-    const evidence = parseRemoteSha(input);
     const now = this.#now();
-    if (evidence.repository !== run.repository || evidence.branch !== run.activePacket?.targetBranch ||
-        parseInstant(evidence.observedAt)! > now.at) throw new Error('Remote SHA evidence mismatch');
+    this.#needsRecheck(run);
+    const evidence = readBranch(this.#reality, run.repository, run.activePacket!.targetBranch, now.at);
     run.remoteSha = evidence;
     return this.#commit(run, 'REMOTE_SHA_READY', who, 'RECORD_REMOTE_SHA', now, { resultingSHA: evidence.sha });
   }
@@ -162,7 +176,10 @@ export class AutomationController {
     const run = this.get(runId);
     this.#require(run, 'REMOTE_SHA_READY', who, 'GPT_ARCHITECT');
     if (!run.remoteSha) throw new Error('No remote SHA');
-    return this.#commit(run, 'ACCEPTANCE_REVIEW', who, 'BEGIN_REMOTE_ACCEPTANCE', this.#now());
+    const now = this.#now();
+    this.#needsRecheck(run);
+    if (!this.#workCurrent(run, now)) return this.#halt(run, CONTROLLER, 'ARCHITECTURE_STOP', 'work branch moved after remote SHA evidence', now);
+    return this.#commit(run, 'ACCEPTANCE_REVIEW', who, 'BEGIN_REMOTE_ACCEPTANCE', now);
   }
   // The only path that creates ACCEPTED: an independent GPT decision bound to the
   // exact remote SHA and packet. Implementer and controller roles are refused.
@@ -172,6 +189,8 @@ export class AutomationController {
     this.#require(run, 'ACCEPTANCE_REVIEW', who, 'GPT_ARCHITECT');
     const decision = parseAcceptanceDecision(input);
     const now = this.#now();
+    this.#needsRecheck(run);
+    if (!this.#workCurrent(run, now)) return this.#halt(run, CONTROLLER, 'ARCHITECTURE_STOP', 'work branch moved during acceptance', now);
     if (decision.packetId !== run.activePacket?.packetId || decision.packetHash !== run.activePacketHash ||
         decision.reviewedSha !== run.remoteSha?.sha || parseInstant(decision.issuedAt)! > now.at ||
         (decision.decision === 'REJECT' && decision.findings.length === 0)) throw new Error('Acceptance does not bind active remote SHA/packet');
@@ -190,6 +209,7 @@ export class AutomationController {
     const who = this.#actor(actor);
     const run = this.get(runId);
     this.#require(run, 'CORRECTION_REQUIRED', who, 'GPT_ARCHITECT');
+    this.#needsRecheck(run);
     if (run.correctionPacket?.rejectedSha === run.remoteSha?.sha || !run.activePacket || !run.activePacketHash ||
         run.acceptance?.decision !== 'REJECT' || !run.remoteSha) throw new Error('Correction already recorded or rejection missing');
     const correction = parseCorrection(input);
@@ -199,13 +219,14 @@ export class AutomationController {
     run.correctionPacket = correction;
     return this.#commit(run, 'CORRECTION_REQUIRED', who, 'ISSUE_CORRECTION_PACKET', this.#now());
   }
-  requestPromotion(runId: string, actor: Actor, input: unknown, auth: unknown): ControllerRun {
+  requestPromotion(runId: string, actor: Actor, auth: unknown): ControllerRun {
+    if (arguments.length !== 3) throw new Error('Caller-supplied promotion facts are forbidden');
     const who = this.#actor(actor);
     const run = this.get(runId);
     this.#require(run, 'ACCEPTED', who, 'HUMAN');
-    const facts = parsePromotionPreflight(input);
     const grant = parseAuthorization(auth);
     const now = this.#now();
+    this.#needsRecheck(run);
     const verdict = evaluatePolicy({ operation: 'FAST_FORWARD_MAIN', target: 'main', actor: who,
       packet: run.activePacket, runId: run.runId, authorization: grant, now: now.iso });
     if (!grant || verdict.decision !== 'AUTHORIZED') throw new Error(`Promotion unauthorized: ${grant ? verdict.reason : 'malformed authorization'}`);
@@ -214,6 +235,8 @@ export class AutomationController {
     if (accepted === undefined || parseInstant(grant.issuedAt)! < accepted) {
       throw new Error('Promotion authorization predates the acceptance it would promote');
     }
+    if (!this.#workCurrent(run, now)) return this.#halt(run, CONTROLLER, 'ARCHITECTURE_STOP', 'work branch moved after acceptance', now);
+    const facts = readPreflight(this.#reality, run, now.at);
     if (!preflightPasses(facts, run)) {
       return this.#halt(run, CONTROLLER, 'ARCHITECTURE_STOP', 'promotion preflight mismatch', now);
     }
@@ -227,34 +250,109 @@ export class AutomationController {
     const run = this.get(runId);
     this.#require(run, 'PROMOTION_READY', who, 'CONTROLLER');
     const now = this.#now();
+    this.#needsRecheck(run);
     // Re-checked now: a grant that expired after requestPromotion cannot start promotion.
     if (!matchAuthorization(run.promotionAuthorization, { role: 'HUMAN', operation: 'FAST_FORWARD_MAIN', target: 'main',
       runId: run.runId, packetId: run.activePacket?.packetId }, now.iso)) {
       throw new Error('Promotion authorization missing or no longer valid');
     }
+    if (!this.#workCurrent(run, now) || !preflightPasses(readPreflight(this.#reality, run, now.at), run)) {
+      return this.#halt(run, CONTROLLER, 'ARCHITECTURE_STOP', 'promotion preflight changed before begin', now);
+    }
     return this.#commit(run, 'PROMOTING', who, 'MARK_PROMOTING', now);
   }
-  recordPromotedMain(runId: string, actor: Actor, input: unknown): ControllerRun {
+  recordPromotedMain(runId: string, actor: Actor): ControllerRun {
+    if (arguments.length !== 2) throw new Error('Caller-supplied promoted-main facts are forbidden');
     const who = this.#actor(actor);
     const run = this.get(runId);
     this.#require(run, 'PROMOTING', who, 'CONTROLLER');
-    const evidence = parseRemoteSha(input);
     const now = this.#now();
-    if (evidence.repository !== run.repository || evidence.branch !== 'main' ||
-        evidence.sha !== run.acceptance?.reviewedSha || parseInstant(evidence.observedAt)! > now.at) throw new Error('Promoted main evidence mismatch');
+    this.#needsRecheck(run);
+    const evidence = readBranch(this.#reality, run.repository, 'main', now.at);
+    if (!this.#workCurrent(run, now)) {
+      return this.#halt(run, CONTROLLER, 'ARCHITECTURE_STOP', 'work branch moved during promotion', now);
+    }
+    if (evidence.sha !== run.acceptance?.reviewedSha) throw new Error('Promoted main evidence mismatch');
     run.observedPromotedMainSha = evidence.sha;
     return this.#commit(run, 'CANONICAL_CI', who, 'RECORD_PROMOTED_MAIN', now, { resultingSHA: evidence.sha });
   }
-  close(runId: string, actor: Actor, input: unknown): ControllerRun {
+  close(runId: string, actor: Actor): ControllerRun {
+    if (arguments.length !== 2) throw new Error('Caller-supplied close facts are forbidden');
     const who = this.#actor(actor);
     const run = this.get(runId);
     this.#require(run, 'CANONICAL_CI', who, 'CONTROLLER');
-    const facts = parsePostPromotion(input);
+    const now = this.#now();
+    this.#needsRecheck(run);
+    if (!this.#workCurrent(run, now)) return this.#halt(run, CONTROLLER, 'ARCHITECTURE_STOP', 'work branch moved after acceptance', now);
+    const main = readBranch(this.#reality, run.repository, 'main', now.at);
+    if (main.sha !== run.acceptance!.reviewedSha) return this.#halt(run, CONTROLLER, 'ARCHITECTURE_STOP', 'main moved during canonical CI', now);
+    const { facts, pending, requiredCheckPresent, failed } = readPostPromotion(this.#reality, run, now.at);
+    if (!facts.mainProtected || !requiredCheckPresent || failed) {
+      return this.#halt(run, CONTROLLER, 'ARCHITECTURE_STOP', 'canonical CI, required check, or protection failed', now);
+    }
+    if (pending) return this.#commit(run, 'CANONICAL_CI', CONTROLLER, 'RECONCILE_PENDING', now);
     if (facts.observedMainSha !== run.acceptance?.reviewedSha ||
         facts.observedMainSha !== run.observedPromotedMainSha ||
         facts.expectedAcceptedSha !== run.acceptance?.reviewedSha ||
         !facts.mainCiPassed || !facts.requiredCheckPassed || !facts.mainProtected) throw new Error('Canonical CI or SHA verification failed');
-    return this.#commit(run, 'CLOSED', who, 'CLOSE_VERIFIED_RUN', this.#now(), { acceptanceSHA: facts.expectedAcceptedSha });
+    return this.#commit(run, 'CLOSED', who, 'CLOSE_VERIFIED_RUN', now, { acceptanceSHA: facts.expectedAcceptedSha });
+  }
+  /** Read-only restart reconciliation. It never retries a repository write. */
+  reconcile(runId: string, actor: Actor): ControllerRun {
+    if (arguments.length !== 2) throw new Error('Caller-supplied reconciliation facts are forbidden');
+    const who = this.#actor(actor);
+    if (who.role !== 'CONTROLLER') throw new Error('Only controller may reconcile');
+    let run = this.get(runId);
+    if (!isActiveState(run.state)) throw new Error('Only active runs may reconcile');
+    const now = this.#now();
+    if (run.remoteSha && !this.#workCurrent(run, now)) {
+      return this.#halt(run, CONTROLLER, 'ARCHITECTURE_STOP', 'stored work SHA moved in repository', now);
+    }
+    if (run.state === 'PROMOTING') {
+      const main = readBranch(this.#reality, run.repository, 'main', now.at);
+      if (main.sha === run.activePacket!.expectedBaseSha) {
+        return this.#halt(run, CONTROLLER, 'HUMAN_STOP', 'promotion side effect not observed; no automatic retry', now);
+      }
+      if (main.sha !== run.acceptance!.reviewedSha) {
+        return this.#halt(run, CONTROLLER, 'ARCHITECTURE_STOP', 'main moved during promotion', now);
+      }
+      if (run.externalRecheckRequired === true) run = this.#clearRecheck(run, now);
+      run.observedPromotedMainSha = main.sha;
+      return this.#commit(run, 'CANONICAL_CI', CONTROLLER, 'RECOVER_PROMOTED_MAIN', now,
+        { resultingSHA: main.sha });
+    }
+    if (run.state === 'CANONICAL_CI') {
+      const main = readBranch(this.#reality, run.repository, 'main', now.at);
+      if (main.sha !== run.acceptance!.reviewedSha) {
+        return this.#halt(run, CONTROLLER, 'ARCHITECTURE_STOP', 'main moved during canonical CI', now);
+      }
+      const { facts, pending, requiredCheckPresent, failed } = readPostPromotion(this.#reality, run, now.at);
+      if (!facts.mainProtected || !requiredCheckPresent || failed) {
+        return this.#halt(run, CONTROLLER, 'ARCHITECTURE_STOP', 'canonical CI, required check, or protection failed', now);
+      }
+      if (run.externalRecheckRequired === true) run = this.#clearRecheck(run, now);
+      if (pending) return this.#commit(run, 'CANONICAL_CI', CONTROLLER, 'RECONCILE_PENDING', now);
+      return this.#commit(run, 'CLOSED', CONTROLLER, 'RECOVER_CLOSE', now,
+        { acceptanceSHA: facts.expectedAcceptedSha });
+    }
+    if (run.externalRecheckRequired === true) {
+      const main = readBranch(this.#reality, run.repository, 'main', now.at);
+      if (run.activePacket && main.sha !== run.activePacket.expectedBaseSha) {
+        return this.#halt(run, CONTROLLER, 'ARCHITECTURE_STOP', 'main changed before external recheck', now);
+      }
+      if (run.state === 'PROMOTION_READY' && !preflightPasses(readPreflight(this.#reality, run, now.at), run)) {
+        return this.#halt(run, CONTROLLER, 'ARCHITECTURE_STOP', 'promotion preflight failed on recheck', now);
+      }
+      return this.#clearRecheck(run, now);
+    }
+    if (run.state === 'PROMOTION_READY' && !preflightPasses(readPreflight(this.#reality, run, now.at), run)) {
+      return this.#halt(run, CONTROLLER, 'ARCHITECTURE_STOP', 'promotion preflight changed on restart', now);
+    }
+    return run;
+  }
+  #clearRecheck(run: ControllerRun, now: Instant): ControllerRun {
+    run.externalRecheckRequired = false;
+    return this.#commit(run, run.state, CONTROLLER, 'RECHECK_EXTERNAL_REALITY', now);
   }
   // Accepts exactly the three operational stop classes at runtime; any other value,
   // including a lifecycle state such as ACCEPTED, is refused before anything changes.

@@ -11,7 +11,7 @@
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
-    "test": "npm run build && node test-chief.mjs && node test-run-status.mjs && node test-capabilities.mjs && node test-provider-execution-contract.mjs && node test-execution-identity.mjs && node test-provider-completion.mjs && node test-registry.mjs && node test-mcp-smoke.mjs && node test-execution-policy.mjs && node test-collaboration.mjs && node test-legacy-delivery-integrity.mjs && node test-stress-test-mvp.mjs && node test-stress-test-deliberation.mjs && node test-stress-test-decision-record.mjs && node test-domain-integrity.mjs && node test-automation-controller.mjs && node test-automation-regression.mjs"
+    "test": "npm run build && node test-chief.mjs && node test-run-status.mjs && node test-capabilities.mjs && node test-provider-execution-contract.mjs && node test-execution-identity.mjs && node test-provider-completion.mjs && node test-registry.mjs && node test-mcp-smoke.mjs && node test-execution-policy.mjs && node test-collaboration.mjs && node test-legacy-delivery-integrity.mjs && node test-stress-test-mvp.mjs && node test-stress-test-deliberation.mjs && node test-stress-test-decision-record.mjs && node test-domain-integrity.mjs && node test-automation-controller.mjs && node test-automation-regression.mjs && node test-automation-durable-store.mjs && node test-automation-recovery.mjs"
   },
   "keywords": [],
   "author": "",

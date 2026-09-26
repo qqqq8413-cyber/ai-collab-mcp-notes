@@ -13,6 +13,22 @@ const H = { id: 'human', role: 'HUMAN' };
 const K = { id: 'controller', role: 'CONTROLLER' };
 const repo = 'synthetic/example';
 const clock = { now: () => T };
+const realities = new WeakMap();
+function fakeReality() {
+  return { workSha: B, mainSha: A, aheadBy: 1, behindBy: 0, hasBaseOnlyCommits: false,
+    workCi: 'SUCCESS', mainCi: 'SUCCESS', workCheck: 'SUCCESS', mainCheck: 'SUCCESS',
+    protected: true, observedAt: T,
+    observeBranch(repository, branch) { return { repository, branch, sha: branch === 'main' ? this.mainSha : this.workSha, observedAt: this.observedAt }; },
+    compare(repository, baseSha, headSha) { return { repository, baseSha, headSha, aheadBy: this.aheadBy,
+      behindBy: this.behindBy, hasBaseOnlyCommits: this.hasBaseOnlyCommits, observedAt: this.observedAt }; },
+    observeCi(repository, branch, sha) { return { repository, branch, sha,
+      workflowStatus: branch === 'main' ? this.mainCi : this.workCi, requiredCheckName: 'test',
+      requiredCheckStatus: branch === 'main' ? this.mainCheck : this.workCheck, observedAt: this.observedAt }; },
+    observeProtection(repository, branch) { return { repository, branch, protected: this.protected,
+      requiredChecks: ['test'], observedAt: this.observedAt }; },
+  };
+}
+const realityOf = (c) => realities.get(c);
 let passed = 0, failed = 0;
 function check(name, fn) {
   try { fn(); console.log(`  PASS ${name}`); passed++; }
@@ -39,19 +55,21 @@ function auth(role, operation, target, overrides = {}) {
 }
 function make(initialPacket = packet()) {
   const store = new InMemoryControllerStore();
-  const c = new AutomationController(clock, store);
+  const reality = fakeReality();
+  const c = new AutomationController(clock, store, reality); realities.set(c, reality);
   c.createRun('run-1', 'slice-1', repo);
   c.enterArchitecture('run-1', G);
   c.issuePacket('run-1', G, initialPacket);
-  return { c, store };
+  return { c, store, reality };
 }
 function remote(sha = B, branch = 'work/synthetic-1') {
   return { repository: repo, branch, sha, observedAt: T, source: 'GITHUB' };
 }
 function ready(c, sha = B) {
+  realityOf(c).workSha = sha;
   c.beginImplementation('run-1', X);
   c.completeImplementation('run-1', X, ['offline test result']);
-  c.recordRemoteSha('run-1', X, remote(sha));
+  c.recordRemoteSha('run-1', X);
   c.beginAcceptanceReview('run-1', G);
 }
 function decision(c, result = 'ACCEPT', sha = B) {
@@ -74,11 +92,11 @@ function policy(c, operation, actor, target, authorization) {
 check('normal lifecycle reaches CLOSED only after remote review, human promotion, and CI facts', () => {
   const c = accepted();
   assert.equal(c.get('run-1').state, 'ACCEPTED');
-  c.requestPromotion('run-1', H, preflight(), auth('HUMAN', 'FAST_FORWARD_MAIN', 'main'));
+  c.requestPromotion('run-1', H, auth('HUMAN', 'FAST_FORWARD_MAIN', 'main'));
   c.beginPromotion('run-1', K);
-  c.recordPromotedMain('run-1', K, remote(B, 'main'));
-  c.close('run-1', K, { observedMainSha: B, expectedAcceptedSha: B, mainCiPassed: true,
-    requiredCheckPassed: true, mainProtected: true });
+  realityOf(c).mainSha = B;
+  c.recordPromotedMain('run-1', K);
+  c.close('run-1', K);
   assert.equal(c.get('run-1').state, 'CLOSED');
 });
 check('illegal transition fails closed without mutation', () => {
@@ -146,7 +164,7 @@ check('FAST_FORWARD_MAIN requires exact HumanAuthorization', () => {
   assert.notEqual(policy(c, 'FAST_FORWARD_MAIN', H, 'main', auth('HUMAN', 'FAST_FORWARD_MAIN', 'elsewhere')).decision, 'AUTHORIZED');
 });
 check('WRITE_EXTERNAL network level alone cannot authorize promotion', () => {
-  const c = accepted(); assert.throws(() => c.requestPromotion('run-1', H, preflight(), undefined));
+  const c = accepted(); assert.throws(() => c.requestPromotion('run-1', H, undefined));
 });
 check('generic READ_WEB cannot authorize live model calls', () => {
   const { c } = make(); const p = packet({ networkAuthorization: { level: 'READ_WEB', destinations: ['model'], purpose: 'read', budget: 1 } });
@@ -175,7 +193,7 @@ check('implementation iteration budget exhaustion yields HUMAN_STOP', () => {
   c.issueCorrection('run-1', G, correction); c.beginImplementation('run-1', X);
   c.stop('run-1', K, 'SOFT_STOP', 'synthetic repair'); c.resumeSoft('run-1', K, 'repair evidence');
   assert.equal(c.get('run-1').implementationIterations, 2);
-  c.completeImplementation('run-1', X, ['pass']); c.recordRemoteSha('run-1', X, remote(C));
+  c.completeImplementation('run-1', X, ['pass']); realityOf(c).workSha = C; c.recordRemoteSha('run-1', X);
   c.beginAcceptanceReview('run-1', G);
   c.decideAcceptance('run-1', G, { ...decision(c, 'REJECT', C), reviewId: 'review-2' });
   assert.equal(c.beginImplementation('run-1', X).state, 'HUMAN_STOP');
@@ -241,26 +259,25 @@ check('store cannot replace frozen packet or lower counters', () => {
   assert.throws(() => store.replace(lowered));
 });
 check('promotion preflight rejects moved main', () => {
-  const c = accepted(); assert.equal(c.requestPromotion('run-1', H,
-    preflight({ observedMainSha: C }), auth('HUMAN', 'FAST_FORWARD_MAIN', 'main')).state, 'ARCHITECTURE_STOP');
+  const c = accepted(); realityOf(c).mainSha = C;
+  assert.equal(c.requestPromotion('run-1', H, auth('HUMAN', 'FAST_FORWARD_MAIN', 'main')).state, 'ARCHITECTURE_STOP');
 });
 check('promotion preflight rejects behind or diverged SHA', () => {
-  for (const facts of [preflight({ behindBy: 1 }), preflight({ hasMainOnlyCommits: true })]) {
-    const c = accepted(); assert.equal(c.requestPromotion('run-1', H, facts,
+  for (const change of [(r) => { r.behindBy = 1; }, (r) => { r.hasBaseOnlyCommits = true; }]) {
+    const c = accepted(); change(realityOf(c)); assert.equal(c.requestPromotion('run-1', H,
       auth('HUMAN', 'FAST_FORWARD_MAIN', 'main')).state, 'ARCHITECTURE_STOP');
   }
 });
 check('promotion preflight rejects failed CI or required check', () => {
-  for (const facts of [preflight({ acceptedShaCiPassed: false }), preflight({ requiredCheckPassed: false })]) {
-    const c = accepted(); assert.equal(c.requestPromotion('run-1', H, facts,
+  for (const change of [(r) => { r.workCi = 'FAILURE'; }, (r) => { r.workCheck = 'FAILURE'; }]) {
+    const c = accepted(); change(realityOf(c)); assert.equal(c.requestPromotion('run-1', H,
       auth('HUMAN', 'FAST_FORWARD_MAIN', 'main')).state, 'ARCHITECTURE_STOP');
   }
 });
 check('post-promotion close requires main equals accepted SHA', () => {
-  const c = accepted(); c.requestPromotion('run-1', H, preflight(), auth('HUMAN', 'FAST_FORWARD_MAIN', 'main'));
-  c.beginPromotion('run-1', K); c.recordPromotedMain('run-1', K, remote(B, 'main'));
-  assert.throws(() => c.close('run-1', K, { observedMainSha: C, expectedAcceptedSha: B,
-    mainCiPassed: true, requiredCheckPassed: true, mainProtected: true }));
+  const c = accepted(); c.requestPromotion('run-1', H, auth('HUMAN', 'FAST_FORWARD_MAIN', 'main'));
+  c.beginPromotion('run-1', K); realityOf(c).mainSha = B; c.recordPromotedMain('run-1', K);
+  realityOf(c).mainSha = C; assert.equal(c.close('run-1', K).state, 'ARCHITECTURE_STOP');
 });
 check('scope warning never automatically rejects', () => {
   const { c } = make(); assert.deepEqual(evaluateDiffWarnings(11, 501),

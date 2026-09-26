@@ -18,6 +18,23 @@ const GH = { id: 'github', role: 'GITHUB' };
 const ACTORS = [G, X, H, K, GH];
 const repo = 'synthetic/example';
 const DEST = 'api.synthetic-provider.test';
+const realities = new WeakMap();
+function fakeReality() {
+  return { workSha: B, mainSha: A, workBranch: 'work/synthetic-1', observedAt: T,
+    aheadBy: 1, behindBy: 0, hasBaseOnlyCommits: false, workCi: 'SUCCESS', mainCi: 'SUCCESS',
+    workCheck: 'SUCCESS', mainCheck: 'SUCCESS', protected: true,
+    observeBranch(repository, branch) { return { repository, branch: branch === 'main' ? branch : this.workBranch,
+      sha: branch === 'main' ? this.mainSha : this.workSha, observedAt: this.observedAt }; },
+    compare(repository, baseSha, headSha) { return { repository, baseSha, headSha, aheadBy: this.aheadBy,
+      behindBy: this.behindBy, hasBaseOnlyCommits: this.hasBaseOnlyCommits, observedAt: this.observedAt }; },
+    observeCi(repository, branch, sha) { return { repository, branch, sha,
+      workflowStatus: branch === 'main' ? this.mainCi : this.workCi, requiredCheckName: 'test',
+      requiredCheckStatus: branch === 'main' ? this.mainCheck : this.workCheck, observedAt: this.observedAt }; },
+    observeProtection(repository, branch) { return { repository, branch, protected: this.protected,
+      requiredChecks: ['test'], observedAt: this.observedAt }; },
+  };
+}
+const realityOf = (c) => realities.get(c);
 let passed = 0, failed = 0;
 function check(name, fn) {
   try { fn(); console.log(`  PASS ${name}`); passed++; }
@@ -55,19 +72,21 @@ function auth(role, operation, target, overrides = {}) {
 function movableClock(iso = T) { return { value: iso, now() { return this.value; } }; }
 function make(initialPacket = packet(), clock = movableClock()) {
   const store = new InMemoryControllerStore();
-  const c = new AutomationController(clock, store);
+  const reality = fakeReality();
+  const c = new AutomationController(clock, store, reality); realities.set(c, reality);
   c.createRun('run-1', 'slice-1', repo);
   c.enterArchitecture('run-1', G);
   c.issuePacket('run-1', G, initialPacket);
-  return { c, store, clock };
+  return { c, store, clock, reality };
 }
 function remote(sha = B, branch = 'work/synthetic-1') {
   return { repository: repo, branch, sha, observedAt: T, source: 'GITHUB' };
 }
 function ready(c, sha = B) {
+  realityOf(c).workSha = sha;
   c.beginImplementation('run-1', X);
   c.completeImplementation('run-1', X, ['offline test result']);
-  c.recordRemoteSha('run-1', X, remote(sha));
+  c.recordRemoteSha('run-1', X);
   c.beginAcceptanceReview('run-1', G);
 }
 function decision(c, result = 'ACCEPT', sha = B) {
@@ -80,6 +99,32 @@ function preflight(overrides = {}) {
   return { expectedMainSha: A, observedMainSha: A, acceptedSha: B, aheadBy: 1, behindBy: 0,
     hasMainOnlyCommits: false, acceptedShaCiPassed: true, requiredCheckPassed: true,
     mainProtected: true, ...overrides };
+}
+function record(c, evidence = remote()) {
+  const reality = realityOf(c);
+  reality.workSha = evidence.sha; reality.workBranch = evidence.branch; reality.observedAt = evidence.observedAt;
+  return c.recordRemoteSha('run-1', X);
+}
+function promote(c, facts, grant) {
+  const reality = realityOf(c);
+  reality.mainSha = facts.observedMainSha; reality.aheadBy = facts.aheadBy; reality.behindBy = facts.behindBy;
+  reality.hasBaseOnlyCommits = facts.hasMainOnlyCommits;
+  reality.workCi = facts.acceptedShaCiPassed ? 'SUCCESS' : 'FAILURE';
+  reality.workCheck = facts.requiredCheckPassed ? 'SUCCESS' : 'FAILURE';
+  reality.protected = facts.mainProtected;
+  return c.requestPromotion('run-1', H, grant);
+}
+function recordMain(c, evidence = remote(B, 'main')) {
+  realityOf(c).mainSha = evidence.sha;
+  return c.recordPromotedMain('run-1', K);
+}
+function close(c, facts) {
+  const reality = realityOf(c);
+  reality.mainSha = facts.observedMainSha;
+  reality.mainCi = facts.mainCiPassed ? 'SUCCESS' : 'FAILURE';
+  reality.mainCheck = facts.requiredCheckPassed ? 'SUCCESS' : 'FAILURE';
+  reality.protected = facts.mainProtected;
+  return c.close('run-1', K);
 }
 function snapshot(c) { return JSON.stringify({ run: c.get('run-1'), audit: c.audit('run-1') }); }
 function rejectedWithoutMutation(c, fn) {
@@ -169,7 +214,7 @@ function attempts(c) {
 check('no public method other than GPT acceptance of the exact SHA reaches ACCEPTED, from any pre-acceptance state', () => {
   const setups = [
     () => make(), (s = make()) => (s.c.beginImplementation('run-1', X), s),
-    (s = make()) => (s.c.beginImplementation('run-1', X), s.c.completeImplementation('run-1', X, ['e']), s.c.recordRemoteSha('run-1', X, remote()), s),
+    (s = make()) => (s.c.beginImplementation('run-1', X), s.c.completeImplementation('run-1', X, ['e']), record(s.c), s),
     (s = make()) => (ready(s.c), s),
     (s = make()) => (ready(s.c), s.c.stop('run-1', K, 'SOFT_STOP', 'x'), s),
     (s = make()) => (ready(s.c), s.c.stop('run-1', K, 'HUMAN_STOP', 'x'), s),
@@ -214,7 +259,7 @@ check('store cannot be seeded with a non-fresh run', () => {
 });
 check('store rejects frame violations, counter resets, audit rewrites, and unknown fields', () => {
   const { c, store } = make(); ready(c); c.decideAcceptance('run-1', G, decision(c));
-  c.requestPromotion('run-1', H, preflight(), auth('HUMAN', 'FAST_FORWARD_MAIN', 'main'));
+  promote(c, preflight(), auth('HUMAN', 'FAST_FORWARD_MAIN', 'main'));
   const before = JSON.stringify(store.get('run-1'));
   const next = (mutate) => {
     const run = store.get('run-1'); run.state = 'PROMOTING';
@@ -236,7 +281,9 @@ check('store rejects frame violations, counter resets, audit rewrites, and unkno
 });
 check('controller refuses evidence-less state from a custom store', () => {
   const inner = new InMemoryControllerStore();
+  const writer = inner.bindController();
   const lying = { create: (r) => inner.create(r), replace: (r) => inner.replace(r), entries: (id) => inner.entries(id),
+    bindController: () => writer,
     get(id) { const run = inner.get(id); if (!run) return run;
       run.state = 'ACCEPTED';
       run.audit.push({ ...run.audit.at(-1), sequence: run.audit.length + 1, nextState: 'ACCEPTED' }); return run; } };
@@ -362,16 +409,16 @@ check('controller rejects malformed inputs before any mutation', () => {
   rejectedWithoutMutation(c, () => c.completeImplementation('run-1', X, []));
   rejectedWithoutMutation(c, () => c.completeImplementation('run-1', X, 'evidence'));
   c.completeImplementation('run-1', X, ['e']);
-  rejectedWithoutMutation(c, () => c.recordRemoteSha('run-1', X, { ...remote(), sha: 'not-a-sha' }));
-  rejectedWithoutMutation(c, () => c.recordRemoteSha('run-1', X, { ...remote(), observedAt: '2026-09-26T00:00:00.001Z' }));
-  c.recordRemoteSha('run-1', X, remote()); c.beginAcceptanceReview('run-1', G);
+  rejectedWithoutMutation(c, () => record(c, { ...remote(), sha: 'not-a-sha' }));
+  rejectedWithoutMutation(c, () => record(c, { ...remote(), observedAt: '2026-09-26T00:00:00.001Z' }));
+  record(c); c.beginAcceptanceReview('run-1', G);
   rejectedWithoutMutation(c, () => c.decideAcceptance('run-1', G, { ...decision(c), issuedAt: '2026-09-26T08:00:00.001+08:00' }));
   c.decideAcceptance('run-1', G, decision(c));
   for (const bad of [undefined, null, {}, { ...auth('HUMAN', 'FAST_FORWARD_MAIN', 'main'), extra: 1 },
     auth('HUMAN', 'FAST_FORWARD_MAIN', 'main', { issuedAt: 'soon' })]) {
-    rejectedWithoutMutation(c, () => c.requestPromotion('run-1', H, preflight(), bad));
+    rejectedWithoutMutation(c, () => promote(c, preflight(), bad));
   }
-  rejectedWithoutMutation(c, () => c.requestPromotion('run-1', H, { ...preflight(), aheadBy: -1 }, auth('HUMAN', 'FAST_FORWARD_MAIN', 'main')));
+  rejectedWithoutMutation(c, () => promote(c, { ...preflight(), aheadBy: -1 }, auth('HUMAN', 'FAST_FORWARD_MAIN', 'main')));
 });
 check('an invalid clock value fails closed without mutation', () => {
   const clock = movableClock(); const { c } = make(packet(), clock);
@@ -444,7 +491,7 @@ check('an expired grant is DENIED when its window is written in a different form
 });
 check('a promotion grant that expires before beginPromotion cannot start promotion', () => {
   const clock = movableClock(); const { c } = make(packet(), clock); ready(c); c.decideAcceptance('run-1', G, decision(c));
-  c.requestPromotion('run-1', H, preflight(), auth('HUMAN', 'FAST_FORWARD_MAIN', 'main', { expiresAt: '2026-09-26T08:00:01+08:00' }));
+  promote(c, preflight(), auth('HUMAN', 'FAST_FORWARD_MAIN', 'main', { expiresAt: '2026-09-26T08:00:01+08:00' }));
   clock.value = '2026-09-26T00:00:01.001Z';
   rejectedWithoutMutation(c, () => c.beginPromotion('run-1', K));
   assert.equal(c.get('run-1').state, 'PROMOTION_READY');
@@ -453,7 +500,7 @@ check('a promotion grant that expires before beginPromotion cannot start promoti
 });
 check('a promotion grant resumed after HUMAN_STOP is re-checked when promotion begins', () => {
   const clock = movableClock(); const { c } = make(packet(), clock); ready(c); c.decideAcceptance('run-1', G, decision(c));
-  c.requestPromotion('run-1', H, preflight(), auth('HUMAN', 'FAST_FORWARD_MAIN', 'main', { expiresAt: '2026-09-26T00:01:00Z' }));
+  promote(c, preflight(), auth('HUMAN', 'FAST_FORWARD_MAIN', 'main', { expiresAt: '2026-09-26T00:01:00Z' }));
   c.stop('run-1', K, 'HUMAN_STOP', 'pause');
   clock.value = '2026-09-26T00:02:00Z';
   c.resumeHuman('run-1', H, auth('HUMAN', 'RESUME_HUMAN_STOP', c.get('run-1').stopId));
@@ -477,6 +524,7 @@ check('an unused grant for stop A cannot resume stop B', () => {
   c.stop('run-1', K, 'HUMAN_STOP', 'first');
   const unusedForA = auth('HUMAN', 'RESUME_HUMAN_STOP', c.get('run-1').stopId, { authorizationId: 'unused-a' });
   c.resumeHuman('run-1', H, auth('HUMAN', 'RESUME_HUMAN_STOP', c.get('run-1').stopId, { authorizationId: 'used-a' }));
+  c.reconcile('run-1', K);
   c.beginImplementation('run-1', X);
   c.stop('run-1', K, 'HUMAN_STOP', 'second');
   rejectedWithoutMutation(c, () => c.resumeHuman('run-1', H, unusedForA));
@@ -499,7 +547,7 @@ check('resume grants with wrong operation, target, run, packet, role, or window 
 check('a promotion grant cannot be reused once consumed', () => {
   const { c, store } = make(); ready(c); c.decideAcceptance('run-1', G, decision(c));
   const grant = auth('HUMAN', 'FAST_FORWARD_MAIN', 'main');
-  c.requestPromotion('run-1', H, preflight(), grant);
+  promote(c, preflight(), grant);
   c.stop('run-1', K, 'HUMAN_STOP', 'pause');
   const before = JSON.stringify(store.get('run-1'));
   const replay = store.get('run-1'); replay.state = 'PROMOTION_READY';
@@ -580,8 +628,8 @@ check('refused lifecycle calls leave state, audit, and counters unchanged', () =
   rejectedWithoutMutation(c, () => c.beginImplementation('run-1', G));
   rejectedWithoutMutation(c, () => c.issuePacket('run-1', G, packet({ packetId: 'packet-2', packetVersion: 2 })));
   c.beginImplementation('run-1', X); c.completeImplementation('run-1', X, ['e']);
-  rejectedWithoutMutation(c, () => c.recordRemoteSha('run-1', X, remote(B, 'work/other')));
-  c.recordRemoteSha('run-1', X, remote()); c.beginAcceptanceReview('run-1', G);
+  rejectedWithoutMutation(c, () => record(c, remote(B, 'work/other')));
+  record(c); c.beginAcceptanceReview('run-1', G);
   rejectedWithoutMutation(c, () => c.decideAcceptance('run-1', X, decision(c)));
   rejectedWithoutMutation(c, () => c.decideAcceptance('run-1', G, { ...decision(c, 'REJECT'), findings: [] }));
   c.decideAcceptance('run-1', G, decision(c, 'REJECT'));
@@ -609,9 +657,9 @@ check('a promotion grant issued before the acceptance it would promote is refuse
   const clock = movableClock(); const { c } = make(packet(), clock); ready(c);
   clock.value = '2026-09-26T00:10:00Z';
   c.decideAcceptance('run-1', G, decision(c));
-  rejectedWithoutMutation(c, () => c.requestPromotion('run-1', H, preflight(), auth('HUMAN', 'FAST_FORWARD_MAIN', 'main')));
+  rejectedWithoutMutation(c, () => promote(c, preflight(), auth('HUMAN', 'FAST_FORWARD_MAIN', 'main')));
   const fresh = auth('HUMAN', 'FAST_FORWARD_MAIN', 'main', { authorizationId: 'fresh', issuedAt: '2026-09-26T08:10:00+08:00' });
-  assert.equal(c.requestPromotion('run-1', H, preflight(), fresh).state, 'PROMOTION_READY');
+  assert.equal(promote(c, preflight(), fresh).state, 'PROMOTION_READY');
 });
 check('a grant issued while a later-rejected SHA was under review cannot promote the SHA accepted after it', () => {
   const clock = movableClock(); const { c } = make(packet(), clock); ready(c, B);
@@ -623,9 +671,9 @@ check('a grant issued while a later-rejected SHA was under review cannot promote
     expectedBaseSha: B, correctionIteration: 2, maxCorrectionIteration: 3 });
   clock.value = '2026-09-26T00:05:00Z';
   c.beginImplementation('run-1', X); c.completeImplementation('run-1', X, ['e']);
-  c.recordRemoteSha('run-1', X, remote(C)); c.beginAcceptanceReview('run-1', G);
+  record(c, remote(C)); c.beginAcceptanceReview('run-1', G);
   c.decideAcceptance('run-1', G, { ...decision(c, 'ACCEPT', C), reviewId: 'review-2' });
-  rejectedWithoutMutation(c, () => c.requestPromotion('run-1', H, preflight({ acceptedSha: C }), early));
+  rejectedWithoutMutation(c, () => promote(c, preflight({ acceptedSha: C }), early));
 });
 check('a stop cannot forge an interrupted state, and soft resume into ACCEPTED keeps the original GPT acceptance', () => {
   const { c, store } = make(); ready(c);
