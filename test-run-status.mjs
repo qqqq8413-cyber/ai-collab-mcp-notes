@@ -132,6 +132,17 @@ check('recruited but the specialist errored -> CONDITIONAL', () => {
   assert.equal(r.evidenceLabel, 'CONDITIONAL');
 });
 
+check('a failed specialist\'s search does not ground the answer, but stays counted as asked', () => {
+  const { output: _dropped, ...failedAfterSearch } = { ...grounded(), error: 'Incomplete output: the provider stopped at a token limit (MAX_TOKENS).' };
+  const r = buildRunReport('deep', workers, [ok('business_strategist', 'claude'), failedAfterSearch]);
+  assert.equal(r.status, 'DEGRADED');
+  assert.equal(r.evidenceLabel, 'CONDITIONAL');
+  assert.match(r.notes.join(' '), /market_researcher failed/);
+  assert.equal(r.retrieval.specialistsAsked, 1);
+  assert.equal(r.retrieval.specialistsGrounded, 0);
+  assert.equal(r.retrieval.sourcesFound, 0);
+});
+
 check('grounding survives another specialist failing', () => {
   const r = buildRunReport('deep', workers, [bad('business_strategist', 'claude'), grounded()]);
   assert.equal(r.status, 'DEGRADED');

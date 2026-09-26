@@ -1,6 +1,10 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { PROVIDERS, assertProviderConfigured, DEFAULT_MAX_TOKENS } from '../config.js';
-import type { CallOptions, CallResult, RetrievalResult } from './types.js';
+import type { CallOptions, CallResult, CompletionVocabulary, RetrievalResult } from './types.js';
+import { classifyCompletion } from './types.js';
+
+/** `MAX_TOKENS` is the token limit; safety, recitation and other stops are not classified. */
+const GEMINI_COMPLETION: CompletionVocabulary = { complete: ['STOP'], truncated: ['MAX_TOKENS'] };
 
 let client: GoogleGenerativeAI | null = null;
 
@@ -81,18 +85,21 @@ export async function callGemini(prompt: string, options: CallOptions = {}): Pro
   });
 
   const text = result.response.text();
+  const finishReason = result.response.candidates?.[0]?.finishReason;
   if (!text.trim()) {
-    const finishReason = result.response.candidates?.[0]?.finishReason;
     throw new Error(
       `Gemini (${model}) returned no text. finishReason=${finishReason}. ` +
         `Raise maxTokens so thinking and the answer both fit.`
     );
   }
+  // Non-empty text is not a finished answer: `MAX_TOKENS` means it was cut off.
+  const completion = classifyCompletion(finishReason, GEMINI_COMPLETION);
+  const answer: CallResult = { provider: 'gemini', model, text, ...(completion ? { completion } : {}) };
 
-  if (!wantsRetrieval) return { provider: 'gemini', model, text };
+  if (!wantsRetrieval) return answer;
 
   const metadata = result.response.candidates?.[0]?.groundingMetadata as
     | GeminiGroundingMetadata
     | undefined;
-  return { provider: 'gemini', model, text, retrieval: readGroundingMetadata(metadata) };
+  return { ...answer, retrieval: readGroundingMetadata(metadata) };
 }

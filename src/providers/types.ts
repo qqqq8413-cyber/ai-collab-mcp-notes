@@ -70,11 +70,52 @@ export interface CallOptions {
   stage?: CallStage;
 }
 
+/**
+ * Whether the provider says the answer is finished.
+ *
+ * - COMPLETE:  the provider reported a normal end of output.
+ * - TRUNCATED: the provider reported stopping at a token limit. Non-empty text is a fragment.
+ * - UNKNOWN:   the provider reported a reason this code does not classify.
+ *
+ * Classified only from the reason the provider sent, never from the text. When the
+ * provider sent no reason the fact is absent, and absence is not COMPLETE.
+ */
+export type CompletionState = 'COMPLETE' | 'TRUNCATED' | 'UNKNOWN';
+
+export interface CompletionFact {
+  state: CompletionState;
+  /** The provider's own reason, in its own spelling and case, bounded in length. */
+  providerReason?: string;
+}
+
+/** The native reasons one provider uses for a finished and for a token-limited answer. */
+export interface CompletionVocabulary {
+  complete: readonly string[];
+  truncated: readonly string[];
+}
+
+const PROVIDER_REASON_LIMIT = 64;
+
+export function classifyCompletion(
+  reason: unknown,
+  vocabulary: CompletionVocabulary
+): CompletionFact | undefined {
+  if (typeof reason !== 'string' || reason.length === 0) return undefined;
+  const state: CompletionState = vocabulary.truncated.includes(reason)
+    ? 'TRUNCATED'
+    : vocabulary.complete.includes(reason)
+      ? 'COMPLETE'
+      : 'UNKNOWN';
+  return { state, providerReason: reason.slice(0, PROVIDER_REASON_LIMIT) };
+}
+
 export interface CallResult {
   provider: string;
   model: string;
   text: string;
   retrieval?: RetrievalResult;
+  /** Present only when the provider reported why it stopped. */
+  completion?: CompletionFact;
 }
 
 /** Result for a provider that was asked to retrieve but has no runtime support for it. */

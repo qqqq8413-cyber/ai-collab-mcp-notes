@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { callProvider } from '../providers/index.js';
-import type { RetrievalResult } from '../providers/types.js';
+import type { CallResult, CompletionFact, RetrievalResult } from '../providers/types.js';
 import type { ProviderName } from '../config.js';
 import { deriveExecutionPolicy, type ExecutionPolicy } from '../agents/policy.js';
 import {
@@ -177,6 +177,47 @@ export interface WorkerRunResult {
   error?: string;
   /** Present only when this specialist was asked to retrieve. */
   retrieval?: RetrievalResult;
+  /** Present only when the provider reported why it stopped. */
+  completion?: CompletionFact;
+  /**
+   * Text from a specialist whose provider reported truncation. Kept for audit only: the
+   * specialist counts as failed, and this text is never synthesized or delivered.
+   */
+  truncatedOutput?: string;
+}
+
+/** Why a provider result is proven unfinished, or undefined when nothing proves that. */
+function provenTruncation(result: Pick<CallResult, 'completion'>): string | undefined {
+  const completion = result.completion;
+  if (completion?.state !== 'TRUNCATED') return undefined;
+  return `the provider stopped at a token limit (${completion.providerReason ?? 'reason not reported'})`;
+}
+
+function copyCompletion(completion: CompletionFact | undefined): CompletionFact | undefined {
+  if (!completion) return undefined;
+  const { state, providerReason } = completion;
+  const copied: CompletionFact = {
+    state: state === 'COMPLETE' || state === 'TRUNCATED' ? state : 'UNKNOWN',
+  };
+  if (typeof providerReason === 'string') copied.providerReason = providerReason.slice(0, 64);
+  return copied;
+}
+
+/**
+ * One rule for a Round 1 result, live or replayed: a specialist whose provider reported
+ * truncation did not finish, however much text came back. It counts as failed, and its
+ * text moves to `truncatedOutput` so it cannot reach synthesis or delivery.
+ */
+function settleWorkerResult(result: WorkerRunResult): WorkerRunResult {
+  const truncation = provenTruncation(result);
+  if (truncation === undefined) return result;
+  if (result.output === undefined && result.error !== undefined) return result;
+  const { output, ...rest } = result;
+  return {
+    ...rest,
+    error: rest.error ?? `Incomplete output: ${truncation}. The partial text was not used.`,
+    ...(output !== undefined ? { truncatedOutput: output } : {}),
+  };
 }
 
 export function buildWorkerPrompt(task: string, mission: string): string {
@@ -332,7 +373,8 @@ function summarizeRetrieval(workerResults: WorkerRunResult[]): RunReport['retrie
   const attempts = workerResults.filter((r) => r.retrieval);
   if (attempts.length === 0) return undefined;
 
-  const grounded = attempts.filter((r) => r.retrieval!.status === 'GROUNDED');
+  // A failed specialist's search cannot ground an answer its output is not part of.
+  const grounded = attempts.filter((r) => r.error === undefined && r.retrieval!.status === 'GROUNDED');
   const sources = grounded.flatMap((r) => r.retrieval!.sources);
 
   // Only sum counts the providers actually reported. If none did, the field stays
@@ -371,7 +413,7 @@ function deriveEvidenceLabel(
     return 'HYPOTHESIS';
   }
 
-  const grounded = evidenceRuns.filter((r) => r.retrieval?.status === 'GROUNDED');
+  const grounded = evidenceRuns.filter((r) => r.error === undefined && r.retrieval?.status === 'GROUNDED');
 
   if (grounded.length === 0) {
     const reasons = evidenceRuns.map((r) =>
@@ -431,6 +473,49 @@ export function buildOutputBanner(report: RunReport): string {
   return lines.length ? `${lines.join('\n')}\n\n` : '';
 }
 
+/**
+ * The run report and execution policy for one set of Round 1 facts.
+ *
+ * The only place a synthesis decision is made. A live run and a replay of the same
+ * Round 1 both come through here, so a replay cannot synthesize what the live run would
+ * have refused, and cannot skip what it would have delivered directly.
+ */
+export function deriveRound1Report(
+  complexity: Complexity,
+  agentOrder: readonly string[],
+  workers: readonly Worker[],
+  workerResults: WorkerRunResult[]
+): RunReport & { policy: ExecutionPolicy } {
+  const assigned = agentOrder.map((agentId) => {
+    const worker = workers.find((w) => w.id === agentId);
+    if (!worker) throw new Error(`Round 1 facts assign "${agentId}", which is not a known worker.`);
+    return worker;
+  });
+  const runReport = buildRunReport(complexity, [...workers], workerResults);
+  return {
+    ...runReport,
+    policy: deriveExecutionPolicy({
+      complexity,
+      assignmentIds: agentOrder,
+      status: runReport.status,
+      synthesisAllowed: runReport.synthesisAllowed,
+      retrievalRequired: assigned.some((worker) => Boolean(worker.evidenceCapable)),
+      workerResults: workerResults.map(({ agentId, output, error, retrieval }) => ({
+        agentId, output, error, retrieval,
+      })),
+    }),
+  };
+}
+
+/** What a run delivers when its policy says not to synthesize, live or replayed. */
+function deliverWithoutSynthesis(
+  report: RunReport & { policy: ExecutionPolicy },
+  workerResults: WorkerRunResult[]
+): string | null {
+  report.notes.push(`Synthesis skipped: ${report.policy.reason}.`);
+  return report.synthesisAllowed ? workerResults[0].output! : null;
+}
+
 export async function runOrchestrator(options: OrchestratorOptions) {
   const { task, orchestrator, workers, synthesizer = orchestrator, budget, call = callProvider } = options;
   if (workers.length === 0) throw new Error('Orchestrator requires at least one worker');
@@ -450,6 +535,10 @@ export async function runOrchestrator(options: OrchestratorOptions) {
       stage: 'planning',
     }
   );
+  const planningTruncation = provenTruncation(planResult);
+  if (planningTruncation) {
+    throw new Error(`Chief planning output is incomplete: ${planningTruncation}. A partial plan is not parsed.`);
+  }
   const rawPlan = planSchema.parse(extractJsonObject(planResult.text));
   const planningAdjustments: string[] = [];
   const plan = enforceConstraints(rawPlan, workers, budget, planningAdjustments);
@@ -469,13 +558,15 @@ export async function runOrchestrator(options: OrchestratorOptions) {
           // is itself derived, so a specialist cannot request it by asserting it.
           ...(worker.evidenceCapable ? { retrieval: { enabled: true } } : {}),
         });
-        return {
+        const completion = copyCompletion(result.completion);
+        return settleWorkerResult({
           agentId: worker.id,
           provider: worker.provider,
           mission: assignment.mission,
           output: result.text,
           retrieval: result.retrieval,
-        };
+          ...(completion ? { completion } : {}),
+        });
       } catch (err) {
         return {
           agentId: worker.id,
@@ -488,31 +579,20 @@ export async function runOrchestrator(options: OrchestratorOptions) {
   );
   const workersMs = Date.now() - workersStart;
 
-  const runReport = buildRunReport(plan.complexity, workers, workerResults);
-  const report = {
-    ...runReport,
-    policy: deriveExecutionPolicy({
-      complexity: plan.complexity,
-      assignmentIds: plan.assignments.map((assignment) => assignment.agentId),
-      status: runReport.status,
-      synthesisAllowed: runReport.synthesisAllowed,
-      retrievalRequired: plan.assignments.some((assignment) =>
-        Boolean(workers.find((worker) => worker.id === assignment.agentId)!.evidenceCapable)
-      ),
-      workerResults: workerResults.map(({ agentId, output, error, retrieval }) => ({
-        agentId, output, error, retrieval,
-      })),
-    }),
-  };
+  const report = deriveRound1Report(
+    plan.complexity,
+    plan.assignments.map((assignment) => assignment.agentId),
+    workers,
+    workerResults
+  );
 
   if (!report.policy.synthesize) {
-    report.notes.push(`Synthesis skipped: ${report.policy.reason}.`);
     return {
       plan,
       planningAdjustments,
       workerResults,
       report,
-      finalOutput: report.synthesisAllowed ? workerResults[0].output! : null,
+      finalOutput: deliverWithoutSynthesis(report, workerResults),
       timings: {
         planningMs,
         workersMs,
@@ -578,7 +658,18 @@ export interface SynthesisStageOutput {
  */
 export async function runSynthesisStage(input: SynthesisStageInput): Promise<SynthesisStageOutput> {
   const { call, task, report, synthesizer } = input;
-  const succeeded = input.workerResults.filter((r) => r.output !== undefined);
+  // Fails closed for any caller, not only the two in this file: the facts it was handed
+  // must allow synthesis under the shared policy, and the report must agree with them.
+  const workerResults = input.workerResults.map(settleWorkerResult);
+  const round1 = deriveRound1Report(input.complexity, input.agentOrder, input.workers, workerResults);
+  if (!round1.policy.synthesize) {
+    throw new Error(`Synthesis refused: the Round 1 facts do not allow it (${round1.policy.reason}).`);
+  }
+  if (report.synthesisAllowed !== true || report.policy?.synthesize === false || report.status !== round1.status) {
+    throw new Error('Synthesis refused: the supplied run report does not match the Round 1 facts.');
+  }
+  // A specialist that failed is missing from the prompt, which the degraded note says.
+  const succeeded = workerResults.filter((r) => r.output !== undefined && r.error === undefined);
   const specialistBlock = succeeded
     .map((r) => `### ${r.agentId}\nMission: ${r.mission}\nResult: ${r.output}`)
     .join('\n\n');
@@ -627,6 +718,13 @@ Synthesize these results into a single, coherent final answer to the original ta
     }
   );
   const synthesisMs = Date.now() - synthesisStart;
+
+  // There is no fallback under the final synthesis: a gate's text is also the provisional
+  // answer. A fragment is neither delivered nor parsed for a collaboration issue.
+  const synthesisTruncation = provenTruncation(finalResult);
+  if (synthesisTruncation) {
+    throw new Error(`Synthesis output is incomplete: ${synthesisTruncation}. A partial answer is not delivered.`);
+  }
 
   const banner = buildOutputBanner(report);
 
@@ -832,6 +930,9 @@ async function runCollaboration(input: CollaborationRunInput): Promise<{
       }),
       { model: targetWorker.model, system: targetWorker.role, stage: 'round2_worker' }
     );
+    // A cut-off revision takes the same fallback as a failed one.
+    const truncation = provenTruncation(result);
+    if (truncation) throw new Error(`Round 2 output is incomplete: ${truncation}`);
     revised = result.text;
   } catch (err) {
     const round2Ms = Date.now() - round2Start;
@@ -872,6 +973,8 @@ async function runCollaboration(input: CollaborationRunInput): Promise<{
       }),
       { model: input.synthesizer.model, stage: 'decision_synthesis' }
     );
+    const truncation = provenTruncation(decision);
+    if (truncation) throw new Error(`Decision synthesis output is incomplete: ${truncation}`);
     decisionText = decision.text;
   } catch (err) {
     const decisionSynthesisMs = Date.now() - decisionStart;
@@ -948,18 +1051,37 @@ export interface ReplayOptions {
  * drift into being a second implementation of the thing under test.
  */
 export async function replaySynthesis(snapshot: Round1Snapshot, options: ReplayOptions) {
-  const report = buildRunReport(snapshot.complexity, snapshot.workers, snapshot.workerResults);
+  // Captured before anything awaits. The replay runs on its own copy of the Round 1 facts
+  // and settings, so a caller changing its objects mid-replay changes nothing replayed.
+  const round1 = captureRound1(snapshot);
+  const { synthesizer, collaboration } = detach(
+    { synthesizer: options.synthesizer, collaboration: options.collaboration },
+    'Replay settings'
+  );
+  const call = options.call ?? callProvider;
+  const workerResults = round1.workerResults.map(settleWorkerResult);
+  const report = deriveRound1Report(round1.complexity, round1.agentOrder, round1.workers, workerResults);
   const startedAt = Date.now();
+
+  // Being a replay is not permission to synthesize: the policy decides, as it does live.
+  if (!report.policy.synthesize) {
+    return {
+      report,
+      finalOutput: deliverWithoutSynthesis(report, workerResults),
+      timings: { synthesisMs: 0, totalMs: Date.now() - startedAt },
+    };
+  }
+
   const stage = await runSynthesisStage({
-    call: options.call ?? callProvider,
-    task: snapshot.task,
-    complexity: snapshot.complexity,
-    agentOrder: snapshot.agentOrder,
-    workers: snapshot.workers,
-    workerResults: snapshot.workerResults,
+    call,
+    task: round1.task,
+    complexity: round1.complexity,
+    agentOrder: round1.agentOrder,
+    workers: round1.workers,
+    workerResults,
     report,
-    synthesizer: options.synthesizer,
-    collaboration: options.collaboration,
+    synthesizer,
+    collaboration,
   });
 
   return {
@@ -970,17 +1092,54 @@ export async function replaySynthesis(snapshot: Round1Snapshot, options: ReplayO
   };
 }
 
-/** Freezes the Round 1 half of a completed run so it can be replayed. */
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
+    for (const key of Object.keys(value)) deepFreeze((value as Record<string, unknown>)[key]);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+/** An independent, deep-frozen copy. In-process ownership, not a cryptographic seal. */
+function detach<T>(value: T, label: string): T {
+  let copy: T;
+  try {
+    copy = structuredClone(value);
+  } catch (err) {
+    throw new TypeError(`${label} must be plain data to be captured: ${String(err)}`);
+  }
+  return deepFreeze(copy);
+}
+
+/** Reads each Round 1 field once and returns facts no caller object can reach. */
+function captureRound1(source: Round1Snapshot): Round1Snapshot {
+  return detach(
+    {
+      task: source.task,
+      complexity: source.complexity,
+      agentOrder: source.agentOrder,
+      workers: source.workers,
+      workerResults: source.workerResults,
+    },
+    'Round 1 facts'
+  );
+}
+
+/**
+ * Captures the Round 1 half of a completed run so it can be replayed. The snapshot is an
+ * independent deep copy, frozen: changing the run, its workers or its plan afterwards
+ * does not move the baseline a B / B-prime comparison stands on.
+ */
 export function toRound1Snapshot(
   run: { plan: Plan; workerResults: WorkerRunResult[] },
   task: string,
   workers: Worker[]
 ): Round1Snapshot {
-  return {
+  return captureRound1({
     task,
     complexity: run.plan.complexity,
     agentOrder: run.plan.assignments.map((a) => a.agentId),
     workers,
     workerResults: run.workerResults,
-  };
+  });
 }

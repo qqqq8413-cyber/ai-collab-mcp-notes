@@ -309,32 +309,34 @@ function createExecutor(
   };
 }
 
+/** A default transport keeps the adapter's native completion reason as finishReason. */
+function adapterSuccess(result: CallResult): TransportSuccess {
+  const finishReason = result.completion?.providerReason;
+  return finishReason === undefined
+    ? { outcome: 'SUCCESS', result }
+    : { outcome: 'SUCCESS', result, finishReason };
+}
+
 export function createClaudeExecutor(
   transport?: ProviderTransport
 ): ProviderExecutor {
-  const defaultTransport: ProviderTransport = async (prompt, options) => ({
-    outcome: 'SUCCESS',
-    result: await callClaude(prompt, options),
-  });
+  const defaultTransport: ProviderTransport = async (prompt, options) =>
+    adapterSuccess(await callClaude(prompt, options));
   return createExecutor('claude', transport ?? defaultTransport, transport ? undefined : () => assertProviderConfigured('claude'));
 }
 
 export function createOpenAIExecutor(
   transport?: ProviderTransport
 ): ProviderExecutor {
-  const defaultTransport: ProviderTransport = async (prompt, options) => ({
-    outcome: 'SUCCESS',
-    result: await callOpenAI(prompt, options),
-  });
+  const defaultTransport: ProviderTransport = async (prompt, options) =>
+    adapterSuccess(await callOpenAI(prompt, options));
   return createExecutor('openai', transport ?? defaultTransport, transport ? undefined : () => assertProviderConfigured('openai'));
 }
 
 export function createGeminiExecutor(
   transport?: ProviderTransport
 ): ProviderExecutor {
-  const defaultTransport: ProviderTransport = async (prompt, options) => ({
-    outcome: 'SUCCESS',
-    result: await callGemini(prompt, options),
-  });
+  const defaultTransport: ProviderTransport = async (prompt, options) =>
+    adapterSuccess(await callGemini(prompt, options));
   return createExecutor('gemini', transport ?? defaultTransport, transport ? undefined : () => assertProviderConfigured('gemini'));
 }
