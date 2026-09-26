@@ -10,9 +10,11 @@ import type {
 import {
   assertRevisionActionLedgerIntegrity,
   assertRevisionSuccessorIntegrity,
+  assertSemanticIssueLedgerIntegrity,
   assertRevisionVerificationLedgerIntegrity,
   verifyFrozenInputIntegrity,
 } from './session.js';
+import { isReviewFindingShape, resolveExactRecord } from './reference.js';
 import type {
   AddReviewerRouteOutcome,
   AddContextRouteOutcome,
@@ -145,11 +147,17 @@ export function generateDecisionRecord(session: StressTestSession): DecisionReco
 
   const standaloneFindingAdjudications: DecisionRecordFindingAdjudicationEntry[] = [];
   for (const [findingId, adjudication] of findingAdjudications) {
-    const finding = session.findings[findingId];
+    // The adjudication ledger validated above already resolves every target
+    // exactly; the same resolver is used here, and a miss fails closed rather
+    // than projecting a placeholder title.
+    const finding = resolveExactRecord(session.findings, findingId, isReviewFindingShape);
+    if (!finding) {
+      throw new Error(`generateDecisionRecord: adjudicated findingId ${findingId} does not exactly resolve to a ReviewFinding`);
+    }
     const revisionActions = revisionActionsForFinding(findingId);
     standaloneFindingAdjudications.push({
       findingId,
-      findingTitle: finding ? finding.title : '(finding missing)',
+      findingTitle: finding.title,
       judgment: adjudication.judgment,
       actionChange: adjudication.actionChange,
       revisionActionIds: revisionActions.map((a) => a.id),
@@ -707,6 +715,10 @@ export function generateIntegratedDecisionReport(
   successorSession?: StressTestSession
 ): IntegratedDecisionReport {
   verifyDeliberationBinding(session, deliberationState);
+  // Global SemanticIssue integrity before any projection: every issue, whether
+  // or not an adjudication, revision action, or question selects it, must be
+  // stored under its own id with exactly resolving, non-repeating findingIds.
+  assertSemanticIssueLedgerIntegrity(session);
   // Validate historical outcomes even when no detail view traverses them.
   for (const outcome of deliberationState.outcomes) {
     assertRouteOutcomeIntegrity(session, deliberationState, outcome.attemptId);
@@ -757,7 +769,7 @@ export function generateIntegratedDecisionReport(
 
   const issues: IntegratedDecisionReportIssue[] = Object.values(session.semanticIssues).map((issue) => {
     const artifactLocations = issue.findingIds.map((findingId) => {
-      const finding = session.findings[findingId];
+      const finding = resolveExactRecord(session.findings, findingId, isReviewFindingShape);
       if (!finding) {
         throw new Error(
           `generateIntegratedDecisionReport: semantic issue ${issue.id} references findingId ${findingId}, which does not resolve to any recorded ReviewFinding`

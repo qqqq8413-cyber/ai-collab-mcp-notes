@@ -18,6 +18,8 @@ import {
   assertRevisionActionLedgerIntegrity,
   assertRevisionVerificationLedgerIntegrity,
   generateDecisionRecord,
+  generateIntegratedDecisionReport,
+  assertSemanticIssueLedgerIntegrity,
   createDeliberationState,
   validateRouteInputRef,
   createUnresolvedQuestion,
@@ -587,6 +589,108 @@ check('the other session ledger writes also leave state their canonical validato
   for (const id of INHERITED_IDS) {
     assert.throws(() => recordRevisionVerification(sourceSession, successorSession, { revisionActionId: id, verdict: 'VERIFIED_PRESENT', evidence: 'e' }));
   }
+});
+
+// ===========================================================================
+console.log('\nCorrection #1 -- IntegratedDecisionReport exact-reference parity');
+
+const LEDGER = /assertSemanticIssueLedgerIntegrity/;
+function reportFixture() {
+  const { session, issueId, findingIds } = withIssue();
+  return { session, issueId, findingIds, state: createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 }) };
+}
+function withMembership(session, issueId, findingIds) {
+  return { ...session, semanticIssues: { ...session.semanticIssues, [issueId]: { ...session.semanticIssues[issueId], findingIds } } };
+}
+check('report: inherited findingIds (constructor, __proto__, toString, ...) are rejected before projection', () => {
+  const { session, state, issueId, findingIds } = reportFixture();
+  for (const id of INHERITED_IDS) {
+    for (const membership of [[id], [...findingIds, id]]) {
+      assert.throws(() => generateIntegratedDecisionReport(withMembership(session, issueId, membership), state), LEDGER, id);
+    }
+  }
+});
+check('report: an unknown ordinary findingId is rejected', () => {
+  const { session, state, issueId, findingIds } = reportFixture();
+  assert.throws(() => generateIntegratedDecisionReport(withMembership(session, issueId, [...findingIds, 'no-such-finding']), state), LEDGER);
+});
+check('report: an owned key whose ReviewFinding.id differs is rejected', () => {
+  const { session, state, findingIds } = reportFixture();
+  const tampered = { ...session, findings: { ...session.findings, [findingIds[0]]: { ...session.findings[findingIds[0]], id: findingIds[1] } } };
+  assert.throws(() => generateIntegratedDecisionReport(tampered, state), LEDGER);
+});
+check('report: a malformed ReviewFinding at an owned key is rejected', () => {
+  const { session, state, findingIds } = reportFixture();
+  for (const malformed of [{ id: findingIds[0] }, null, [], 'finding', { ...session.findings[findingIds[0]], artifactLocation: 12 }]) {
+    const tampered = { ...session, findings: { ...session.findings, [findingIds[0]]: malformed } };
+    assert.throws(() => generateIntegratedDecisionReport(tampered, state), LEDGER, JSON.stringify(malformed));
+  }
+});
+check('report: valid finding references still project exactly as before', () => {
+  const { session, state, issueId, findingIds } = reportFixture();
+  const report = generateIntegratedDecisionReport(session, state);
+  const [issue] = report.issues;
+  assert.equal(issue.semanticIssueId, issueId);
+  assert.deepEqual(issue.findingIds, findingIds);
+  assert.deepEqual(issue.artifactLocations, findingIds.map((id) => session.findings[id].artifactLocation));
+  const adjudicated = adjudicate(session, { findingId: findingIds[0], judgment: 'WRONG', actionChange: 'NO' });
+  assert.equal(generateDecisionRecord(adjudicated).standaloneFindingAdjudications[0].findingTitle, session.findings[findingIds[0]].title);
+});
+check('report: a SemanticIssue stored under a key that is not its id is rejected', () => {
+  const { session, state, issueId } = reportFixture();
+  const moved = { ...session, semanticIssues: { ...session.semanticIssues, [issueId]: { ...session.semanticIssues[issueId], id: 'moved-issue' } } };
+  assert.throws(() => generateIntegratedDecisionReport(moved, state), LEDGER);
+  const copied = { ...session, semanticIssues: { ...session.semanticIssues, 'second-key': session.semanticIssues[issueId] } };
+  assert.throws(() => generateIntegratedDecisionReport(copied, state), LEDGER);
+});
+check('report: duplicate and empty findingIds are rejected', () => {
+  const { session, state, issueId, findingIds } = reportFixture();
+  assert.throws(() => generateIntegratedDecisionReport(withMembership(session, issueId, [findingIds[0], findingIds[0]]), state), LEDGER);
+  assert.throws(() => generateIntegratedDecisionReport(withMembership(session, issueId, []), state), LEDGER);
+  assert.throws(() => generateIntegratedDecisionReport(withMembership(session, issueId, 'not-an-array'), state), LEDGER);
+});
+check('report: a corrupt issue nothing references still fails the whole report', () => {
+  const { session, state, issueId, findingIds } = reportFixture();
+  const adjudicated = adjudicate(session, { semanticIssueId: issueId, judgment: 'NEW_MATERIAL', actionChange: 'YES' });
+  const planned = planRevisionAction(adjudicated, { sourceRefs: [{ kind: 'SEMANTIC_ISSUE', id: issueId }], description: 'd', targetLocation: 'l' });
+  generateIntegratedDecisionReport(planned, state);
+  const orphan = { id: 'orphan-issue', title: 'Unreferenced', description: 'No adjudication, revision, or question selects it.',
+    findingIds: [findingIds[0], 'constructor'], evidenceState: 'UNSUPPORTED_IN_MATERIAL', status: 'OPEN' };
+  const withOrphan = { ...planned, semanticIssues: { ...planned.semanticIssues, [orphan.id]: orphan } };
+  assert.throws(() => generateIntegratedDecisionReport(withOrphan, state), LEDGER);
+});
+check('meta-invariant: any findingId the exact resolver rejects is never projected -- the global ledger check fails first', () => {
+  const { session, state, issueId, findingIds } = reportFixture();
+  const mismatchedSession = { ...session, findings: { ...session.findings, 'owned-key': { ...session.findings[findingIds[0]], id: 'not-owned-key' } } };
+  const malformedSession = { ...session, findings: { ...session.findings, 'bare-record': { id: 'bare-record' } } };
+  const candidates = [
+    ...INHERITED_IDS.map((id) => [session, id]), [session, 'unknown'], [session, ''], [session, 7], [session, null],
+    [mismatchedSession, 'owned-key'], [malformedSession, 'bare-record'], [session, findingIds[0]], [session, findingIds[1]],
+  ];
+  let rejected = 0, projected = 0;
+  for (const [base, candidate] of candidates) {
+    const tampered = withMembership(base, issueId, [candidate]);
+    let resolverRejects = false;
+    try { validateRouteInputRef(tampered, { kind: 'FINDING', id: candidate }); } catch { resolverRejects = true; }
+    if (resolverRejects) {
+      assert.throws(() => assertSemanticIssueLedgerIntegrity(tampered), LEDGER, String(candidate));
+      assert.throws(() => generateIntegratedDecisionReport(tampered, state), LEDGER, String(candidate));
+      rejected++;
+    } else {
+      const report = generateIntegratedDecisionReport(tampered, state);
+      assert.deepEqual(report.issues[0].artifactLocations, [tampered.findings[candidate].artifactLocation]);
+      projected++;
+    }
+  }
+  assert.equal(projected, 2);
+  assert.equal(rejected, candidates.length - 2);
+});
+check('createSemanticIssue refuses to build on a corrupt SemanticIssue ledger, and its result passes the canonical ledger', () => {
+  const { session, issueId, findingIds } = withIssue();
+  const corrupt = withMembership(session, issueId, ['constructor']);
+  throwsWithoutMutation(() => createSemanticIssue(corrupt, { title: 't', description: 'd', findingIds: [findingIds[0]], evidenceState: 'UNSUPPORTED_IN_MATERIAL' }), corrupt);
+  const next = createSemanticIssue(session, { title: 't', description: 'd', findingIds: [findingIds[1]], evidenceState: 'UNSUPPORTED_IN_MATERIAL' });
+  assertSemanticIssueLedgerIntegrity(next);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

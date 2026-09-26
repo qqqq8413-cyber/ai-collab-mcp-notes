@@ -218,6 +218,7 @@ export function createSemanticIssue(
   verifyFrozenInputIntegrity(session);
   assertFrozenOrLater(session, 'createSemanticIssue');
   assertStateIn(session, 'createSemanticIssue', ['REVIEWED']);
+  assertSemanticIssueLedgerIntegrity(session);
   if (!Array.isArray(input.findingIds) || input.findingIds.length === 0) {
     throw new Error('createSemanticIssue: findingIds must be non-empty');
   }
@@ -242,10 +243,57 @@ export function createSemanticIssue(
   if (!isSemanticIssueShape(issue)) {
     throw new Error('createSemanticIssue: title, description, and evidenceState must be strings');
   }
-  return {
+  const next: StressTestSession = {
     ...session,
     semanticIssues: { ...session.semanticIssues, [issue.id]: issue },
   };
+  assertSemanticIssueLedgerIntegrity(next);
+  return next;
+}
+
+/**
+ * Canonical ledger-wide validator for `session.semanticIssues`. Validates
+ * EVERY issue, whether or not any adjudication, revision action, question,
+ * or report later selects it -- global integrity before local lookup or
+ * projection. Each issue must be stored under its own id with the runtime
+ * SemanticIssue shape, and its `findingIds` must be a non-empty provenance
+ * list with no repeats whose every entry resolves through the exact
+ * ReviewFinding resolver (owned key, finding shape, finding.id === id).
+ * Report projections call it before projecting anything; createSemanticIssue
+ * calls it before and after its write.
+ */
+export function assertSemanticIssueLedgerIntegrity(session: StressTestSession): void {
+  if (session.semanticIssues === null || typeof session.semanticIssues !== 'object') {
+    throw new Error('assertSemanticIssueLedgerIntegrity: semanticIssues must be an object');
+  }
+  for (const [key, issue] of Object.entries(session.semanticIssues)) {
+    if (issue === null || typeof issue !== 'object' || Array.isArray(issue) || !isSemanticIssueShape(issue)) {
+      throw new Error(`assertSemanticIssueLedgerIntegrity: entry at key "${key}" is not a well-formed SemanticIssue`);
+    }
+    if (key !== issue.id || !isNonEmptyString(issue.id)) {
+      throw new Error(
+        `assertSemanticIssueLedgerIntegrity: semanticIssues map key "${key}" does not match SemanticIssue.id "${issue.id}"`
+      );
+    }
+    if (issue.findingIds.length === 0) {
+      throw new Error(`assertSemanticIssueLedgerIntegrity: SemanticIssue ${issue.id} has no findingIds`);
+    }
+    const seenFindingIds = new Set<string>();
+    for (const findingId of issue.findingIds) {
+      if (seenFindingIds.has(findingId)) {
+        throw new Error(
+          `assertSemanticIssueLedgerIntegrity: SemanticIssue ${issue.id} repeats findingId ${JSON.stringify(findingId)} -- provenance-ambiguous membership`
+        );
+      }
+      seenFindingIds.add(findingId);
+      const lookup = lookupExactRecord(session.findings, findingId, isReviewFindingShape);
+      if (!lookup.found) {
+        throw new Error(
+          `assertSemanticIssueLedgerIntegrity: SemanticIssue ${issue.id} references findingId ${JSON.stringify(findingId)}, which does not exactly resolve to a ReviewFinding (${lookup.reason})`
+        );
+      }
+    }
+  }
 }
 
 const JUDGMENTS: Judgment[] = ['KNOWN_PRE_DISPATCH', 'NEW_NON_MATERIAL', 'NEW_MATERIAL', 'WRONG'];
