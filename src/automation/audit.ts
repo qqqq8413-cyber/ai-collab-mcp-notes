@@ -11,25 +11,29 @@ export interface ControllerStore {
 // The store is a public write path of its own, so it enforces the same lifecycle as
 // the controller rather than trusting its caller. Input is cloned first and only the
 // clone is validated and kept: a getter or later mutation cannot change what was checked.
+// Runs live in a true private field; a TypeScript `private` is still writable at runtime.
 export class InMemoryControllerStore implements ControllerStore {
-  private readonly runs = new Map<string, ControllerRun>();
+  readonly #runs = new Map<string, ControllerRun>();
 
+  constructor() {
+    Object.freeze(this);
+  }
   create(input: ControllerRun): void {
     const run = structuredClone(input);
-    if (this.runs.has(run.runId)) throw new Error('Duplicate runId');
+    if (this.#runs.has(run.runId)) throw new Error('Duplicate runId');
     assertFreshRun(run);
-    this.runs.set(run.runId, run);
+    this.#runs.set(run.runId, run);
   }
   get(runId: string): ControllerRun | undefined {
-    const run = this.runs.get(runId);
+    const run = this.#runs.get(runId);
     return run ? structuredClone(run) : undefined;
   }
   replace(input: ControllerRun): void {
     const run = structuredClone(input);
-    const current = this.runs.get(run.runId);
+    const current = this.#runs.get(run.runId);
     if (!current) throw new Error('Unknown runId');
     assertTransition(current, run);
-    this.runs.set(run.runId, run);
+    this.#runs.set(run.runId, run);
   }
   entries(runId: string): AuditEntry[] {
     const run = this.get(runId);
@@ -37,3 +41,5 @@ export class InMemoryControllerStore implements ControllerStore {
     return structuredClone(run.audit);
   }
 }
+Object.freeze(InMemoryControllerStore);
+Object.freeze(InMemoryControllerStore.prototype);

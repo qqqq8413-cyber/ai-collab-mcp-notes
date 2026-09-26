@@ -590,6 +590,67 @@ check('refused lifecycle calls leave state, audit, and counters unchanged', () =
   rejectedWithoutMutation(c, () => c.failClosed('run-1', G, 'not controller'));
   rejectedWithoutMutation(c, () => c.resumeSoft('run-1', K, 'not stopped'));
 });
+// ---------------------------------------------------------------- self-review additions
+console.log('Self-review: runtime-private state and occurrence-bound promotion');
+check('controller clock, store, and helpers are unreachable and the instance is frozen', () => {
+  const { c, store } = make();
+  for (const key of ['clock', 'store', 'commit', 'now', 'require', 'consumed', 'halt', 'runs']) {
+    assert.equal(c[key], undefined, key); assert.equal(store[key], undefined, key);
+  }
+  assert.ok(Object.isFrozen(c) && Object.isFrozen(store));
+  assert.throws(() => { c.clock = { now: () => '2020-01-01T00:00:00Z' }; }, TypeError);
+  assert.throws(() => { c.decideAcceptance = () => undefined; }, TypeError);
+  assert.throws(() => { store.replace = () => undefined; }, TypeError);
+  assert.throws(() => { AutomationController.prototype.decideAcceptance = () => undefined; }, TypeError);
+  assert.throws(() => { InMemoryControllerStore.prototype.replace = () => undefined; }, TypeError);
+  assert.ok(Object.isFrozen(AutomationController.prototype) && Object.isFrozen(InMemoryControllerStore.prototype));
+});
+check('a promotion grant issued before the acceptance it would promote is refused', () => {
+  const clock = movableClock(); const { c } = make(packet(), clock); ready(c);
+  clock.value = '2026-09-26T00:10:00Z';
+  c.decideAcceptance('run-1', G, decision(c));
+  rejectedWithoutMutation(c, () => c.requestPromotion('run-1', H, preflight(), auth('HUMAN', 'FAST_FORWARD_MAIN', 'main')));
+  const fresh = auth('HUMAN', 'FAST_FORWARD_MAIN', 'main', { authorizationId: 'fresh', issuedAt: '2026-09-26T08:10:00+08:00' });
+  assert.equal(c.requestPromotion('run-1', H, preflight(), fresh).state, 'PROMOTION_READY');
+});
+check('a grant issued while a later-rejected SHA was under review cannot promote the SHA accepted after it', () => {
+  const clock = movableClock(); const { c } = make(packet(), clock); ready(c, B);
+  const early = auth('HUMAN', 'FAST_FORWARD_MAIN', 'main', { authorizationId: 'early' });
+  c.decideAcceptance('run-1', G, decision(c, 'REJECT', B));
+  c.issueCorrection('run-1', G, { correctionPacketId: 'c1', originalPacketId: 'packet-1',
+    originalPacketHash: c.get('run-1').activePacketHash, rejectedSha: B, reviewerFindings: ['synthetic finding'],
+    allowedCorrectionAreas: ['src/automation'], unchangedInvariantReferences: ['human authority retained'],
+    expectedBaseSha: B, correctionIteration: 2, maxCorrectionIteration: 3 });
+  clock.value = '2026-09-26T00:05:00Z';
+  c.beginImplementation('run-1', X); c.completeImplementation('run-1', X, ['e']);
+  c.recordRemoteSha('run-1', X, remote(C)); c.beginAcceptanceReview('run-1', G);
+  c.decideAcceptance('run-1', G, { ...decision(c, 'ACCEPT', C), reviewId: 'review-2' });
+  rejectedWithoutMutation(c, () => c.requestPromotion('run-1', H, preflight({ acceptedSha: C }), early));
+});
+check('a stop cannot forge an interrupted state, and soft resume into ACCEPTED keeps the original GPT acceptance', () => {
+  const { c, store } = make(); ready(c);
+  const forged = store.get('run-1');
+  forged.state = 'SOFT_STOP'; forged.interruptedState = 'ACCEPTED'; forged.stopReason = 'x';
+  forged.stopId = `stop-${forged.audit.length + 1}`;
+  forged.audit.push({ ...forged.audit.at(-1), sequence: forged.audit.length + 1, action: 'STOP', role: 'CONTROLLER',
+    actor: 'controller', previousState: 'ACCEPTANCE_REVIEW', nextState: 'SOFT_STOP', stopReason: 'x', stopId: forged.stopId });
+  assert.throws(() => store.replace(forged));
+  c.decideAcceptance('run-1', G, decision(c));
+  const acceptance = JSON.stringify(c.get('run-1').acceptance);
+  c.stop('run-1', K, 'SOFT_STOP', 'synthetic'); c.resumeSoft('run-1', K, 'repair');
+  assert.equal(c.get('run-1').state, 'ACCEPTED');
+  assert.equal(JSON.stringify(c.get('run-1').acceptance), acceptance);
+  assert.equal(c.audit('run-1').filter((entry) => entry.action === 'ACCEPT_EXACT_SHA').length, 1);
+});
+check('a stop raised inside an operation reuses its timestamp, so one clock read suffices', () => {
+  const clock = movableClock();
+  const { c } = make(packet({ iterationBudget: { ...packet().iterationBudget, maxAcceptanceFailuresPerSlice: 1 } }), clock);
+  ready(c);
+  clock.now = function oneShot() { const value = this.value; this.value = 'broken'; return value; };
+  assert.equal(c.decideAcceptance('run-1', G, decision(c, 'REJECT')).state, 'HUMAN_STOP');
+  assert.deepEqual(c.audit('run-1').slice(-2).map((entry) => [entry.action, entry.timestamp]),
+    [['REJECT_EXACT_SHA', T], ['STOP', T]]);
+});
 check('automation modules import no network, subprocess, or provider code', () => {
   for (const name of ['lifecycle', 'time']) {
     const source = readFileSync(`src/automation/${name}.ts`, 'utf8');

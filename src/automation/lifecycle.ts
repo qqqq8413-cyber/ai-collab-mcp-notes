@@ -115,6 +115,16 @@ function promotionBinding(run: ControllerRun) {
     runId: run.runId, packetId: run.activePacket?.packetId };
 }
 
+/**
+ * When the controller recorded the acceptance now in force. A promotion grant must be
+ * issued at or after it: a grant issued earlier — say while a SHA later rejected was
+ * under review — never saw the SHA it would promote.
+ */
+export function acceptedAt(run: ControllerRun): number | undefined {
+  const entry = [...run.audit].reverse().find((item) => item.action === 'ACCEPT_EXACT_SHA');
+  return entry && entry.acceptanceSHA === run.acceptance?.reviewedSha ? parseInstant(entry.timestamp) : undefined;
+}
+
 /** True when the facts show `run`'s accepted SHA may be promoted onto its packet's expected main. */
 export function preflightPasses(facts: PromotionPreflightFacts, run: ControllerRun): boolean {
   return facts.expectedMainSha === run.activePacket?.expectedBaseSha &&
@@ -265,8 +275,10 @@ export function assertTransition(before: ControllerRun, after: ControllerRun): v
       break;
     case 'AUTHORIZE_PROMOTION': {
       const grant = matchAuthorization(after.promotionAuthorization, promotionBinding(after), entry.timestamp);
-      if (!grant || entry.authorizationReference !== grant.authorizationId ||
-          entry.acceptanceSHA !== after.acceptance?.reviewedSha) fail('promotion needs an exact, current human grant');
+      const accepted = acceptedAt(after);
+      if (!grant || entry.authorizationReference !== grant.authorizationId || accepted === undefined ||
+          parseInstant(grant.issuedAt)! < accepted ||
+          entry.acceptanceSHA !== after.acceptance?.reviewedSha) fail('promotion needs an exact, current human grant issued after acceptance');
       break;
     }
     case 'MARK_PROMOTING':
