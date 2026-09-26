@@ -1,18 +1,26 @@
-export const STATES = [
+// Runtime vocabularies are frozen: they back validation, so an importer must not be
+// able to extend them.
+export const STATES = Object.freeze([
   'IDLE', 'ARCHITECTURE', 'PACKET_READY', 'IMPLEMENTING',
   'IMPLEMENTATION_COMPLETE', 'REMOTE_SHA_READY', 'ACCEPTANCE_REVIEW',
   'CORRECTION_REQUIRED', 'ACCEPTED', 'PROMOTION_READY', 'PROMOTING',
   'CANONICAL_CI', 'CLOSED', 'SOFT_STOP', 'ARCHITECTURE_STOP',
   'HUMAN_STOP', 'FAILED_CLOSED',
-] as const;
+] as const);
 export type ControllerState = typeof STATES[number];
-export type StopClass = 'SOFT_STOP' | 'ARCHITECTURE_STOP' | 'HUMAN_STOP';
-export type Role = 'HUMAN' | 'GPT_ARCHITECT' | 'CODEX_IMPLEMENTER' | 'CONTROLLER' | 'GITHUB';
-export type NetworkLevel = 'OFFLINE' | 'READ_WEB' | 'READ_EXTERNAL_API' | 'WRITE_EXTERNAL' | 'SENSITIVE_WRITE';
+export const STOP_CLASSES = Object.freeze(['SOFT_STOP', 'ARCHITECTURE_STOP', 'HUMAN_STOP'] as const);
+export type StopClass = typeof STOP_CLASSES[number];
+export const ROLES = Object.freeze(['HUMAN', 'GPT_ARCHITECT', 'CODEX_IMPLEMENTER', 'CONTROLLER', 'GITHUB'] as const);
+export type Role = typeof ROLES[number];
+export const NETWORK_LEVELS = Object.freeze(['OFFLINE', 'READ_WEB', 'READ_EXTERNAL_API', 'WRITE_EXTERNAL', 'SENSITIVE_WRITE'] as const);
+export type NetworkLevel = typeof NETWORK_LEVELS[number];
 export type AuthorizationClass = 'ALLOW_AUTOMATIC' | 'REQUIRE_GPT' | 'REQUIRE_HUMAN' | 'FORBIDDEN';
 
 export interface Actor { id: string; role: Role }
 export interface Clock { now(): string }
+
+/** The three separate facts a live model call is authorized against. None is inferred from another. */
+export interface ProviderCallScope { provider: string; model: string; destination: string }
 
 export interface Authorization {
   authorizationId: string;
@@ -21,12 +29,28 @@ export interface Authorization {
   target: string;
   runId?: string;
   packetId?: string;
+  /** LIVE_PROVIDER_MODEL_CALL only: the exact provider/model/destination granted. */
+  scope?: ProviderCallScope;
   issuedAt: string;
   expiresAt?: string;
   reason: string;
 }
 export interface GPTAuthorization extends Authorization { actorRole: 'GPT_ARCHITECT' }
 export interface HumanAuthorization extends Authorization { actorRole: 'HUMAN' }
+
+/**
+ * One exact validation command. It is argv, not a shell string: an execution adapter
+ * runs `executable` with exactly `args` in the repository-relative `cwd`, without a
+ * shell. `classification` is the packet issuer's statement of effect; only
+ * OFFLINE_VALIDATION can be authorized by RUN_OFFLINE_VALIDATION.
+ */
+export interface ValidationCommand {
+  commandId: string;
+  executable: string;
+  args: string[];
+  cwd: string;
+  classification: 'OFFLINE_VALIDATION' | 'EXTERNAL_EFFECT';
+}
 
 export interface ImplementationPacket {
   packetId: string;
@@ -39,7 +63,7 @@ export interface ImplementationPacket {
   forbiddenChanges: string[];
   invariants: string[];
   acceptanceCriteria: string[];
-  validationCommands: string[];
+  validationCommands: ValidationCommand[];
   networkAuthorization: { level: NetworkLevel; destinations: string[]; purpose: string; budget: number };
   providerCallAuthorization: { allowed: boolean; providers: string[]; models: string[]; maxCalls: number; budget: number };
   destructiveOperationAuthorization: { allowed: boolean };
@@ -121,6 +145,7 @@ export interface AuditEntry {
   packetHash?: string;
   acceptanceSHA?: string;
   stopReason?: string;
+  stopId?: string;
 }
 export interface ControllerRun {
   runId: string;
@@ -130,6 +155,13 @@ export interface ControllerRun {
   interruptedState?: ControllerState;
   externalRecheckRequired?: boolean;
   stopReason?: string;
+  /**
+   * Identity of the current stop occurrence, `stop-<audit sequence>` of the entry
+   * that entered it. A HUMAN_STOP resume grant targets this, not the run.
+   */
+  stopId?: string;
+  /** The grant consumed by the most recent HUMAN_STOP resume. */
+  humanResumeAuthorization?: HumanAuthorization;
   activePacket?: ImplementationPacket;
   activePacketHash?: string;
   correctionPacket?: CorrectionPacket;

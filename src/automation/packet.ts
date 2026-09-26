@@ -1,14 +1,33 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import type { CorrectionPacket, ImplementationPacket } from './types.js';
+import { NETWORK_LEVELS, type CorrectionPacket, type ImplementationPacket } from './types.js';
 
-export const SHA = z.string().regex(/^[a-f0-9]{40}$/);
-export const PACKET_HASH = z.string().regex(/^[a-f0-9]{64}$/);
+// Schemas stay module-private. An exported zod object is mutable authority any
+// importer could alter; callers get parse functions instead.
+const SHA = z.string().regex(/^[a-f0-9]{40}$/);
+const PACKET_HASH = z.string().regex(/^[a-f0-9]{64}$/);
 const nonempty = z.string().trim().min(1);
 const entries = z.array(nonempty).min(1);
-const level = z.enum(['OFFLINE', 'READ_WEB', 'READ_EXTERNAL_API', 'WRITE_EXTERNAL', 'SENSITIVE_WRITE']);
+const level = z.enum(NETWORK_LEVELS);
 
-export const packetSchema = z.strictObject({
+// A shell or `env` would turn one argv element back into a free-form command, which
+// exact argv binding exists to prevent. This refuses those launchers only; it does
+// not certify any other program as free of side effects.
+const COMMAND_LAUNCHERS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'mksh', 'fish', 'csh', 'tcsh',
+  'cmd', 'powershell', 'pwsh', 'env']);
+const PATH_SEGMENT = /^[A-Za-z0-9._-]+$/;
+const validationCommand = z.strictObject({
+  commandId: nonempty.refine((id) => !id.includes('*')),
+  executable: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._+-]*$/)
+    .refine((name) => !COMMAND_LAUNCHERS.has(name.toLowerCase().replace(/\.exe$/, ''))),
+  args: z.array(z.string().refine((arg) => !arg.includes('\0'))),
+  // Repository-relative, '.' for the root; never absolute and never climbing out.
+  cwd: z.string().refine((dir) => dir === '.' ||
+    dir.split('/').every((part) => PATH_SEGMENT.test(part) && part !== '.' && part !== '..')),
+  classification: z.enum(['OFFLINE_VALIDATION', 'EXTERNAL_EFFECT']),
+});
+
+const packetSchema = z.strictObject({
   packetId: nonempty,
   packetVersion: z.number().int().positive(),
   sliceId: nonempty,
@@ -19,7 +38,7 @@ export const packetSchema = z.strictObject({
   forbiddenChanges: entries,
   invariants: entries,
   acceptanceCriteria: entries,
-  validationCommands: entries,
+  validationCommands: z.array(validationCommand).min(1),
   networkAuthorization: z.strictObject({
     level,
     destinations: z.array(nonempty),
@@ -50,9 +69,13 @@ export const packetSchema = z.strictObject({
        packet.providerCallAuthorization.maxCalls || packet.providerCallAuthorization.budget)) {
     context.addIssue({ code: 'custom', message: 'Denied provider calls cannot carry a budget or targets' });
   }
+  const ids = packet.validationCommands.map((command) => command.commandId);
+  if (new Set(ids).size !== ids.length) {
+    context.addIssue({ code: 'custom', message: 'Validation command ids must be unique' });
+  }
 });
 
-export const correctionSchema = z.strictObject({
+const correctionSchema = z.strictObject({
   correctionPacketId: nonempty,
   originalPacketId: nonempty,
   originalPacketHash: PACKET_HASH,
@@ -75,8 +98,23 @@ function canonical(value: unknown): string {
   throw new Error('Unsupported canonical value');
 }
 
+export function isSha(value: unknown): value is string {
+  return SHA.safeParse(value).success;
+}
+export function isPacketHash(value: unknown): value is string {
+  return PACKET_HASH.safeParse(value).success;
+}
 export function parsePacket(value: unknown): ImplementationPacket {
   return packetSchema.parse(value) as ImplementationPacket;
+}
+/** A fresh validated copy, or undefined. Never throws, including on hostile getters. */
+export function tryParsePacket(value: unknown): ImplementationPacket | undefined {
+  try {
+    const parsed = packetSchema.safeParse(value);
+    return parsed.success ? parsed.data as ImplementationPacket : undefined;
+  } catch {
+    return undefined;
+  }
 }
 export function packetHash(packet: ImplementationPacket): string {
   return createHash('sha256').update(canonical(parsePacket(packet))).digest('hex');
@@ -85,9 +123,11 @@ export function parseCorrection(value: unknown): CorrectionPacket {
   return correctionSchema.parse(value) as CorrectionPacket;
 }
 
-export function validateCorrection(correction: CorrectionPacket, packet: ImplementationPacket,
+export function validateCorrection(input: CorrectionPacket, packetInput: ImplementationPacket,
   hash: string, rejectedSha: string, reviewerFindings: string[], nextIteration: number): void {
-  parseCorrection(correction);
+  // Compare validated copies, never the caller's objects, which could change between reads.
+  const correction = parseCorrection(input);
+  const packet = parsePacket(packetInput);
   if (correction.originalPacketId !== packet.packetId || correction.originalPacketHash !== hash ||
       correction.rejectedSha !== rejectedSha || correction.expectedBaseSha !== rejectedSha ||
       correction.reviewerFindings.length !== reviewerFindings.length ||

@@ -24,7 +24,7 @@ function packet(overrides = {}) {
     targetBranch: 'work/synthetic-1', objective: 'Implement an offline test fixture',
     allowedAreas: ['src/automation'], forbiddenChanges: ['src/stress-test'],
     invariants: ['human authority retained'], acceptanceCriteria: ['offline checks pass'],
-    validationCommands: ['npm test'],
+    validationCommands: [{ commandId: 'npm-test', executable: 'npm', args: ['test'], cwd: '.', classification: 'OFFLINE_VALIDATION' }],
     networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: ['work/synthetic-1', 'main'], purpose: 'synthetic GitHub facts', budget: 1 },
     providerCallAuthorization: { allowed: false, providers: [], models: [], maxCalls: 0, budget: 0 },
     destructiveOperationAuthorization: { allowed: false },
@@ -206,8 +206,9 @@ check('ARCHITECTURE_STOP must return through ARCHITECTURE and new packet version
 });
 check('HUMAN_STOP requires exact human authorization', () => {
   const { c } = make(); c.stop('run-1', K, 'HUMAN_STOP', 'sensitive');
+  const stopId = c.get('run-1').stopId;
   assert.throws(() => c.resumeHuman('run-1', H, auth('HUMAN', 'RESUME_HUMAN_STOP', 'wrong')));
-  assert.equal(c.resumeHuman('run-1', H, auth('HUMAN', 'RESUME_HUMAN_STOP', 'run-1')).state, 'PACKET_READY');
+  assert.equal(c.resumeHuman('run-1', H, auth('HUMAN', 'RESUME_HUMAN_STOP', stopId)).state, 'PACKET_READY');
   assert.equal(c.get('run-1').externalRecheckRequired, true);
 });
 check('FAILED_CLOSED cannot resume', () => {
