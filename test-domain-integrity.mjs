@@ -559,6 +559,20 @@ check('write/read parity sweep: across hostile adjudication inputs, nothing writ
   assert.equal(accepted, 8, 'exactly 2 valid targets x 1 valid judgment x 2 valid actionChanges x 2 valid notes');
   assert.ok(refused > 0);
 });
+check('findings and issues are written only in a shape exact resolution will later accept', () => {
+  const { session, findingIds } = reviewed();
+  for (const overrides of [{ title: 5 }, { reviewerRunId: null }, { whyMaterial: undefined }, { rawText: 7 }, { artifactLocation: ['p1'] }]) {
+    throwsWithoutMutation(() => addFinding(session, findingInput(overrides)), session);
+  }
+  for (const overrides of [{ title: 5 }, { description: null }, { evidenceState: undefined }]) {
+    throwsWithoutMutation(() => createSemanticIssue(session, { title: 't', description: 'd', findingIds: [findingIds[0]],
+      evidenceState: 'UNSUPPORTED_IN_MATERIAL', ...overrides }), session);
+  }
+  const next = addFinding(session, findingInput({ rawText: 'verbatim reviewer text' }));
+  for (const id of Object.keys(next.findings)) validateRouteInputRef(next, { kind: 'FINDING', id });
+  const clustered = createSemanticIssue(next, { title: 't', description: 'd', findingIds: Object.keys(next.findings), evidenceState: 'PARTIALLY_SUPPORTED' });
+  for (const id of Object.keys(clustered.semanticIssues)) validateRouteInputRef(clustered, { kind: 'SEMANTIC_ISSUE', id });
+});
 check('the other session ledger writes also leave state their canonical validators accept', () => {
   const { session, issueId } = withIssue();
   const adjudicated = adjudicate(session, { semanticIssueId: issueId, judgment: 'NEW_MATERIAL', actionChange: 'YES' });

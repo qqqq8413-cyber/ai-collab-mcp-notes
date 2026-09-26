@@ -192,6 +192,11 @@ export function addFinding(
     ...(input.rawText !== undefined ? { rawText: input.rawText } : {}),
     createdAt: nowIso(),
   };
+  // Write/read parity: exact reference resolution only accepts a finding of this
+  // runtime shape, so a finding that would never resolve is never written.
+  if (!isReviewFindingShape(finding)) {
+    throw new Error('addFinding: every finding field must be a string (rawText optional)');
+  }
   return {
     ...session,
     state: session.state === 'INPUT_FROZEN' ? 'REVIEWED' : session.state,
@@ -234,6 +239,9 @@ export function createSemanticIssue(
     evidenceState: input.evidenceState,
     status: 'OPEN',
   };
+  if (!isSemanticIssueShape(issue)) {
+    throw new Error('createSemanticIssue: title, description, and evidenceState must be strings');
+  }
   return {
     ...session,
     semanticIssues: { ...session.semanticIssues, [issue.id]: issue },
