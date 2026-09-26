@@ -3,6 +3,7 @@ import type { CallOptions, CallResult } from '../providers/types.js';
 import { callClaude } from '../providers/claude.js';
 import { callOpenAI } from '../providers/openai.js';
 import { callGemini } from '../providers/gemini.js';
+import { executionRequestFingerprint } from './fingerprint.js';
 import type {
   ExecutionRequest,
   ExecutionResultIdentity,
@@ -114,6 +115,20 @@ function assertBinding(request: ExecutionRequest, binding: ProviderBinding, prov
   }
 }
 
+function assertAuthorization(snapshot: ExecutionSnapshot): void {
+  const { request, binding, authorization } = snapshot;
+  if (
+    typeof authorization.admissionId !== 'string' || !authorization.admissionId.trim() ||
+    authorization.executionId !== request.executionId ||
+    authorization.attemptId !== request.attemptId ||
+    authorization.provider !== binding.provider ||
+    authorization.effectiveModel !== binding.effectiveModel ||
+    authorization.requestFingerprint !== executionRequestFingerprint(request, binding)
+  ) {
+    throw new TypeError('Execution authorization does not match the fixed request and binding');
+  }
+}
+
 // Built only from the snapshot, as fresh objects: the transport owns what it
 // receives, and nothing it changes there reaches the snapshot or the caller.
 function toCallOptions(request: Readonly<ExecutionRequest>, binding: Readonly<ProviderBinding>): CallOptions {
@@ -208,6 +223,7 @@ function createExecutor(
       const snapshot = snapshotExecutionInput(input);
       const { request, binding } = snapshot;
       assertBinding(request, binding, provider);
+      assertAuthorization(snapshot);
       const common = identity(snapshot);
       const expectedModel = binding.effectiveModel;
       const options = toCallOptions(request, binding);

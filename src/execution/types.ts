@@ -31,11 +31,14 @@ export interface ProviderBinding {
   resolutionBasis: 'EXPLICIT' | 'DEFAULT';
 }
 
-/** R3 will issue this after admission; R2 executors do not evaluate it. */
+/** Issued by the R3 boundary after local admission and a D1 claim. Not a secret credential. */
 export interface ProviderExecutionAuthorization {
   admissionId: string;
   executionId: string;
   attemptId: string;
+  provider: ProviderName;
+  effectiveModel: string;
+  requestFingerprint: string;
 }
 
 export interface ProviderExecutionInput {

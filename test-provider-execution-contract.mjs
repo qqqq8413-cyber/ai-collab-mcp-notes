@@ -7,6 +7,7 @@ import {
   createGeminiExecutor,
   resolveProviderBinding,
 } from './dist/execution/executors.js';
+import { executionRequestFingerprint } from './dist/execution/fingerprint.js';
 import { callProvider } from './dist/providers/index.js';
 import { callClaude } from './dist/providers/claude.js';
 import { callOpenAI } from './dist/providers/openai.js';
@@ -38,13 +39,17 @@ function request(provider, overrides = {}) {
 }
 
 function admitted(requested, defaultModel = 'configured-default') {
+  const binding = resolveProviderBinding(requested, defaultModel);
   return {
     request: requested,
-    binding: resolveProviderBinding(requested, defaultModel),
+    binding,
     authorization: {
       admissionId: 'external-admission-1',
       executionId: requested.executionId,
       attemptId: requested.attemptId,
+      provider: binding.provider,
+      effectiveModel: binding.effectiveModel,
+      requestFingerprint: executionRequestFingerprint(requested, binding),
     },
   };
 }

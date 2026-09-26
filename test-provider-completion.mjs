@@ -36,6 +36,7 @@ const {
   createOpenAIExecutor,
   resolveProviderBinding,
 } = await import('./dist/execution/executors.js');
+const { executionRequestFingerprint } = await import('./dist/execution/fingerprint.js');
 
 let passed = 0;
 let failed = 0;
@@ -179,10 +180,13 @@ console.log('\nE0-R2: default transports keep the native reason as finishReason'
 const factories = { claude: createClaudeExecutor, openai: createOpenAIExecutor, gemini: createGeminiExecutor };
 function admitted(provider) {
   const request = { executionId: 'execution-1', attemptId: 'attempt-1', provider, input: 'offline prompt', parameters: {}, requestedModel: `${provider}-fixture` };
+  const binding = resolveProviderBinding(request, 'configured-default');
   return {
     request,
-    binding: resolveProviderBinding(request, 'configured-default'),
-    authorization: { admissionId: 'external-admission-1', executionId: 'execution-1', attemptId: 'attempt-1' },
+    binding,
+    authorization: { admissionId: 'external-admission-1', executionId: 'execution-1', attemptId: 'attempt-1',
+      provider, effectiveModel: binding.effectiveModel,
+      requestFingerprint: executionRequestFingerprint(request, binding) },
   };
 }
 

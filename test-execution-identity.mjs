@@ -8,6 +8,7 @@ import {
   resolveProviderBinding,
   snapshotExecutionInput,
 } from './dist/execution/executors.js';
+import { executionRequestFingerprint } from './dist/execution/fingerprint.js';
 
 let passed = 0;
 let failed = 0;
@@ -34,10 +35,13 @@ function request(provider, overrides = {}) {
   };
 }
 function admitted(requested, defaultModel = 'configured-default') {
+  const binding = resolveProviderBinding(requested, defaultModel);
   return {
     request: requested,
-    binding: resolveProviderBinding(requested, defaultModel),
-    authorization: { admissionId: 'admission-1', executionId: requested.executionId, attemptId: requested.attemptId },
+    binding,
+    authorization: { admissionId: 'admission-1', executionId: requested.executionId, attemptId: requested.attemptId,
+      provider: binding.provider, effectiveModel: binding.effectiveModel,
+      requestFingerprint: executionRequestFingerprint(requested, binding) },
   };
 }
 
@@ -191,7 +195,8 @@ await check('I/J: the snapshot detaches request.origin and authorization at ever
   input.authorization.executionId = 'execution-2';
   input.request.parameters.temperature.value = 9;
   assert.deepEqual(snapshot.request.origin, { runId: 'run-1', sourceRef: 'ref-1' });
-  assert.deepEqual(snapshot.authorization, { admissionId: 'admission-1', executionId: 'execution-1', attemptId: 'attempt-1' });
+  assert.deepEqual(snapshot.authorization, { admissionId: 'admission-1', executionId: 'execution-1', attemptId: 'attempt-1',
+    provider: 'claude', effectiveModel: 'model-A', requestFingerprint: executionRequestFingerprint(snapshot.request, snapshot.binding) });
   assert.equal(snapshot.request.parameters.temperature.value, 0.2);
   for (const node of [snapshot, snapshot.request, snapshot.request.origin, snapshot.request.parameters,
     snapshot.request.parameters.temperature, snapshot.request.retrieval, snapshot.binding, snapshot.authorization]) {
