@@ -10,6 +10,7 @@ import type {
   NormalizedExecutionResult,
   NormalizedRetrieval,
   ProviderBinding,
+  ProviderExecutionAuthorization,
   ProviderExecutionError,
   ProviderExecutionInput,
   ProviderExecutor,
@@ -56,6 +57,49 @@ export function resolveProviderBinding(
   };
 }
 
+/**
+ * The fixed facts of one execution. Everything an executor checks, dispatches,
+ * matches, and reports is read from this, never from the caller's input.
+ */
+export interface ExecutionSnapshot {
+  readonly request: Readonly<ExecutionRequest>;
+  readonly binding: Readonly<ProviderBinding>;
+  readonly authorization: Readonly<ProviderExecutionAuthorization>;
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
+    for (const key of Object.keys(value)) deepFreeze((value as Record<string, unknown>)[key]);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * Detaches an execution from its caller in one synchronous step: request,
+ * binding, and authorization are each read once, deep-copied with
+ * structuredClone (nested parameters, retrieval, origin, and anything added
+ * later included), and frozen. The caller can mutate its own objects while the
+ * transport is pending without changing any fact of the execution in flight.
+ * An ownership / async-boundary snapshot, not cryptographic immutability; input
+ * that is not plain cloneable data is refused.
+ */
+export function snapshotExecutionInput(input: ProviderExecutionInput): ExecutionSnapshot {
+  if (!isRecord(input)) throw new TypeError('Execution input must be an object');
+  const snapshot: unknown = structuredClone({
+    request: input.request,
+    binding: input.binding,
+    authorization: input.authorization,
+  });
+  if (!isRecord(snapshot) || !isRecord(snapshot.request) || !isRecord(snapshot.binding) || !isRecord(snapshot.authorization)) {
+    throw new TypeError('Execution input must carry request, binding, and authorization objects');
+  }
+  return deepFreeze(snapshot as unknown as ExecutionSnapshot);
+}
+
 function assertBinding(request: ExecutionRequest, binding: ProviderBinding, provider: ProviderName): void {
   if (
     request.provider !== provider ||
@@ -70,12 +114,14 @@ function assertBinding(request: ExecutionRequest, binding: ProviderBinding, prov
   }
 }
 
-function toCallOptions(request: ExecutionRequest, binding: ProviderBinding): CallOptions {
+// Built only from the snapshot, as fresh objects: the transport owns what it
+// receives, and nothing it changes there reaches the snapshot or the caller.
+function toCallOptions(request: Readonly<ExecutionRequest>, binding: Readonly<ProviderBinding>): CallOptions {
   // The existing adapters own max_tokens, max_completion_tokens, and maxOutputTokens.
   const options: CallOptions = { model: binding.effectiveModel };
   if (request.systemInstruction !== undefined) options.system = request.systemInstruction;
   if (request.stage !== undefined) options.stage = request.stage;
-  if (request.retrieval !== undefined) options.retrieval = request.retrieval;
+  if (request.retrieval !== undefined) options.retrieval = structuredClone(request.retrieval);
   if (Object.hasOwn(request.parameters, 'temperature')) {
     options.temperature = request.parameters.temperature!.value;
   }
@@ -85,15 +131,15 @@ function toCallOptions(request: ExecutionRequest, binding: ProviderBinding): Cal
   return options;
 }
 
-function identity(input: ProviderExecutionInput): ExecutionResultIdentity {
+function identity({ request, binding }: ExecutionSnapshot): ExecutionResultIdentity {
   const result: ExecutionResultIdentity = {
-    executionId: input.request.executionId,
-    attemptId: input.request.attemptId,
-    requestedProvider: input.request.provider,
-    effectiveProvider: input.binding.provider,
-    effectiveModel: input.binding.effectiveModel,
+    executionId: request.executionId,
+    attemptId: request.attemptId,
+    requestedProvider: request.provider,
+    effectiveProvider: binding.provider,
+    effectiveModel: binding.effectiveModel,
   };
-  if (input.request.requestedModel !== undefined) result.requestedModel = input.request.requestedModel;
+  if (request.requestedModel !== undefined) result.requestedModel = request.requestedModel;
   return result;
 }
 
@@ -155,13 +201,20 @@ function createExecutor(
     kind: 'MODEL_PROVIDER',
     provider,
     async execute(input: ProviderExecutionInput): Promise<NormalizedExecutionResult> {
-      assertBinding(input.request, input.binding, provider);
-      const common = identity(input);
-      const options = toCallOptions(input.request, input.binding);
+      // One execution, one fixed fact snapshot, taken before anything can await.
+      // From here on the caller's input is never read again: binding checks,
+      // dispatch, response and failure matching, and the result identity all
+      // use these same facts.
+      const snapshot = snapshotExecutionInput(input);
+      const { request, binding } = snapshot;
+      assertBinding(request, binding, provider);
+      const common = identity(snapshot);
+      const expectedModel = binding.effectiveModel;
+      const options = toCallOptions(request, binding);
       preflight?.();
       let observation: ProviderTransportResult;
       try {
-        observation = await transport(input.request.input, options);
+        observation = await transport(request.input, options);
       } catch {
         // An unclassified transport error cannot prove whether a provider completed work.
         return {
@@ -169,7 +222,7 @@ function createExecutor(
           outcome: 'UNCERTAIN',
           error: {
             provider,
-            model: input.binding.effectiveModel,
+            model: expectedModel,
             category: 'UNKNOWN',
             message: 'Provider execution outcome could not be established.',
             dispatchState: 'UNKNOWN',
@@ -178,15 +231,18 @@ function createExecutor(
         };
       }
 
-      if (observation.outcome === 'KNOWN_FAILURE' || observation.outcome === 'UNCERTAIN') {
-        const error = copyFailure(observation.error);
-        if (error.provider !== provider || error.model !== input.binding.effectiveModel) {
+      // Each transport fact is read once and copied before it is checked, so the
+      // value validated is the value recorded.
+      const outcome = observation.outcome;
+      if (outcome === 'KNOWN_FAILURE' || outcome === 'UNCERTAIN') {
+        const error = copyFailure((observation as Exclude<ProviderTransportResult, TransportSuccess>).error);
+        if (error.provider !== provider || error.model !== expectedModel) {
           return {
             ...common,
             outcome: 'UNCERTAIN',
             error: {
               provider,
-              model: input.binding.effectiveModel,
+              model: expectedModel,
               category: 'RESULT_MISMATCH',
               message: 'Transport failure identity did not match the execution binding.',
               dispatchState: 'UNKNOWN',
@@ -194,22 +250,27 @@ function createExecutor(
             },
           };
         }
-        return observation.outcome === 'KNOWN_FAILURE'
+        return outcome === 'KNOWN_FAILURE'
           ? { ...common, outcome: 'KNOWN_FAILURE', error: { ...error, completionState: 'FAILED' } }
           : { ...common, outcome: 'UNCERTAIN', error: { ...error, completionState: 'UNKNOWN' } };
       }
 
+      const reported = (observation as TransportSuccess).result;
+      const reportedProvider = reported.provider;
+      const reportedResultModel = reported.model;
+      const text = reported.text;
+      const usage = copyUsage((observation as TransportSuccess).usage);
       if (
-        observation.result.provider !== provider ||
-        observation.result.model !== input.binding.effectiveModel ||
-        (observation.usage !== undefined && observation.usage.provider !== provider)
+        reportedProvider !== provider ||
+        reportedResultModel !== expectedModel ||
+        (usage !== undefined && usage.provider !== provider)
       ) {
         return {
           ...common,
           outcome: 'UNCERTAIN',
           error: {
             provider,
-            model: input.binding.effectiveModel,
+            model: expectedModel,
             category: 'RESULT_MISMATCH',
             message: 'Transport response identity did not match the execution binding.',
             dispatchState: 'DISPATCHED',
@@ -221,24 +282,25 @@ function createExecutor(
       const success: ExecutionSuccess = {
         ...common,
         outcome: 'SUCCESS',
-        output: { text: observation.result.text },
+        output: { text },
       };
-      if (observation.reportedModel !== undefined) success.providerReportedModel = observation.reportedModel;
-      const retrieval = copyRetrieval(observation.result.retrieval);
+      const { reportedModel, finishReason, providerRequestId, providerMetadata } = observation as TransportSuccess;
+      if (reportedModel !== undefined) success.providerReportedModel = reportedModel;
+      const retrieval = copyRetrieval(reported.retrieval);
       if (retrieval !== undefined) success.retrieval = retrieval;
-      const usage = copyUsage(observation.usage);
       if (usage !== undefined) success.usage = usage;
-      if (observation.finishReason !== undefined) success.finishReason = observation.finishReason;
-      if (observation.providerRequestId !== undefined) {
-        success.providerRequestId = observation.providerRequestId.slice(0, 128);
+      if (finishReason !== undefined) success.finishReason = finishReason;
+      if (providerRequestId !== undefined) {
+        success.providerRequestId = providerRequestId.slice(0, 128);
       }
-      if (observation.providerMetadata) {
+      if (providerMetadata) {
         const metadata: NonNullable<ExecutionSuccess['providerMetadata']> = {};
-        if (observation.providerMetadata.serviceTier !== undefined) {
-          metadata.serviceTier = observation.providerMetadata.serviceTier.slice(0, 128);
+        const { serviceTier, region } = providerMetadata;
+        if (serviceTier !== undefined) {
+          metadata.serviceTier = serviceTier.slice(0, 128);
         }
-        if (observation.providerMetadata.region !== undefined) {
-          metadata.region = observation.providerMetadata.region.slice(0, 128);
+        if (region !== undefined) {
+          metadata.region = region.slice(0, 128);
         }
         if (Object.keys(metadata).length > 0) success.providerMetadata = metadata;
       }
