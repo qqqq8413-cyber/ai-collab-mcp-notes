@@ -6950,7 +6950,10 @@ check('recordRouteOutcome: SEEK_EVIDENCE reuses the C5-A ledger validator for up
           evidenceSubjectId: evidenceSubject.id,
           citations: [VALID_CITATION],
         }),
-      /does not agree with originatingFindingId/
+      // This question also names the FINDING as an input ref, so exact reference
+      // resolution rejects the mismatch first; the EvidenceSubject ledger's own
+      // message is covered separately in test-domain-integrity.mjs.
+      /does not agree with originatingFindingId|validateRouteInputRef: unknown FINDING id/
     );
   }
   {
@@ -7396,11 +7399,13 @@ check('createUnresolvedQuestion + registerUnresolvedQuestion + planRouteForQuest
 check('TARGETED_PEER_CHALLENGE cardinality: a FINDING and a SEMANTIC_ISSUE sharing the same id are distinct RouteInputRefs when both independently resolve -- distinctness is full-tuple (kind, id), never id alone', () => {
   const { session, issueId, findingIds } = buildFixtureWithIssue();
   const collidingId = findingIds[0];
+  // The colliding SemanticIssue carries its own id: a record stored under a key
+  // it does not name never resolves (exact reference resolution).
   const tamperedSession = {
     ...session,
     semanticIssues: {
       ...session.semanticIssues,
-      [collidingId]: session.semanticIssues[issueId],
+      [collidingId]: { ...session.semanticIssues[issueId], id: collidingId },
     },
   };
   const question = createUnresolvedQuestion(tamperedSession, {
@@ -7759,11 +7764,13 @@ check('recordRouteOutcome: TARGETED_PEER_CHALLENGE rejects targetRef === sourceR
 check('recordRouteOutcome: TARGETED_PEER_CHALLENGE allows targetRef/sourceRef that share an id but differ by kind, when both independently resolve and both are members of decision.inputRefs -- full tuple distinctness, never id alone', () => {
   const { session: baseSession, findingIds } = buildFixtureWithIssue();
   const collidingId = findingIds[0];
+  // The colliding SemanticIssue carries its own id: a record stored under a key
+  // it does not name never resolves (exact reference resolution).
   const session = {
     ...baseSession,
     semanticIssues: {
       ...baseSession.semanticIssues,
-      [collidingId]: Object.values(baseSession.semanticIssues)[0],
+      [collidingId]: { ...Object.values(baseSession.semanticIssues)[0], id: collidingId },
     },
   };
   const state0 = createDeliberationState(session, { costCeiling: 5, latencyCeiling: 5 });

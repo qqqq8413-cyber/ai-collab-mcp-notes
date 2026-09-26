@@ -29,24 +29,26 @@ export interface AgentDefinition {
   defaultModel?: string;
 }
 
-export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
-  business_strategist: {
+// Frozen: listAgents and resolution hand out copies or primitives, so no caller can
+// rebind a registered specialist by mutating what it was given.
+export const AGENT_REGISTRY: Readonly<Record<string, Readonly<AgentDefinition>>> = Object.freeze({
+  business_strategist: Object.freeze({
     id: 'business_strategist',
     role: 'Business Strategist / Critical Analyst — 商業模式、財務邏輯、商業風險、策略漏洞、可行性、反方觀點',
     defaultProvider: 'claude',
-  },
-  market_researcher: {
+  }),
+  market_researcher: Object.freeze({
     id: 'market_researcher',
     role: 'Market / Research Analyst — 市場情報、競品、客群、成長機會、外部環境、證據蒐集',
     providesEvidence: true,
     defaultProvider: 'gemini',
-  },
-  brand_creative: {
+  }),
+  brand_creative: Object.freeze({
     id: 'brand_creative',
     role: 'Brand / Creative Strategist — 品牌策略、Creative Direction、產品化設計、服務設計、差異化',
     defaultProvider: 'openai',
-  },
-};
+  }),
+});
 
 /**
  * How a caller names a specialist: by registry id, or as a full inline definition for
@@ -74,7 +76,24 @@ export interface ResolvedRoster {
 }
 
 export function listAgents(): AgentDefinition[] {
-  return Object.values(AGENT_REGISTRY);
+  return Object.values(AGENT_REGISTRY).map((agent) => ({ ...agent }));
+}
+
+/**
+ * The registered agent stored under exactly `id`. Membership is an owned key,
+ * never an inherited property such as "constructor" or "toString", and the
+ * entry's own id must equal the key; an owned key holding anything else is a
+ * corrupt registry, reported rather than treated as "not registered".
+ */
+function registeredAgent(id: string): Readonly<AgentDefinition> | undefined {
+  if (!Object.hasOwn(AGENT_REGISTRY, id)) return undefined;
+  const agent: unknown = AGENT_REGISTRY[id];
+  const candidate = agent as Partial<AgentDefinition> | null;
+  if (candidate === null || typeof candidate !== 'object' || candidate.id !== id ||
+      typeof candidate.role !== 'string' || typeof candidate.defaultProvider !== 'string') {
+    throw new Error(`Agent registry entry "${id}" is malformed or does not carry its own id.`);
+  }
+  return candidate as Readonly<AgentDefinition>;
 }
 
 function unknownAgentError(id: string): Error {
@@ -94,7 +113,8 @@ interface ResolvedFields {
 
 function resolveFields(ref: WorkerRef): ResolvedFields {
   if (typeof ref === 'string') {
-    const agent = AGENT_REGISTRY[ref];
+    if (ref.length === 0) throw unknownAgentError(ref);
+    const agent = registeredAgent(ref);
     if (!agent) throw unknownAgentError(ref);
     return {
       id: agent.id,
@@ -105,7 +125,10 @@ function resolveFields(ref: WorkerRef): ResolvedFields {
     };
   }
 
-  const agent = AGENT_REGISTRY[ref.id];
+  if (ref === null || typeof ref !== 'object' || typeof ref.id !== 'string' || ref.id.length === 0) {
+    throw new Error('A specialist reference must be a registered id or an object with a non-empty string id.');
+  }
+  const agent = registeredAgent(ref.id);
 
   if (!agent) {
     // Not registered, so the caller must supply everything the orchestrator needs.

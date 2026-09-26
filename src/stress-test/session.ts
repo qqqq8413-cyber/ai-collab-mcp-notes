@@ -19,6 +19,7 @@ import type {
 } from './types.js';
 import { emptyAuthorContext } from './types.js';
 import { sha256AuthorContext, sha256Text } from './hash.js';
+import { isReviewFindingShape, isSemanticIssueShape, lookupExactRecord, resolveExactRecord } from './reference.js';
 
 const nowIso = () => new Date().toISOString();
 
@@ -212,13 +213,18 @@ export function createSemanticIssue(
   verifyFrozenInputIntegrity(session);
   assertFrozenOrLater(session, 'createSemanticIssue');
   assertStateIn(session, 'createSemanticIssue', ['REVIEWED']);
-  if (input.findingIds.length === 0) {
+  if (!Array.isArray(input.findingIds) || input.findingIds.length === 0) {
     throw new Error('createSemanticIssue: findingIds must be non-empty');
   }
   for (const findingId of input.findingIds) {
-    if (!session.findings[findingId]) {
+    if (!resolveExactRecord(session.findings, findingId, isReviewFindingShape)) {
       throw new Error(`createSemanticIssue: unknown findingId ${findingId}`);
     }
+  }
+  // findingIds is provenance, not a set: a repeated id is exactly the malformed,
+  // provenance-ambiguous membership later evidence reads reject, so it is never written.
+  if (new Set(input.findingIds).size !== input.findingIds.length) {
+    throw new Error('createSemanticIssue: findingIds must not repeat a finding');
   }
   const issue: SemanticIssue = {
     id: randomUUID(),
@@ -277,15 +283,15 @@ export function assertHumanAdjudicationLedgerIntegrity(session: StressTestSessio
           `assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id} has an invalid semanticIssueId`
         );
       }
-      const issue = session.semanticIssues[semanticIssueId];
-      if (!issue) {
+      const lookup = lookupExactRecord(session.semanticIssues, semanticIssueId, isSemanticIssueShape);
+      if (!lookup.found && lookup.reason === 'NOT_OWNED') {
         throw new Error(
           `assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id} references unknown semanticIssueId ${semanticIssueId}`
         );
       }
-      if (issue.id !== semanticIssueId) {
+      if (!lookup.found) {
         throw new Error(
-          `assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id}'s semanticIssueId "${semanticIssueId}" resolves by map key but the resolved SemanticIssue.id "${issue.id}" differs`
+          `assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id}'s semanticIssueId "${semanticIssueId}" resolves by map key but the resolved SemanticIssue.id "${(session.semanticIssues[semanticIssueId] as { id?: unknown } | null)?.id}" differs or the record is malformed`
         );
       }
       targetKey = `SEMANTIC_ISSUE:${semanticIssueId}`;
@@ -294,15 +300,15 @@ export function assertHumanAdjudicationLedgerIntegrity(session: StressTestSessio
       if (!isNonEmptyString(findingId)) {
         throw new Error(`assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id} has an invalid findingId`);
       }
-      const finding = session.findings[findingId];
-      if (!finding) {
+      const lookup = lookupExactRecord(session.findings, findingId, isReviewFindingShape);
+      if (!lookup.found && lookup.reason === 'NOT_OWNED') {
         throw new Error(
           `assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id} references unknown findingId ${findingId}`
         );
       }
-      if (finding.id !== findingId) {
+      if (!lookup.found) {
         throw new Error(
-          `assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id}'s findingId "${findingId}" resolves by map key but the resolved ReviewFinding.id "${finding.id}" differs`
+          `assertHumanAdjudicationLedgerIntegrity: adjudication ${adjudication.id}'s findingId "${findingId}" resolves by map key but the resolved ReviewFinding.id "${(session.findings[findingId] as { id?: unknown } | null)?.id}" differs or the record is malformed`
         );
       }
       targetKey = `FINDING:${findingId}`;
@@ -379,28 +385,28 @@ export function assertRevisionActionLedgerIntegrity(session: StressTestSession):
         throw new Error(`assertRevisionActionLedgerIntegrity: action ${action.id} has a sourceRef with an invalid id`);
       }
       if (ref.kind === 'SEMANTIC_ISSUE') {
-        const issue = session.semanticIssues[ref.id];
-        if (!issue) {
+        const lookup = lookupExactRecord(session.semanticIssues, ref.id, isSemanticIssueShape);
+        if (!lookup.found && lookup.reason === 'NOT_OWNED') {
           throw new Error(
             `assertRevisionActionLedgerIntegrity: action ${action.id} references unknown semantic issue ${ref.id}`
           );
         }
-        if (issue.id !== ref.id) {
+        if (!lookup.found) {
           throw new Error(
-            `assertRevisionActionLedgerIntegrity: action ${action.id}'s sourceRef "${ref.id}" resolves by map key but the resolved SemanticIssue.id "${issue.id}" differs`
+            `assertRevisionActionLedgerIntegrity: action ${action.id}'s sourceRef "${ref.id}" resolves by map key but the resolved SemanticIssue.id "${(session.semanticIssues[ref.id] as { id?: unknown } | null)?.id}" differs or the record is malformed`
           );
         }
         if (Object.values(session.adjudications).some((a) => a.actionChange === 'YES' && a.semanticIssueId === ref.id)) {
           authorized = true;
         }
       } else {
-        const finding = session.findings[ref.id];
-        if (!finding) {
+        const lookup = lookupExactRecord(session.findings, ref.id, isReviewFindingShape);
+        if (!lookup.found && lookup.reason === 'NOT_OWNED') {
           throw new Error(`assertRevisionActionLedgerIntegrity: action ${action.id} references unknown finding ${ref.id}`);
         }
-        if (finding.id !== ref.id) {
+        if (!lookup.found) {
           throw new Error(
-            `assertRevisionActionLedgerIntegrity: action ${action.id}'s sourceRef "${ref.id}" resolves by map key but the resolved ReviewFinding.id "${finding.id}" differs`
+            `assertRevisionActionLedgerIntegrity: action ${action.id}'s sourceRef "${ref.id}" resolves by map key but the resolved ReviewFinding.id "${(session.findings[ref.id] as { id?: unknown } | null)?.id}" differs or the record is malformed`
           );
         }
         if (Object.values(session.adjudications).some((a) => a.actionChange === 'YES' && a.findingId === ref.id)) {
@@ -437,16 +443,31 @@ export function adjudicate(
   assertFrozenOrLater(session, 'adjudicate');
   assertStateIn(session, 'adjudicate', ['REVIEWED', 'ADJUDICATED']);
   assertHumanAdjudicationLedgerIntegrity(session);
+  if (input === null || typeof input !== 'object') {
+    throw new Error('adjudicate: input must be an object');
+  }
   const hasIssue = input.semanticIssueId !== undefined;
   const hasFinding = input.findingId !== undefined;
   if (hasIssue === hasFinding) {
     throw new Error('adjudicate: exactly one of semanticIssueId or findingId must be supplied');
   }
-  if (hasIssue && !session.semanticIssues[input.semanticIssueId as string]) {
+  // The new entry is validated before anything is written, against the same
+  // vocabularies and exact-reference rule the canonical ledger validator applies
+  // on every later read.
+  if (hasIssue && !resolveExactRecord(session.semanticIssues, input.semanticIssueId, isSemanticIssueShape)) {
     throw new Error(`adjudicate: unknown semanticIssueId ${input.semanticIssueId}`);
   }
-  if (hasFinding && !session.findings[input.findingId as string]) {
+  if (hasFinding && !resolveExactRecord(session.findings, input.findingId, isReviewFindingShape)) {
     throw new Error(`adjudicate: unknown findingId ${input.findingId}`);
+  }
+  if (!JUDGMENTS.includes(input.judgment)) {
+    throw new Error(`adjudicate: invalid judgment ${JSON.stringify(input.judgment)}`);
+  }
+  if (!ACTION_CHANGES.includes(input.actionChange)) {
+    throw new Error(`adjudicate: invalid actionChange ${JSON.stringify(input.actionChange)}`);
+  }
+  if (input.note !== undefined && typeof input.note !== 'string') {
+    throw new Error('adjudicate: note must be a string when supplied');
   }
   // Slice 1 has no amendment/supersession model -- at most one HumanAdjudication per target.
   if (hasIssue && Object.values(session.adjudications).some((a) => a.semanticIssueId === input.semanticIssueId)) {
@@ -477,12 +498,16 @@ export function adjudicate(
         },
       }
     : session.semanticIssues;
-  return {
+  const next: StressTestSession = {
     ...session,
     state: session.state === 'REVIEWED' ? 'ADJUDICATED' : session.state,
     semanticIssues,
     adjudications: { ...session.adjudications, [record.id]: record },
   };
+  // Write/read parity: a successful adjudication never returns a ledger its own
+  // canonical later-read validator would reject.
+  assertHumanAdjudicationLedgerIntegrity(next);
+  return next;
 }
 
 /**
@@ -512,16 +537,19 @@ export function planRevisionAction(
   assertFrozenOrLater(session, 'planRevisionAction');
   assertStateIn(session, 'planRevisionAction', ['ADJUDICATED', 'REVISION_PLANNED']);
   assertRevisionActionLedgerIntegrity(session);
-  if (input.sourceRefs.length === 0) {
+  if (!Array.isArray(input.sourceRefs) || input.sourceRefs.length === 0) {
     throw new Error('planRevisionAction: sourceRefs must be non-empty');
   }
   for (const ref of input.sourceRefs) {
+    if (ref === null || typeof ref !== 'object') {
+      throw new Error('planRevisionAction: every sourceRef must be an object');
+    }
     if (ref.kind === 'SEMANTIC_ISSUE') {
-      if (!session.semanticIssues[ref.id]) {
+      if (!resolveExactRecord(session.semanticIssues, ref.id, isSemanticIssueShape)) {
         throw new Error(`planRevisionAction: unknown semantic issue id ${ref.id}`);
       }
     } else if (ref.kind === 'FINDING') {
-      if (!session.findings[ref.id]) {
+      if (!resolveExactRecord(session.findings, ref.id, isReviewFindingShape)) {
         throw new Error(`planRevisionAction: unknown finding id ${ref.id}`);
       }
     } else {
@@ -553,11 +581,13 @@ export function planRevisionAction(
     status: 'PLANNED',
     createdAt: nowIso(),
   };
-  return {
+  const next: StressTestSession = {
     ...session,
     state: session.state === 'ADJUDICATED' ? 'REVISION_PLANNED' : session.state,
     revisionActions: { ...session.revisionActions, [action.id]: action },
   };
+  assertRevisionActionLedgerIntegrity(next);
+  return next;
 }
 
 function setRevisionStatus(
@@ -569,15 +599,17 @@ function setRevisionStatus(
   verifyFrozenInputIntegrity(session);
   assertStateIn(session, action, ['REVISION_PLANNED']);
   assertRevisionActionLedgerIntegrity(session);
-  const existing = session.revisionActions[revisionActionId];
+  const existing = resolveExactRecord(session.revisionActions, revisionActionId);
   if (!existing) throw new Error(`${action}: unknown revisionActionId ${revisionActionId}`);
   if (existing.status !== 'PLANNED') {
     throw new Error(`${action}: revision action ${revisionActionId} is not PLANNED (status=${existing.status})`);
   }
-  return {
+  const next: StressTestSession = {
     ...session,
     revisionActions: { ...session.revisionActions, [revisionActionId]: { ...existing, status } },
   };
+  assertRevisionActionLedgerIntegrity(next);
+  return next;
 }
 
 export function implementRevisionAction(session: StressTestSession, revisionActionId: string): StressTestSession {
@@ -823,7 +855,7 @@ export function assertRevisionVerificationLedgerIntegrity(sourceSession: StressT
     if (!isNonEmptyString(record.id)) {
       throw new Error(`assertRevisionVerificationLedgerIntegrity: record at key "${key}" has an invalid id`);
     }
-    const referencedAction = sourceSession.revisionActions[record.revisionActionId];
+    const referencedAction = resolveExactRecord(sourceSession.revisionActions, record.revisionActionId);
     if (!referencedAction) {
       throw new Error(
         `assertRevisionVerificationLedgerIntegrity: record ${record.id} references unknown revisionActionId ${record.revisionActionId}`
@@ -875,7 +907,7 @@ export function recordRevisionVerification(
   assertRevisionSuccessorIntegrity(sourceSession, successorSession);
   assertRevisionVerificationLedgerIntegrity(sourceSession);
 
-  const action = sourceSession.revisionActions[input.revisionActionId];
+  const action = resolveExactRecord(sourceSession.revisionActions, input.revisionActionId);
   if (!action) {
     throw new Error(`recordRevisionVerification: unknown revisionActionId ${input.revisionActionId}`);
   }
@@ -907,10 +939,12 @@ export function recordRevisionVerification(
     verifiedAt: nowIso(),
   };
 
-  return {
+  const next: StressTestSession = {
     ...sourceSession,
     revisionVerifications: { ...sourceSession.revisionVerifications, [record.id]: record },
   };
+  assertRevisionVerificationLedgerIntegrity(next);
+  return next;
 }
 
 /**
@@ -936,7 +970,7 @@ export function assertRevisionVerificationIntegrity(
   assertRevisionSuccessorIntegrity(sourceSession, successorSession);
   assertRevisionVerificationLedgerIntegrity(sourceSession);
 
-  const record = sourceSession.revisionVerifications[revisionVerificationId];
+  const record = resolveExactRecord(sourceSession.revisionVerifications, revisionVerificationId);
   if (!record) {
     throw new Error(`assertRevisionVerificationIntegrity: unknown revisionVerificationId ${revisionVerificationId}`);
   }

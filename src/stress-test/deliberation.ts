@@ -24,6 +24,7 @@
 import { randomUUID } from 'node:crypto';
 import type { AuthorContextItem, StressTestSession } from './types.js';
 import { addAuthorContextItem, createSession, freezeInput, verifyFrozenInputIntegrity } from './session.js';
+import { isReviewFindingShape, isSemanticIssueShape, lookupExactRecord, resolveExactRecord } from './reference.js';
 
 const nowIso = () => new Date().toISOString();
 
@@ -89,14 +90,19 @@ const AUTHOR_CONTEXT_CATEGORIES = ['confirmedFacts', 'knownRisks', 'openQuestion
 
 /** Fails closed on an unknown or ambiguous reference — never guesses. */
 export function validateRouteInputRef(session: StressTestSession, ref: RouteInputRef): void {
+  if (ref === null || typeof ref !== 'object') {
+    throw new Error('validateRouteInputRef: ref must be an object');
+  }
+  // Exact resolution: an owned key holding a well-formed record whose own id
+  // is the requested id. An inherited property such as "constructor" never counts.
   if (ref.kind === 'FINDING') {
-    if (!session.findings[ref.id]) {
+    if (!resolveExactRecord(session.findings, ref.id, isReviewFindingShape)) {
       throw new Error(`validateRouteInputRef: unknown FINDING id ${ref.id}`);
     }
     return;
   }
   if (ref.kind === 'SEMANTIC_ISSUE') {
-    if (!session.semanticIssues[ref.id]) {
+    if (!resolveExactRecord(session.semanticIssues, ref.id, isSemanticIssueShape)) {
       throw new Error(`validateRouteInputRef: unknown SEMANTIC_ISSUE id ${ref.id}`);
     }
     return;
@@ -1730,6 +1736,10 @@ function validateAttemptProvenanceForOutcome(
   if (routeForRootCause(question.rootCause) !== decision.route) {
     throw new Error('recordRouteOutcome: registered question rootCause does not map to the recorded decision route');
   }
+  // References are re-resolved against the session in hand, never trusted
+  // because they resolved when the question was registered: a record that no
+  // longer exactly resolves blocks the claim and the outcome built on it.
+  for (const ref of question.inputRefs) validateRouteInputRef(session, ref);
 
   return decision;
 }
@@ -1756,7 +1766,7 @@ function assertAddReviewerOutcomePayloadIntegrity(
       throw new Error(`${label}: duplicate findingId ${findingId}`);
     }
     seenFindingIds.add(findingId);
-    const finding = session.findings[findingId];
+    const finding = resolveExactRecord(session.findings, findingId, isReviewFindingShape);
     if (!finding) {
       throw new Error(`${label}: unknown findingId ${findingId}`);
     }
@@ -2343,6 +2353,11 @@ export function recordQuestionDisposition(
     );
   }
   const outcome = matchingOutcomes[0];
+
+  // Canonical parity: a RouteOutcome is consumed as authoritative evidence only
+  // after the complete canonical RouteOutcome validator accepts it. The checks
+  // below are disposition-specific additions; none of them may stand in for it.
+  assertRouteOutcomeIntegrity(session, deliberationState, input.attemptId);
 
   if (deliberationState.questionDispositions.some((d) => d.attemptId === outcome.attemptId)) {
     throw new Error(`recordQuestionDisposition: the RouteOutcome for attemptId ${input.attemptId} already has a QuestionDisposition`);
@@ -3472,6 +3487,10 @@ export function createCrossSessionTransition(
     input.suppliedOutcomeAttemptId,
     'createCrossSessionTransition'
   );
+  // Canonical parity: this path turns a SUPPLIED outcome into a CROSS_SESSION
+  // disposition, so the outcome must pass the complete canonical validator too,
+  // not only the supplied-outcome provenance checks above.
+  assertRouteOutcomeIntegrity(parentSession, parentDeliberationState, input.suppliedOutcomeAttemptId);
 
   if (parentDeliberationState.questionDispositions.some((d) => d.attemptId === outcome.attemptId)) {
     throw new Error(`createCrossSessionTransition: the RouteOutcome for attemptId ${outcome.attemptId} already has a QuestionDisposition`);
@@ -3691,10 +3710,17 @@ function assertSemanticIssueEvidenceLeaf(
   originatingFindingId: string,
   label: string
 ): void {
-  const issue = session.semanticIssues[semanticIssueId];
-  if (!issue) {
+  const lookup = lookupExactRecord(session.semanticIssues, semanticIssueId);
+  if (!lookup.found && lookup.reason === 'NOT_OWNED') {
     throw new Error(`${label}: unknown SEMANTIC_ISSUE id ${semanticIssueId}`);
   }
+  if (!lookup.found && lookup.reason === 'ID_MISMATCH') {
+    throw new Error(`${label}: SEMANTIC_ISSUE ${semanticIssueId} resolves by map key but the resolved SemanticIssue's own id differs -- map-key/stored-id mismatch`);
+  }
+  if (!lookup.found) {
+    throw new Error(`${label}: SEMANTIC_ISSUE ${semanticIssueId} is not a SemanticIssue record -- malformed state`);
+  }
+  const issue = lookup.record;
   if (!Array.isArray(issue.findingIds)) {
     throw new Error(`${label}: SemanticIssue ${issue.id}'s findingIds is not an array -- malformed state`);
   }
@@ -3810,13 +3836,13 @@ function assertEvidenceSubjectLedgerIntegrity(session: StressTestSession, delibe
       // sourceRef.kind === 'SEMANTIC_ISSUE'.
       assertSemanticIssueEvidenceLeaf(session, subject.sourceRef.id, subject.originatingFindingId, 'EvidenceSubject ledger entry');
     }
-    const resolvedFinding = session.findings[subject.originatingFindingId];
-    if (!resolvedFinding) {
+    const findingLookup = lookupExactRecord(session.findings, subject.originatingFindingId, isReviewFindingShape);
+    if (!findingLookup.found && findingLookup.reason !== 'ID_MISMATCH') {
       throw new Error(
         `EvidenceSubject ledger entry: originatingFindingId ${subject.originatingFindingId} does not resolve to a ReviewFinding in the current session`
       );
     }
-    if (resolvedFinding.id !== subject.originatingFindingId) {
+    if (!findingLookup.found) {
       throw new Error(
         `EvidenceSubject ledger entry: resolved ReviewFinding's own id does not agree with originatingFindingId ${subject.originatingFindingId} -- map-key/stored-id mismatch`
       );
@@ -3968,13 +3994,13 @@ export function registerEvidenceSubject(
   } else {
     assertSemanticIssueEvidenceLeaf(session, input.sourceRef.id, input.originatingFindingId, 'registerEvidenceSubject');
   }
-  const resolvedFinding = session.findings[input.originatingFindingId];
-  if (!resolvedFinding) {
+  const findingLookup = lookupExactRecord(session.findings, input.originatingFindingId, isReviewFindingShape);
+  if (!findingLookup.found && findingLookup.reason !== 'ID_MISMATCH') {
     throw new Error(
       `registerEvidenceSubject: originatingFindingId ${input.originatingFindingId} does not resolve to a ReviewFinding in the current session`
     );
   }
-  if (resolvedFinding.id !== input.originatingFindingId) {
+  if (!findingLookup.found) {
     throw new Error(
       `registerEvidenceSubject: resolved ReviewFinding's own id does not agree with originatingFindingId ${input.originatingFindingId} -- map-key/stored-id mismatch`
     );
@@ -6278,25 +6304,50 @@ export function createInMemoryRouteExecutionCheckpointStore(): RouteExecutionChe
   };
 }
 
+/**
+ * Independent deep snapshot of a DeliberationState crossing the access port's
+ * ownership boundary. DeliberationState is plain data; a value that cannot be
+ * cloned is refused rather than aliased.
+ */
+function snapshotDeliberationState(state: DeliberationState, label: string): DeliberationState {
+  if (state === null || typeof state !== 'object') {
+    throw new Error(`DeliberationStateAccessPort: ${label} must be a DeliberationState object`);
+  }
+  return structuredClone(state);
+}
+
 export function createInMemoryDeliberationStateAccessPort(
   initialState: DeliberationState
 ): DeliberationStateAccessPort & { current(): DeliberationState } {
-  let state = initialState;
+  // Ownership boundary: the port owns its authoritative value. It is snapshotted
+  // on the way in (initialization and commit) and on the way out (resolve and
+  // current), so neither the caller's original object, the object it committed,
+  // nor anything it was handed back can change budgets or lineage afterwards.
+  // The coordination lock serializes transactions; this keeps the value itself
+  // from being rewritten outside them.
+  let state = snapshotDeliberationState(initialState, 'initial state');
+  if (typeof state.id !== 'string' || state.id.length === 0) {
+    throw new Error('DeliberationStateAccessPort: initial state has no non-empty id');
+  }
   return {
     resolveCurrentDeliberationState(deliberationStateId: string): DeliberationState {
       if (state.id !== deliberationStateId) {
         throw new Error(`DeliberationStateAccessPort: no DeliberationState ${deliberationStateId} is known to this port`);
       }
-      return state;
+      return snapshotDeliberationState(state, 'stored state');
     },
     commitDeliberationState(nextState: DeliberationState): void {
-      if (nextState === null || typeof nextState !== 'object' || nextState.id !== state.id) {
+      if (nextState === null || typeof nextState !== 'object') {
         throw new Error('DeliberationStateAccessPort: a committed DeliberationState must carry the same id');
       }
-      state = nextState;
+      const snapshot = snapshotDeliberationState(nextState, 'committed state');
+      if (snapshot.id !== state.id) {
+        throw new Error('DeliberationStateAccessPort: a committed DeliberationState must carry the same id');
+      }
+      state = snapshot;
     },
     current(): DeliberationState {
-      return state;
+      return snapshotDeliberationState(state, 'stored state');
     },
   };
 }
