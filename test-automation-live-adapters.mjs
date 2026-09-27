@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FileInvocationJournal } from './dist/automation/file-invocation-journal.js';
 import { packetHash } from './dist/automation/packet.js';
 import { parseProcessRequest } from './dist/automation/process-executor.js';
 import { readBranch } from './dist/automation/repository-reality.js';
-import { ClaudeCodeImplementationAdapter, claudeArguments, validationBashRules } from './dist/automation/live/claude-code-implementation.js';
+import { ClaudeCodeImplementationAdapter, claudeArguments, linkedExclusions, validationBashRules } from './dist/automation/live/claude-code-implementation.js';
 import { CodexArchitectReviewAdapter, REQUIRED_DISABLED_FEATURES, codexArguments } from './dist/automation/live/codex-architect-review.js';
 import { GitHubCliRepositoryRealityPort } from './dist/automation/live/github-cli-reality.js';
 import { createLiveAutomation } from './dist/automation/live/composition.js';
@@ -281,6 +281,35 @@ check('a correction iteration starts from the rejected SHA and may change only i
   assert.equal((await outside.implementation.execute({ ...outside.input, implementationIteration: 2, correction })).status, 'ARCHITECTURE_STOP');
   const moved = setup(join(dir, 'm'), 'IMPLEMENTATION', { remote: { [BRANCH]: null } });
   assert.equal((await moved.implementation.execute({ ...moved.input, implementationIteration: 2, correction })).status, 'ARCHITECTURE_STOP');
+}));
+
+check('linked dependency directories are kept out of status and staging (real local git)', withDir(async (dir) => {
+  const repo = join(dir, 'repo-real'), deps = join(dir, 'deps');
+  mkdirSync(repo);
+  mkdirSync(deps);
+  const env = { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: dir, GIT_CONFIG_NOSYSTEM: '1' };
+  const git = (...args) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', ...args], { cwd: repo, env, encoding: 'utf8' });
+  git('init', '-q');
+  writeFileSync(join(repo, '.gitignore'), '/node_modules/\n');
+  git('add', '.gitignore');
+  git('commit', '-q', '-m', 'base');
+  symlinkSync(deps, join(repo, 'node_modules'), 'dir');
+  writeFileSync(join(repo, 'change.txt'), 'x');
+  const exclusions = linkedExclusions({ linkedDirectories: [{ path: 'node_modules', source: deps }] });
+  assert.match(git('status', '--porcelain=v1', '-z', '--untracked-files=all').stdout, /node_modules/);
+  assert.equal(git('status', '--porcelain=v1', '-z', '--untracked-files=all', ...exclusions).stdout, '?? change.txt\0');
+  assert.equal(git('add', '-A', ...exclusions).status, 0);
+  assert.equal(git('diff', '--cached', '--name-only').stdout, 'change.txt\n');
+  assert.deepEqual(linkedExclusions({ linkedDirectories: [] }), []);
+
+  const s = setup(join(dir, 'adapter'), 'IMPLEMENTATION');
+  const linked = new ClaudeCodeImplementationAdapter({ claude: CLAUDE, git: { executable: 'git', remote: 'origin', repositoryPath: join(dir, 'adapter', 'repo'),
+    worktreeRoot: s.worktreeRoot, timeoutMs: 60_000, maxOutputBytes: 1_000_000, commitAuthor: { name: 'a', email: 'b@example.invalid' },
+    validationTimeoutMs: 60_000, validationMaxOutputBytes: 1_000_000, linkedDirectories: [{ path: 'node_modules', source: deps }] },
+  environment: s.environment }, { executor: s.executor, journal: s.journal, clock });
+  assert.equal((await linked.execute(s.input)).status, 'COMPLETED');
+  assert.equal(readlinkSync(join(s.worktreeRoot, s.invocationId, 'node_modules')), deps);
+  for (const sub of ['status', 'add']) assert.deepEqual(s.named('git', sub)[0].args.slice(-3), ['--', '.', ':(exclude,literal)node_modules'], sub);
 }));
 
 // ---------------------------------------------------------------- Codex architect review adapter

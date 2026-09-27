@@ -195,7 +195,9 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
       return verdict.ok ? undefined : stop(verdict.protectedPath ? 'HUMAN_STOP' : 'ARCHITECTURE_STOP', `scope violation: ${verdict.reason}`);
     };
 
-    const status = await run(['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+    // Linked directories are symlinks Git does not ignore; they are never part of a change.
+    const paths = linkedExclusions(settings);
+    const status = await run(['status', '--porcelain=v1', '-z', '--untracked-files=all', ...paths]);
     if (!succeeded(status)) return stop('HUMAN_STOP', `could not inspect the worktree: ${summary(status)}`);
     const changed = statusPaths(status.stdout);
     if (changed.length === 0) return stop('SOFT_STOP', 'implementation produced no changes');
@@ -213,7 +215,7 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
       evidence.push(`validation ${command.commandId}: exit 0`);
     }
 
-    const staged = await run(['add', '-A']);
+    const staged = await run(['add', '-A', ...paths]);
     if (!succeeded(staged)) return stop('HUMAN_STOP', `could not stage changes: ${summary(staged)}`);
     const raw = await run(['diff', '--cached', '--raw', '-z', '--no-renames']);
     if (!succeeded(raw)) return stop('HUMAN_STOP', `could not inspect staged changes: ${summary(raw)}`);
@@ -271,6 +273,13 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
 }
 Object.freeze(ClaudeCodeImplementationAdapter);
 Object.freeze(ClaudeCodeImplementationAdapter.prototype);
+
+/** Pathspec that keeps every linked directory out of status and staging. */
+export function linkedExclusions(settings: Pick<DeliverySettings, 'linkedDirectories'>): string[] {
+  return settings.linkedDirectories.length
+    ? ['--', '.', ...settings.linkedDirectories.map((link) => `:(exclude,literal)${link.path}`)]
+    : [];
+}
 
 /** A correction iteration may change only its allowed correction areas. */
 function correctionAreas(input: Readonly<ImplementationInput>): readonly string[] | undefined {
