@@ -108,9 +108,8 @@ const MUTATIONS = [
   ['attemptId', (p) => { p.binding.attemptId = 'attempt-2'; }],
   ['decisionId', (p) => { p.binding.decisionId = 'decision-2'; }],
   ['questionId', (p) => { p.binding.questionId = 'question-2'; }],
-  ['route', (p) => { p.binding.route = 'REPLICATE'; }],
+  ['route with its root cause', (p) => { p.binding.route = 'REPLICATE'; p.question.rootCause = 'STABILITY_QUESTION'; }],
   ['inputRef order', (p) => { p.binding.inputRefs.reverse(); p.sources.reverse(); }],
-  ['rootCause', (p) => { p.question.rootCause = 'STABILITY_QUESTION'; }],
   ['materialityReason', (p) => { p.question.materialityReason += ' '; }],
   ['finding field', (p) => { p.sources[1].value.whyMaterial = 'Changed.'; }],
   ['issue field', (p) => { p.sources[2].value.description = 'Changed.'; }],
@@ -272,6 +271,87 @@ await check('a malformed pack is INVALID', () => {
   }
   for (const bad of [null, 'pack', [], { contextFingerprint: 'x' }, { ...base(), read: () => 1 }]) {
     assert.throws(() => readContextPack(bad), InvalidContextPackError);
+  }
+});
+
+console.log('\nRuntime schema of a self-consistent pack (fingerprint recomputed)');
+
+/** Changes the payload and recomputes the fingerprint, so only the schema can object. */
+const resealed = (change) => {
+  const pack = JSON.parse(JSON.stringify(seal()));
+  change(pack);
+  pack.contextFingerprint = contextFingerprint(pack);
+  return pack;
+};
+const FINDING = (p) => p.sources[1].value;
+const ISSUE = (p) => p.sources[2].value;
+const ITEM = (p) => p.sources[0].value;
+
+// 1-14 are the correction's required cases; the rest cover the remaining field rules.
+const MALFORMED = [
+  ['1 bogus rootCause', (p) => { p.question.rootCause = 'BOGUS'; }],
+  ['2 route/rootCause mismatch', (p) => { p.question.rootCause = 'STABILITY_QUESTION'; }],
+  ['3 FINDING missing title', (p) => { delete FINDING(p).title; }],
+  ['4 FINDING extra field', (p) => { FINDING(p).confidence = 0.9; }],
+  ['5 FINDING invalid type', (p) => { FINDING(p).type = 'BOGUS'; }],
+  ['6 FINDING invalid evidenceState', (p) => { FINDING(p).evidenceState = 'BOGUS'; }],
+  ['7 SEMANTIC_ISSUE invalid status', (p) => { ISSUE(p).status = 'BOGUS'; }],
+  ['8 SEMANTIC_ISSUE invalid evidenceState', (p) => { ISSUE(p).evidenceState = 'BOGUS'; }],
+  ['9 SEMANTIC_ISSUE empty findingIds', (p) => { ISSUE(p).findingIds = []; }],
+  ['10 SEMANTIC_ISSUE duplicate findingIds', (p) => { ISSUE(p).findingIds = ['finding-1', 'finding-1']; }],
+  ['11 AUTHOR_CONTEXT_ITEM invalid sourceType', (p) => { ITEM(p).sourceType = 'BOGUS'; }],
+  ['12 AUTHOR_CONTEXT_ITEM invalid status', (p) => { ITEM(p).status = 'BOGUS'; }],
+  ['13 AUTHOR_CONTEXT_ITEM missing text', (p) => { delete ITEM(p).text; }],
+  ['14 AUTHOR_CONTEXT_ITEM extra field', (p) => { ITEM(p).verified = true; }],
+  ['FINDING wrong primitive type', (p) => { FINDING(p).title = 42; }],
+  ['FINDING non-string rawText', (p) => { FINDING(p).rawText = ['quoted']; }],
+  ['FINDING unparseable createdAt', (p) => { FINDING(p).createdAt = 'last week'; }],
+  ['FINDING id differs from its ref', (p) => { FINDING(p).id = 'finding-9'; }],
+  ['SEMANTIC_ISSUE empty finding id', (p) => { ISSUE(p).findingIds = ['finding-1', '']; }],
+  ['SEMANTIC_ISSUE extra field', (p) => { ISSUE(p).mergedFinding = {}; }],
+  ['SEMANTIC_ISSUE non-string description', (p) => { ISSUE(p).description = null; }],
+  ['AUTHOR_CONTEXT_ITEM unparseable createdAt', (p) => { ITEM(p).createdAt = 'soon'; }],
+  ['AUTHOR_CONTEXT_ITEM category', (p) => { p.sources[0].category = 'verifiedFacts'; }],
+  ['empty materialityReason', (p) => { p.question.materialityReason = '  '; }],
+  ['non-hex artifactHash', (p) => { p.binding.artifactHash = 'A'.repeat(64); }],
+  ['short authorContextHash', (p) => { p.binding.authorContextHash = 'b'.repeat(63); }],
+];
+for (const [label, change] of MALFORMED) {
+  await check(`self-consistent but malformed is INVALID: ${label}`, () => {
+    const pack = resealed(change);
+    assert.equal(contextFingerprint(pack), pack.contextFingerprint, 'the fingerprint itself is consistent');
+    assert.throws(() => readContextPack(pack), InvalidContextPackError);
+  });
+}
+
+await check('a well-formed pack changed and resealed is read as intact: the fingerprint is not authentication', () => {
+  for (const change of [
+    (p) => { FINDING(p).title = 'A different but valid title'; },
+    (p) => { ISSUE(p).status = 'ADJUDICATED'; },
+    (p) => { ITEM(p).status = 'SUPERSEDED'; ITEM(p).sourceType = 'ARTIFACT'; },
+    (p) => { p.question.materialityReason = 'Another valid reason.'; },
+    (p) => { p.binding.route = 'REPLICATE'; p.question.rootCause = 'STABILITY_QUESTION'; },
+  ]) {
+    const pack = resealed(change);
+    assert.equal(readContextPack(pack).contextFingerprint, pack.contextFingerprint);
+  }
+});
+
+await check('an accessor anywhere in an offered pack is refused without being run', () => {
+  let reads = 0;
+  const pack = JSON.parse(JSON.stringify(seal()));
+  Object.defineProperty(pack.sources[1].value, 'title', { enumerable: true, get: () => { reads++; return 'Unsupported payback'; } });
+  assert.throws(() => readContextPack(pack), InvalidContextPackError);
+  assert.equal(reads, 0);
+});
+
+await check('a malformed payload cannot be sealed either', () => {
+  for (const [label, change] of MALFORMED.slice(0, 14)) {
+    const p = parts();
+    const shaped = { ...p, schemaVersion: CONTEXT_PACK_SCHEMA_VERSION };
+    change(shaped);
+    const { schemaVersion: _v, ...back } = shaped;
+    assert.throws(() => seal(back), TypeError, label);
   }
 });
 

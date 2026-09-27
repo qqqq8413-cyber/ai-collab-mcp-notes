@@ -237,6 +237,89 @@ await check('an unrelated corrupt session ledger fails verification closed', () 
   assert.throws(() => h.source.verifyCurrent(h.pack), /assertSemanticIssueLedgerIntegrity/);
 });
 
+console.log('\nMalformed before stale (E0-R6-C1)');
+
+const FINDING = (p) => p.sources[1].value;
+const ISSUE = (p) => p.sources[2].value;
+const ITEM = (p) => p.sources[0].value;
+const MALFORMED = [
+  ['bogus rootCause', (p) => { p.question.rootCause = 'BOGUS'; }],
+  ['route/rootCause mismatch', (p) => { p.question.rootCause = 'STABILITY_QUESTION'; }],
+  ['FINDING missing title', (p) => { delete FINDING(p).title; }],
+  ['FINDING extra field', (p) => { FINDING(p).confidence = 0.9; }],
+  ['FINDING invalid type', (p) => { FINDING(p).type = 'BOGUS'; }],
+  ['FINDING invalid evidenceState', (p) => { FINDING(p).evidenceState = 'BOGUS'; }],
+  ['SEMANTIC_ISSUE invalid status', (p) => { ISSUE(p).status = 'BOGUS'; }],
+  ['SEMANTIC_ISSUE invalid evidenceState', (p) => { ISSUE(p).evidenceState = 'BOGUS'; }],
+  ['SEMANTIC_ISSUE empty findingIds', (p) => { ISSUE(p).findingIds = []; }],
+  ['SEMANTIC_ISSUE duplicate findingIds', (p) => { ISSUE(p).findingIds = [ISSUE(p).findingIds[0], ISSUE(p).findingIds[0]]; }],
+  ['AUTHOR_CONTEXT_ITEM invalid sourceType', (p) => { ITEM(p).sourceType = 'BOGUS'; }],
+  ['AUTHOR_CONTEXT_ITEM invalid status', (p) => { ITEM(p).status = 'BOGUS'; }],
+  ['AUTHOR_CONTEXT_ITEM missing text', (p) => { delete ITEM(p).text; }],
+  ['AUTHOR_CONTEXT_ITEM extra field', (p) => { ITEM(p).verified = true; }],
+];
+
+await check('each self-consistent malformed pack is INVALID through verifyCurrent', () => {
+  const h = fixture();
+  for (const [label, change] of MALFORMED) {
+    const forged = reseal(h.pack, change);
+    assert.equal(contextFingerprint(forged), forged.contextFingerprint);
+    assert.throws(() => h.source.verifyCurrent(forged), InvalidContextPackError, label);
+  }
+});
+
+await check('INVALID precedes STALE: a malformed pack is refused even when the deliberation has stopped', () => {
+  const h = fixture();
+  h.edit((s) => { s.stopReason = 'budget'; });
+  assert.equal(h.source.verifyCurrent(h.pack).reason, 'DELIBERATION_STOPPED', 'the well-formed pack reads STALE here');
+  for (const [label, change] of MALFORMED) {
+    assert.throws(() => h.source.verifyCurrent(reseal(h.pack, change)), InvalidContextPackError, label);
+  }
+});
+
+await check('INVALID precedes STALE: a malformed pack is refused even when the attempt has a RouteOutcome', () => {
+  const h = fixture('STABILITY_QUESTION');
+  let state = recordRouteOutcome(h.session, h.access.current(), failedOutcome(h.attemptId));
+  h.access.commitDeliberationState(state);
+  assert.equal(h.source.verifyCurrent(h.pack).reason, 'ROUTE_OUTCOME_RECORDED');
+  const replicate = [...MALFORMED];
+  replicate[1] = ['route/rootCause mismatch', (p) => { p.question.rootCause = 'COVERAGE_GAP'; }];
+  for (const [label, change] of replicate) {
+    assert.throws(() => h.source.verifyCurrent(reseal(h.pack, change)), InvalidContextPackError, label);
+  }
+  state = recordQuestionDisposition(h.session, state, { attemptId: h.attemptId, disposition: 'RESOLVED', reason: 'settled' });
+  h.access.commitDeliberationState(state);
+  assert.throws(() => h.source.verifyCurrent(reseal(h.pack, MALFORMED[4][1])), InvalidContextPackError);
+});
+
+await check('a well-formed resealed pack is not invalid, only not current: STALE against different facts', () => {
+  const h = fixture();
+  for (const change of [
+    (p) => { FINDING(p).title = 'A different but valid title'; },
+    (p) => { ISSUE(p).status = 'ADJUDICATED'; },
+    (p) => { ITEM(p).status = 'SUPERSEDED'; },
+    (p) => { p.question.materialityReason = 'Another valid reason.'; },
+  ]) {
+    const result = h.source.verifyCurrent(reseal(h.pack, change));
+    assert.equal(result.status, 'STALE');
+    assert.equal(result.reason, 'SOURCE_CHANGED');
+  }
+  h.edit((s) => { s.stopReason = 'budget'; });
+  assert.equal(h.source.verifyCurrent(reseal(h.pack, (p) => { FINDING(p).title = 'Valid.'; })).reason, 'DELIBERATION_STOPPED');
+});
+
+await check('a canonical record that becomes malformed after build fails verification closed, not STALE', () => {
+  for (const change of [
+    (s) => { s.findings[Object.keys(s.findings)[0]].type = 'BOGUS'; },
+    (s) => { s.semanticIssues[Object.keys(s.semanticIssues)[0]].status = 'BOGUS'; },
+    (s) => { s.findings[Object.keys(s.findings)[0]].reviewerScore = 3; },
+  ]) {
+    const h = fixture();
+    change(h.session);
+    assert.throws(() => h.source.verifyCurrent(h.pack), TypeError);
+  }
+});
+
 console.log('\nNo refresh, no TTL');
 
 await check('verification never changes or refreshes the offered pack', () => {

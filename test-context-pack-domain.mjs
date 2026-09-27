@@ -10,7 +10,7 @@ import { createStressTestContextPackSource } from './dist/stress-test/context-so
 import {
   addAuthorContextItem, addFinding, createDeliberationState, createInMemoryDeliberationStateAccessPort, createSemanticIssue,
   createSession, createUnresolvedQuestion, freezeInput, planRouteForQuestion, recordQuestionDisposition, recordRouteAttemptStart,
-  recordRouteDecision, recordRouteOutcome, registerEvidenceSubject, registerUnresolvedQuestion,
+  recordRouteDecision, recordRouteOutcome, registerEvidenceSubject, registerUnresolvedQuestion, verifyFrozenInputIntegrity,
 } from './dist/stress-test/index.js';
 
 let passed = 0;
@@ -33,17 +33,17 @@ const finding = (title) => ({ reviewerRunId: 'review-1', type: 'CLAIM', title, a
   evidenceState: 'UNSUPPORTED_IN_MATERIAL', whyMaterial: 'It drives the decision.',
   likelyRecipientChallenge: 'Where does 14 months come from?', minimumBeforeSendAction: 'Cite the source.' });
 
-function baseSession({ beforeFreeze } = {}) {
+function baseSession({ beforeFreeze, findingOverrides = {}, issueOverrides = {} } = {}) {
   let session = createSession(ARTIFACT);
   session = addAuthorContextItem(session, 'knownRisks', { text: 'The lease may not renew.', sourceType: 'AUTHOR' });
   session = addAuthorContextItem(session, 'confirmedFacts', { text: 'Two studios exist.', sourceType: 'EXTERNAL_SOURCE', status: 'RESOLVED' });
   if (beforeFreeze) session = beforeFreeze(session);
   session = freezeInput(session);
-  session = addFinding(session, finding('Unsupported payback'));
+  session = addFinding(session, { ...finding('Unsupported payback'), ...findingOverrides });
   session = addFinding(session, finding('Unstated lease term'));
   const findingIds = Object.keys(session.findings);
   session = createSemanticIssue(session, { title: 'Payback', description: 'Payback is unsupported.', findingIds,
-    evidenceState: 'UNSUPPORTED_IN_MATERIAL' });
+    evidenceState: 'UNSUPPORTED_IN_MATERIAL', ...issueOverrides });
   return session;
 }
 
@@ -59,7 +59,7 @@ function fixture({ rootCause = 'COVERAGE_GAP', order = ['AUTHOR', 'FINDING', 'IS
     ISSUE: { kind: 'SEMANTIC_ISSUE', id: Object.keys(session.semanticIssues)[0] },
   };
   let state = createDeliberationState(session, { costCeiling: 20, latencyCeiling: 20 });
-  const question = createUnresolvedQuestion(session, { rootCause, materialityReason: MATERIALITY, inputRefs: order.map((k) => ref[k]) });
+  const question = createUnresolvedQuestion(session, { rootCause, materialityReason: MATERIALITY, inputRefs: order.map((k) => (typeof k === 'string' ? ref[k] : k)) });
   state = registerUnresolvedQuestion(session, state, question);
   if (rootCause === 'EVIDENCE_GAP') {
     state = registerEvidenceSubject(session, state, { questionId: question.id, sourceRef: ref.FINDING,
@@ -401,6 +401,74 @@ await check('an unrelated orphan RouteOutcome, or a corrupt unrelated attempt, b
   assert.throws(() => second.source.build({ attemptId: second.attemptId }), /materialityReason/);
 });
 
+console.log('\nBuild-side source schema (E0-R6-C1)');
+
+// Real sessions written through the public session API. Their frozen hashes are coherent
+// and E0-R5 resolves the route; only the pack schema objects. A one-character budget
+// proves the refusal happens before sealing: a later check would report the budget.
+const TINY = { maxSerializedChars: 1 };
+const admittedLocally = (h) => {
+  verifyFrozenInputIntegrity(h.session);
+  assert.equal(h.r5.resolve(h.attemptId).attemptId, h.attemptId);
+};
+
+await check('a finding written by addFinding with an unknown type or evidence state is refused before sealing', () => {
+  for (const [field, message] of [['type', /is not a finding type/], ['evidenceState', /is not an evidence state/]]) {
+    const h = fixture({ session: baseSession({ findingOverrides: { [field]: 'BOGUS' } }), order: ['FINDING'], policy: TINY });
+    admittedLocally(h);
+    assert.throws(() => h.source.build({ attemptId: h.attemptId }), message);
+  }
+});
+
+await check('a semantic issue written by createSemanticIssue with an unknown evidence state is refused', () => {
+  const h = fixture({ session: baseSession({ issueOverrides: { evidenceState: 'BOGUS' } }), order: ['ISSUE'], policy: TINY });
+  admittedLocally(h);
+  assert.throws(() => h.source.build({ attemptId: h.attemptId }), /is not an evidence state/);
+});
+
+await check('an author item with an unknown sourceType, under a coherent frozen hash, is refused', () => {
+  const session = baseSession({ beforeFreeze: (s) => addAuthorContextItem(s, 'constraints',
+    { text: 'Board approval is pending.', sourceType: 'BOGUS' }) });
+  const item = session.authorContext.constraints[0];
+  assert.equal(item.sourceType, 'BOGUS', 'the public API accepted it');
+  const h = fixture({ session, order: [{ kind: 'AUTHOR_CONTEXT_ITEM', id: item.id }], policy: TINY });
+  admittedLocally(h);
+  assert.throws(() => h.source.build({ attemptId: h.attemptId }), /is not a source type/);
+});
+
+await check('an author item with an unknown status, frozen into a coherent hash, is refused', () => {
+  const session = baseSession({ beforeFreeze: (s) => {
+    const draft = structuredClone(s);
+    draft.authorContext.knownRisks[0].status = 'BOGUS';
+    return draft;
+  } });
+  const h = fixture({ session, order: ['AUTHOR'], policy: TINY });
+  admittedLocally(h);
+  assert.throws(() => h.source.build({ attemptId: h.attemptId }), /is not an item status/);
+});
+
+await check('a resolving key and a matching id do not admit an extra or accessor field', () => {
+  const extra = fixture({ order: ['FINDING'], policy: TINY });
+  extra.session.findings[extra.ref.FINDING.id].reviewerScore = 3;
+  admittedLocally(extra);
+  assert.throws(() => extra.source.build({ attemptId: extra.attemptId }), /unexpected or non-data field reviewerScore/);
+  const accessor = fixture({ order: ['ISSUE'], policy: TINY });
+  const issue = accessor.session.semanticIssues[accessor.ref.ISSUE.id];
+  const description = issue.description;
+  Object.defineProperty(issue, 'description', { enumerable: true, get: () => description });
+  assert.throws(() => accessor.source.build({ attemptId: accessor.attemptId }), /non-data field description/);
+});
+
+await check('the same malformed record is refused whichever position it holds among valid refs', () => {
+  const session = baseSession({ findingOverrides: { type: 'BOGUS' } });
+  for (const order of [['AUTHOR', 'ISSUE', 'FINDING'], ['FINDING', 'AUTHOR'], ['ISSUE', 'FINDING']]) {
+    const h = fixture({ session, order });
+    assert.throws(() => h.source.build({ attemptId: h.attemptId }), /is not a finding type/, order.join(','));
+  }
+  const clean = fixture({ session, order: ['AUTHOR', 'FINDING_B', 'ISSUE'] });
+  assert.equal(clean.source.build({ attemptId: clean.attemptId }).sources.length, 3, 'a valid selection from the same session builds');
+});
+
 console.log('\nNo authority, no execution');
 
 await check('builds read state and never commit, record, or change it', () => {
@@ -415,7 +483,8 @@ await check('builds read state and never commit, record, or change it', () => {
 });
 
 await check('ContextPack production code has no write, claim, execution, provider, or successor path', () => {
-  const files = ['src/context/types.ts', 'src/context/fingerprint.ts', 'src/context/pack.ts', 'src/stress-test/context-source.ts'];
+  const files = ['src/context/types.ts', 'src/context/fingerprint.ts', 'src/context/pack.ts', 'src/context/schema.ts',
+    'src/stress-test/context-source.ts'];
   const source = files.map((path) => readFileSync(path, 'utf8')).join('\n');
   for (const name of ['addFinding', 'createSemanticIssue', 'recordRouteOutcome', 'recordQuestionDisposition', 'adjudicate(',
     'planRevisionAction', 'implementRevisionAction', 'recordRevisionVerification', 'recordExecutionTerminalFact',

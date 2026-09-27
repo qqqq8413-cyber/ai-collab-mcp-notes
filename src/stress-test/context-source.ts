@@ -8,6 +8,7 @@ import {
   snapshotContextPackSelection,
   type ContextPackParts,
 } from '../context/pack.js';
+import { AUTHOR_CONTEXT_CATEGORIES, assertContextPackPayload, assertContextPackSourceValue } from '../context/schema.js';
 import type {
   ArtifactExcerpt,
   AuthorContextCategory,
@@ -31,8 +32,6 @@ import { isReviewFindingShape, isSemanticIssueShape, resolveExactRecord } from '
 import { assertRevisionVerificationLedgerIntegrity } from './session.js';
 import type { AuthorContextItem, StressTestSession } from './types.js';
 
-const AUTHOR_CONTEXT_CATEGORIES: readonly AuthorContextCategory[] = ['confirmedFacts', 'knownRisks', 'openQuestions', 'constraints'];
-
 /**
  * Global before local. Every canonical read boundary this repository exposes over the
  * session and the deliberation state runs before any one route source is selected, so a
@@ -53,17 +52,25 @@ function assertCanonicalReadIntegrity(session: StressTestSession, current: Delib
   for (const attemptId of attemptIds) assertRouteOutcomeIntegrity(session, current, attemptId);
 }
 
-/** One exact canonical record per ref. Unknown, ambiguous, malformed, or inherited never resolves. */
+/**
+ * One exact canonical record per ref. Unknown, ambiguous, malformed, or inherited never
+ * resolves. A record that resolves must also satisfy the pack's source schema before it
+ * is copied: a resolving key, a matching id, or a coherent frozen hash does not make a
+ * malformed record admissible.
+ */
 function resolveSource(session: StressTestSession, ref: RouteInputRef): ContextPackSource {
+  const admit = (value: unknown): void => assertContextPackSourceValue(ref.kind, value, ref.id, `ContextPack ${ref.kind} ${ref.id}`);
   switch (ref.kind) {
     case 'FINDING': {
       const finding = resolveExactRecord(session.findings, ref.id, isReviewFindingShape);
       if (!finding) throw new Error(`ContextPack FINDING ${ref.id} does not resolve exactly`);
+      admit(finding);
       return { ref: { kind: 'FINDING', id: ref.id }, value: structuredClone(finding) };
     }
     case 'SEMANTIC_ISSUE': {
       const issue = resolveExactRecord(session.semanticIssues, ref.id, isSemanticIssueShape);
       if (!issue) throw new Error(`ContextPack SEMANTIC_ISSUE ${ref.id} does not resolve exactly`);
+      admit(issue);
       return { ref: { kind: 'SEMANTIC_ISSUE', id: ref.id }, value: structuredClone(issue) };
     }
     case 'AUTHOR_CONTEXT_ITEM': {
@@ -79,6 +86,7 @@ function resolveSource(session: StressTestSession, ref: RouteInputRef): ContextP
         throw new Error(`ContextPack AUTHOR_CONTEXT_ITEM ${ref.id} does not resolve to exactly one item in one category`);
       }
       const [{ category, item }] = matches;
+      admit(item);
       return { ref: { kind: 'AUTHOR_CONTEXT_ITEM', id: ref.id }, category, value: structuredClone(item) };
     }
     default: {
@@ -151,6 +159,9 @@ export function createStressTestContextPackSource(
       sources: binding.inputRefs.map((ref) => resolveSource(session, ref)),
     };
     if (selection.artifactSelection) parts.artifact = excerpt(session, selection.artifactSelection);
+    // The same schema an offered pack is read against; re-projection in verifyCurrent
+    // passes through here too, so malformed current facts fail closed, never read STALE.
+    assertContextPackPayload({ schemaVersion: CONTEXT_PACK_SCHEMA_VERSION, ...parts }, CONTEXT_PACK_SCHEMA_VERSION);
     return parts;
   };
 

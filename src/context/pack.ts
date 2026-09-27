@@ -1,4 +1,5 @@
-import { contextFingerprint, fingerprintSerialized, serializePayload } from './fingerprint.js';
+import { canonicalSerialize, contextFingerprint, fingerprintSerialized, serializePayload } from './fingerprint.js';
+import { assertContextPackPayload, exactRecord, nonempty, ownData } from './schema.js';
 import type {
   ArtifactExcerpt,
   ContextPack,
@@ -34,28 +35,6 @@ export function deepFreeze<T>(value: T): T {
     Object.freeze(value);
   }
   return value;
-}
-
-const nonempty = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0;
-
-/**
- * The own data fields of a plain object, read from their descriptors: accessors,
- * symbols, inherited or unknown fields fail, and nothing is read twice.
- */
-function ownData(value: unknown, allowed: readonly string[], label: string): Record<string, unknown> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value) ||
-      (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)) {
-    throw new TypeError(`${label} must be a plain object`);
-  }
-  const data: Record<string, unknown> = {};
-  for (const key of Reflect.ownKeys(value)) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (typeof key !== 'string' || !allowed.includes(key) || !descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) {
-      throw new TypeError(`${label} has an unexpected or non-data field ${String(key)}`);
-    }
-    data[key] = descriptor.value;
-  }
-  return data;
 }
 
 /** Snapshotted once at composition. A finite, positive, safe integer; there is no default. */
@@ -94,10 +73,11 @@ export interface ContextPackParts {
 }
 
 /**
- * Detaches and freezes the projection, enforces the budget on the same canonical text
- * the fingerprint is taken from, and returns the sealed pack. Required context is
- * atomic: if it does not fit, the build fails. An excerpt must fit whole or the build
- * fails. Nothing is dropped, shortened, summarized, or reordered to fit.
+ * Detaches and freezes the projection, checks it against the pack schema, enforces the
+ * budget on the same canonical text the fingerprint is taken from, and returns the
+ * sealed pack. Required context is atomic: if it does not fit, the build fails. An
+ * excerpt must fit whole or the build fails. Nothing is dropped, shortened,
+ * summarized, or reordered to fit.
  */
 export function sealContextPack(parts: ContextPackParts, policy: Readonly<ContextPackPolicy>, capturedAt: string): ContextPack {
   const detached = structuredClone(parts);
@@ -107,6 +87,8 @@ export function sealContextPack(parts: ContextPackParts, policy: Readonly<Contex
     question: detached.question,
     sources: detached.sources,
   };
+  const payload: ContextPackPayload = detached.artifact ? { ...required, artifact: detached.artifact } : required;
+  assertContextPackPayload(payload as unknown as Record<string, unknown>, CONTEXT_PACK_SCHEMA_VERSION);
   const requiredChars = serializePayload(required).length;
   if (requiredChars > policy.maxSerializedChars) {
     throw new ContextPackBudgetError(
@@ -114,7 +96,6 @@ export function sealContextPack(parts: ContextPackParts, policy: Readonly<Contex
         'It is not truncated or reduced to fit.'
     );
   }
-  const payload: ContextPackPayload = detached.artifact ? { ...required, artifact: detached.artifact } : required;
   deepFreeze(payload);
   const serialized = serializePayload(payload);
   if (serialized.length > policy.maxSerializedChars) {
@@ -126,102 +107,36 @@ export function sealContextPack(parts: ContextPackParts, policy: Readonly<Contex
   return deepFreeze({ ...payload, contextFingerprint: fingerprintSerialized(serialized), capturedAt });
 }
 
-const PACK_KEYS = ['schemaVersion', 'binding', 'question', 'sources', 'artifact', 'contextFingerprint', 'capturedAt'];
-const BINDING_KEYS = ['deliberationStateId', 'sessionId', 'artifactHash', 'authorContextHash', 'attemptId', 'decisionId',
-  'questionId', 'route', 'inputRefs'];
-const REF_KINDS = ['FINDING', 'SEMANTIC_ISSUE', 'AUTHOR_CONTEXT_ITEM'];
-const CATEGORIES = ['confirmedFacts', 'knownRisks', 'openQuestions', 'constraints'];
-
-function requireKeys(data: Record<string, unknown>, keys: readonly string[], label: string): void {
-  for (const key of keys) if (!Object.hasOwn(data, key)) throw new TypeError(`${label}.${key} is missing`);
-}
-
-function assertRef(value: unknown, label: string): { kind: string; id: string } {
-  const ref = ownData(value, ['kind', 'id'], label);
-  if (!REF_KINDS.includes(ref.kind as string) || !nonempty(ref.id)) throw new TypeError(`${label} is not a route input ref`);
-  return ref as { kind: string; id: string };
-}
-
-/** Structure only; content is judged by the fingerprint and by current canonical facts. */
-function assertPackShape(value: unknown): void {
-  const pack = ownData(value, PACK_KEYS, 'ContextPack');
-  requireKeys(pack, PACK_KEYS.filter((key) => key !== 'artifact'), 'ContextPack');
-  if (pack.schemaVersion !== CONTEXT_PACK_SCHEMA_VERSION) throw new TypeError('ContextPack.schemaVersion is not supported');
-
-  const binding = ownData(pack.binding, BINDING_KEYS, 'ContextPack.binding');
-  requireKeys(binding, BINDING_KEYS, 'ContextPack.binding');
-  for (const key of BINDING_KEYS.slice(0, 7)) {
-    if (!nonempty(binding[key])) throw new TypeError(`ContextPack.binding.${key} is invalid`);
-  }
-  if (binding.route !== 'ADD_REVIEWER' && binding.route !== 'REPLICATE') throw new TypeError('ContextPack.binding.route is not supported');
-  if (!Array.isArray(binding.inputRefs) || binding.inputRefs.length === 0) throw new TypeError('ContextPack.binding.inputRefs is invalid');
-  const refs = binding.inputRefs.map((ref, index) => assertRef(ref, `ContextPack.binding.inputRefs[${index}]`));
-
-  const question = ownData(pack.question, ['rootCause', 'materialityReason'], 'ContextPack.question');
-  requireKeys(question, ['rootCause', 'materialityReason'], 'ContextPack.question');
-  if (!nonempty(question.rootCause) || !nonempty(question.materialityReason)) throw new TypeError('ContextPack.question is invalid');
-
-  if (!Array.isArray(pack.sources) || pack.sources.length !== refs.length) {
-    throw new TypeError('ContextPack.sources must hold exactly one source per route input ref');
-  }
-  pack.sources.forEach((entry, index) => {
-    const label = `ContextPack.sources[${index}]`;
-    const isAuthor = refs[index].kind === 'AUTHOR_CONTEXT_ITEM';
-    const keys = isAuthor ? ['ref', 'category', 'value'] : ['ref', 'value'];
-    const source = ownData(entry, keys, label);
-    requireKeys(source, keys, label);
-    const ref = assertRef(source.ref, `${label}.ref`);
-    if (ref.kind !== refs[index].kind || ref.id !== refs[index].id) throw new TypeError(`${label}.ref is not the route ref at its position`);
-    if (isAuthor && !CATEGORIES.includes(source.category as string)) throw new TypeError(`${label}.category is invalid`);
-    const record = source.value;
-    if (record === null || typeof record !== 'object' || Array.isArray(record) || (record as { id?: unknown }).id !== ref.id) {
-      throw new TypeError(`${label}.value is not the record its ref names`);
-    }
-  });
-
-  if (Object.hasOwn(pack, 'artifact')) {
-    const artifact = ownData(pack.artifact, ['selectionScope', 'startChar', 'endChar', 'text'], 'ContextPack.artifact');
-    requireKeys(artifact, ['selectionScope', 'startChar', 'endChar', 'text'], 'ContextPack.artifact');
-    const { startChar, endChar, text } = artifact;
-    if (artifact.selectionScope !== 'EXCERPT' || !Number.isSafeInteger(startChar) || !Number.isSafeInteger(endChar) ||
-        (startChar as number) < 0 || (startChar as number) >= (endChar as number) || typeof text !== 'string' ||
-        text.length !== (endChar as number) - (startChar as number)) {
-      throw new TypeError('ContextPack.artifact is not an exact excerpt');
-    }
-  }
-  if (typeof pack.contextFingerprint !== 'string' || !/^[0-9a-f]{64}$/.test(pack.contextFingerprint)) {
-    throw new TypeError('ContextPack.contextFingerprint is invalid');
-  }
-  if (typeof pack.capturedAt !== 'string' || Number.isNaN(Date.parse(pack.capturedAt))) {
-    throw new TypeError('ContextPack.capturedAt is invalid');
-  }
-}
+const PACK_REQUIRED = ['schemaVersion', 'binding', 'question', 'sources', 'contextFingerprint', 'capturedAt'];
 
 /**
- * Self-integrity: a detached copy of the offered pack, its shape checked, and its
- * fingerprint recomputed from its own payload. Any failure is an invalid pack, which is
- * a different finding from a valid pack that has gone stale.
+ * Self-integrity: the offered pack must be plain data (no accessor is run), its
+ * detached copy must satisfy the one pack schema, and its fingerprint must match its
+ * own payload. Any failure is an invalid pack, which is a different finding from a
+ * valid pack that has gone stale, and it is decided before currentness is looked at.
  */
 export function readContextPack(value: unknown): ContextPack {
   let copy: unknown;
   try {
+    canonicalSerialize(value);
     copy = structuredClone(value);
-  } catch {
-    throw new InvalidContextPackError('ContextPack is not plain data');
+  } catch (error) {
+    throw new InvalidContextPackError(`ContextPack is not plain data: ${(error as Error).message}`);
   }
   try {
-    assertPackShape(copy);
+    const data = exactRecord(copy, PACK_REQUIRED, ['artifact'], 'ContextPack');
+    assertContextPackPayload(data, CONTEXT_PACK_SCHEMA_VERSION);
+    if (typeof data.contextFingerprint !== 'string' || !/^[0-9a-f]{64}$/.test(data.contextFingerprint)) {
+      throw new TypeError('ContextPack.contextFingerprint is invalid');
+    }
+    if (typeof data.capturedAt !== 'string' || Number.isNaN(Date.parse(data.capturedAt))) {
+      throw new TypeError('ContextPack.capturedAt is invalid');
+    }
   } catch (error) {
     throw new InvalidContextPackError(`ContextPack is malformed: ${(error as Error).message}`);
   }
   const pack = deepFreeze(copy as ContextPack);
-  let recomputed: string;
-  try {
-    recomputed = contextFingerprint(pack);
-  } catch (error) {
-    throw new InvalidContextPackError(`ContextPack payload is not canonical data: ${(error as Error).message}`);
-  }
-  if (recomputed !== pack.contextFingerprint) {
+  if (contextFingerprint(pack) !== pack.contextFingerprint) {
     throw new InvalidContextPackError('ContextPack contextFingerprint does not match its payload: the pack was altered after it was built');
   }
   return pack;
