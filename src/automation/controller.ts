@@ -8,9 +8,10 @@ import { packetHash, parseCorrection, parsePacket, validateCorrection } from './
 import { evaluatePolicy, matchAuthorization, parseAuthorization } from './policy.js';
 import { readBranch, readPostPromotion, readPreflight, unavailableRepositoryRealityPort,
   type RepositoryRealityPort } from './repository-reality.js';
-import { parseInstant } from './time.js';
+import { isInstant, parseInstant } from './time.js';
 import {
-  ROLES, STOP_CLASSES, type Actor, type Clock, type ControllerRun, type ControllerState, type StopClass,
+  ROLES, STOP_CLASSES, type Actor, type Clock, type ControllerOccurrenceGuard, type ControllerRun, type ControllerState,
+  type StopClass,
 } from './types.js';
 
 // Authorization identity remains a later integration boundary. Repository facts
@@ -19,7 +20,23 @@ import {
 const text = z.string().trim().min(1);
 const actorSchema = z.strictObject({ id: text, role: z.enum(ROLES) });
 const stopClassSchema = z.enum(STOP_CLASSES);
+// Compared exactly, never trimmed.
+const exact = z.string().min(1);
+const occurrenceSchema = z.strictObject({ runId: exact, sequence: z.number().int().positive(), action: exact,
+  timestamp: z.string().refine(isInstant) });
 const CONTROLLER: Actor = Object.freeze({ id: 'controller', role: 'CONTROLLER' });
+
+/**
+ * A guarded write was refused because the run is no longer at the audit occurrence the
+ * guard names. Nothing was written. The audit is append-only, so a guard that is
+ * stale once is stale for good.
+ */
+export class StaleOccurrenceError extends Error {
+  constructor() {
+    super('Run is no longer at the guarded audit occurrence; nothing was applied');
+    this.name = 'StaleOccurrenceError';
+  }
+}
 
 interface Instant { at: number; iso: string }
 
@@ -81,6 +98,23 @@ export class AutomationController {
   }
   #needsRecheck(run: ControllerRun): void {
     if (run.externalRecheckRequired === true) throw new Error('External reality recheck required');
+  }
+  #guard(input: unknown, runId: string, action?: string): ControllerOccurrenceGuard {
+    const guard = occurrenceSchema.parse(input) as ControllerOccurrenceGuard;
+    if (guard.runId !== runId || (action !== undefined && guard.action !== action)) {
+      throw new Error('Occurrence guard does not name this run and action');
+    }
+    return guard;
+  }
+  // Checked on the same read the transition is built from. The store then accepts the
+  // write only as the next entry after that read, so the occurrence holds through the
+  // commit: a writer that got in between makes this write fail, not land on its state.
+  #atOccurrence(run: ControllerRun, guard: ControllerOccurrenceGuard | undefined): void {
+    if (guard === undefined) return;
+    const last = run.audit.at(-1);
+    if (!last || last.sequence !== guard.sequence || last.action !== guard.action || last.timestamp !== guard.timestamp) {
+      throw new StaleOccurrenceError();
+    }
   }
   // Every state change goes through here and is checked against the shared lifecycle
   // before the store sees it; the store checks it again.
@@ -150,8 +184,18 @@ export class AutomationController {
     return this.#commit(run, 'IMPLEMENTING', who, 'BEGIN_IMPLEMENTATION', now);
   }
   completeImplementation(runId: string, actor: Actor, validationEvidence: string[]): ControllerRun {
+    return this.#completeImplementation(runId, actor, validationEvidence);
+  }
+  /** completeImplementation, applied only while the run is still at the exact BEGIN_IMPLEMENTATION entry named. */
+  completeImplementationForOccurrence(runId: string, actor: Actor, guard: ControllerOccurrenceGuard,
+    validationEvidence: string[]): ControllerRun {
+    return this.#completeImplementation(runId, actor, validationEvidence, this.#guard(guard, runId, 'BEGIN_IMPLEMENTATION'));
+  }
+  #completeImplementation(runId: string, actor: Actor, validationEvidence: string[],
+    occurrence?: ControllerOccurrenceGuard): ControllerRun {
     const who = this.#actor(actor);
     const run = this.get(runId);
+    this.#atOccurrence(run, occurrence);
     this.#require(run, 'IMPLEMENTING', who, 'CODEX_IMPLEMENTER');
     z.array(text).min(1).parse(validationEvidence);
     const now = this.#now();
@@ -184,8 +228,16 @@ export class AutomationController {
   // The only path that creates ACCEPTED: an independent GPT decision bound to the
   // exact remote SHA and packet. Implementer and controller roles are refused.
   decideAcceptance(runId: string, actor: Actor, input: unknown): ControllerRun {
+    return this.#decideAcceptance(runId, actor, input);
+  }
+  /** decideAcceptance, applied only while the run is still at the exact BEGIN_REMOTE_ACCEPTANCE entry named. */
+  decideAcceptanceForOccurrence(runId: string, actor: Actor, guard: ControllerOccurrenceGuard, input: unknown): ControllerRun {
+    return this.#decideAcceptance(runId, actor, input, this.#guard(guard, runId, 'BEGIN_REMOTE_ACCEPTANCE'));
+  }
+  #decideAcceptance(runId: string, actor: Actor, input: unknown, occurrence?: ControllerOccurrenceGuard): ControllerRun {
     const who = this.#actor(actor);
     const run = this.get(runId);
+    this.#atOccurrence(run, occurrence);
     this.#require(run, 'ACCEPTANCE_REVIEW', who, 'GPT_ARCHITECT');
     const decision = parseAcceptanceDecision(input);
     const now = this.#now();
@@ -206,8 +258,16 @@ export class AutomationController {
     return rejected;
   }
   issueCorrection(runId: string, actor: Actor, input: unknown): ControllerRun {
+    return this.#issueCorrection(runId, actor, input);
+  }
+  /** issueCorrection, applied only while the run is still at the exact REJECT_EXACT_SHA entry named. */
+  issueCorrectionForOccurrence(runId: string, actor: Actor, guard: ControllerOccurrenceGuard, input: unknown): ControllerRun {
+    return this.#issueCorrection(runId, actor, input, this.#guard(guard, runId, 'REJECT_EXACT_SHA'));
+  }
+  #issueCorrection(runId: string, actor: Actor, input: unknown, occurrence?: ControllerOccurrenceGuard): ControllerRun {
     const who = this.#actor(actor);
     const run = this.get(runId);
+    this.#atOccurrence(run, occurrence);
     this.#require(run, 'CORRECTION_REQUIRED', who, 'GPT_ARCHITECT');
     this.#needsRecheck(run);
     if (run.correctionPacket?.rejectedSha === run.remoteSha?.sha || !run.activePacket || !run.activePacketHash ||
@@ -357,10 +417,19 @@ export class AutomationController {
   // Accepts exactly the three operational stop classes at runtime; any other value,
   // including a lifecycle state such as ACCEPTED, is refused before anything changes.
   stop(runId: string, actor: Actor, stopClass: StopClass, reason: string): ControllerRun {
+    return this.#stop(runId, actor, stopClass, reason);
+  }
+  /** stop, applied only while the run is still at the exact audit entry named, whatever its action. */
+  stopForOccurrence(runId: string, actor: Actor, guard: ControllerOccurrenceGuard, stopClass: StopClass,
+    reason: string): ControllerRun {
+    return this.#stop(runId, actor, stopClass, reason, this.#guard(guard, runId));
+  }
+  #stop(runId: string, actor: Actor, stopClass: StopClass, reason: string, occurrence?: ControllerOccurrenceGuard): ControllerRun {
     const who = this.#actor(actor);
     const kind = stopClassSchema.parse(stopClass);
     const why = text.parse(reason);
     const run = this.get(runId);
+    this.#atOccurrence(run, occurrence);
     if (!isActiveState(run.state) || !['HUMAN', 'GPT_ARCHITECT', 'CONTROLLER'].includes(who.role)) throw new Error('Illegal stop');
     return this.#halt(run, who, kind, why, this.#now());
   }

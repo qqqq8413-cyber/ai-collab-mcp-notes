@@ -196,8 +196,9 @@ check('bridge and runner sources are offline and cannot reach promotion or human
     assert.doesNotMatch(source, /['"`]HUMAN['"`]/, name);
   }
   const called = [...new Set([...sources.runner.matchAll(/#controller\.(\w+)/g)].map((match) => match[1]))].sort();
-  assert.deepEqual(called, ['beginAcceptanceReview', 'beginImplementation', 'completeImplementation', 'decideAcceptance',
-    'get', 'issueCorrection', 'recordRemoteSha', 'stop']);
+  // Every write that applies an actor result, or stops the run, is occurrence-guarded.
+  assert.deepEqual(called, ['beginAcceptanceReview', 'beginImplementation', 'completeImplementationForOccurrence',
+    'decideAcceptanceForOccurrence', 'get', 'issueCorrectionForOccurrence', 'recordRemoteSha', 'stopForOccurrence']);
   assert.doesNotMatch(sources.bridge, /controller\.\w/i);
   // The runner forwards reviewer output; it never writes a decision or a correction of its own.
   assert.doesNotMatch(sources.runner, /['"]ACCEPT['"]|reviewedSha|packetHash\s*:|findings\s*:|rejectedSha\s*:|correctionIteration\s*:/);

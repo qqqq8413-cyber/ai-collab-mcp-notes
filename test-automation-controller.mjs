@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { AutomationController } from './dist/automation/controller.js';
+import { AutomationController, StaleOccurrenceError } from './dist/automation/controller.js';
 import { InMemoryControllerStore } from './dist/automation/audit.js';
 import { packetHash, parsePacket } from './dist/automation/packet.js';
 import { evaluatePolicy, evaluateDiffWarnings, OPERATION_POLICY } from './dist/automation/policy.js';
@@ -310,6 +310,107 @@ check('controller has no network, provider, subprocess, or side-effect imports',
     assert.doesNotMatch(source, /from ['"](?:node:(?:http|https|net|child_process)|openai|@anthropic-ai|@google\/generative-ai|@octokit)/);
   }
   assert.equal(OPERATION_POLICY.FAST_FORWARD_MAIN, 'REQUIRE_HUMAN');
+});
+
+// G1-R3A-A1: a result bound to one audit occurrence never applies to another.
+function occurrence(c) {
+  const entry = c.audit('run-1').at(-1);
+  return { runId: 'run-1', sequence: entry.sequence, action: entry.action, timestamp: entry.timestamp };
+}
+function correctionFor(c, sha = B) {
+  const run = c.get('run-1');
+  return { correctionPacketId: `correction-${run.implementationIterations + 1}`, originalPacketId: 'packet-1',
+    originalPacketHash: run.activePacketHash, rejectedSha: sha, reviewerFindings: ['synthetic finding'],
+    allowedCorrectionAreas: ['src/automation'], unchangedInvariantReferences: ['human authority retained'],
+    expectedBaseSha: sha, correctionIteration: run.implementationIterations + 1, maxCorrectionIteration: 3 };
+}
+/** Stop, human resume, and recheck: the same state again, at a later audit occurrence, with no recheck pending. */
+function interruptAndResume(c) {
+  c.stop('run-1', K, 'HUMAN_STOP', 'interrupted');
+  c.resumeHuman('run-1', H, auth('HUMAN', 'RESUME_HUMAN_STOP', c.get('run-1').stopId));
+  return c.reconcile('run-1', K);
+}
+check('guarded completion applies at its exact BEGIN_IMPLEMENTATION occurrence', () => {
+  const { c } = make(); c.beginImplementation('run-1', X);
+  assert.equal(c.completeImplementationForOccurrence('run-1', X, occurrence(c), ['pass']).state, 'IMPLEMENTATION_COMPLETE');
+});
+check('a stale implementation result cannot complete a resumed IMPLEMENTING occurrence', () => {
+  for (const resume of [interruptAndResume, (c) => { c.stop('run-1', K, 'SOFT_STOP', 'defect'); c.resumeSoft('run-1', K, 'repaired'); }]) {
+    const { c } = make(); c.beginImplementation('run-1', X); const stale = occurrence(c);
+    resume(c);
+    const length = c.audit('run-1').length;
+    assert.equal(c.get('run-1').state, 'IMPLEMENTING');
+    assert.throws(() => c.completeImplementationForOccurrence('run-1', X, stale, ['pass']), StaleOccurrenceError);
+    assert.equal(c.audit('run-1').length, length);
+    // The guard is the only barrier: unguarded, the same result would land on the resumed occurrence.
+    assert.equal(c.completeImplementation('run-1', X, ['pass']).state, 'IMPLEMENTATION_COMPLETE');
+  }
+});
+check('a stale implementation result cannot complete a later iteration with the same action and timestamp', () => {
+  const { c } = make(); c.beginImplementation('run-1', X); const first = occurrence(c);
+  c.completeImplementation('run-1', X, ['pass']); c.recordRemoteSha('run-1', X); c.beginAcceptanceReview('run-1', G);
+  c.decideAcceptance('run-1', G, decision(c, 'REJECT')); c.issueCorrection('run-1', G, correctionFor(c));
+  c.beginImplementation('run-1', X); const second = occurrence(c);
+  assert.deepEqual([second.action, second.timestamp], [first.action, first.timestamp]);
+  assert.notEqual(second.sequence, first.sequence);
+  assert.throws(() => c.completeImplementationForOccurrence('run-1', X, first, ['pass']), StaleOccurrenceError);
+  assert.equal(c.completeImplementationForOccurrence('run-1', X, second, ['pass']).state, 'IMPLEMENTATION_COMPLETE');
+});
+check('a stale review result cannot ACCEPT or REJECT a resumed or later review occurrence', () => {
+  const { c } = make(); ready(c); const stale = occurrence(c);
+  interruptAndResume(c);
+  assert.equal(c.get('run-1').state, 'ACCEPTANCE_REVIEW');
+  for (const result of ['ACCEPT', 'REJECT']) {
+    assert.throws(() => c.decideAcceptanceForOccurrence('run-1', G, stale, decision(c, result)), StaleOccurrenceError);
+  }
+  assert.deepEqual([c.get('run-1').acceptance, c.get('run-1').acceptanceFailures], [undefined, 0]);
+  assert.equal(c.decideAcceptance('run-1', G, decision(c)).state, 'ACCEPTED');
+  const later = make(); ready(later.c); const first = occurrence(later.c);
+  later.c.decideAcceptance('run-1', G, decision(later.c, 'REJECT')); later.c.issueCorrection('run-1', G, correctionFor(later.c));
+  later.c.beginImplementation('run-1', X); later.c.completeImplementation('run-1', X, ['pass']);
+  realityOf(later.c).workSha = C; later.c.recordRemoteSha('run-1', X); later.c.beginAcceptanceReview('run-1', G);
+  const second = occurrence(later.c);
+  assert.throws(() => later.c.decideAcceptanceForOccurrence('run-1', G, first, { ...decision(later.c, 'ACCEPT', C), reviewId: 'r2' }),
+    StaleOccurrenceError);
+  assert.equal(later.c.decideAcceptanceForOccurrence('run-1', G, second, { ...decision(later.c, 'ACCEPT', C), reviewId: 'r2' }).state, 'ACCEPTED');
+});
+check('guarded correction and stop bind their occurrence', () => {
+  const { c } = make(); ready(c); c.decideAcceptance('run-1', G, decision(c, 'REJECT')); const rejection = occurrence(c);
+  const correction = correctionFor(c);
+  interruptAndResume(c);
+  assert.throws(() => c.issueCorrectionForOccurrence('run-1', G, rejection, correction), StaleOccurrenceError);
+  assert.equal(c.get('run-1').correctionPacket, undefined);
+  const fresh = make(); ready(fresh.c); fresh.c.decideAcceptance('run-1', G, decision(fresh.c, 'REJECT'));
+  assert.equal(fresh.c.issueCorrectionForOccurrence('run-1', G, occurrence(fresh.c), correctionFor(fresh.c)).correctionPacket.correctionIteration, 2);
+  const stopped = make(); stopped.c.beginImplementation('run-1', X); const begun = occurrence(stopped.c);
+  stopped.c.completeImplementation('run-1', X, ['pass']);
+  assert.throws(() => stopped.c.stopForOccurrence('run-1', K, begun, 'HUMAN_STOP', 'stale'), StaleOccurrenceError);
+  assert.equal(stopped.c.get('run-1').state, 'IMPLEMENTATION_COMPLETE');
+  assert.equal(stopped.c.stopForOccurrence('run-1', K, occurrence(stopped.c), 'HUMAN_STOP', 'current').state, 'HUMAN_STOP');
+});
+check('an occurrence guard is exact data for one run and action, and keeps every existing check', () => {
+  const { c } = make(); c.beginImplementation('run-1', X); const guard = occurrence(c);
+  const length = c.audit('run-1').length;
+  for (const bad of [{ ...guard, timestamp: undefined }, { ...guard, secret: 'x' }, { ...guard, sequence: 0 },
+    { ...guard, sequence: String(guard.sequence) }, { ...guard, action: ` ${guard.action}` }, { ...guard, runId: 'run-2' },
+    { ...guard, action: 'BEGIN_REMOTE_ACCEPTANCE' }, null, undefined]) {
+    assert.throws(() => c.completeImplementationForOccurrence('run-1', X, bad, ['pass']), (error) => !(error instanceof StaleOccurrenceError));
+  }
+  assert.throws(() => c.completeImplementationForOccurrence('run-1', X, { ...guard, timestamp: '2026-09-26T00:00:00.001Z' }, ['pass']),
+    StaleOccurrenceError);
+  assert.throws(() => c.completeImplementationForOccurrence('run-1', X, guard, []));
+  assert.throws(() => c.completeImplementationForOccurrence('run-1', G, guard, ['pass']), /Illegal transition/);
+  assert.equal(c.audit('run-1').length, length);
+  const reviewed = make(); ready(reviewed.c);
+  assert.throws(() => reviewed.c.decideAcceptanceForOccurrence('run-1', G, occurrence(reviewed.c), decision(reviewed.c, 'ACCEPT', C)),
+    /does not bind/);
+  assert.throws(() => reviewed.c.decideAcceptanceForOccurrence('run-1', X, occurrence(reviewed.c), decision(reviewed.c)), /Illegal transition/);
+  let now = T;
+  const timed = new AutomationController({ now: () => now });
+  timed.createRun('run-1', 'slice-1', repo); timed.enterArchitecture('run-1', G); timed.issuePacket('run-1', G, packet());
+  timed.beginImplementation('run-1', X); const begun = occurrence(timed);
+  now = '2026-09-26T01:00:01.000Z';
+  assert.equal(timed.completeImplementationForOccurrence('run-1', X, begun, ['pass']).state, 'HUMAN_STOP');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

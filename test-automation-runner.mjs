@@ -418,6 +418,126 @@ check('one runner never runs two steps of the same run at once', async () => {
   assert.deepEqual([(await inFlight).state, impl.inputs.length], ['IMPLEMENTATION_COMPLETE', 1]);
 });
 
+// G1-R3A-A1: an actor result applies only to the exact audit occurrence it was called for.
+/** Stop, human resume, and recheck through a legitimate controller: the same state, a later occurrence, no recheck pending. */
+function interruptAndResume(controller) {
+  controller.stop('run-1', K, 'HUMAN_STOP', 'interrupted by another writer');
+  controller.resumeHuman('run-1', H, grant('RESUME_HUMAN_STOP', controller.get('run-1').stopId));
+  return controller.reconcile('run-1', K);
+}
+/**
+ * A FileControllerStore with one-shot hooks, so another writer can change the durable
+ * run at an exact point inside a controller operation: before a read, just before the
+ * store write, or just after it.
+ */
+function racingStore(dir) {
+  const inner = new FileControllerStore(dir);
+  const fire = (name) => { const hook = store[name]; if (!hook) return; if (hook.skip) { hook.skip -= 1; return; } store[name] = undefined; hook.run(); };
+  const store = { beforeGet: undefined, beforeWrite: undefined, afterWrite: undefined,
+    create: (run) => inner.create(run), replace: (run) => inner.replace(run), entries: (runId) => inner.entries(runId),
+    get(runId) { fire('beforeGet'); return inner.get(runId); },
+    bindController() {
+      const write = inner.bindController();
+      return (run) => { fire('beforeWrite'); write(run); fire('afterWrite'); };
+    } };
+  return store;
+}
+function racing(dir) {
+  const reality = fakeReality(); const store = racingStore(dir);
+  const { c } = make(undefined, { store, reality });
+  return { c, store, other: new AutomationController(clock, new FileControllerStore(dir), reality) };
+}
+
+check('implementation race: result A never completes or stops a resumed IMPLEMENTING occurrence', async () => {
+  const outcomes = { completed, 'stop class': () => ({ status: 'SOFT_STOP', reason: 'late' }),
+    'malformed': () => ({ ...completed(), sha: C }), 'thrown': () => { throw new Error('late failure'); } };
+  for (const [label, late] of Object.entries(outcomes)) {
+    const { c } = make(); const pending = deferred();
+    const impl = implementer(() => pending.promise.then(late));
+    const runner = new AutomationRunner(c, impl, reviewer());
+    await runner.step('run-1');
+    const inFlight = runner.step('run-1');
+    interruptAndResume(c);
+    const length = c.audit('run-1').length;
+    pending.resolve();
+    const result = await inFlight;
+    assert.deepEqual([result.outcome, result.state], ['ACTOR_RESULT_DISCARDED', 'IMPLEMENTING'], label);
+    assert.deepEqual([c.audit('run-1').length, c.audit('run-1').at(-1).action], [length, 'RECHECK_EXTERNAL_REALITY'], label);
+    assert.ok(!actions(c).includes('REPORT_IMPLEMENTATION_COMPLETE'), label);
+    assert.equal(impl.inputs.length, 1, label);
+  }
+});
+check('acceptance race: review result A never ACCEPTs, REJECTs, or stops a resumed ACCEPTANCE_REVIEW occurrence', async () => {
+  const bundles = { accept: (input) => ({ decision: accept(input) }),
+    'reject with correction': (input) => ({ decision: reject(input), correction: correctionFor(input) }),
+    'malformed': (input) => ({ decision: accept(input, { reviewedSha: C }) }), 'thrown': () => { throw new Error('late failure'); } };
+  for (const [label, late] of Object.entries(bundles)) {
+    const { c } = make(); const pending = deferred();
+    const rev = reviewer((input) => pending.promise.then(() => late(input)));
+    const runner = new AutomationRunner(c, implementer(), rev);
+    await runner.drive('run-1', 4);
+    const inFlight = runner.step('run-1');
+    interruptAndResume(c);
+    const length = c.audit('run-1').length;
+    pending.resolve();
+    const result = await inFlight;
+    assert.deepEqual([result.outcome, result.state], ['ACTOR_RESULT_DISCARDED', 'ACCEPTANCE_REVIEW'], label);
+    const run = c.get('run-1');
+    assert.deepEqual([c.audit('run-1').length, run.acceptance, run.acceptanceFailures, run.correctionPacket], [length, undefined, 0, undefined], label);
+    assert.ok(!actions(c).some((action) => ['ACCEPT_EXACT_SHA', 'REJECT_EXACT_SHA'].includes(action)), label);
+    assert.equal(rev.inputs.length, 1, label);
+  }
+});
+check('store race: a writer inside the controller\'s write window makes the guarded write fail, never land', withDir(async (dir) => {
+  const direct = racing(dir);
+  direct.c.beginImplementation('run-1', X);
+  const begun = direct.c.audit('run-1').at(-1);
+  direct.store.beforeWrite = { run: () => interruptAndResume(direct.other) };
+  assert.throws(() => direct.c.completeImplementationForOccurrence('run-1', X,
+    { runId: 'run-1', sequence: begun.sequence, action: begun.action, timestamp: begun.timestamp }, ['pass']), /append-only/);
+  assert.deepEqual([direct.other.get('run-1').state, direct.other.audit('run-1').at(-1).action], ['IMPLEMENTING', 'RECHECK_EXTERNAL_REALITY']);
+  assert.ok(!actions(direct.other).includes('REPORT_IMPLEMENTATION_COMPLETE'));
+}));
+check('store race through the runner: completion and decision lose to the other writer and are discarded', withDir(async (dir) => {
+  for (const phase of ['IMPLEMENTING', 'ACCEPTANCE_REVIEW']) {
+    rmSync(dir, { recursive: true, force: true });
+    const { c, store, other } = racing(dir); const impl = implementer(); const rev = reviewer();
+    const runner = new AutomationRunner(c, impl, rev);
+    await runner.drive('run-1', phase === 'IMPLEMENTING' ? 1 : 4);
+    let length;
+    store.beforeWrite = { run: () => { interruptAndResume(other); length = other.audit('run-1').length; } };
+    const result = await runner.step('run-1');
+    assert.deepEqual([result.outcome, result.state], ['ACTOR_RESULT_DISCARDED', phase]);
+    assert.equal(other.audit('run-1').length, length, 'nothing written after the other writer, not even a stop');
+    assert.ok(!actions(other).includes(phase === 'IMPLEMENTING' ? 'REPORT_IMPLEMENTATION_COMPLETE' : 'ACCEPT_EXACT_SHA'));
+    assert.deepEqual([impl.inputs.length, rev.inputs.length], [1, phase === 'IMPLEMENTING' ? 0 : 1]);
+  }
+}));
+check('a correction from review A is bound to A\'s rejection, not to a resumed CORRECTION_REQUIRED', withDir(async (dir) => {
+  const { c, store, other } = racing(dir); const impl = implementer();
+  const runner = new AutomationRunner(c, impl, reviewer((input) => ({ decision: reject(input), correction: correctionFor(input) })));
+  await runner.drive('run-1', 4);
+  // The REJECT commits; before the correction is read and written, another writer interrupts and resumes.
+  store.afterWrite = { run: () => interruptAndResume(other) };
+  const result = await runner.step('run-1');
+  assert.deepEqual([result.outcome, result.state], ['ACTOR_RESULT_DISCARDED', 'CORRECTION_REQUIRED']);
+  const run = other.get('run-1');
+  assert.deepEqual([run.acceptanceFailures, run.correctionPacket, other.audit('run-1').at(-1).action], [1, undefined, 'RECHECK_EXTERNAL_REALITY']);
+  assert.equal((await runner.drive('run-1', 3)).outcome, 'AWAITING_CORRECTION');
+  assert.equal(impl.inputs.length, 1);
+}));
+check('a restart stop decided from an observed occurrence never stops a later one', withDir(async (dir) => {
+  const { c, store, other } = racing(dir);
+  await new AutomationRunner(other, implementer(), reviewer()).step('run-1');
+  const impl = implementer(); const runner = new AutomationRunner(c, impl, reviewer());
+  // Between this runner's read of IMPLEMENTING and the controller's read inside its stop, the owner completes.
+  store.beforeGet = { skip: 1, run: () => other.completeImplementation('run-1', X, ['pass']) };
+  const result = await runner.step('run-1');
+  assert.deepEqual([result.outcome, result.state], ['STALE_OCCURRENCE', 'IMPLEMENTATION_COMPLETE']);
+  assert.ok(!actions(other).includes('STOP'));
+  assert.equal(impl.inputs.length, 0);
+}));
+
 let passed = 0, failed = 0;
 for (const [name, fn] of tests) {
   try { await fn(); console.log(`  PASS ${name}`); passed++; }

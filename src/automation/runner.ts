@@ -4,17 +4,22 @@ import {
 } from './bridge.js';
 import { AutomationController } from './controller.js';
 import { isStopState, isTerminalState } from './lifecycle.js';
-import type { AuditEntry, ControllerRun, ControllerState, StopClass } from './types.js';
+import type { AuditEntry, ControllerOccurrenceGuard, ControllerRun, ControllerState, StopClass } from './types.js';
 
 // Drives an existing AutomationController through implementation and independent
 // acceptance, one bounded step at a time. The controller owns every state, counter,
 // budget, and validation; the runner only chooses which public controller method the
 // current state calls for, and calls an external actor only from a state this runner
 // instance itself entered. It stops at ACCEPTED: promotion is a human decision.
+//
+// An actor's result belongs to the exact audit occurrence the actor was called for.
+// Every write that applies a result, or a stop decided from a run as observed, is
+// bound to that occurrence through the controller's guarded entrypoints, so it can
+// never land on a later or resumed occurrence of the same state.
 
 export const RUNNER_OUTCOMES = Object.freeze([
   'ADVANCED', 'AWAITING_CORRECTION', 'EXTERNAL_RECHECK_REQUIRED', 'HUMAN_PROMOTION_REQUIRED', 'STOPPED',
-  'TERMINAL', 'OUT_OF_SCOPE', 'ACTOR_RESULT_DISCARDED', 'STEP_LIMIT_REACHED',
+  'TERMINAL', 'OUT_OF_SCOPE', 'ACTOR_RESULT_DISCARDED', 'STALE_OCCURRENCE', 'STEP_LIMIT_REACHED',
 ] as const);
 export type RunnerOutcome = typeof RUNNER_OUTCOMES[number];
 
@@ -42,15 +47,24 @@ const UNUSABLE_IMPLEMENTATION = 'implementation-agent result is outside the brid
 // A review the bridge or controller refuses is an ambiguous acceptance, which the
 // governance contract routes to the architect.
 const UNUSABLE_REVIEW = 'architect review is malformed or does not bind the active packet and remote SHA; not recorded';
+const LEFT_OCCURRENCE = 'the run left the occurrence this step was bound to; nothing was recorded';
 
-interface OwnedEntry { sequence: number; action: string; timestamp: string }
-
-function sameEntry(owned: OwnedEntry, entry: AuditEntry | undefined): boolean {
-  return entry !== undefined && owned.sequence === entry.sequence && owned.action === entry.action &&
-    owned.timestamp === entry.timestamp;
+function occurrenceOf(runId: string, entry: AuditEntry): ControllerOccurrenceGuard {
+  return Object.freeze({ runId, sequence: entry.sequence, action: entry.action, timestamp: entry.timestamp });
+}
+function sameEntry(guard: ControllerOccurrenceGuard, entry: AuditEntry | undefined): boolean {
+  return entry !== undefined && guard.sequence === entry.sequence && guard.action === entry.action &&
+    guard.timestamp === entry.timestamp;
 }
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : 'non-Error value thrown';
+}
+async function settle(call: () => unknown): Promise<{ value: unknown } | { error: unknown }> {
+  try {
+    return { value: await call() };
+  } catch (error) {
+    return { error };
+  }
 }
 
 /** The outcome for a run the runner does not advance now, or undefined when it may. */
@@ -70,9 +84,9 @@ export class AutomationRunner {
   readonly #controller: AutomationController;
   readonly #execute: (input: unknown) => unknown;
   readonly #review: (input: unknown) => unknown;
-  // The IMPLEMENTING or ACCEPTANCE_REVIEW entries this instance created and has not yet
-  // acted on. Memory only: a new instance owns nothing, so it never replays a call.
-  readonly #owned = new Map<string, OwnedEntry>();
+  // The IMPLEMENTING or ACCEPTANCE_REVIEW occurrences this instance created and has not
+  // yet acted on. Memory only: a new instance owns nothing, so it never replays a call.
+  readonly #owned = new Map<string, ControllerOccurrenceGuard>();
   readonly #busy = new Set<string>();
 
   constructor(controller: AutomationController, implementation: ImplementationAgentPort, review: ArchitectReviewPort) {
@@ -117,14 +131,14 @@ export class AutomationRunner {
     switch (run.state) {
       case 'PACKET_READY':
       case 'CORRECTION_REQUIRED':
-        return this.#enter(this.#controller.beginImplementation(runId, IMPLEMENTATION_ACTOR), 'BEGIN_IMPLEMENTATION');
+        return this.#enter(run, this.#controller.beginImplementation(runId, IMPLEMENTATION_ACTOR), 'BEGIN_IMPLEMENTATION');
       case 'IMPLEMENTING':
         return this.#implement(run);
       case 'IMPLEMENTATION_COMPLETE':
         // The SHA is read by the controller from repository reality, never supplied here.
         return this.#report(this.#controller.recordRemoteSha(runId, IMPLEMENTATION_ACTOR));
       case 'REMOTE_SHA_READY':
-        return this.#enter(this.#controller.beginAcceptanceReview(runId, ARCHITECT_REVIEW_ACTOR), 'BEGIN_REMOTE_ACCEPTANCE');
+        return this.#enter(run, this.#controller.beginAcceptanceReview(runId, ARCHITECT_REVIEW_ACTOR), 'BEGIN_REMOTE_ACCEPTANCE');
       case 'ACCEPTANCE_REVIEW':
         return this.#decide(run);
       default:
@@ -133,100 +147,103 @@ export class AutomationRunner {
   }
 
   // Entering the actor states is its own step, so a crash between entering and calling
-  // leaves a state the next instance recognises as not its own.
-  #enter(run: ControllerRun, action: string): RunnerResult {
-    const entry = run.audit.at(-1);
-    if (entry && entry.action === action) {
-      this.#owned.set(run.runId, { sequence: entry.sequence, action: entry.action, timestamp: entry.timestamp });
-    }
-    return this.#report(run);
+  // leaves a state the next instance recognises as not its own. The owned occurrence is
+  // the entry this call appended right after the run as observed; if another writer got
+  // in first, that entry is not ours and nothing is owned.
+  #enter(before: ControllerRun, after: ControllerRun, action: string): RunnerResult {
+    const entry = after.audit[before.audit.length];
+    if (entry && entry.action === action) this.#owned.set(after.runId, occurrenceOf(after.runId, entry));
+    return this.#report(after);
   }
 
-  /** Ownership is consumed whether or not it matches: one entry, at most one actor call. */
-  #take(run: ControllerRun, action: string): OwnedEntry | undefined {
+  /** Ownership is consumed whether or not it matches: one occurrence, at most one actor call. */
+  #take(run: ControllerRun, action: string): ControllerOccurrenceGuard | undefined {
     const owned = this.#owned.get(run.runId);
     this.#owned.delete(run.runId);
     return owned && owned.action === action && sameEntry(owned, run.audit.at(-1)) ? owned : undefined;
   }
 
-  /**
-   * Calls the actor, then records nothing unless the run is still exactly at the entry
-   * this runner created: a result that returns after the run moved on belongs to a
-   * state that no longer exists.
-   */
-  async #call(run: ControllerRun, owned: OwnedEntry, call: () => unknown, noResult: string):
-    Promise<{ current: ControllerRun; value: unknown } | RunnerResult> {
-    let value: unknown;
-    let threw = false;
-    let failure: unknown;
-    try {
-      value = await call();
-    } catch (error) {
-      threw = true;
-      failure = error;
-    }
-    const current = this.#controller.get(run.runId);
-    if (!sameEntry(owned, current.audit.at(-1))) {
-      return this.#report(current, 'ACTOR_RESULT_DISCARDED', 'the run changed while the external actor ran; its result is not recorded');
-    }
-    if (threw) return this.#halt(run.runId, 'HUMAN_STOP', noResult, failure);
-    return { current, value };
-  }
-
   async #implement(run: ControllerRun): Promise<RunnerResult> {
     const owned = this.#take(run, 'BEGIN_IMPLEMENTATION');
-    if (!owned) return this.#halt(run.runId, 'HUMAN_STOP', RESTART_IMPLEMENTATION);
+    if (!owned) return this.#haltAt(occurrenceOf(run.runId, run.audit.at(-1)!), 'HUMAN_STOP', RESTART_IMPLEMENTATION, 'STALE_OCCURRENCE');
+    const discarded = 'ACTOR_RESULT_DISCARDED';
     const input = implementationInput(run);
-    const called = await this.#call(run, owned, () => this.#execute(input), NO_IMPLEMENTATION_RESULT);
-    if (!('value' in called)) return called;
+    const called = await settle(() => this.#execute(input));
+    if ('error' in called) return this.#haltAt(owned, 'HUMAN_STOP', NO_IMPLEMENTATION_RESULT, discarded, called.error);
     let result;
     try {
       result = parseImplementationResult(called.value);
     } catch (error) {
-      return this.#halt(run.runId, 'HUMAN_STOP', UNUSABLE_IMPLEMENTATION, error);
+      return this.#haltAt(owned, 'HUMAN_STOP', UNUSABLE_IMPLEMENTATION, discarded, error);
     }
     if (result.status !== 'COMPLETED') {
-      return this.#halt(run.runId, result.status, `implementation agent reported ${result.status}: ${result.reason}`);
+      return this.#haltAt(owned, result.status, `implementation agent reported ${result.status}: ${result.reason}`, discarded);
     }
     const evidence = result.validationEvidence;
-    return this.#record(run.runId, () => this.#controller.completeImplementation(run.runId, IMPLEMENTATION_ACTOR, evidence),
-      'HUMAN_STOP', UNUSABLE_IMPLEMENTATION);
+    const written = this.#attempt(owned,
+      () => this.#controller.completeImplementationForOccurrence(owned.runId, IMPLEMENTATION_ACTOR, owned, evidence));
+    if ('run' in written) return this.#report(written.run);
+    if ('moved' in written) return this.#left(owned.runId, discarded);
+    return this.#haltAt(owned, 'HUMAN_STOP', UNUSABLE_IMPLEMENTATION, discarded, written.error);
   }
 
   async #decide(run: ControllerRun): Promise<RunnerResult> {
     const owned = this.#take(run, 'BEGIN_REMOTE_ACCEPTANCE');
-    if (!owned) return this.#halt(run.runId, 'HUMAN_STOP', RESTART_REVIEW);
+    if (!owned) return this.#haltAt(occurrenceOf(run.runId, run.audit.at(-1)!), 'HUMAN_STOP', RESTART_REVIEW, 'STALE_OCCURRENCE');
+    const discarded = 'ACTOR_RESULT_DISCARDED';
     const input = reviewInput(run);
-    const called = await this.#call(run, owned, () => this.#review(input), NO_REVIEW_RESULT);
-    if (!('value' in called)) return called;
+    const called = await settle(() => this.#review(input));
+    if ('error' in called) return this.#haltAt(owned, 'HUMAN_STOP', NO_REVIEW_RESULT, discarded, called.error);
     let bundle;
     try {
       bundle = parseReviewBundle(called.value);
     } catch (error) {
-      return this.#halt(run.runId, 'ARCHITECTURE_STOP', UNUSABLE_REVIEW, error);
+      return this.#haltAt(owned, 'ARCHITECTURE_STOP', UNUSABLE_REVIEW, discarded, error);
     }
     const decision = bundle.decision;
-    const decided = this.#record(run.runId, () => this.#controller.decideAcceptance(run.runId, ARCHITECT_REVIEW_ACTOR, decision),
-      'ARCHITECTURE_STOP', UNUSABLE_REVIEW);
-    if (bundle.correction === undefined || decided.state !== 'CORRECTION_REQUIRED') return decided;
+    const decided = this.#attempt(owned,
+      () => this.#controller.decideAcceptanceForOccurrence(owned.runId, ARCHITECT_REVIEW_ACTOR, owned, decision));
+    if ('moved' in decided) return this.#left(owned.runId, discarded);
+    if ('error' in decided) return this.#haltAt(owned, 'ARCHITECTURE_STOP', UNUSABLE_REVIEW, discarded, decided.error);
+    // The decision is the entry right after the review occurrence; a correction from the
+    // same review is bound to it, not to whatever CORRECTION_REQUIRED is current later.
+    const rejection = decided.run.audit[owned.sequence];
+    const correction = bundle.correction;
+    if (correction === undefined || decided.run.state !== 'CORRECTION_REQUIRED' || rejection?.action !== 'REJECT_EXACT_SHA') {
+      return this.#report(decided.run);
+    }
+    const guard = occurrenceOf(owned.runId, rejection);
+    const issued = this.#attempt(guard,
+      () => this.#controller.issueCorrectionForOccurrence(owned.runId, ARCHITECT_REVIEW_ACTOR, guard, correction));
+    if ('run' in issued) return this.#report(issued.run);
+    if ('moved' in issued) return this.#left(owned.runId, discarded);
+    return this.#report(this.#controller.get(owned.runId), undefined, `correction refused by controller: ${describe(issued.error)}`);
+  }
+
+  /**
+   * One controller write bound to `guard`. When it fails, the run is read again: if it
+   * has left that occurrence, nothing was recorded (`moved`); the audit is append-only,
+   * so it can never return to it. Any other failure is a refusal of this write.
+   */
+  #attempt(guard: ControllerOccurrenceGuard, write: () => ControllerRun):
+    { run: ControllerRun } | { moved: true } | { error: unknown } {
     try {
-      return this.#report(this.#controller.issueCorrection(run.runId, ARCHITECT_REVIEW_ACTOR, bundle.correction));
+      return { run: write() };
     } catch (error) {
-      return this.#report(this.#controller.get(run.runId), undefined, `correction refused by controller: ${describe(error)}`);
+      return sameEntry(guard, this.#controller.get(guard.runId).audit.at(-1)) ? { error } : { moved: true };
     }
   }
 
-  #record(runId: string, write: () => ControllerRun, kind: StopClass, reason: string): RunnerResult {
-    try {
-      return this.#report(write());
-    } catch (error) {
-      return this.#halt(runId, kind, reason, error);
-    }
+  /** A stop about one occurrence. If the run has left it, nothing is stopped: a later occurrence is not this step's to stop. */
+  #haltAt(guard: ControllerOccurrenceGuard, kind: StopClass, reason: string, stale: RunnerOutcome, error?: unknown): RunnerResult {
+    const stopped = this.#attempt(guard, () => this.#controller.stopForOccurrence(guard.runId, RUNNER_ACTOR, guard, kind, reason));
+    if ('run' in stopped) return this.#report(stopped.run, undefined, error === undefined ? undefined : describe(error));
+    if ('moved' in stopped) return this.#left(guard.runId, stale);
+    throw stopped.error;
   }
 
-  #halt(runId: string, kind: StopClass, reason: string, error?: unknown): RunnerResult {
-    const stopped = this.#controller.stop(runId, RUNNER_ACTOR, kind, reason);
-    return this.#report(stopped, undefined, error === undefined ? undefined : describe(error));
+  #left(runId: string, outcome: RunnerOutcome): RunnerResult {
+    return this.#report(this.#controller.get(runId), outcome, LEFT_OCCURRENCE);
   }
 
   #report(run: ControllerRun, outcome: RunnerOutcome = waitingOutcome(run) ?? 'ADVANCED', detail?: string): RunnerResult {

@@ -126,6 +126,18 @@ export interface PostPromotionFacts {
   mainProtected: boolean;
 }
 
+/**
+ * One exact audit occurrence of one run. A controller write bound to it applies only
+ * while that entry is still the run's last entry. Integrity and coordination data,
+ * not a credential: it grants nothing.
+ */
+export interface ControllerOccurrenceGuard {
+  runId: string;
+  sequence: number;
+  action: string;
+  timestamp: string;
+}
+
 export interface AuditEntry {
   sequence: number;
   runId: string;
