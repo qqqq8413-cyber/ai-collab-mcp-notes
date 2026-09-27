@@ -174,7 +174,8 @@ check('the runner takes no actor and refuses an unverified composition', async (
   const { c } = make();
   const execute = () => completed();
   const review = () => ({ decision: decision() });
-  assert.equal(AutomationRunner.length, 3);
+  // controller, two ports, and optional journal options; none of them is an actor.
+  assert.equal(AutomationRunner.length, 4);
   assert.throws(() => new AutomationRunner({ get() {}, stop() {} }, { execute }, { review }), TypeError);
   assert.throws(() => new AutomationRunner(c, {}, { review }), TypeError);
   assert.throws(() => new AutomationRunner(c, { execute }, undefined), TypeError);
@@ -188,7 +189,8 @@ check('the runner takes no actor and refuses an unverified composition', async (
 });
 check('bridge and runner sources are offline and cannot reach promotion or human authority', () => {
   const sources = Object.fromEntries(['bridge', 'runner'].map((name) => [name, readFileSync(`src/automation/${name}.ts`, 'utf8')]));
-  const allowed = new Set(['zod', './types.js', './lifecycle.js', './controller.js', './bridge.js']);
+  const allowed = new Set(['zod', './types.js', './lifecycle.js', './controller.js', './bridge.js', './invocation-journal.js',
+    './policy.js']);
   for (const [name, source] of Object.entries(sources)) {
     for (const [, specifier] of source.matchAll(/from\s+['"]([^'"]+)['"]/g)) assert.ok(allowed.has(specifier), `${name}: ${specifier}`);
     assert.doesNotMatch(source, /\bimport\s*\(|\brequire\s*\(|node:|child_process|\bspawn\b|\bexec(?:File)?\s*\(|\bfetch\s*\(|process\./, name);
@@ -201,7 +203,8 @@ check('bridge and runner sources are offline and cannot reach promotion or human
     'decideAcceptanceForOccurrence', 'get', 'issueCorrectionForOccurrence', 'recordRemoteSha', 'stopForOccurrence']);
   assert.doesNotMatch(sources.bridge, /controller\.\w/i);
   // The runner forwards reviewer output; it never writes a decision or a correction of its own.
-  assert.doesNotMatch(sources.runner, /['"]ACCEPT['"]|reviewedSha|packetHash\s*:|findings\s*:|rejectedSha\s*:|correctionIteration\s*:/);
+  // (packetHash also names the journal's identity binding, so the decision is detected by reviewedSha.)
+  assert.doesNotMatch(sources.runner, /['"]ACCEPT['"]|reviewedSha|findings\s*:|rejectedSha\s*:|correctionIteration\s*:|actor:\s*['"]GPT_ARCHITECT/);
 });
 
 let passed = 0, failed = 0;

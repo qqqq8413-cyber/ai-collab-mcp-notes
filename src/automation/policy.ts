@@ -228,6 +228,22 @@ function decide(input: unknown): PolicyResult {
   return { decision: 'AUTHORIZED', classification, reason: 'exact authorization data present' };
 }
 
+/**
+ * The live-model dispatch gate: the existing LIVE_PROVIDER_MODEL_CALL policy, evaluated
+ * for exactly this call on the authority of the caller-supplied grant. The packet must
+ * allow the provider and model and name the destination, and the grant must be an
+ * exact, current HUMAN authorization for this run, packet, provider, model, and
+ * destination. A grant is evaluated as the role it states, so any other role is refused.
+ */
+export function authorizeLiveModelCall(input: { packet: unknown; runId: string; scope: ProviderCallScope;
+  authorization: unknown; now: string }): PolicyResult {
+  const grant = parseAuthorization(input.authorization);
+  if (!grant) return { decision: 'DENIED', reason: 'live model call authorization missing or malformed' };
+  return evaluatePolicy({ operation: 'LIVE_PROVIDER_MODEL_CALL', target: input.scope.destination,
+    actor: { id: grant.authorizationId, role: grant.actorRole }, packet: input.packet as ImplementationPacket,
+    runId: input.runId, authorization: grant, now: input.now, providerCall: input.scope });
+}
+
 export function evaluateDiffWarnings(changedFiles: number, changedDiffLines: number): string[] {
   if (!Number.isSafeInteger(changedFiles) || changedFiles < 0 ||
       !Number.isSafeInteger(changedDiffLines) || changedDiffLines < 0) throw new Error('Invalid diff facts');

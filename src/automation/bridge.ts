@@ -29,6 +29,8 @@ export interface ImplementationInput {
   packet: ImplementationPacket;
   packetHash: string;
   correction?: CorrectionPacket;
+  /** Journaled dispatch only: the invocation a live adapter must find STARTED before it calls anything. */
+  invocationId?: string;
 }
 
 /**
@@ -55,17 +57,21 @@ export interface ArchitectReviewInput {
   packetHash: string;
   remoteSha: RemoteShaEvidence;
   correction?: CorrectionPacket;
+  /** Journaled dispatch only: the invocation a live adapter must find STARTED before it calls anything. */
+  invocationId?: string;
 }
 
 /**
  * One AcceptanceDecision and, only with a REJECT, optionally the exact correction for
  * the next iteration. The runner hands both to the controller's validators as given;
- * it repairs nothing.
+ * it repairs nothing. A review adapter that cannot produce a trustworthy review says
+ * so with a stop instead: ARCHITECTURE_STOP for an ambiguous or unsafe review,
+ * HUMAN_STOP for a failed run. It never becomes a decision.
  */
-export interface ArchitectReviewBundle {
-  decision: AcceptanceDecision;
-  correction?: CorrectionPacket;
-}
+export type ArchitectReviewBundle =
+  | { decision: AcceptanceDecision; correction?: CorrectionPacket }
+  | { stop: ReviewStopClass; reason: string };
+export type ReviewStopClass = 'ARCHITECTURE_STOP' | 'HUMAN_STOP';
 
 export interface ArchitectReviewPort {
   review(input: Readonly<ArchitectReviewInput>): ArchitectReviewBundle | Promise<ArchitectReviewBundle>;
@@ -80,6 +86,7 @@ const implementationResultSchema = z.discriminatedUnion('status', [
   z.strictObject({ status: z.enum(STOP_CLASSES), reason: text }),
 ]);
 const reviewBundleSchema = z.strictObject({ decision: z.unknown(), correction: z.unknown().optional() });
+const reviewStopSchema = z.strictObject({ stop: z.enum(['ARCHITECTURE_STOP', 'HUMAN_STOP']), reason: text });
 
 /** A validated copy of an implementation result. Throws on anything outside the contract. */
 export function parseImplementationResult(value: unknown): ImplementationResult {
@@ -92,7 +99,13 @@ export function parseImplementationResult(value: unknown): ImplementationResult 
  * to the active packet and remote SHA is left to the controller. The correction is
  * passed through unread: the controller parses and validates it.
  */
-export function parseReviewBundle(value: unknown): { decision: AcceptanceDecision; correction?: unknown } {
+export type ParsedReview =
+  | { decision: AcceptanceDecision; correction?: unknown }
+  | { stop: ReviewStopClass; reason: string };
+export function parseReviewBundle(value: unknown): ParsedReview {
+  if (value !== null && typeof value === 'object' && Object.hasOwn(value, 'stop')) {
+    return reviewStopSchema.parse(value) as { stop: ReviewStopClass; reason: string };
+  }
   const bundle = reviewBundleSchema.parse(value);
   const decision = parseAcceptanceDecision(bundle.decision);
   if (bundle.correction === undefined) return { decision };
@@ -114,17 +127,17 @@ function governingCorrection(run: ControllerRun): CorrectionPacket | undefined {
   return correction && correction.correctionIteration === run.implementationIterations ? correction : undefined;
 }
 
-export function implementationInput(run: ControllerRun): Readonly<ImplementationInput> {
+export function implementationInput(run: ControllerRun, invocationId?: string): Readonly<ImplementationInput> {
   const correction = governingCorrection(run);
   return deepFreeze(structuredClone({ runId: run.runId, sliceId: run.sliceId,
     implementationIteration: run.implementationIterations, packet: run.activePacket!, packetHash: run.activePacketHash!,
-    ...(correction ? { correction } : {}) }));
+    ...(correction ? { correction } : {}), ...(invocationId === undefined ? {} : { invocationId }) }));
 }
 
-export function reviewInput(run: ControllerRun): Readonly<ArchitectReviewInput> {
+export function reviewInput(run: ControllerRun, invocationId?: string): Readonly<ArchitectReviewInput> {
   const correction = governingCorrection(run);
   return deepFreeze(structuredClone({ runId: run.runId, sliceId: run.sliceId,
     implementationIteration: run.implementationIterations, acceptanceFailures: run.acceptanceFailures,
     packet: run.activePacket!, packetHash: run.activePacketHash!, remoteSha: run.remoteSha!,
-    ...(correction ? { correction } : {}) }));
+    ...(correction ? { correction } : {}), ...(invocationId === undefined ? {} : { invocationId }) }));
 }
