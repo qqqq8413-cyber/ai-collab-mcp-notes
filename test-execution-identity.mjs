@@ -40,6 +40,7 @@ function admitted(requested, defaultModel = 'configured-default') {
     request: requested,
     binding,
     authorization: { admissionId: 'admission-1', executionId: requested.executionId, attemptId: requested.attemptId,
+      executorId: 'fixture-executor',
       provider: binding.provider, effectiveModel: binding.effectiveModel,
       requestFingerprint: executionRequestFingerprint(requested, binding) },
   };
@@ -196,6 +197,7 @@ await check('I/J: the snapshot detaches request.origin and authorization at ever
   input.request.parameters.temperature.value = 9;
   assert.deepEqual(snapshot.request.origin, { runId: 'run-1', sourceRef: 'ref-1' });
   assert.deepEqual(snapshot.authorization, { admissionId: 'admission-1', executionId: 'execution-1', attemptId: 'attempt-1',
+    executorId: 'fixture-executor',
     provider: 'claude', effectiveModel: 'model-A', requestFingerprint: executionRequestFingerprint(snapshot.request, snapshot.binding) });
   assert.equal(snapshot.request.parameters.temperature.value, 0.2);
   for (const node of [snapshot, snapshot.request, snapshot.request.origin, snapshot.request.parameters,

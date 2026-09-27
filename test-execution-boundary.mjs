@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createExecutionBoundary } from './dist/execution/boundary.js';
 import { createOpenAIExecutor, resolveProviderBinding } from './dist/execution/executors.js';
 import { executionRequestFingerprint } from './dist/execution/fingerprint.js';
+import { createExecutorRegistry } from './dist/execution/registry.js';
 import { createD1ExecutionAuthority } from './dist/stress-test/execution-authority.js';
 import {
   createSession, freezeInput, addFinding, createSemanticIssue, createDeliberationState,
@@ -12,7 +13,10 @@ import {
 
 let passed = 0;
 async function check(name, fn) { await fn(); passed++; console.log(`  PASS ${name}`); }
-const executeAtBoundary = (request, deps) => createExecutionBoundary(deps).execute(request);
+const executeAtBoundary = (request, deps) => createExecutionBoundary({ ...deps,
+  registry: createExecutorRegistry([{ kind: 'MODEL_PROVIDER', executorId: 'fixture-executor',
+    provider: deps.executor.provider, executor: deps.executor }]),
+}).execute(request);
 const request = (overrides = {}) => ({ executionId: 'execution-1', attemptId: 'attempt-1', provider: 'openai',
   requestedModel: 'synthetic-model', input: 'offline', parameters: {}, ...overrides });
 const capability = (readiness = 'VERIFIED') => ({ providerSupport: 'SUPPORTED', runtimeEnablement: 'ENABLED', readiness,
@@ -48,7 +52,7 @@ function harness(options = {}) {
     monotonicNow: () => { const current = tick; tick += 7; return current; } } };
 }
 
-await check('invalid input and executor mismatch stop before authority or provider', async () => {
+await check('invalid input and unavailable provider stop before authority or provider', async () => {
   const hidden = request(); Object.defineProperty(hidden, 'extra', { value: 1 });
   const prototypeKey = request(); Object.defineProperty(prototypeKey, '__proto__', { value: { injected: true }, enumerable: true });
   const symbol = request(); symbol[Symbol('extra')] = 1;
@@ -59,7 +63,9 @@ await check('invalid input and executor mismatch stop before authority or provid
     assert.equal(h.calls.claim, 0); assert.equal(h.calls.execute, 0);
   }
   const h = harness({ executorProvider: 'gemini' });
-  await assert.rejects(() => executeAtBoundary(request(), h.deps), /Executor/);
+  const unavailable = await executeAtBoundary(request(), h.deps);
+  assert.equal(unavailable.kind, 'EXECUTOR_UNAVAILABLE');
+  assert.equal(unavailable.admission.status, 'ADMITTED');
   assert.equal(h.calls.claim, 0);
 });
 await check('explicit model exact; absent model uses composition default', async () => {
@@ -131,6 +137,7 @@ await check('claim mints one bound authorization; measured latency and success s
   const input = h.calls.inputs[0];
   assert.equal(input.authorization.executionId, input.request.executionId);
   assert.equal(input.authorization.attemptId, input.request.attemptId);
+  assert.equal(input.authorization.executorId, 'fixture-executor');
   assert.equal(input.authorization.provider, input.binding.provider);
   assert.equal(input.authorization.effectiveModel, input.binding.effectiveModel);
   assert.equal(input.authorization.requestFingerprint, executionRequestFingerprint(input.request, input.binding));
@@ -233,6 +240,23 @@ await check('actual D1-A claims one machine attempt and rejects second claim', a
   assert.equal(outcome.kind, 'EXECUTED'); assert.equal(h.store.getCheckpoint(h.attemptId).phase, 'CLAIMED');
   await assert.rejects(() => executeAtBoundary(req, h.deps), /not repeatable|already has an execution checkpoint/);
   assert.equal(h.calls.execute, 1);
+});
+await check('actual D1-A is untouched when the admitted provider mechanism is unavailable', async () => {
+  const h = d1Fixture();
+  const result = await createExecutionBoundary({ ...h.deps, registry: createExecutorRegistry([]) })
+    .execute(request({ attemptId: h.attemptId }));
+  assert.equal(result.kind, 'EXECUTOR_UNAVAILABLE'); assert.equal(result.admission.status, 'ADMITTED');
+  assert.equal(h.store.getCheckpoint(h.attemptId), undefined); assert.equal(h.calls.execute, 0);
+});
+await check('actual D1-A is untouched when local admission is unresolved', async () => {
+  const h = d1Fixture();
+  const registry = createExecutorRegistry([{ kind: 'MODEL_PROVIDER', executorId: 'fixture-executor',
+    provider: 'openai', executor: h.deps.executor }]);
+  const result = await createExecutionBoundary({ ...h.deps, registry,
+    capabilitySource: source({ capability: capability('WIRED_UNVERIFIED') }) })
+    .execute(request({ attemptId: h.attemptId, systemInstruction: 'role' }));
+  assert.equal(result.kind, 'NOT_ADMITTED'); assert.equal(result.admission.status, 'UNRESOLVED');
+  assert.equal(h.store.getCheckpoint(h.attemptId), undefined); assert.equal(h.calls.execute, 0);
 });
 await check('actual D1-A DISABLED and non-machine route refuse execution', async () => {
   const disabled = d1Fixture('STABILITY_QUESTION', 100, { status: 'DISABLED' });

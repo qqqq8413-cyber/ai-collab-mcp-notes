@@ -4,7 +4,8 @@ import type { ProviderName } from '../config.js';
 import { assessExecution, canonicalCapabilitySource, validateExecutionRequest, type AdmissionRecord, type CapabilitySource } from './admission.js';
 import { resolveProviderBinding } from './executors.js';
 import { executionRequestFingerprint } from './fingerprint.js';
-import type { ExecutionRequest, NormalizedExecutionResult, ProviderBinding, ProviderExecutionAuthorization, ProviderExecutor } from './types.js';
+import { assertExecutorRegistry, type ExecutorRegistry } from './registry.js';
+import type { ExecutionRequest, NormalizedExecutionResult, ProviderBinding, ProviderExecutionAuthorization } from './types.js';
 
 export interface DefaultModelResolver {
   resolveDefaultModel(provider: ProviderName): string | undefined;
@@ -21,13 +22,14 @@ export interface ExecutionAuthorityPort {
 
 export type BoundaryResult =
   | { kind: 'NOT_ADMITTED'; admission: AdmissionRecord; binding?: ProviderBinding }
+  | { kind: 'EXECUTOR_UNAVAILABLE'; admission: AdmissionRecord; binding: ProviderBinding; provider: ProviderName }
   | { kind: 'PRE_CALL_TERMINAL'; admission: AdmissionRecord; binding: ProviderBinding; checkpoint: unknown }
   | { kind: 'EXECUTED'; admission: AdmissionRecord; binding: ProviderBinding; result: NormalizedExecutionResult; executionLatencyMs: number };
 
 export interface ExecutionBoundaryDependencies {
   defaultModelResolver: DefaultModelResolver;
   authority: ExecutionAuthorityPort;
-  executor: ProviderExecutor;
+  registry: ExecutorRegistry;
   capabilitySource?: CapabilitySource;
   monotonicNow?: () => number;
 }
@@ -38,6 +40,7 @@ export interface ExecutionBoundary {
 
 /** Dependencies are selected by composition, never carried in caller request JSON. */
 export function createExecutionBoundary(deps: ExecutionBoundaryDependencies): ExecutionBoundary {
+  assertExecutorRegistry(deps.registry);
   const fixed = { ...deps };
   return Object.freeze({ execute: (request: unknown) => executeAtBoundary(request, fixed) });
 }
@@ -104,9 +107,6 @@ function verifyResult(result: NormalizedExecutionResult, request: ExecutionReque
 /** One fixed request, one local decision, one D1 claim, then at most one execution. */
 async function executeAtBoundary(value: unknown, deps: ExecutionBoundaryDependencies): Promise<BoundaryResult> {
   const request = snapshotRequest(value);
-  if (deps.executor.kind !== 'MODEL_PROVIDER' || deps.executor.provider !== request.provider) {
-    throw new TypeError('Executor does not match requested provider');
-  }
   const defaultModel = request.requestedModel === undefined
     ? deps.defaultModelResolver.resolveDefaultModel(request.provider) : undefined;
   if (request.requestedModel === undefined && (typeof defaultModel !== 'string' || !defaultModel.trim())) {
@@ -118,6 +118,12 @@ async function executeAtBoundary(value: unknown, deps: ExecutionBoundaryDependen
   const admission = freeze(assessExecution(request, binding, deps.capabilitySource ?? canonicalCapabilitySource));
   if (admission.status !== 'ADMITTED') return freeze({ kind: 'NOT_ADMITTED', admission, binding: structuredClone(binding) });
 
+  const executor = deps.registry.resolveModelProvider(request.provider);
+  if (!executor) return freeze({ kind: 'EXECUTOR_UNAVAILABLE', admission, binding: structuredClone(binding), provider: request.provider });
+  if (executor.kind !== 'MODEL_PROVIDER' || executor.provider !== request.provider) {
+    throw new TypeError('Registered executor does not match requested provider');
+  }
+
   const claim = structuredClone(deps.authority.claim(request.attemptId));
   verifyClaim(claim, request.attemptId);
   if (claim.kind === 'PRE_CALL_TERMINAL') {
@@ -126,13 +132,14 @@ async function executeAtBoundary(value: unknown, deps: ExecutionBoundaryDependen
 
   const authorization: ProviderExecutionAuthorization = freeze({
     admissionId: randomUUID(), executionId: request.executionId, attemptId: request.attemptId,
+    executorId: executor.executorId,
     provider: binding.provider, effectiveModel: binding.effectiveModel,
     requestFingerprint: executionRequestFingerprint(request, binding),
   });
   const now = deps.monotonicNow ?? (() => performance.now());
   const started = now();
   if (!Number.isFinite(started)) throw new TypeError('Execution clock is invalid');
-  const result = structuredClone(await deps.executor.execute({ request, binding, authorization }));
+  const result = structuredClone(await executor.execute({ request, binding, authorization }));
   const ended = now();
   if (!Number.isFinite(ended) || ended < started) throw new TypeError('Execution clock is invalid');
   verifyResult(result, request, binding);

@@ -184,7 +184,7 @@ function admitted(provider) {
   return {
     request,
     binding,
-    authorization: { admissionId: 'external-admission-1', executionId: 'execution-1', attemptId: 'attempt-1',
+    authorization: { admissionId: 'external-admission-1', executorId: 'fixture-executor', executionId: 'execution-1', attemptId: 'attempt-1',
       provider, effectiveModel: binding.effectiveModel,
       requestFingerprint: executionRequestFingerprint(request, binding) },
   };

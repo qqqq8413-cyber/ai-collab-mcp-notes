@@ -45,6 +45,7 @@ function admitted(requested, defaultModel = 'configured-default') {
     binding,
     authorization: {
       admissionId: 'external-admission-1',
+      executorId: 'fixture-executor',
       executionId: requested.executionId,
       attemptId: requested.attemptId,
       provider: binding.provider,

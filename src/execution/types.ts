@@ -36,6 +36,8 @@ export interface ProviderExecutionAuthorization {
   admissionId: string;
   executionId: string;
   attemptId: string;
+  /** Registry mechanism identity; checked by the registered wrapper. */
+  executorId: string;
   provider: ProviderName;
   effectiveModel: string;
   requestFingerprint: string;
