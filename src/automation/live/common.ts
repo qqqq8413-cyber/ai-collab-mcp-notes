@@ -80,6 +80,10 @@ export async function remoteBranchSha(executor: ProcessExecutor, settings: GitSe
 // metadata, CI workflows, and credential-shaped files.
 const PROTECTED_PATH = /(^|\/)\.git(\/|$)|^\.github(\/|$)|(^|\/)\.gitmodules$|(^|\/)\.gitattributes$|(^|\/)\.env($|\.)|\.(pem|key|p12|pfx|keystore)$|(^|\/)id_(rsa|ed25519|ecdsa|dsa)(\.pub)?$|(^|\/)\.(npmrc|netrc|pypirc)$/i;
 
+export function isProtectedPath(path: string): boolean {
+  return PROTECTED_PATH.test(path);
+}
+
 export function withinArea(path: string, area: string): boolean {
   const normalized = area.replace(/\/+$/, '');
   return normalized.length > 0 && (path === normalized || path.startsWith(`${normalized}/`));
