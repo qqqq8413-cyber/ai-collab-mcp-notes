@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { FileInvocationJournal } from './dist/automation/file-invocation-journal.js';
+import { invocationIdOf } from './dist/automation/invocation-journal.js';
+import { packetHash } from './dist/automation/packet.js';
 import { NodeProcessExecutor, parseProcessRequest } from './dist/automation/process-executor.js';
+import { ClaudeCodeImplementationAdapter } from './dist/automation/live/claude-code-implementation.js';
 import { SANDBOX_EXEC, SeatbeltOfflineValidationExecutor, confinedPath, seatbeltProfile } from './dist/automation/live/seatbelt-validation.js';
 
 // The OFFLINE_VALIDATION boundary. Profile and path rules are checked everywhere; the
@@ -175,6 +179,155 @@ process.exit(readFileSync('fixture.txt', 'utf8') === 'inside\\n' && readFileSync
   writeFileSync(join(work, 'fixture.txt'), 'changed\n');
   const failed = await sandbox.runOffline(request);
   assert.deepEqual([failed.isolation, failed.result.exitCode], ['ENFORCED', 3]);
+}), { requires: 'seatbelt' });
+
+// ---------------------------------------------------------------- packet-scoped validation view (real local Git)
+const SENTINEL = 'OUTSIDE-TRACKED-SENTINEL';
+const BRANCH = 'work/scoped-validation';
+const CLAUDE = { executable: 'claude', provider: 'anthropic', model: 'claude-opus-5-5', destination: 'api.anthropic.com', timeoutMs: 600_000,
+  maxTurns: 40, maxStdoutBytes: 1_000_000, maxStderrBytes: 1_000_000 };
+// Validation code inside the packet scope that tries to see the rest of the repository.
+const CHECK = `import { lstatSync, readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+const attempt = (path) => { try { return readFileSync(path, 'utf8').trim(); } catch (error) { return error.code; } };
+const view = [];
+const walk = (dir, rel) => { for (const name of readdirSync(dir)) { const path = rel ? rel + '/' + name : name;
+  if (lstatSync(join(dir, name)).isDirectory()) walk(join(dir, name), path); else view.push(path); } };
+walk('..', '');
+const seen = { input: attempt('input.txt'), code: attempt('code.js'), dependency: attempt('../node_modules/dep.txt'),
+  relative: attempt('../outside/secret.txt'), absolute: process.argv.slice(2).map(attempt), view: view.sort() };
+process.stdout.write(JSON.stringify(seen));
+const leaked = [seen.relative, ...seen.absolute].some((value) => !/^E[A-Z]+$/.test(value));
+process.exit(leaked ? 7 : seen.input === 'allowed input' && seen.code === 'export const value = 2;' ? 0 : 3);
+`;
+/** Every file under a directory whose content carries the sentinel; symlinks are not followed. */
+function sentinelFiles(root) {
+  if (!existsSync(root)) return [];
+  const hits = [];
+  const walk = (dir) => {
+    for (const name of readdirSync(dir)) {
+      const path = join(dir, name);
+      const stats = lstatSync(path);
+      if (stats.isDirectory()) walk(path);
+      else if (stats.isFile() && readFileSync(path, 'utf8').includes(SENTINEL)) hits.push(path);
+    }
+  };
+  walk(root);
+  return hits;
+}
+/**
+ * One implementation iteration against a real local repository whose base commit tracks
+ * allowed/{code.js,input.txt,check.mjs}, outside/{secret.txt,file.ts,leak.mjs}, .github, and a
+ * package.json whose test script prints the secret. allowedAreas = ["allowed"]; the fake model
+ * changes allowed/code.js. Git, worktree, commit, and push are real.
+ */
+async function scopedIteration(dir, { validation, commands, worktreesInClone = false }) {
+  const env = { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: dir, GIT_CONFIG_NOSYSTEM: '1' };
+  const git = (cwd, ...args) => {
+    const out = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'init.defaultBranch=main', ...args], { cwd, env, encoding: 'utf8' });
+    assert.equal(out.status, 0, out.stderr);
+    return out.stdout.trim();
+  };
+  const origin = join(dir, 'origin.git'), seed = join(dir, 'seed'), clone = join(dir, 'clone'), deps = join(dir, 'deps');
+  mkdirSync(seed);
+  mkdirSync(deps);
+  writeFileSync(join(deps, 'dep.txt'), 'dependency\n');
+  const files = { 'allowed/code.js': 'export const value = 1;\n', 'allowed/input.txt': 'allowed input\n', 'allowed/check.mjs': CHECK,
+    'outside/secret.txt': `${SENTINEL}\n`, 'outside/file.ts': 'export {};\n', 'outside/leak.mjs': "import { readFileSync } from 'node:fs'; console.log(readFileSync('outside/secret.txt', 'utf8'));\n",
+    '.github/workflows/ci.yml': 'name: ci\n', 'package.json': '{"name":"fixture","private":true,"scripts":{"test":"node outside/leak.mjs"}}\n' };
+  for (const [path, content] of Object.entries(files)) { mkdirSync(dirname(join(seed, path)), { recursive: true }); writeFileSync(join(seed, path), content); }
+  git(dir, 'init', '-q', '--bare', origin);
+  git(seed, 'init', '-q');
+  git(seed, 'add', '-A');
+  git(seed, 'commit', '-q', '-m', 'base');
+  const base = git(seed, 'rev-parse', 'HEAD');
+  git(seed, 'push', '-q', origin, 'HEAD:refs/heads/main');
+  git(dir, 'clone', '-q', origin, clone);
+  const worktreeRoot = worktreesInClone ? join(clone, '.worktrees') : join(dir, 'worktrees');
+  mkdirSync(worktreeRoot);
+  const worktree = join(worktreeRoot, invocationIdOf('run-1', 4, 'IMPLEMENTATION'));
+  const packet = { packetId: 'packet-1', packetVersion: 1, sliceId: 'slice-1', expectedBaseSha: base, targetBranch: BRANCH,
+    objective: 'Scoped validation fixture', allowedAreas: ['allowed'], forbiddenChanges: ['.github'], invariants: ['human authority retained'],
+    acceptanceCriteria: ['offline checks pass'], validationCommands: commands({ worktree, clone }),
+    networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: [BRANCH, CLAUDE.destination], purpose: 'fixture', budget: 1 },
+    providerCallAuthorization: { allowed: true, providers: [CLAUDE.provider], models: [CLAUDE.model], maxCalls: 6, budget: 0 },
+    destructiveOperationAuthorization: { allowed: false },
+    iterationBudget: { maxImplementationIterationsPerSlice: 3, maxAcceptanceFailuresPerSlice: 3, maxRuntimeMinutesPerIteration: 60,
+      maxParallelImplementationAgents: 1 } };
+  const clock = { now: () => '2026-09-29T00:00:00.000Z' };
+  const journal = new FileInvocationJournal(join(dir, 'journal'), clock);
+  const invocationId = journal.prepare({ runId: 'run-1', sliceId: 'slice-1', packetId: packet.packetId, packetHash: packetHash(packet),
+    occurrence: { sequence: 4, action: 'BEGIN_IMPLEMENTATION', timestamp: clock.now() }, actorKind: 'IMPLEMENTATION', provider: CLAUDE.provider,
+    model: CLAUDE.model, destination: CLAUDE.destination, authorizationId: 'auth' }).invocationId;
+  journal.start(invocationId, 10);
+  const real = new NodeProcessExecutor();
+  const executor = { async run(request) {
+    if (request.executable !== 'claude') return real.run(request);
+    writeFileSync(join(request.cwd, 'allowed/code.js'), 'export const value = 2;\n');
+    return { outcome: 'EXITED', exitCode: 0, signal: null, stderr: '', durationMs: 1, stdout: JSON.stringify({ type: 'result', subtype: 'success',
+      is_error: false, structured_output: { status: 'COMPLETED', reason: 'done' }, modelUsage: { [CLAUDE.model]: {} } }) };
+  } };
+  const adapter = new ClaudeCodeImplementationAdapter({ claude: CLAUDE, environment: env, git: { executable: 'git', remote: 'origin', repositoryPath: clone,
+    worktreeRoot, timeoutMs: 60_000, maxOutputBytes: 1_000_000, commitAuthor: { name: 'CHIEF automation', email: 'automation@example.invalid' },
+    validationTimeoutMs: 120_000, validationMaxOutputBytes: 1_000_000, linkedDirectories: [{ path: 'node_modules', source: deps }] } },
+  { executor, validation, journal, clock });
+  const result = await adapter.execute({ runId: 'run-1', sliceId: 'slice-1', implementationIteration: 1, packet, packetHash: packetHash(packet), invocationId });
+  const pushed = spawnSync('git', ['rev-parse', '--verify', '-q', `refs/heads/${BRANCH}`], { cwd: origin, env, encoding: 'utf8' }).stdout.trim();
+  const leaks = [`${worktree}.validation`, `${worktree}.logs`, `${worktree}.tmp`, `${worktree}.model`].flatMap(sentinelFiles);
+  const seen = () => JSON.parse(readFileSync(join(`${worktree}.logs`, 'validation-0.log'), 'utf8').split('--- stdout\n')[1].split('\n--- stderr')[0]);
+  return { result, worktree, clone, pushed, leaks, seen };
+}
+const scopedCommand = (args = []) => ({ commandId: 'scoped', executable: 'node', args: ['check.mjs', ...args], cwd: 'allowed', classification: 'OFFLINE_VALIDATION' });
+const EXPECTED_VIEW = ['allowed/check.mjs', 'allowed/code.js', 'allowed/input.txt', 'node_modules'];
+// Runs each command directly in the view: this checks what the repository view holds, with no host boundary; the Seatbelt checks add that boundary.
+const viewOnly = { async runOffline(request) {
+  return { isolation: 'ENFORCED', result: await new NodeProcessExecutor().run({ executable: request.executable, args: [...request.args], cwd: request.cwd,
+    env: { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: request.temporaryDirectory, TMPDIR: request.temporaryDirectory }, ...limits }) };
+} };
+const seatbeltValidation = () => {
+  const node = realpathSync(process.execPath);
+  return new SeatbeltOfflineValidationExecutor({ runtimeReadPaths: [dirname(dirname(node))], searchPath: `${dirname(node)}:/usr/bin:/bin` },
+    { executor: new NodeProcessExecutor() });
+};
+
+check('real git: the validation view holds only allowedAreas; the out-of-scope tracked sentinel is absent and allowed reads succeed', withDir(async (dir) => {
+  const run = await scopedIteration(dir, { validation: viewOnly, commands: () => [scopedCommand()] });
+  assert.equal(run.result.status, 'COMPLETED', run.result.reason);
+  assert.ok(/^[0-9a-f]{40}$/.test(run.pushed), 'delivered');
+  const seen = run.seen();
+  assert.deepEqual(seen.view, EXPECTED_VIEW);
+  assert.deepEqual([seen.input, seen.code, seen.dependency, seen.relative], ['allowed input', 'export const value = 2;', 'dependency', 'ENOENT']);
+  for (const absent of ['.github/workflows/ci.yml', 'outside/file.ts', 'outside/secret.txt', 'package.json', '.git']) {
+    assert.ok(!existsSync(join(`${run.worktree}.validation`, absent)), absent);
+  }
+  assert.deepEqual(run.leaks, []);
+  assert.ok(!JSON.stringify(run.result).includes(SENTINEL));
+}));
+check('real git + Seatbelt: the out-of-scope sentinel is neither in the view nor reachable on the host', withDir(async (dir) => {
+  const run = await scopedIteration(dir, { validation: seatbeltValidation(), worktreesInClone: true,
+    commands: ({ worktree, clone }) => [scopedCommand([join(worktree, 'outside/secret.txt'), join(clone, 'outside/secret.txt')])] });
+  assert.equal(run.result.status, 'COMPLETED', run.result.reason);
+  const seen = run.seen();
+  assert.deepEqual(seen.view, EXPECTED_VIEW);
+  assert.deepEqual([seen.input, seen.code, seen.dependency, seen.relative], ['allowed input', 'export const value = 2;', 'dependency', 'ENOENT']);
+  assert.deepEqual(seen.absolute, ['EPERM', 'EPERM'], 'the delivery worktree and the clone are outside the sandbox');
+  assert.deepEqual(run.leaks, []);
+  assert.ok(!JSON.stringify(run.result).includes(SENTINEL));
+}), { requires: 'seatbelt' });
+check('real git + Seatbelt: a project-wide command fails without widening the view or reaching the secret', withDir(async (dir) => {
+  const run = await scopedIteration(dir, { validation: seatbeltValidation(), worktreesInClone: true,
+    commands: () => [{ commandId: 'project', executable: 'npm', args: ['test'], cwd: '.', classification: 'OFFLINE_VALIDATION' }] });
+  assert.equal(run.result.status, 'SOFT_STOP');
+  assert.match(run.result.reason, /^validation project failed: EXITED exit \d+$/);
+  assert.equal(run.pushed, '', 'nothing delivered');
+  const view = `${run.worktree}.validation`;
+  const listing = [];
+  const walk = (path, rel) => { for (const name of readdirSync(path)) { const p = rel ? `${rel}/${name}` : name;
+    if (lstatSync(join(path, name)).isDirectory()) walk(join(path, name), p); else listing.push(p); } };
+  walk(view, '');
+  assert.deepEqual(listing.sort(), EXPECTED_VIEW, 'the view was not widened');
+  assert.deepEqual(run.leaks, []);
+  assert.ok(!JSON.stringify(run.result).includes(SENTINEL));
 }), { requires: 'seatbelt' });
 
 let passed = 0, failed = 0, skipped = 0;

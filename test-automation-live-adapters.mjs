@@ -118,7 +118,11 @@ function world(dir, overrides = {}) {
           for (const [path, content] of Object.entries(state.files)) change(path, content)(rest[2]);
           return ok();
         }
-        case 'ls-files': return ok(Object.keys(state.files).map((path) => `${state.modes[path] ?? '100644'} ${'1'.repeat(40)} 0\t${path}\0`).join(''));
+        case 'ls-files': {
+          if (request.args.includes('--stage')) return ok(Object.keys(state.files).map((path) => `${state.modes[path] ?? '100644'} ${'1'.repeat(40)} 0\t${path}\0`).join(''));
+          const untracked = rest.includes('--others') ? listFiles(request.cwd).filter((path) => !(path in state.files) && !state.ignored.includes(path)) : [];
+          return ok([...Object.keys(state.files), ...untracked].map((path) => `${path}\0`).join(''));
+        }
         case 'status': return ok(request.args.includes('-z') ? state.status ?? statusOf(request.cwd).map((line) => `${line}\0`).join('') : state.reviewStatus);
         case 'add': return ok();
         case 'diff': {
@@ -336,7 +340,8 @@ check('Claude delivery: validation isolated on a disposable copy, exact work-bra
   for (const call of s.validations) {
     assert.deepEqual([call.workspace, call.cwd, call.temporaryDirectory, call.env], [`${s.worktree}.validation`, `${s.worktree}.validation`,
       `${s.worktree}.tmp`, s.environment]);
-    assert.ok(call.copy.includes('src/automation/runner.ts') && call.copy.includes('src/context/secret.ts') && !call.gitMetadata);
+    assert.deepEqual(call.copy, ['src/automation/bridge.ts', 'src/automation/runner.ts'], 'the packet read scope only');
+    assert.equal(call.gitMetadata, false);
   }
   assert.equal(s.named('npm').length, 0);
   const worktree = s.named('git', 'worktree')[0].args;
@@ -346,6 +351,46 @@ check('Claude delivery: validation isolated on a disposable copy, exact work-bra
     assert.doesNotMatch(text, /--force|force-with-lease|(^|\s)-f(\s|$)|\+HEAD|\+refs|refs\/heads\/main|--mirror|--delete|--all(\s|$)/, text);
   }
   assert.ok(s.named('claude').length === 1 && s.named('git', 'push').length === 1);
+}));
+check('the validation view holds exactly the packet read scope after the carried changes', withDir(async (dir) => {
+  const deps = join(dir, 'deps');
+  mkdirSync(deps);
+  const s = setup(dir, 'IMPLEMENTATION', { edit: (root) => { change('src/automation/new.ts', 'x\n')(root); rmSync(join(root, 'src/automation/bridge.ts'));
+    change('src/automation/runner.ts', 'v2\n')(root); } }, {}, { linkedDirectories: [{ path: 'node_modules', source: deps }] });
+  assert.equal((await s.implementation.execute(s.input)).status, 'COMPLETED');
+  const view = `${s.worktree}.validation`;
+  assert.deepEqual(listFiles(view), ['node_modules', 'src/automation/new.ts', 'src/automation/runner.ts']);
+  assert.equal(readFileSync(join(view, 'src/automation/runner.ts'), 'utf8'), 'v2\n');
+  for (const absent of ['.github/workflows/ci.yml', 'package.json', 'README.md', '.gitignore', 'src/context/secret.ts', 'src/stress-test/session.ts',
+    'src/automation.ts', 'src/automation/.env', 'src/automation/CASE-001/notes.md', 'src/automation/bridge.ts', '.git']) {
+    assert.ok(!existsSync(join(view, absent)), absent);
+  }
+  // The worktree itself still holds everything; only the view is scoped.
+  assert.ok(existsSync(join(s.worktree, 'src/context/secret.ts')) && existsSync(join(s.worktree, 'package.json')));
+}));
+check('a validation cwd outside the read scope is refused before any validation runs', withDir(async (dir) => {
+  const command = (commandId, cwd) => ({ commandId, executable: 'npm', args: ['test'], cwd, classification: 'OFFLINE_VALIDATION' });
+  for (const cwd of ['src/context', 'outside', '.github', 'src/automation/CASE-001', 'src/automation/missing']) {
+    const s = setup(join(dir, cwd.replaceAll('/', '_')), 'IMPLEMENTATION', {}, { validationCommands: [command('root', '.'), command('elsewhere', cwd)] });
+    const result = await s.implementation.execute(s.input);
+    assert.deepEqual([result.status, /cwd .* is not inside the packet read scope/.test(result.reason)], ['ARCHITECTURE_STOP', true], cwd);
+    assert.equal(noDelivery(s), 0, cwd);
+    assert.ok(!existsSync(join(`${s.worktree}.validation`, cwd)), `${cwd} is not recreated`);
+  }
+  const inside = setup(join(dir, 'inside'), 'IMPLEMENTATION', {}, { validationCommands: [command('scoped', 'src/automation'), command('parent', 'src')] });
+  assert.equal((await inside.implementation.execute(inside.input)).status, 'COMPLETED');
+  assert.deepEqual(inside.validations.map((call) => call.cwd), [join(`${inside.worktree}.validation`, 'src/automation'), join(`${inside.worktree}.validation`, 'src')]);
+}));
+check('a project-wide command that needs out-of-scope files fails; the view is never widened', withDir(async (dir) => {
+  const s = setup(dir, 'IMPLEMENTATION', { validation: { 'run build': fail('npm error enoent Could not read package.json') } });
+  const result = await s.implementation.execute(s.input);
+  assert.deepEqual(result, { status: 'SOFT_STOP', reason: 'validation build failed: EXITED exit 1' });
+  assert.equal(s.validations.length, 1, 'no retry with a wider view');
+  assert.deepEqual(s.validations[0].copy, ['src/automation/bridge.ts', 'src/automation/runner.ts']);
+  assert.deepEqual(listFiles(`${s.worktree}.validation`), ['src/automation/bridge.ts', 'src/automation/runner.ts']);
+  assert.deepEqual(readdirSync(s.worktreeRoot).sort(), [s.invocationId, `${s.invocationId}.logs`, `${s.invocationId}.model`, `${s.invocationId}.tmp`,
+    `${s.invocationId}.validation`].sort(), 'no second, wider copy');
+  assert.equal(deliveryCalls(s).length, 0);
 }));
 check('scope violations in the model workspace block delivery: outside, forbidden, protected, confidential, and non-regular', withDir(async (dir) => {
   const cases = [
@@ -527,7 +572,8 @@ check('real local git: a model change travels through a real worktree to an exac
   const result = await adapter.execute({ runId: 'run-1', sliceId: 'slice-1', implementationIteration: 1, packet: p, packetHash: packetHash(p), invocationId });
   assert.equal(result.status, 'COMPLETED', result.reason);
   assert.deepEqual(seen, ['src/automation/bridge.ts', 'src/automation/runner.ts']);
-  assert.ok(validations.length === 2 && validations[0].files.includes('node_modules') && validations[0].files.includes('src/context/secret.ts'));
+  assert.ok(validations.length === 2);
+  assert.deepEqual(validations[0].files, ['node_modules', 'src/automation/bridge.ts', 'src/automation/runner.ts']);
   assert.equal(validations[0].gitMetadata, false, 'the validation copy carries no Git metadata');
   assert.ok(existsSync(join(dir, 'worktrees', invocationId, '.git')), 'the delivery worktree keeps its own');
   const pushed = run(origin, 'rev-parse', `refs/heads/${BRANCH}`);

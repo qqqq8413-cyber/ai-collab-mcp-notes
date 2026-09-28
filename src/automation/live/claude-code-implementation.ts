@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import {
-  chmodSync, constants, copyFileSync, cpSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync,
+  chmodSync, constants, copyFileSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync,
 } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
 import { z } from 'zod';
@@ -19,10 +19,10 @@ import {
 // in a model workspace holding only the files inside the packet's read scope, with file
 // tools alone (no Bash), and it may write only where explicit path rules allow. After it
 // exits, this adapter carries its changes into an adapter-owned worktree, checks scope,
-// runs the packet's validation in an isolated offline sandbox on a disposable copy, and
-// commits and pushes the exact work branch itself. It never pushes anything else, never
-// forces, and never reports a SHA as authority; the controller reads the pushed SHA from
-// repository reality.
+// runs the packet's validation in an isolated offline sandbox against a view holding only
+// the packet read scope, and commits and pushes the exact work branch itself. It never
+// pushes anything else, never forces, and never reports a SHA as authority; the
+// controller reads the pushed SHA from repository reality.
 
 export interface ClaudeCodeSettings {
   executable: string;
@@ -283,9 +283,7 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
     try { entries = indexEntries(listing); } catch (error) { return stop('HUMAN_STOP', message(error)); }
     const scope = this.#fileScope(input, entries.map((entry) => entry.path));
     if (typeof scope === 'string') return stop('ARCHITECTURE_STOP', `model file scope is not safely expressible: ${scope}`);
-    const linked = this.#git.linkedDirectories.map((link) => link.path);
-    const visible = entries.filter((entry) => scope.readAreas.some((area) => withinArea(entry.path, area)) &&
-      !isProtectedPath(entry.path) && !CASE_001.test(entry.path) && !linked.some((link) => withinArea(entry.path, link)));
+    const visible = entries.filter((entry) => this.#inReadScope(input, entry.path));
     const special = visible.find((entry) => entry.mode !== '100644' && entry.mode !== '100755');
     if (special) return stop('ARCHITECTURE_STOP', `the read scope holds a non-regular entry ${special.path} (mode ${special.mode})`);
     const root = `${worktree}.model`;
@@ -295,17 +293,19 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
       for (const entry of visible) {
         const source = join(worktree, entry.path);
         if (!lstatSync(source).isFile()) throw new Error(`base file ${entry.path} is not a regular file in the worktree`);
-        const target = join(root, entry.path);
-        mkdirSync(dirname(target), { recursive: true });
-        copyFileSync(source, target, constants.COPYFILE_EXCL);
         const executable = entry.mode === '100755';
-        chmodSync(target, executable ? 0o755 : 0o644);
-        manifest.set(entry.path, { digest: digest(target), executable });
+        manifest.set(entry.path, { digest: copyInto(root, entry.path, source, executable), executable });
       }
     } catch (error) {
       return stop('HUMAN_STOP', `could not prepare the model workspace: ${message(error)}`);
     }
     return { root, manifest, scope };
+  }
+
+  /** The packet read scope: inside `activePacket.allowedAreas`, never a protected, confidential, or linked path. Both the model and validation see only this. */
+  #inReadScope(input: Readonly<ImplementationInput>, path: string): boolean {
+    return input.packet.allowedAreas.some((area) => withinArea(path, trimArea(area))) && !isProtectedPath(path) && !CASE_001.test(path) &&
+      !this.#git.linkedDirectories.some((link) => withinArea(path, link.path));
   }
 
   /** The model's changes, checked against the write scope and carried into the worktree; nothing is carried if any is out of scope. */
@@ -356,11 +356,17 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
     if (outside) return outside;
 
     const evidence: string[] = [`changed paths inside packet scope: ${changed.length}`];
-    const copy = this.#validationCopy(worktree);
+    const copy = await this.#validationView(input, worktree);
     if ('status' in copy) return copy;
-    for (const [index, command] of packet.validationCommands.entries()) {
+    // Every command is authorized, and its cwd already exists in the scoped view, before any runs; nothing is recreated from outside the scope.
+    for (const command of packet.validationCommands) {
       const verdict = this.#authorizeValidation(input, command);
       if (verdict) return verdict;
+      if (command.cwd !== '.' && !plainDirectory(copy.root, command.cwd)) {
+        return stop('ARCHITECTURE_STOP', `validation ${command.commandId} cwd ${command.cwd} is not inside the packet read scope`);
+      }
+    }
+    for (const [index, command] of packet.validationCommands.entries()) {
       const outcome = await this.#validation.runOffline({ executable: command.executable, args: [...command.args],
         cwd: command.cwd === '.' ? copy.root : join(copy.root, command.cwd), workspace: copy.root, temporaryDirectory: copy.temporary,
         readOnlyPaths: settings.linkedDirectories.map((link) => link.source), env, timeoutMs: settings.validationTimeoutMs,
@@ -411,12 +417,26 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
     throw new Error(`Work branch ${branch} is at an unexpected SHA after push; the delivery outcome is uncertain`);
   }
 
-  /** A disposable copy of the worktree without Git metadata, with the linked dependencies; validation never runs in the worktree. */
-  #validationCopy(worktree: string): { root: string; temporary: string; logs: string } | Stop {
+  /**
+   * The repository view validation runs against: the worktree's regular files inside the packet
+   * read scope as they stand after the carried changes, and nothing else from the repository.
+   * Linked dependencies are added as read-only links; they are not repository read authority.
+   * A validation that needs more of the repository fails; the scope is never widened here.
+   */
+  async #validationView(input: Readonly<ImplementationInput>, worktree: string): Promise<{ root: string; temporary: string; logs: string } | Stop> {
+    const listed = await git(this.#executor, this.#git, this.#env, worktree, ['ls-files', '-z', '--cached', '--others', '--exclude-standard']);
+    if (!succeeded(listed)) return stop('HUMAN_STOP', `could not list the worktree: ${summary(listed)}`);
+    const paths = [...new Set(listed.stdout.split('\0').filter(Boolean))].filter((path) => this.#inReadScope(input, path)).sort();
     const root = `${worktree}.validation`, temporary = `${worktree}.tmp`, logs = `${worktree}.logs`;
     try {
-      cpSync(worktree, root, { recursive: true, errorOnExist: true, force: false, verbatimSymlinks: true,
-        filter: (source) => source !== join(worktree, '.git') });
+      mkdirSync(root);
+      for (const path of paths) {
+        const source = join(worktree, path);
+        const stats = lstatSync(source, { throwIfNoEntry: false });
+        if (stats === undefined) continue; // deleted by the carried changes
+        if (!stats.isFile()) return stop('ARCHITECTURE_STOP', `the validation scope holds a non-regular entry ${path}`);
+        copyInto(root, path, source, (stats.mode & 0o100) !== 0);
+      }
       for (const link of this.#git.linkedDirectories) symlinkSync(link.source, join(root, link.path), 'dir');
       mkdirSync(temporary);
       mkdirSync(logs);
@@ -474,6 +494,25 @@ function workspaceFiles(root: string): Map<string, FileState> {
     }
   }
   return files;
+}
+
+/** Copies one regular file into a fresh view with its executable bit; returns its content digest. */
+function copyInto(root: string, path: string, source: string, executable: boolean): string {
+  const target = join(root, path);
+  mkdirSync(dirname(target), { recursive: true });
+  copyFileSync(source, target, constants.COPYFILE_EXCL);
+  chmodSync(target, executable ? 0o755 : 0o644);
+  return digest(target);
+}
+
+/** Whether a repository-relative directory exists in a view through plain directories only. */
+function plainDirectory(root: string, path: string): boolean {
+  let current = root;
+  for (const part of path.split('/')) {
+    current = join(current, part);
+    if (!lstatSync(current, { throwIfNoEntry: false })?.isDirectory()) return false;
+  }
+  return true;
 }
 
 /** The parent directories of a worktree path, created where missing; none may be a symlink or a file. */
