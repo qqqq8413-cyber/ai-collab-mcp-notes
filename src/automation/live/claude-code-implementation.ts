@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import {
-  chmodSync, constants, copyFileSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync,
+  chmodSync, constants, copyFileSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, statSync, symlinkSync, unlinkSync,
+  writeFileSync,
 } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
 import { z } from 'zod';
@@ -215,6 +216,7 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
     for (const link of settings.git.linkedDirectories) {
       if (!SAFE_SEGMENT.test(link.path) || ['.', '..', '.git'].includes(link.path) || !isAbsolute(link.source)) throw new Error('Invalid linked directory');
     }
+    independentDependencies(settings.git.linkedDirectories, settings.git);
     if (typeof dependencies.validation?.runOffline !== 'function') throw new Error('An offline validation isolation boundary is required');
     this.#claude = Object.freeze({ ...settings.claude });
     this.#git = Object.freeze({ ...settings.git, commitAuthor: Object.freeze({ ...settings.git.commitAuthor }),
@@ -243,6 +245,8 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
     const env = this.#env;
     const refused = this.#authorizeDelivery(input, correction === undefined);
     if (refused) return refused;
+    // Linked dependencies are proven independent of the repository again before anything runs.
+    try { independentDependencies(settings.linkedDirectories, settings); } catch (error) { return stop('HUMAN_STOP', message(error)); }
     // A scope that cannot be stated as path rules is refused before any process runs.
     const stated = this.#fileScope(input, []);
     if (typeof stated === 'string') return stop('ARCHITECTURE_STOP', `model file scope is not safely expressible: ${stated}`);
@@ -369,7 +373,7 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
     for (const [index, command] of packet.validationCommands.entries()) {
       const outcome = await this.#validation.runOffline({ executable: command.executable, args: [...command.args],
         cwd: command.cwd === '.' ? copy.root : join(copy.root, command.cwd), workspace: copy.root, temporaryDirectory: copy.temporary,
-        readOnlyPaths: settings.linkedDirectories.map((link) => link.source), env, timeoutMs: settings.validationTimeoutMs,
+        readOnlyPaths: copy.dependencies, env, timeoutMs: settings.validationTimeoutMs,
         maxStdoutBytes: settings.validationMaxOutputBytes, maxStderrBytes: settings.validationMaxOutputBytes });
       if (outcome.isolation !== 'ENFORCED') {
         return stop('HUMAN_STOP', `offline validation isolation unavailable; nothing was validated or delivered: ${outcome.reason}`);
@@ -423,7 +427,11 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
    * Linked dependencies are added as read-only links; they are not repository read authority.
    * A validation that needs more of the repository fails; the scope is never widened here.
    */
-  async #validationView(input: Readonly<ImplementationInput>, worktree: string): Promise<{ root: string; temporary: string; logs: string } | Stop> {
+  async #validationView(input: Readonly<ImplementationInput>, worktree: string):
+    Promise<{ root: string; temporary: string; logs: string; dependencies: string[] } | Stop> {
+    // Checked once more and bound to the canonical sources, so what validation may read is exactly what was proven.
+    let dependencies: string[];
+    try { dependencies = independentDependencies(this.#git.linkedDirectories, this.#git); } catch (error) { return stop('HUMAN_STOP', message(error)); }
     const listed = await git(this.#executor, this.#git, this.#env, worktree, ['ls-files', '-z', '--cached', '--others', '--exclude-standard']);
     if (!succeeded(listed)) return stop('HUMAN_STOP', `could not list the worktree: ${summary(listed)}`);
     const paths = [...new Set(listed.stdout.split('\0').filter(Boolean))].filter((path) => this.#inReadScope(input, path)).sort();
@@ -437,13 +445,13 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
         if (!stats.isFile()) return stop('ARCHITECTURE_STOP', `the validation scope holds a non-regular entry ${path}`);
         copyInto(root, path, source, (stats.mode & 0o100) !== 0);
       }
-      for (const link of this.#git.linkedDirectories) symlinkSync(link.source, join(root, link.path), 'dir');
+      for (const [index, link] of this.#git.linkedDirectories.entries()) symlinkSync(dependencies[index], join(root, link.path), 'dir');
       mkdirSync(temporary);
       mkdirSync(logs);
     } catch (error) {
       return stop('HUMAN_STOP', `could not prepare the validation copy: ${message(error)}`);
     }
-    return { root, temporary, logs };
+    return { root, temporary, logs, dependencies };
   }
 
   /** Commit and push (and, on a first iteration, branch creation) are the packet's to grant under the existing policy. Checked before any model call. */
@@ -467,6 +475,47 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
 }
 Object.freeze(ClaudeCodeImplementationAdapter);
 Object.freeze(ClaudeCodeImplementationAdapter.prototype);
+
+/** The filesystem identity of an existing path: device and inode, so symlinks, firmlinks, letter case, and Unicode form cannot alias it. */
+function identity(path: string): string {
+  const stats = statSync(path, { bigint: true });
+  return `${stats.dev}:${stats.ino}`;
+}
+
+/** The identities of a path and each of its ancestors up to the filesystem root. */
+function lineage(path: string): string[] {
+  const identities: string[] = [];
+  for (let current = path; ; current = dirname(current)) {
+    identities.push(identity(current));
+    if (dirname(current) === current) return identities;
+  }
+}
+
+/**
+ * The canonical sources of the linked dependencies, proven filesystem-disjoint from the
+ * repository and the worktree root: a source may be neither of them, inside either, nor
+ * above either. A dependency is never repository read authority; repository content
+ * validation needs comes only through the packet's allowed areas. Throws when a path cannot
+ * be resolved or a source overlaps; there is no override. Content is never inspected.
+ */
+export function independentDependencies(linked: ReadonlyArray<{ path: string; source: string }>,
+  roots: { repositoryPath: string; worktreeRoot: string }): string[] {
+  if (linked.length === 0) return [];
+  const canonical = (label: string, path: string) => {
+    try { return realpathSync.native(path); } catch { throw new Error(`${label} ${JSON.stringify(path)} cannot be resolved`); }
+  };
+  const guarded = [['repository', canonical('repository', roots.repositoryPath)], ['worktree root', canonical('worktree root', roots.worktreeRoot)]]
+    .map(([label, path]) => ({ label, lineage: lineage(path) }));
+  return linked.map((link) => {
+    const source = canonical(`linked dependency ${link.path} source`, link.source);
+    const own = lineage(source);
+    for (const root of guarded) {
+      if (own.includes(root.lineage[0])) throw new Error(`linked dependency ${link.path} source ${source} is the ${root.label} or inside it`);
+      if (root.lineage.includes(own[0])) throw new Error(`linked dependency ${link.path} source ${source} contains the ${root.label}`);
+    }
+    return source;
+  });
+}
 
 /** Entries of `git ls-files --stage -z`: mode and path of each stage-0 entry. */
 function indexEntries(output: string): Array<{ mode: string; path: string }> {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
-  chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync,
+  chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -9,7 +9,9 @@ import { FileInvocationJournal } from './dist/automation/file-invocation-journal
 import { packetHash } from './dist/automation/packet.js';
 import { NodeProcessExecutor, parseProcessRequest } from './dist/automation/process-executor.js';
 import { readBranch } from './dist/automation/repository-reality.js';
-import { ClaudeCodeImplementationAdapter, FILE_TOOLS, claudeArguments, modelFileScope } from './dist/automation/live/claude-code-implementation.js';
+import {
+  ClaudeCodeImplementationAdapter, FILE_TOOLS, claudeArguments, independentDependencies, modelFileScope,
+} from './dist/automation/live/claude-code-implementation.js';
 import { CodexArchitectReviewAdapter, REQUIRED_DISABLED_FEATURES, codexArguments } from './dist/automation/live/codex-architect-review.js';
 import { GitHubCliRepositoryRealityPort } from './dist/automation/live/github-cli-reality.js';
 import { createLiveAutomation } from './dist/automation/live/composition.js';
@@ -324,8 +326,9 @@ check('the model workspace holds exactly the read scope: no Git metadata, protec
   }
   // Linked dependencies exist only in the validation copy, created after the model exited.
   assert.ok(!existsSync(join(s.worktree, 'node_modules')) && !existsSync(join(`${s.worktree}.model`, 'node_modules')));
-  assert.equal(readlinkSync(join(`${s.worktree}.validation`, 'node_modules')), deps);
-  assert.deepEqual(s.validations.map((call) => call.readOnlyPaths), [[deps], [deps]]);
+  // The view links the canonical source that was proven independent, and validation may read exactly that.
+  assert.equal(readlinkSync(join(`${s.worktree}.validation`, 'node_modules')), realpathSync.native(deps));
+  assert.deepEqual(s.validations.map((call) => call.readOnlyPaths), [[realpathSync.native(deps)], [realpathSync.native(deps)]]);
 }));
 check('Claude delivery: validation isolated on a disposable copy, exact work-branch push, no force, never main; no SHA reported', withDir(async (dir) => {
   const s = setup(dir, 'IMPLEMENTATION');
@@ -528,6 +531,75 @@ check('Claude adapter dispatches nothing without a STARTED invocation bound to i
     journal: review.journal, clock });
   await assert.rejects(wrongKind.execute(review.input), /refuses/);
   assert.equal(review.calls.length, 0);
+}));
+check('linked dependency sources must be filesystem-disjoint from the repository and the worktree root (real paths)', withDir((dir) => {
+  const x = realpathSync.native(dir);
+  const repo = join(x, 'repo'), state = join(x, 'state'), worktrees = join(state, 'worktrees'), deps = join(x, 'deps', 'node_modules');
+  for (const path of [join(repo, 'node_modules'), join(worktrees, 'cache'), join(worktrees, 'inv', 'deep'), deps]) mkdirSync(path, { recursive: true });
+  symlinkSync(repo, join(x, 'repo-alias'));
+  symlinkSync(join(repo, 'node_modules'), join(x, 'repo-modules-alias'));
+  symlinkSync(join(worktrees, 'inv', 'deep'), join(x, 'worktree-alias'));
+  const roots = { repositoryPath: repo, worktreeRoot: worktrees };
+  const guard = (source, where = roots) => independentDependencies([{ path: 'node_modules', source }], where);
+  assert.deepEqual(guard(deps), [deps], 'an external dependency is allowed');
+  assert.deepEqual(guard(join(x, 'deps', '.', 'node_modules')), [deps]);
+  const refused = [
+    [repo, /is the repository or inside it/], [x, /contains the repository/], [join(repo, 'node_modules'), /is the repository or inside it/],
+    [worktrees, /is the worktree root or inside it/], [state, /contains the worktree root/], [join(worktrees, 'cache'), /is the worktree root or inside it/],
+    [join(x, 'repo-alias'), /is the repository or inside it/], [join(x, 'repo-modules-alias'), /is the repository or inside it/],
+    [join(x, 'worktree-alias'), /is the worktree root or inside it/], [join(x, 'missing'), /cannot be resolved/], ['/', /contains the repository/]];
+  // Aliases that a string comparison of resolved paths would miss: letter case, and the macOS data-volume firmlink.
+  if (existsSync(join(x, 'REPO'))) refused.push([join(x, 'REPO', 'node_modules'), /is the repository or inside it/]);
+  if (existsSync(join('/System/Volumes/Data', repo))) refused.push([join('/System/Volumes/Data', repo, 'node_modules'), /is the repository or inside it/]);
+  for (const [source, reason] of refused) assert.throws(() => guard(source), reason, source);
+  assert.throws(() => guard(deps, { repositoryPath: join(x, 'no-repo'), worktreeRoot: worktrees }), /repository .* cannot be resolved/);
+  assert.throws(() => guard(deps, { repositoryPath: repo, worktreeRoot: join(x, 'no-worktrees') }), /worktree root .* cannot be resolved/);
+  assert.deepEqual(independentDependencies([], { repositoryPath: join(x, 'no-repo'), worktreeRoot: join(x, 'none') }), [], 'no link, no capability');
+}));
+check('a dependent linked source refuses composition and adapter construction: no process, model call, or validation', withDir((dir) => {
+  for (const path of ['repo/node_modules', 'worktrees/cache', 'deps']) mkdirSync(join(dir, path), { recursive: true });
+  symlinkSync(join(dir, 'repo'), join(dir, 'alias'));
+  let processes = 0, validations = 0;
+  const executor = { async run() { processes += 1; } };
+  const validation = { async runOffline() { validations += 1; } };
+  for (const source of [join(dir, 'repo'), join(dir, 'repo', 'node_modules'), dir, join(dir, 'worktrees'), join(dir, 'worktrees', 'cache'),
+    join(dir, 'alias'), join(dir, 'missing')]) {
+    const linkedDirectories = [{ path: 'node_modules', source }];
+    assert.throws(() => createLiveAutomation(config(dir, { git: { ...config(dir).git, linkedDirectories } }), { clock,
+      environmentSource: { PATH: '/bin', HOME: dir }, executor, syncExecutor: { runSync() { processes += 1; } }, offlineValidation: validation }),
+    /linked dependency node_modules source/, source);
+    assert.throws(() => new ClaudeCodeImplementationAdapter({ ...adapterSettings(dir), git: { ...adapterSettings(dir).git, repositoryPath: join(dir, 'repo'),
+      worktreeRoot: join(dir, 'worktrees'), linkedDirectories } }, { executor, validation, journal: {}, clock }), /linked dependency node_modules source/, source);
+  }
+  assert.deepEqual([processes, validations], [0, 0]);
+  const live = createLiveAutomation(config(dir, { git: { ...config(dir).git, linkedDirectories: [{ path: 'node_modules', source: join(dir, 'deps') }] } }),
+    { clock, environmentSource: { PATH: '/bin', HOME: dir }, executor, syncExecutor: { runSync() { processes += 1; } }, offlineValidation: validation });
+  assert.ok(Object.isFrozen(live), 'an external dependency composes');
+}));
+check('a source retargeted into the repository after composition is refused before the model call, and again before validation', withDir(async (dir) => {
+  const repo = join(dir, 'before', 'repo'), deps = join(dir, 'deps'), alias = join(dir, 'alias');
+  mkdirSync(repo, { recursive: true });
+  mkdirSync(deps);
+  symlinkSync(deps, alias);
+  const early = setup(join(dir, 'before'), 'IMPLEMENTATION', {}, {}, { linkedDirectories: [{ path: 'node_modules', source: alias }] });
+  rmSync(alias);
+  symlinkSync(repo, alias);
+  const refused = await early.implementation.execute(early.input);
+  assert.deepEqual([refused.status, /linked dependency node_modules source .* is the repository or inside it/.test(refused.reason)], ['HUMAN_STOP', true]);
+  assert.deepEqual([early.calls.length, early.validations.length], [0, 0], 'no process of any kind');
+
+  const lateRepo = join(dir, 'during', 'repo');
+  mkdirSync(lateRepo, { recursive: true });
+  rmSync(alias);
+  symlinkSync(deps, alias);
+  const late = setup(join(dir, 'during'), 'IMPLEMENTATION', { edit: (root) => {
+    change('src/automation/runner.ts', 'v2\n')(root);
+    rmSync(alias);
+    symlinkSync(lateRepo, alias);
+  } }, {}, { linkedDirectories: [{ path: 'node_modules', source: alias }] });
+  const result = await late.implementation.execute(late.input);
+  assert.deepEqual([result.status, /is the repository or inside it/.test(result.reason)], ['HUMAN_STOP', true]);
+  assert.deepEqual([late.named('claude').length, late.validations.length, deliveryCalls(late).length], [1, 0, 0]);
 }));
 check('real local git: a model change travels through a real worktree to an exact work-branch push', withDir(async (dir) => {
   const env = { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: dir, GIT_CONFIG_NOSYSTEM: '1' };
