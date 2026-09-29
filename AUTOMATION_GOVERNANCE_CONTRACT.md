@@ -51,7 +51,7 @@ implicit exception. Each action also needs the applicable network level.
 | `READ_WEB` or `READ_EXTERNAL_API` request | REQUIRE_GPT | GPT-issued packet names destination, purpose, and budget; no generic read grant. |
 | `WRITE_EXTERNAL` request | REQUIRE_GPT | GPT-issued packet names exact destination/action and budget; only permitted where no more restrictive row applies. |
 | `SENSITIVE_WRITE` request | REQUIRE_HUMAN | Fresh exact-action human authorization; no generic network grant. |
-| Live provider/model API call | REQUIRE_HUMAN | Default denied; explicit bounded purpose, model/call budget, and audit basis. Future policy may define a separate pre-authorization class. |
+| Live provider/model API call | REQUIRE_HUMAN | Default denied; explicit bounded purpose, model/call budget, and audit basis. Binds provider, exact model, and the exact broker-enforced egress destination set (Section 8.1). Future policy may define a separate pre-authorization class. |
 | Production database mutation or destructive migration | REQUIRE_HUMAN | HUMAN_STOP; exact environment, operation, rollback/safety evidence. |
 | CASE-001 access, reveal, review, modify, push, or re-review | REQUIRE_HUMAN | Fresh explicit authorization for that *exact* action; otherwise forbidden. |
 | HumanAdjudication/authority-model or other security-boundary change | REQUIRE_HUMAN | HUMAN_STOP plus a new reviewed architecture packet. |
@@ -188,6 +188,58 @@ operations need explicit authorization; production credentials require
 CASE-001 is confidential. Do not access, reveal, review, modify, push, or
 re-review it absent fresh explicit human authorization for the exact action.
 Automation fails closed on uncertain paths or accidental inclusion.
+
+### 8.1 Live Model Egress (G1-R3C)
+
+A live provider/model call is authorized only as an operationally enforced
+network fact, never as a declared string.
+
+1. A live provider/model call remains `REQUIRE_HUMAN`, at network level
+   `READ_EXTERNAL_API`.
+2. The authorization binds the provider, the exact model, and the exact
+   egress destination set: canonical `hostname:port` authorities (lower-case
+   ASCII DNS names of at least two labels, explicit port, no scheme, path,
+   userinfo, wildcard, IP literal, or trailing dot), sorted and unique. The
+   same set must be stated, byte for byte, by the Human grant, the packet
+   (`providerCallAuthorization.egressDestinations`, each also listed in
+   `networkAuthorization.destinations`), the call scope, and the broker
+   allowlist. A missing or extra destination or a different port is a
+   different authority and is denied. The operation's `target` is the fixed
+   value `live-provider-model-call`; it is never a host.
+3. A destination declaration without technical enforcement grants nothing. A
+   logical label (`anthropic`, `openai`, `claude-cli`, `codex-cli`,
+   `provider-api`) or a base URL is not an egress destination.
+4. A model CLI runs only through an approved egress-bound model process
+   boundary: a pinned executable (content hash checked at composition and
+   immediately before dispatch) under a deny-by-default sandbox whose only
+   network permission is one invocation-scoped loopback broker. There is no
+   unsandboxed or weaker fallback; where the boundary is unavailable, the call
+   is not made.
+5. The broker allowlist must exactly equal the Human, packet, and call set. A
+   result is usable only with durable broker evidence for that invocation: a
+   closed session, the exact allowlist, at least one recorded connection when
+   the process reports success, and no refused attempt. Missing, corrupt, or
+   ambiguous evidence fails closed.
+6. The broker accepts HTTP CONNECT to an exact allowlisted authority only. It
+   does not terminate or inspect TLS, generate certificates, read request
+   bodies or headers, or hold credentials. It resolves the name itself,
+   refuses non-public addresses, and connects to the address it validated.
+7. An unauthorized egress attempt is recorded before it is refused and stops
+   the run for a human. It is never silently repaired, retried, widened, or
+   answered by adding a host inferred from output.
+8. Adding an egress destination (including an authentication or telemetry
+   host) requires a new applicable Human authorization and packet.
+9. Model and API credentials remain outside prompts, logs, journals, and the
+   broker. CHIEF never reads or inserts them.
+10. There is no broad proxy or network grant: the broker binds 127.0.0.1 only,
+    serves one invocation, and callers cannot supply or override proxy,
+    provider-routing, or TLS-trust settings of a model process.
+
+The egress journal is operational evidence of broker activity. It is not an
+authorization, HumanAdjudication, acceptance, RouteOutcome, repository truth,
+or provider truth, and it drives no lifecycle. The invocation journal schema
+moved to version 2 with this change; version 1 records bound one destination
+string that nothing enforced and are refused as unsupported, never migrated.
 
 ## 9. CHIEF Domain Boundary
 
