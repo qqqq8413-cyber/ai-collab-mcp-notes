@@ -51,7 +51,7 @@ implicit exception. Each action also needs the applicable network level.
 | `READ_WEB` or `READ_EXTERNAL_API` request | REQUIRE_GPT | GPT-issued packet names destination, purpose, and budget; no generic read grant. |
 | `WRITE_EXTERNAL` request | REQUIRE_GPT | GPT-issued packet names exact destination/action and budget; only permitted where no more restrictive row applies. |
 | `SENSITIVE_WRITE` request | REQUIRE_HUMAN | Fresh exact-action human authorization; no generic network grant. |
-| Live provider/model API call | REQUIRE_HUMAN | Default denied; explicit bounded purpose, model/call budget, and audit basis. Binds provider, exact model, and the exact broker-enforced egress destination set (Section 8.1). Future policy may define a separate pre-authorization class. |
+| Live provider/model API call | REQUIRE_HUMAN | Default denied; explicit bounded purpose, model/call budget, and audit basis. Binds the calling actor, provider, exact model, and that actor's exact broker-enforced egress destination set (Section 8.1). Future policy may define a separate pre-authorization class. |
 | Production database mutation or destructive migration | REQUIRE_HUMAN | HUMAN_STOP; exact environment, operation, rollback/safety evidence. |
 | CASE-001 access, reveal, review, modify, push, or re-review | REQUIRE_HUMAN | Fresh explicit authorization for that *exact* action; otherwise forbidden. |
 | HumanAdjudication/authority-model or other security-boundary change | REQUIRE_HUMAN | HUMAN_STOP plus a new reviewed architecture packet. |
@@ -196,42 +196,67 @@ network fact, never as a declared string.
 
 1. A live provider/model call remains `REQUIRE_HUMAN`, at network level
    `READ_EXTERNAL_API`.
-2. The authorization binds the provider, the exact model, and the exact
-   egress destination set: canonical `hostname:port` authorities (lower-case
-   ASCII DNS names of at least two labels, explicit port, no scheme, path,
-   userinfo, wildcard, IP literal, or trailing dot), sorted and unique. The
-   same set must be stated, byte for byte, by the Human grant, the packet
-   (`providerCallAuthorization.egressDestinations`, each also listed in
-   `networkAuthorization.destinations`), the call scope, and the broker
-   allowlist. A missing or extra destination or a different port is a
+2. The authorization is actor-scoped. It binds the calling actor
+   (`IMPLEMENTATION` or `ARCHITECT_REVIEW`), the provider, the exact model,
+   and that actor's exact egress destination set: canonical `hostname:port`
+   authorities (lower-case ASCII DNS names of at least two labels, explicit
+   port, no scheme, path, userinfo, wildcard, IP literal, or trailing dot),
+   sorted and unique. The packet states each actor's scope once, as one entry
+   of `providerCallAuthorization.calls` (at most one entry per actor kind, in
+   actor-kind order); it holds no packet-wide provider, model, or egress list.
+   The same actor, provider, model, and set must be stated, byte for byte, by
+   that actor's Human grant, that actor's packet entry (each destination also
+   listed in `networkAuthorization.destinations`), the call scope, and the
+   broker allowlist. A missing or extra destination or a different port is a
    different authority and is denied. The operation's `target` is the fixed
    value `live-provider-model-call`; it is never a host.
-3. A destination declaration without technical enforcement grants nothing. A
+3. One actor's entry, grant, or destinations confer no authority on the other
+   actor. A call is checked only against the packet entry for its own actor
+   kind: no fallback to another entry, no union of entries, no subset or
+   superset, and no search for a provider or model across entries. A Human
+   grant for one actor never authorizes the other, even where both entries
+   name the same provider, model, and set. The call budget (`maxCalls`) stays
+   packet-wide: every started call of either actor counts against it.
+4. A destination declaration without technical enforcement grants nothing. A
    logical label (`anthropic`, `openai`, `claude-cli`, `codex-cli`,
    `provider-api`) or a base URL is not an egress destination.
-4. A model CLI runs only through an approved egress-bound model process
+5. A model CLI runs only through an approved egress-bound model process
    boundary: a pinned executable (content hash checked at composition and
    immediately before dispatch) under a deny-by-default sandbox whose only
-   network permission is one invocation-scoped loopback broker. There is no
-   unsandboxed or weaker fallback; where the boundary is unavailable, the call
-   is not made.
-5. The broker allowlist must exactly equal the Human, packet, and call set. A
-   result is usable only with durable broker evidence for that invocation: a
-   closed session, the exact allowlist, at least one recorded connection when
-   the process reports success, and no refused attempt. Missing, corrupt, or
-   ambiguous evidence fails closed.
-6. The broker accepts HTTP CONNECT to an exact allowlisted authority only. It
+   network permission is one invocation-scoped loopback broker. The boundary
+   runs a model process only for a scope bound to the requesting actor. There
+   is no unsandboxed or weaker fallback; where the boundary is unavailable,
+   the call is not made.
+6. The broker allowlist must exactly equal that actor's Human, packet, and
+   call set. A result is usable only with durable broker evidence for that
+   invocation: a closed session, the exact allowlist, at least one recorded
+   connection when the process reports success, and no refused attempt.
+   Missing, corrupt, or ambiguous evidence fails closed.
+7. The broker accepts HTTP CONNECT to an exact allowlisted authority only. It
+   parses only the bounded CONNECT request head needed to validate the proxy
+   protocol. It does not persist or log header values, does not use them as
+   authority, does not forward them as CHIEF metadata, and never sees provider
+   HTTPS headers after the tunnel is established. The head it holds never
+   exceeds a fixed byte bound, however the head arrives; an oversized head is
+   refused. Bytes after the head are tunnel payload, passed on unchanged. It
    does not terminate or inspect TLS, generate certificates, read request
-   bodies or headers, or hold credentials. It resolves the name itself,
-   refuses non-public addresses, and connects to the address it validated.
-7. An unauthorized egress attempt is recorded before it is refused and stops
+   bodies, or hold credentials. It resolves the name itself, refuses
+   non-public addresses, and connects to the address it validated.
+8. A plaintext CONNECT head carrying a credential-shaped header
+   (`Authorization`, `Proxy-Authorization`, `Cookie`, `X-Api-Key`, or
+   `Api-Key`, in any letter case) is refused whole, before any destination
+   decision, with the fixed reason `CREDENTIAL_HEADER`. The header's name and
+   value are recorded nowhere: not in the egress journal, a refusal, an
+   error, a stop reason, or an audit record.
+9. An unauthorized egress attempt is recorded before it is refused and stops
    the run for a human. It is never silently repaired, retried, widened, or
    answered by adding a host inferred from output.
-8. Adding an egress destination (including an authentication or telemetry
-   host) requires a new applicable Human authorization and packet.
-9. Model and API credentials remain outside prompts, logs, journals, and the
-   broker. CHIEF never reads or inserts them.
-10. There is no broad proxy or network grant: the broker binds 127.0.0.1 only,
+10. Adding an egress destination (including an authentication or telemetry
+    host) requires a new applicable Human authorization and packet entry for
+    the actor that needs it.
+11. Model and API credentials remain outside prompts, logs, journals, and the
+    broker. CHIEF never reads or inserts them.
+12. There is no broad proxy or network grant: the broker binds 127.0.0.1 only,
     serves one invocation, and callers cannot supply or override proxy,
     provider-routing, or TLS-trust settings of a model process.
 
@@ -240,6 +265,9 @@ authorization, HumanAdjudication, acceptance, RouteOutcome, repository truth,
 or provider truth, and it drives no lifecycle. The invocation journal schema
 moved to version 2 with this change; version 1 records bound one destination
 string that nothing enforced and are refused as unsupported, never migrated.
+Actor scoping (G1-R3C-C1) keeps version 2: the stored shape is unchanged, and
+the actor kind is stored once, in the invocation identity, which the call
+scope must equal.
 
 ## 9. CHIEF Domain Boundary
 
