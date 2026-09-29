@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isCanonicalEgressSet, sameEgressSet } from './egress-destination.js';
 import { tryParsePacket } from './packet.js';
 import { parseInstant } from './time.js';
 import {
@@ -25,6 +26,12 @@ const POLICY_ENTRIES = {
 } as const satisfies Record<string, AuthorizationClass>;
 export type Operation = keyof typeof POLICY_ENTRIES;
 
+/**
+ * The fixed `target` of every LIVE_PROVIDER_MODEL_CALL request and grant. A live call's
+ * network authority is its exact egress destination set, never a target string.
+ */
+export const LIVE_PROVIDER_MODEL_CALL_TARGET = 'live-provider-model-call';
+
 // The authority source evaluatePolicy consults: private, frozen, null-prototype (so
 // no inherited or polluted key can classify an operation). Nothing exported aliases it.
 const POLICY: Readonly<Record<string, AuthorizationClass>> = Object.freeze(Object.assign(Object.create(null), POLICY_ENTRIES));
@@ -47,7 +54,8 @@ const OPERATION_LEVEL: Readonly<Record<string, NetworkLevel>> = Object.freeze(Ob
 const exact = z.string().min(1).refine((s) => s.trim() === s && !s.includes('*'));
 const text = z.string().min(1).refine((s) => s.trim() === s);
 const instant = z.string().refine((s) => parseInstant(s) !== undefined);
-const scopeSchema = z.strictObject({ provider: exact, model: exact, destination: exact });
+const scopeSchema = z.strictObject({ provider: exact, model: exact,
+  egressDestinations: z.array(z.string()).refine((set) => isCanonicalEgressSet(set)) });
 const authSchema = z.strictObject({
   authorizationId: exact,
   actorRole: z.enum(['GPT_ARCHITECT', 'HUMAN']),
@@ -86,7 +94,7 @@ export interface PolicyRequest {
   resourceClassification?: 'ORDINARY' | 'CASE_001';
   /** RUN_OFFLINE_VALIDATION only; `target` is the packet's commandId. */
   command?: { executable: string; args: string[]; cwd: string };
-  /** LIVE_PROVIDER_MODEL_CALL only; `target` is the network destination. */
+  /** LIVE_PROVIDER_MODEL_CALL only; `target` is LIVE_PROVIDER_MODEL_CALL_TARGET. */
   providerCall?: ProviderCallScope;
 }
 export interface PolicyResult {
@@ -126,7 +134,7 @@ export function authorizationBinds(auth: Authorization, binding: AuthorizationBi
   const sameScope = auth.scope === undefined || binding.scope === undefined
     ? auth.scope === binding.scope
     : auth.scope.provider === binding.scope.provider && auth.scope.model === binding.scope.model &&
-      auth.scope.destination === binding.scope.destination;
+      sameEgressSet(auth.scope.egressDestinations, binding.scope.egressDestinations);
   return auth.actorRole === binding.role && auth.operation === binding.operation && auth.target === binding.target &&
     auth.runId === binding.runId && auth.packetId === binding.packetId && sameScope;
 }
@@ -174,20 +182,26 @@ function decide(input: unknown): PolicyResult {
     }
   }
   if (operation === 'LIVE_PROVIDER_MODEL_CALL') {
-    // Provider, model, and destination are separate facts, each separately allowlisted.
+    // Provider, model, and the egress destination set are separate facts, each separately bound.
     const call = request.providerCall;
     const allowed = packet.providerCallAuthorization;
-    if (!call) return deny('provider, model, and destination must each be stated');
+    if (!call) return deny('provider, model, and egress destinations must each be stated');
+    if (request.target !== LIVE_PROVIDER_MODEL_CALL_TARGET) return deny(`target must be ${LIVE_PROVIDER_MODEL_CALL_TARGET}; network authority is the egress set`);
     if (!allowed.allowed || allowed.maxCalls < 1) return deny('provider calls not authorized in packet');
     if (!allowed.providers.includes(call.provider)) return deny('provider not allowlisted in packet');
     if (!allowed.models.includes(call.model)) return deny('model not allowlisted in packet');
-    if (request.target !== call.destination) return deny('target must be the provider call destination');
+    // Exactly the packet's set: a missing or an extra destination is a different authority.
+    if (!sameEgressSet(call.egressDestinations, allowed.egressDestinations)) return deny('egress destinations differ from the packet egress set');
+    if (call.egressDestinations.some((destination) => !packet.networkAuthorization.destinations.includes(destination))) {
+      return deny('egress destination not in packet network destinations');
+    }
   }
   const requiredLevel = OPERATION_LEVEL[operation];
   if (requiredLevel) {
     const granted = NETWORK_RANK[packet.networkAuthorization.level];
     if (typeof granted !== 'number' || granted < NETWORK_RANK[requiredLevel]) return deny('insufficient packet network level');
-    if (operation !== 'PUSH_WORK_BRANCH' && !packet.networkAuthorization.destinations.includes(request.target)) {
+    if (operation !== 'PUSH_WORK_BRANCH' && operation !== 'LIVE_PROVIDER_MODEL_CALL' &&
+        !packet.networkAuthorization.destinations.includes(request.target)) {
       return deny('target not in packet network destinations');
     }
   }
@@ -231,15 +245,16 @@ function decide(input: unknown): PolicyResult {
 /**
  * The live-model dispatch gate: the existing LIVE_PROVIDER_MODEL_CALL policy, evaluated
  * for exactly this call on the authority of the caller-supplied grant. The packet must
- * allow the provider and model and name the destination, and the grant must be an
- * exact, current HUMAN authorization for this run, packet, provider, model, and
- * destination. A grant is evaluated as the role it states, so any other role is refused.
+ * allow the provider and model and bind exactly this egress set, every destination of
+ * which is a packet network destination, and the grant must be an exact, current HUMAN
+ * authorization for this run, packet, provider, model, and egress set. A grant is
+ * evaluated as the role it states, so any other role is refused.
  */
 export function authorizeLiveModelCall(input: { packet: unknown; runId: string; scope: ProviderCallScope;
   authorization: unknown; now: string }): PolicyResult {
   const grant = parseAuthorization(input.authorization);
   if (!grant) return { decision: 'DENIED', reason: 'live model call authorization missing or malformed' };
-  return evaluatePolicy({ operation: 'LIVE_PROVIDER_MODEL_CALL', target: input.scope.destination,
+  return evaluatePolicy({ operation: 'LIVE_PROVIDER_MODEL_CALL', target: LIVE_PROVIDER_MODEL_CALL_TARGET,
     actor: { id: grant.authorizationId, role: grant.actorRole }, packet: input.packet as ImplementationPacket,
     runId: input.runId, authorization: grant, now: input.now, providerCall: input.scope });
 }

@@ -6,6 +6,7 @@ import {
 import { dirname, isAbsolute, join } from 'node:path';
 import { z } from 'zod';
 import { IMPLEMENTATION_ACTOR, type ImplementationAgentPort, type ImplementationInput, type ImplementationResult } from '../bridge.js';
+import { parseEgressSet } from '../egress-destination.js';
 import type { InvocationJournal } from '../invocation-journal.js';
 import type { OfflineValidationExecutor } from '../offline-validation.js';
 import { evaluatePolicy } from '../policy.js';
@@ -15,10 +16,14 @@ import {
   assertExactModel, checkScope, git, isProtectedPath, remoteBranchSha, requireStartedInvocation, stagedEntries, statusPaths, succeeded,
   summary, withinArea, type GitSettings,
 } from './common.js';
+import { egressRefusal, verifyPinnedExecutable, type LiveModelProcessExecutor } from './model-process-isolation.js';
 
 // Claude Code as the implementation agent. The model never sees the repository: it runs
 // in a model workspace holding only the files inside the packet's read scope, with file
-// tools alone (no Bash), and it may write only where explicit path rules allow. After it
+// tools alone (no Bash), and it may write only where explicit path rules allow. The CLI
+// runs only through the egress-bound model process boundary, never the ordinary
+// executor: its network reaches only the broker enforcing the call's exact egress set,
+// and its result is used only with clean broker evidence. After it
 // exits, this adapter carries its changes into an adapter-owned worktree, checks scope,
 // runs the packet's validation in an isolated offline sandbox against a view holding only
 // the packet read scope, and commits and pushes the exact work branch itself. It never
@@ -26,10 +31,13 @@ import {
 // controller reads the pushed SHA from repository reality.
 
 export interface ClaudeCodeSettings {
+  /** Absolute path of the pinned Claude Code executable, and the SHA-256 of its bytes. */
   executable: string;
+  executableSha256: string;
   provider: string;
   model: string;
-  destination: string;
+  /** The exact canonical egress set the broker enforces for this actor's calls. */
+  egressDestinations: string[];
   timeoutMs: number;
   maxTurns: number;
   maxStdoutBytes: number;
@@ -54,8 +62,11 @@ const reportSchema = z.strictObject({ status: z.enum(['COMPLETED', 'SOFT_STOP', 
   reason: z.string().trim().min(1).max(2000) });
 
 // Claude Code's own context loading is switched off: no CLAUDE.md from any directory and
-// no auto-memory, so nothing outside the model workspace reaches the model that way.
-const CLAUDE_ENVIRONMENT = Object.freeze({ CLAUDE_CODE_DISABLE_CLAUDE_MDS: '1', CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' });
+// no auto-memory, so nothing outside the model workspace reaches the model that way. Its
+// non-essential traffic (telemetry, error reporting, auto-update, feature flags) is off
+// too; whatever it still attempts meets the broker like any other egress.
+const CLAUDE_ENVIRONMENT = Object.freeze({ CLAUDE_CODE_DISABLE_CLAUDE_MDS: '1', CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1',
+  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', DISABLE_AUTOUPDATER: '1', DISABLE_TELEMETRY: '1', DISABLE_ERROR_REPORTING: '1' });
 
 // ---------------------------------------------------------------- model file scope
 
@@ -203,13 +214,17 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
   readonly #git: DeliverySettings;
   readonly #env: Record<string, string>;
   readonly #executor: ProcessExecutor;
+  readonly #model: LiveModelProcessExecutor;
   readonly #validation: OfflineValidationExecutor;
   readonly #journal: InvocationJournal;
   readonly #clock: Clock;
 
   constructor(settings: { claude: ClaudeCodeSettings; git: DeliverySettings; environment: Record<string, string> },
-    dependencies: { executor: ProcessExecutor; validation: OfflineValidationExecutor; journal: InvocationJournal; clock: Clock }) {
+    dependencies: { executor: ProcessExecutor; model: LiveModelProcessExecutor; validation: OfflineValidationExecutor; journal: InvocationJournal;
+      clock: Clock }) {
     assertExactModel(settings.claude.model);
+    parseEgressSet(settings.claude.egressDestinations);
+    verifyPinnedExecutable(settings.claude.executable, settings.claude.executableSha256);
     if (!Number.isSafeInteger(settings.claude.maxTurns) || settings.claude.maxTurns < 1 || settings.claude.maxTurns > 500) {
       throw new Error('Claude maxTurns must be a bounded positive integer');
     }
@@ -218,11 +233,13 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
     }
     independentDependencies(settings.git.linkedDirectories, settings.git);
     if (typeof dependencies.validation?.runOffline !== 'function') throw new Error('An offline validation isolation boundary is required');
-    this.#claude = Object.freeze({ ...settings.claude });
+    if (typeof dependencies.model?.runModel !== 'function') throw new Error('An egress-bound model process boundary is required');
+    this.#claude = Object.freeze({ ...settings.claude, egressDestinations: Object.freeze([...settings.claude.egressDestinations]) as string[] });
     this.#git = Object.freeze({ ...settings.git, commitAuthor: Object.freeze({ ...settings.git.commitAuthor }),
       linkedDirectories: Object.freeze(settings.git.linkedDirectories.map((link) => Object.freeze({ ...link }))) as DeliverySettings['linkedDirectories'] });
     this.#env = Object.freeze({ ...settings.environment });
     this.#executor = dependencies.executor;
+    this.#model = dependencies.model;
     this.#validation = dependencies.validation;
     this.#journal = dependencies.journal;
     this.#clock = dependencies.clock;
@@ -230,7 +247,7 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
   }
 
   get scope(): ProviderCallScope {
-    return { provider: this.#claude.provider, model: this.#claude.model, destination: this.#claude.destination };
+    return { provider: this.#claude.provider, model: this.#claude.model, egressDestinations: [...this.#claude.egressDestinations] };
   }
 
   async execute(input: Readonly<ImplementationInput>): Promise<ImplementationResult> {
@@ -264,9 +281,17 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
     const workspace = this.#materialize(input, worktree, listed.stdout);
     if ('status' in workspace) return workspace;
 
-    const run = await this.#executor.run({ executable: this.#claude.executable, args: claudeArguments(this.#claude, workspace.scope),
-      cwd: workspace.root, env: { ...env, ...CLAUDE_ENVIRONMENT }, timeoutMs: this.#claude.timeoutMs, maxStdoutBytes: this.#claude.maxStdoutBytes,
-      maxStderrBytes: this.#claude.maxStderrBytes, stdin: prompt(input, workspace.scope) });
+    const scope = this.scope;
+    const outcome = await this.#model.runModel({ invocationId: invocation.invocationId, actorKind: 'IMPLEMENTATION', scope,
+      executable: this.#claude.executable, executableSha256: this.#claude.executableSha256, args: claudeArguments(this.#claude, workspace.scope),
+      cwd: workspace.root, workspace: { path: workspace.root, mode: 'READ_WRITE' }, writablePaths: [], readOnlyPaths: [],
+      env: { ...env, ...CLAUDE_ENVIRONMENT }, stdin: prompt(input, workspace.scope), timeoutMs: this.#claude.timeoutMs,
+      maxStdoutBytes: this.#claude.maxStdoutBytes, maxStderrBytes: this.#claude.maxStderrBytes });
+    if (outcome.isolation !== 'ENFORCED') return stop('HUMAN_STOP', `model process isolation unavailable; Claude Code was not run: ${outcome.reason}`);
+    // The broker's evidence decides first: an unauthorized attempt or missing evidence stops, whatever the CLI reported.
+    const egress = egressRefusal(outcome, scope, invocation.invocationId);
+    if (egress) return stop('HUMAN_STOP', `egress: ${egress}`);
+    const run = outcome.result;
     if (!succeeded(run)) return stop('HUMAN_STOP', `Claude Code run failed: ${summary(run)}`);
     const report = readReport(run.stdout, this.#claude.model);
     if (typeof report === 'string') return stop('HUMAN_STOP', report);

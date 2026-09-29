@@ -19,8 +19,14 @@ export type AuthorizationClass = 'ALLOW_AUTOMATIC' | 'REQUIRE_GPT' | 'REQUIRE_HU
 export interface Actor { id: string; role: Role }
 export interface Clock { now(): string }
 
-/** The three separate facts a live model call is authorized against. None is inferred from another. */
-export interface ProviderCallScope { provider: string; model: string; destination: string }
+/**
+ * The three separate facts a live model call is authorized against. None is inferred from
+ * another. `egressDestinations` is the exact canonical set of `hostname:port` authorities
+ * the model process may reach (sorted, unique; see egress-destination.ts). It is network
+ * authority only because an approved egress-bound boundary enforces it; a declared
+ * destination without that enforcement grants nothing.
+ */
+export interface ProviderCallScope { provider: string; model: string; egressDestinations: string[] }
 
 export interface Authorization {
   authorizationId: string;
@@ -29,7 +35,7 @@ export interface Authorization {
   target: string;
   runId?: string;
   packetId?: string;
-  /** LIVE_PROVIDER_MODEL_CALL only: the exact provider/model/destination granted. */
+  /** LIVE_PROVIDER_MODEL_CALL only: the exact provider, model, and egress destination set granted. */
   scope?: ProviderCallScope;
   issuedAt: string;
   expiresAt?: string;
@@ -65,7 +71,8 @@ export interface ImplementationPacket {
   acceptanceCriteria: string[];
   validationCommands: ValidationCommand[];
   networkAuthorization: { level: NetworkLevel; destinations: string[]; purpose: string; budget: number };
-  providerCallAuthorization: { allowed: boolean; providers: string[]; models: string[]; maxCalls: number; budget: number };
+  /** `egressDestinations`: the exact canonical egress set a live call may reach; empty when calls are not allowed. */
+  providerCallAuthorization: { allowed: boolean; providers: string[]; models: string[]; egressDestinations: string[]; maxCalls: number; budget: number };
   destructiveOperationAuthorization: { allowed: boolean };
   iterationBudget: {
     maxImplementationIterationsPerSlice: number;

@@ -22,7 +22,7 @@ function packet() {
     invariants: ['human authority retained'], acceptanceCriteria: ['offline checks pass'],
     validationCommands: [{ commandId: 'npm-test', executable: 'npm', args: ['test'], cwd: '.', classification: 'OFFLINE_VALIDATION' }],
     networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: [branch], purpose: 'synthetic', budget: 1 },
-    providerCallAuthorization: { allowed: false, providers: [], models: [], maxCalls: 0, budget: 0 },
+    providerCallAuthorization: { allowed: false, providers: [], models: [], egressDestinations: [], maxCalls: 0, budget: 0 },
     destructiveOperationAuthorization: { allowed: false },
     iterationBudget: { maxImplementationIterationsPerSlice: 3, maxAcceptanceFailuresPerSlice: 3,
       maxRuntimeMinutesPerIteration: 60, maxParallelImplementationAgents: 1 } };
@@ -189,8 +189,9 @@ check('the runner takes no actor and refuses an unverified composition', async (
 });
 check('bridge and runner sources are offline and cannot reach promotion or human authority', () => {
   const sources = Object.fromEntries(['bridge', 'runner'].map((name) => [name, readFileSync(`src/automation/${name}.ts`, 'utf8')]));
+  // G1-R3C: the runner validates each actor's exact egress set with the pure canonicalizer (no I/O).
   const allowed = new Set(['zod', './types.js', './lifecycle.js', './controller.js', './bridge.js', './invocation-journal.js',
-    './policy.js']);
+    './policy.js', './egress-destination.js']);
   for (const [name, source] of Object.entries(sources)) {
     for (const [, specifier] of source.matchAll(/from\s+['"]([^'"]+)['"]/g)) assert.ok(allowed.has(specifier), `${name}: ${specifier}`);
     assert.doesNotMatch(source, /\bimport\s*\(|\brequire\s*\(|node:|child_process|\bspawn\b|\bexec(?:File)?\s*\(|\bfetch\s*\(|process\./, name);

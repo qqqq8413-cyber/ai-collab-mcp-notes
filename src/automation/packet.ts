@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
+import { isCanonicalEgressSet } from './egress-destination.js';
 import { NETWORK_LEVELS, type CorrectionPacket, type ImplementationPacket } from './types.js';
 
 // Schemas stay module-private. An exported zod object is mutable authority any
@@ -49,6 +50,10 @@ const packetSchema = z.strictObject({
     allowed: z.boolean(),
     providers: z.array(nonempty),
     models: z.array(nonempty),
+    // Canonical as given (sorted, unique hostname:port); a spelling that would need
+    // normalizing is refused here, never repaired, so every later comparison is exact.
+    egressDestinations: z.array(z.string()).refine((set) => isCanonicalEgressSet(set, { allowEmpty: true }),
+      'egress destinations must be a sorted, duplicate-free set of canonical hostname:port values'),
     maxCalls: z.number().int().nonnegative(),
     budget: z.number().finite().nonnegative(),
   }),
@@ -66,8 +71,12 @@ const packetSchema = z.strictObject({
   }
   if (!packet.providerCallAuthorization.allowed &&
       (packet.providerCallAuthorization.providers.length || packet.providerCallAuthorization.models.length ||
+       packet.providerCallAuthorization.egressDestinations.length ||
        packet.providerCallAuthorization.maxCalls || packet.providerCallAuthorization.budget)) {
     context.addIssue({ code: 'custom', message: 'Denied provider calls cannot carry a budget or targets' });
+  }
+  if (packet.providerCallAuthorization.allowed && packet.providerCallAuthorization.egressDestinations.length === 0) {
+    context.addIssue({ code: 'custom', message: 'Allowed provider calls must bind an exact non-empty egress destination set' });
   }
   const ids = packet.validationCommands.map((command) => command.commandId);
   if (new Set(ids).size !== ids.length) {

@@ -4,6 +4,7 @@ import {
   chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { FileInvocationJournal } from './dist/automation/file-invocation-journal.js';
 import { packetHash } from './dist/automation/packet.js';
@@ -24,9 +25,19 @@ const A = 'a'.repeat(40), B = 'b'.repeat(40), C = 'c'.repeat(40);
 const T = '2026-09-28T00:00:00.000Z';
 const REPO = 'synthetic/example', BRANCH = 'work/synthetic-1';
 const clock = { now: () => T };
-const CLAUDE = { executable: 'claude', provider: 'anthropic', model: 'claude-opus-5-5', destination: 'api.anthropic.com', timeoutMs: 600_000,
+// Synthetic pinned executables: bytes that are neither a real CLI nor a script. Nothing here ever runs them.
+const PINS = realpathSync(mkdtempSync(join(tmpdir(), 'chief-pins-')));
+const pinned = (name) => {
+  const path = join(PINS, name);
+  writeFileSync(path, `SYNTHETIC-${name.toUpperCase()}-BINARY\n`, { mode: 0o755 });
+  return { executable: path, executableSha256: createHash('sha256').update(readFileSync(path)).digest('hex') };
+};
+// One packet binds one exact egress set, so both actors carry the same set.
+const EGRESS = Object.freeze(['api.anthropic.com:443', 'api.openai.com:443']);
+const TARGET = 'live-provider-model-call';
+const CLAUDE = { ...pinned('claude'), provider: 'anthropic', model: 'claude-opus-5-5', egressDestinations: [...EGRESS], timeoutMs: 600_000,
   maxTurns: 40, maxStdoutBytes: 1_000_000, maxStderrBytes: 1_000_000 };
-const CODEX = { executable: 'codex', provider: 'openai', model: 'gpt-5.5-codex', destination: 'api.openai.com', timeoutMs: 600_000,
+const CODEX = { ...pinned('codex'), provider: 'openai', model: 'gpt-5.5-codex', egressDestinations: [...EGRESS], timeoutMs: 600_000,
   maxStdoutBytes: 1_000_000, maxStderrBytes: 1_000_000, maxResultBytes: 100_000, disabledFeatures: [] };
 const tests = [];
 const sandboxAvailable = process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec');
@@ -43,8 +54,9 @@ function packet(overrides = {}) {
     invariants: ['human authority retained'], acceptanceCriteria: ['offline checks pass'],
     validationCommands: [{ commandId: 'build', executable: 'npm', args: ['run', 'build'], cwd: '.', classification: 'OFFLINE_VALIDATION' },
       { commandId: 'test', executable: 'npm', args: ['test'], cwd: '.', classification: 'OFFLINE_VALIDATION' }],
-    networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: [BRANCH, CLAUDE.destination, CODEX.destination], purpose: 'fixture', budget: 1 },
-    providerCallAuthorization: { allowed: true, providers: [CLAUDE.provider, CODEX.provider], models: [CLAUDE.model, CODEX.model], maxCalls: 6, budget: 0 },
+    networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: [BRANCH, ...EGRESS], purpose: 'fixture', budget: 1 },
+    providerCallAuthorization: { allowed: true, providers: [CLAUDE.provider, CODEX.provider], models: [CLAUDE.model, CODEX.model],
+      egressDestinations: [...EGRESS], maxCalls: 6, budget: 0 },
     destructiveOperationAuthorization: { allowed: false },
     iterationBudget: { maxImplementationIterationsPerSlice: 3, maxAcceptanceFailuresPerSlice: 3, maxRuntimeMinutesPerIteration: 60,
       maxParallelImplementationAgents: 1 }, ...overrides };
@@ -66,7 +78,11 @@ const BASE_FILES = Object.freeze({ 'package.json': '{}\n', 'README.md': 'readme\
   '.github/workflows/ci.yml': 'ci\n', 'src/automation/runner.ts': 'export const runner = 1;\n', 'src/automation/bridge.ts': 'export const bridge = 1;\n',
   'src/automation/.env': 'SENTINEL_ENV=1\n', 'src/automation/CASE-001/notes.md': 'confidential\n', 'src/automation.ts': 'sibling\n',
   'src/context/secret.ts': 'OUT-OF-SCOPE-SENTINEL\n', 'src/stress-test/session.ts': 'stress\n' });
-const CLAUDE_ENV = { CLAUDE_CODE_DISABLE_CLAUDE_MDS: '1', CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' };
+const CLAUDE_ENV = { CLAUDE_CODE_DISABLE_CLAUDE_MDS: '1', CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+  DISABLE_AUTOUPDATER: '1', DISABLE_TELEMETRY: '1', DISABLE_ERROR_REPORTING: '1' };
+/** Clean broker evidence for a model request: its own closed session, its exact allowlist, one connection, no refusal. */
+const recorded = (request, counts = {}) => ({ status: 'RECORDED', summary: { sessionId: request.invocationId, allowlist: [...request.scope.egressDestinations],
+  closed: true, connected: 1, denied: 0, connectFailed: 0, ...counts } });
 /** Every entry under a directory (symlinks as entries, never followed), skipping a top-level .git. */
 function listFiles(root) {
   const out = [];
@@ -88,7 +104,7 @@ function world(dir, overrides = {}) {
     files: BASE_FILES, modes: {}, ignored: [], status: undefined, raw: undefined, edit: change('src/automation/runner.ts', 'export const runner = 2;\n'),
     seen: undefined, validation: {}, isolation: undefined, diffCheck: true, pushLands: true, afterPush: undefined, beforePush: undefined,
     claude: () => claudeOk(), review: { decision: 'ACCEPT', findings: [], evidenceReferences: ['git diff base..HEAD'], correction: null },
-    codex: undefined, ...overrides };
+    codex: undefined, modelIsolation: undefined, egress: undefined, ...overrides };
   const calls = [];
   let lsRemoteCount = 0;
   const statusOf = (worktree) => {
@@ -143,20 +159,27 @@ function world(dir, overrides = {}) {
         default: throw new Error(`unexpected git ${name}`);
       }
     }
-    if (request.executable === 'claude') {
-      state.seen = listFiles(request.cwd);
-      state.edit?.(request.cwd);
-      return state.claude(request);
-    }
-    if (request.executable === 'codex') {
-      if (state.codex) return state.codex(request, state);
-      const output = request.args[request.args.indexOf('--output-last-message') + 1];
-      writeFileSync(output, typeof state.review === 'string' ? state.review : JSON.stringify(state.review));
-      return ok();
-    }
-    throw new Error(`unexpected executable ${request.executable}: validation must never reach the ordinary executor`);
+    throw new Error(`unexpected executable ${request.executable}: validation and model CLIs must never reach the ordinary executor`);
   };
   const executor = { calls, async run(request) { parseProcessRequest(request); calls.push(request); return respond(request); } };
+  // The egress-bound model process boundary: the only way a model CLI runs. It answers from the scripted world with broker evidence.
+  const model = { async runModel(request) {
+    calls.push(request);
+    if (state.modelIsolation) return { isolation: 'UNAVAILABLE', reason: state.modelIsolation };
+    let result;
+    if (request.actorKind === 'IMPLEMENTATION') {
+      state.seen = listFiles(request.cwd);
+      state.edit?.(request.cwd);
+      result = state.claude(request);
+    } else if (state.codex) {
+      result = state.codex(request, state);
+    } else {
+      const output = request.args[request.args.indexOf('--output-last-message') + 1];
+      writeFileSync(output, typeof state.review === 'string' ? state.review : JSON.stringify(state.review));
+      result = ok();
+    }
+    return { isolation: 'ENFORCED', result, egress: state.egress ? state.egress(request, result) : recorded(request) };
+  } };
   const validations = [];
   const validation = { async runOffline(request) {
     assert.ok(request.cwd === request.workspace || request.cwd.startsWith(`${request.workspace}/`));
@@ -164,9 +187,10 @@ function world(dir, overrides = {}) {
     if (state.isolation) return { isolation: 'UNAVAILABLE', reason: state.isolation };
     return { isolation: 'ENFORCED', result: state.validation[request.args.join(' ')] ?? ok() };
   } };
-  const named = (executable, sub) => calls.filter((call) => call.executable === executable &&
-    (sub === undefined || subcommand(call.args.slice(2)).name === sub));
-  return { state, executor, calls, named, validation, validations };
+  const KINDS = { claude: 'IMPLEMENTATION', codex: 'ARCHITECT_REVIEW' };
+  const named = (executable, sub) => calls.filter((call) => (executable in KINDS ? call.actorKind === KINDS[executable]
+    : call.executable === executable && (sub === undefined || subcommand(call.args.slice(2)).name === sub)));
+  return { state, executor, model, calls, named, validation, validations };
 }
 function setup(dir, kind, overrides = {}, packetOverrides = {}, deliveryOverrides = {}) {
   const repositoryPath = join(dir, 'repo'), worktreeRoot = join(dir, 'worktrees');
@@ -181,13 +205,13 @@ function setup(dir, kind, overrides = {}, packetOverrides = {}, deliveryOverride
   const scope = kind === 'IMPLEMENTATION' ? CLAUDE : CODEX;
   const invocationId = journal.prepare({ runId: 'run-1', sliceId: 'slice-1', packetId: p.packetId, packetHash: base.packetHash,
     occurrence: { sequence: 4, action: kind === 'IMPLEMENTATION' ? 'BEGIN_IMPLEMENTATION' : 'BEGIN_REMOTE_ACCEPTANCE', timestamp: T },
-    actorKind: kind, provider: scope.provider, model: scope.model, destination: scope.destination, authorizationId: `auth-${kind}` }).invocationId;
+    actorKind: kind, provider: scope.provider, model: scope.model, egressDestinations: [...scope.egressDestinations], authorizationId: `auth-${kind}` }).invocationId;
   journal.start(invocationId, 10);
   const delivery = { ...git, commitAuthor: { name: 'CHIEF automation', email: 'automation@example.invalid' }, validationTimeoutMs: 60_000,
     validationMaxOutputBytes: 1_000_000, linkedDirectories: [], ...deliveryOverrides };
   const implementation = new ClaudeCodeImplementationAdapter({ claude: CLAUDE, git: delivery, environment },
-    { executor: w.executor, validation: w.validation, journal, clock });
-  const review = new CodexArchitectReviewAdapter({ codex: CODEX, git, environment }, { executor: w.executor, journal, clock });
+    { executor: w.executor, model: w.model, validation: w.validation, journal, clock });
+  const review = new CodexArchitectReviewAdapter({ codex: CODEX, git, environment }, { executor: w.executor, model: w.model, journal, clock });
   const input = { ...base, invocationId, ...(kind === 'ARCHITECT_REVIEW' ? { acceptanceFailures: 0,
     remoteSha: { repository: REPO, branch: BRANCH, sha: B, observedAt: T, source: 'GITHUB' } } : {}) };
   const worktree = join(worktreeRoot, invocationId);
@@ -198,6 +222,7 @@ const noDelivery = (w) => deliveryCalls(w).length + w.validations.length;
 const adapterSettings = (dir) => ({ claude: CLAUDE, git: { executable: 'git', remote: 'origin', repositoryPath: dir, worktreeRoot: dir, timeoutMs: 1,
   maxOutputBytes: 1, commitAuthor: { name: 'a', email: 'b' }, validationTimeoutMs: 1, validationMaxOutputBytes: 1, linkedDirectories: [] }, environment: {} });
 const refusedValidation = { async runOffline() { throw new Error('ran'); } };
+const refusedModel = { async runModel() { throw new Error('ran'); } };
 
 /**
  * The decision of a generated rule set under the pinned Claude Code release's file-tool
@@ -481,7 +506,7 @@ check('Claude failures, non-success, substitution, and its own stop reports neve
 }));
 check('delivery the packet does not grant is refused before any process runs', withDir(async (dir) => {
   const s = setup(dir, 'IMPLEMENTATION', {}, { networkAuthorization: { level: 'READ_EXTERNAL_API',
-    destinations: [BRANCH, CLAUDE.destination, CODEX.destination], purpose: 'fixture', budget: 1 } });
+    destinations: [BRANCH, ...EGRESS], purpose: 'fixture', budget: 1 } });
   const result = await s.implementation.execute(s.input);
   assert.deepEqual([result.status, /PUSH_WORK_BRANCH|CREATE_WORK_BRANCH|COMMIT_WORK_BRANCH/.test(result.reason)], ['ARCHITECTURE_STOP', true]);
   assert.equal(s.calls.length, 0);
@@ -509,10 +534,12 @@ check('a correction iteration starts from the rejected SHA, reads the packet sco
 check('Claude adapter refuses aliases, unbounded turns, and a missing validation boundary at composition', withDir((dir) => {
   for (const model of ['opus', 'latest', 'claude-latest', 'default', 'sonnet', '']) {
     assert.throws(() => new ClaudeCodeImplementationAdapter({ ...adapterSettings(dir), claude: { ...CLAUDE, model } },
-      { executor: {}, validation: refusedValidation, journal: {}, clock }), undefined, model);
+      { executor: {}, model: refusedModel, validation: refusedValidation, journal: {}, clock }), undefined, model);
   }
-  assert.throws(() => new ClaudeCodeImplementationAdapter(adapterSettings(dir), { executor: {}, journal: {}, clock }), /isolation boundary/);
-  assert.throws(() => new ClaudeCodeImplementationAdapter(adapterSettings(dir), { executor: {}, validation: {}, journal: {}, clock }), /isolation boundary/);
+  assert.throws(() => new ClaudeCodeImplementationAdapter(adapterSettings(dir), { executor: {}, model: refusedModel, journal: {}, clock }), /isolation boundary/);
+  assert.throws(() => new ClaudeCodeImplementationAdapter(adapterSettings(dir), { executor: {}, model: refusedModel, validation: {}, journal: {}, clock }), /isolation boundary/);
+  assert.throws(() => new ClaudeCodeImplementationAdapter(adapterSettings(dir), { executor: {}, validation: refusedValidation, journal: {}, clock }),
+    /egress-bound model process boundary is required/);
 }));
 check('Claude adapter dispatches nothing without a STARTED invocation bound to it', withDir(async (dir) => {
   const cases = [
@@ -520,6 +547,11 @@ check('Claude adapter dispatches nothing without a STARTED invocation bound to i
     (s) => { const id = s.journal.prepare({ ...s.journal.get(s.invocationId).identity, occurrence: { sequence: 8, action: 'BEGIN_IMPLEMENTATION', timestamp: T } }).invocationId; return { ...s.input, invocationId: id }; },
     (s) => ({ ...s.input, runId: 'run-2' }),
     (s) => ({ ...s.input, packetHash: 'e'.repeat(64) }),
+    // G1-R3C: an invocation journaled for a different egress set does not bind this adapter's scope.
+    (s) => { const id = s.journal.prepare({ ...s.journal.get(s.invocationId).identity, egressDestinations: ['api.anthropic.com:443'],
+      occurrence: { sequence: 9, action: 'BEGIN_IMPLEMENTATION', timestamp: T } }).invocationId; s.journal.start(id, 10); return { ...s.input, invocationId: id }; },
+    (s) => { const id = s.journal.prepare({ ...s.journal.get(s.invocationId).identity, egressDestinations: [...EGRESS, 'platform.claude.com:443'],
+      occurrence: { sequence: 10, action: 'BEGIN_IMPLEMENTATION', timestamp: T } }).invocationId; s.journal.start(id, 10); return { ...s.input, invocationId: id }; },
   ];
   for (const [index, build] of cases.entries()) {
     const s = setup(join(dir, String(index)), 'IMPLEMENTATION');
@@ -527,7 +559,7 @@ check('Claude adapter dispatches nothing without a STARTED invocation bound to i
     assert.equal(s.calls.length, 0, String(index));
   }
   const review = setup(join(dir, 'review'), 'ARCHITECT_REVIEW');
-  const wrongKind = new ClaudeCodeImplementationAdapter(adapterSettings(dir), { executor: review.executor, validation: review.validation,
+  const wrongKind = new ClaudeCodeImplementationAdapter(adapterSettings(dir), { executor: review.executor, model: review.model, validation: review.validation,
     journal: review.journal, clock });
   await assert.rejects(wrongKind.execute(review.input), /refuses/);
   assert.equal(review.calls.length, 0);
@@ -622,15 +654,14 @@ check('real local git: a model change travels through a real worktree to an exac
   const p = packet({ expectedBaseSha: base });
   const invocationId = journal.prepare({ runId: 'run-1', sliceId: 'slice-1', packetId: p.packetId, packetHash: packetHash(p),
     occurrence: { sequence: 4, action: 'BEGIN_IMPLEMENTATION', timestamp: T }, actorKind: 'IMPLEMENTATION', provider: CLAUDE.provider,
-    model: CLAUDE.model, destination: CLAUDE.destination, authorizationId: 'auth' }).invocationId;
+    model: CLAUDE.model, egressDestinations: [...CLAUDE.egressDestinations], authorizationId: 'auth' }).invocationId;
   journal.start(invocationId, 10);
   let seen;
-  const real = new NodeProcessExecutor();
-  const executor = { async run(request) {
-    if (request.executable !== 'claude') return real.run(request);
+  const executor = new NodeProcessExecutor();
+  const model = { async runModel(request) {
     seen = listFiles(request.cwd);
     change('src/automation/runner.ts', 'export const runner = 2;\n')(request.cwd);
-    return claudeOk();
+    return { isolation: 'ENFORCED', result: claudeOk(), egress: recorded(request) };
   } };
   const validations = [];
   const validation = { async runOffline(request) {
@@ -640,7 +671,7 @@ check('real local git: a model change travels through a real worktree to an exac
   const adapter = new ClaudeCodeImplementationAdapter({ claude: CLAUDE, environment: env, git: { executable: 'git', remote: 'origin',
     repositoryPath: clone, worktreeRoot: join(dir, 'worktrees'), timeoutMs: 60_000, maxOutputBytes: 1_000_000,
     commitAuthor: { name: 'CHIEF automation', email: 'automation@example.invalid' }, validationTimeoutMs: 60_000, validationMaxOutputBytes: 1_000_000,
-    linkedDirectories: [{ path: 'node_modules', source: deps }] } }, { executor, validation, journal, clock });
+    linkedDirectories: [{ path: 'node_modules', source: deps }] } }, { executor, model, validation, journal, clock });
   const result = await adapter.execute({ runId: 'run-1', sliceId: 'slice-1', implementationIteration: 1, packet: p, packetHash: packetHash(p), invocationId });
   assert.equal(result.status, 'COMPLETED', result.reason);
   assert.deepEqual(seen, ['src/automation/bridge.ts', 'src/automation/runner.ts']);
@@ -676,7 +707,7 @@ check('Codex adapter dispatches nothing without a STARTED review invocation boun
   await assert.rejects(s.review.review({ ...s.input, packetHash: 'e'.repeat(64) }), /refuses/);
   const impl = setup(join(dir, 'impl'), 'IMPLEMENTATION');
   const reviewer = new CodexArchitectReviewAdapter({ codex: CODEX, git: { executable: 'git', remote: 'origin', repositoryPath: dir,
-    worktreeRoot: dir, timeoutMs: 1, maxOutputBytes: 1 }, environment: {} }, { executor: impl.executor, journal: impl.journal, clock });
+    worktreeRoot: dir, timeoutMs: 1, maxOutputBytes: 1 }, environment: {} }, { executor: impl.executor, model: impl.model, journal: impl.journal, clock });
   await assert.rejects(reviewer.review({ ...impl.input, acceptanceFailures: 0, remoteSha: { repository: REPO, branch: BRANCH, sha: B,
     observedAt: T, source: 'GITHUB' } }), /refuses/);
   assert.equal(s.calls.length + impl.calls.length, 0);
@@ -741,6 +772,111 @@ check('repository agent configuration in the reviewed tree blocks the review; a 
   const failed = setup(join(dir, 'f'), 'ARCHITECT_REVIEW', { reviewHead: B, codex: () => fail('model unavailable') });
   assert.equal((await failed.review.review(failed.input)).stop, 'HUMAN_STOP');
 }));
+
+// ---------------------------------------------------------------- G1-R3C: egress-bound model process (adapters)
+const ordinaryCalls = (w) => w.calls.filter((call) => !('actorKind' in call));
+check('Claude runs only through the egress-bound boundary with the exact scope, the pin, and its traffic switches', withDir(async (dir) => {
+  const s = setup(dir, 'IMPLEMENTATION');
+  assert.equal((await s.implementation.execute(s.input)).status, 'COMPLETED');
+  assert.ok(ordinaryCalls(s).every((call) => call.executable === 'git'), 'the ordinary executor ran git only');
+  assert.equal(s.named('claude').length, 1);
+  const [request] = s.named('claude');
+  assert.deepEqual([request.invocationId, request.actorKind, request.executable, request.executableSha256],
+    [s.invocationId, 'IMPLEMENTATION', CLAUDE.executable, CLAUDE.executableSha256]);
+  assert.deepEqual(request.scope, { provider: CLAUDE.provider, model: CLAUDE.model, egressDestinations: [...EGRESS] });
+  assert.deepEqual([request.workspace, request.writablePaths, request.readOnlyPaths], [{ path: `${s.worktree}.model`, mode: 'READ_WRITE' }, [], []]);
+  for (const [name, value] of Object.entries(CLAUDE_ENV)) assert.equal(request.env[name], value, name);
+  assert.ok(!Object.keys(request.env).some((name) => /proxy/i.test(name)), 'the adapter names no proxy; the boundary owns it');
+}));
+check('Codex runs only through the same boundary: read-only worktree, answers in their own directory, multi-agent fan-out off', withDir(async (dir) => {
+  const s = setup(dir, 'ARCHITECT_REVIEW', { reviewHead: B });
+  assert.equal((await s.review.review(s.input)).decision.decision, 'ACCEPT');
+  assert.ok(ordinaryCalls(s).every((call) => call.executable === 'git'), 'the ordinary executor ran git only');
+  const [request] = s.named('codex');
+  const answers = join(s.worktreeRoot, `${s.invocationId}.review`);
+  assert.deepEqual([request.actorKind, request.executable, request.workspace, request.writablePaths],
+    ['ARCHITECT_REVIEW', CODEX.executable, { path: join(s.worktreeRoot, s.invocationId), mode: 'READ_ONLY' }, [answers]]);
+  assert.deepEqual(request.scope, { provider: CODEX.provider, model: CODEX.model, egressDestinations: [...EGRESS] });
+  const value = (flag) => request.args[request.args.indexOf(flag) + 1];
+  assert.deepEqual([dirname(value('--output-schema')), dirname(value('--output-last-message'))], [answers, answers]);
+  const disabled = request.args.flatMap((arg, index) => (request.args[index - 1] === '--disable' ? [arg] : []));
+  for (const feature of ['multi_agent', 'multi_agent_v2', 'multi_agent_mode', 'enable_fanout']) assert.ok(disabled.includes(feature), feature);
+  assert.ok(!Object.keys(request.env).some((name) => /proxy/i.test(name)));
+}));
+check('a result is used only with clean broker evidence: no connection, a refusal, a foreign or open session, or ambiguity stops for a human', withDir(async (dir) => {
+  const cases = [
+    ['no connection', (request) => recorded(request, { connected: 0 }), /no broker-recorded provider connection/],
+    ['a refused connection', (request) => recorded(request, { denied: 1 }), /1 unauthorized egress connection/],
+    ['refused among connected', (request) => recorded(request, { connected: 3, denied: 1, connectFailed: 1 }), /unauthorized egress/],
+    ['missing journal', () => ({ status: 'AMBIGUOUS', reason: 'the egress session is missing' }), /missing or ambiguous: the egress session is missing/],
+    ['corrupt journal', () => ({ status: 'AMBIGUOUS', reason: 'the egress journal is unreadable: checksum mismatch' }), /unreadable/],
+    ['broker faults', () => ({ status: 'AMBIGUOUS', reason: 'the broker could not record 1 connection decision(s)' }), /could not record/],
+    ['no evidence at all', () => undefined, /missing or ambiguous/],
+    ['allowlist is not the scope', (request) => ({ status: 'RECORDED', summary: { ...recorded(request).summary, allowlist: ['api.anthropic.com:443'] } }), /allowlist differs/],
+    ['allowlist wider than the scope', (request) => ({ status: 'RECORDED', summary: { ...recorded(request).summary, allowlist: [...EGRESS, 'platform.claude.com:443'] } }), /allowlist differs/],
+    ['another session', (request) => ({ status: 'RECORDED', summary: { ...recorded(request).summary, sessionId: 'f'.repeat(64) } }), /does not close/],
+    ['open session', (request) => ({ status: 'RECORDED', summary: { ...recorded(request).summary, closed: false } }), /does not close/],
+  ];
+  for (const [label, egress, reason] of cases) {
+    const impl = setup(join(dir, `i-${label.replace(/\W/g, '-')}`), 'IMPLEMENTATION', { egress });
+    const result = await impl.implementation.execute(impl.input);
+    assert.deepEqual([result.status, reason.test(result.reason)], ['HUMAN_STOP', true], `${label}: ${result.reason}`);
+    assert.equal(noDelivery(impl), 0, label);
+    assert.equal(readFileSync(join(impl.worktree, 'src/automation/runner.ts'), 'utf8'), BASE_FILES['src/automation/runner.ts'], label);
+    const review = setup(join(dir, `r-${label.replace(/\W/g, '-')}`), 'ARCHITECT_REVIEW', { reviewHead: B, egress });
+    const bundle = await review.review.review(review.input);
+    assert.deepEqual([bundle.stop, reason.test(bundle.reason)], ['HUMAN_STOP', true], `${label}: ${bundle.reason}`);
+  }
+  // A failed run may show no connection: that is a run failure, not missing evidence.
+  const failedRun = setup(join(dir, 'failed'), 'IMPLEMENTATION', { claude: () => fail('network unreachable'), egress: (request) => recorded(request, { connected: 0, connectFailed: 1 }) });
+  const failed = await failedRun.implementation.execute(failedRun.input);
+  assert.deepEqual([failed.status, /Claude Code run failed/.test(failed.reason)], ['HUMAN_STOP', true]);
+  assert.equal(noDelivery(failedRun), 0);
+}));
+check('an unavailable model process boundary runs no CLI and delivers nothing; there is no fallback', withDir(async (dir) => {
+  for (const reason of ['the model process Seatbelt profile could not be applied: EXITED exit 71', 'egress broker could not start on loopback: EADDRNOTAVAIL',
+    'Pinned executable hash mismatch; nothing is run']) {
+    const impl = setup(join(dir, `i${reason.length}`), 'IMPLEMENTATION', { modelIsolation: reason });
+    const result = await impl.implementation.execute(impl.input);
+    assert.deepEqual([result.status, result.reason], ['HUMAN_STOP', `model process isolation unavailable; Claude Code was not run: ${reason}`]);
+    assert.deepEqual([impl.state.seen, noDelivery(impl)], [undefined, 0]);
+    assert.ok(ordinaryCalls(impl).every((call) => call.executable === 'git'));
+    const review = setup(join(dir, `r${reason.length}`), 'ARCHITECT_REVIEW', { reviewHead: B, modelIsolation: reason });
+    assert.deepEqual(await review.review.review(review.input), { stop: 'HUMAN_STOP', reason: `model process isolation unavailable; Codex was not run: ${reason}` });
+  }
+}));
+check('a pinned executable must match its hash; a changed binary, a script, or an unpinned name composes nothing', withDir((dir) => {
+  const deps = (w) => ({ executor: w.executor, model: w.model, validation: w.validation, journal: {}, clock });
+  const w = world(dir);
+  const script = join(dir, 'launcher');
+  writeFileSync(script, '#!/usr/bin/env node\nimport("./native.js");\n', { mode: 0o755 });
+  const scriptHash = createHash('sha256').update(readFileSync(script)).digest('hex');
+  for (const [claude, pattern] of [[{ ...CLAUDE, executableSha256: CODEX.executableSha256 }, /hash mismatch/], [{ ...CLAUDE, executable: 'claude' }, /absolute/],
+    [{ ...CLAUDE, executable: script, executableSha256: scriptHash }, /script/], [{ ...CLAUDE, executableSha256: 'x' }, /SHA-256/],
+    [{ ...CLAUDE, executable: join(dir, 'missing') }, /ENOENT/], [{ ...CLAUDE, egressDestinations: ['api.anthropic.com'] }, /canonical/]]) {
+    assert.throws(() => new ClaudeCodeImplementationAdapter({ ...adapterSettings(dir), claude }, deps(w)), pattern, JSON.stringify(claude.executable));
+  }
+  const git = { executable: 'git', remote: 'origin', repositoryPath: dir, worktreeRoot: dir, timeoutMs: 1, maxOutputBytes: 1 };
+  for (const codex of [{ ...CODEX, executableSha256: CLAUDE.executableSha256 }, { ...CODEX, executable: script, executableSha256: scriptHash }]) {
+    assert.throws(() => new CodexArchitectReviewAdapter({ codex, git, environment: {} }, { executor: w.executor, model: w.model, journal: {}, clock }));
+  }
+  assert.throws(() => new CodexArchitectReviewAdapter({ codex: CODEX, git, environment: {} }, { executor: w.executor, journal: {}, clock }),
+    /egress-bound model process boundary is required/);
+  assert.equal(w.calls.length, 0);
+  // The same bytes pass; a changed byte does not.
+  writeFileSync(join(PINS, 'claude-copy'), readFileSync(CLAUDE.executable), { mode: 0o755 });
+  assert.ok(new ClaudeCodeImplementationAdapter({ ...adapterSettings(dir), claude: { ...CLAUDE, executable: join(PINS, 'claude-copy') } }, deps(w)));
+  writeFileSync(join(PINS, 'claude-copy'), 'SYNTHETIC-CLAUDE-BINARX\n');
+  assert.throws(() => new ClaudeCodeImplementationAdapter({ ...adapterSettings(dir), claude: { ...CLAUDE, executable: join(PINS, 'claude-copy') } }, deps(w)), /hash mismatch/);
+}));
+check('Codex required disabled features keep every earlier entry and add the multi-agent fan-out features', () => {
+  for (const feature of ['multi_agent', 'plugins', 'apps', 'hooks', 'browser_use', 'computer_use', 'in_app_browser', 'memories', 'remote_plugin',
+    'image_generation', 'multi_agent_v2', 'multi_agent_mode', 'enable_fanout']) assert.ok(REQUIRED_DISABLED_FEATURES.includes(feature), feature);
+  assert.ok(Object.isFrozen(REQUIRED_DISABLED_FEATURES));
+  const args = codexArguments(CODEX, { worktree: '/w', schema: '/s.json', output: '/o.json' });
+  for (const feature of ['multi_agent_v2', 'multi_agent_mode', 'enable_fanout']) assert.ok(args.join(' ').includes(`--disable ${feature}`), feature);
+  assert.ok(!args.join(' ').includes('respect_system_proxy'), 'no proxy feature is enabled by the adapter');
+});
 
 // ---------------------------------------------------------------- GitHub CLI repository reality
 function gh(dir, routes, clockOverride = clock) {
@@ -854,19 +990,20 @@ check('every GitHub command is one read-only GET; bad names and other repositori
 // ---------------------------------------------------------------- composition
 function config(dir, overrides = {}) {
   return { repository: REPO, controllerStoreDirectory: join(dir, 'store'), journalDirectory: join(dir, 'journal'),
-    environment: { allow: ['PATH', 'HOME'] }, claude: CLAUDE, codex: CODEX,
+    egressJournalDirectory: join(dir, 'egress'), environment: { allow: ['PATH', 'HOME'] }, claude: CLAUDE, codex: CODEX,
     git: { executable: 'git', remote: 'origin', repositoryPath: join(dir, 'repo'), worktreeRoot: join(dir, 'worktrees'), timeoutMs: 60_000,
       maxOutputBytes: 1_000_000, commitAuthor: { name: 'CHIEF automation', email: 'automation@example.invalid' }, validationTimeoutMs: 60_000,
       validationMaxOutputBytes: 1_000_000, linkedDirectories: [] },
     offlineValidation: { runtimeReadPaths: [], searchPath: '/usr/bin:/bin' },
+    modelProcess: { runtimeReadPaths: [], searchPath: '/usr/bin:/bin' },
     github: { executable: 'gh', workflowName: 'CI', requiredCheckName: 'test', requiredCheckAppId: 15368, timeoutMs: 10_000,
       maxOutputBytes: 1_000_000, maxObservationAgeMs: 60_000 },
     liveCallAuthorizations: { IMPLEMENTATION: grant('IMPLEMENTATION'), ARCHITECT_REVIEW: grant('ARCHITECT_REVIEW') }, ...overrides };
 }
 function grant(kind) {
   const scope = kind === 'IMPLEMENTATION' ? CLAUDE : CODEX;
-  return { authorizationId: `auth-live-${kind.toLowerCase()}`, actorRole: 'HUMAN', operation: 'LIVE_PROVIDER_MODEL_CALL', target: scope.destination,
-    runId: 'run-1', packetId: 'packet-1', scope: { provider: scope.provider, model: scope.model, destination: scope.destination }, issuedAt: T,
+  return { authorizationId: `auth-live-${kind.toLowerCase()}`, actorRole: 'HUMAN', operation: 'LIVE_PROVIDER_MODEL_CALL', target: TARGET,
+    runId: 'run-1', packetId: 'packet-1', scope: { provider: scope.provider, model: scope.model, egressDestinations: [...scope.egressDestinations] }, issuedAt: T,
     reason: 'GRANT-TEXT-SENTINEL fresh human authorization' };
 }
 check('composition refuses implicit, aliased, or secret-bearing configuration', withDir((dir) => {
@@ -877,7 +1014,14 @@ check('composition refuses implicit, aliased, or secret-bearing configuration', 
     { ...config(dir), apiKey: 'sk-x' }, config(dir, { claude: { ...CLAUDE, maxTurns: 0 } }),
     config(dir, { claude: { ...CLAUDE, timeoutMs: Number.POSITIVE_INFINITY } }), config(dir, { claude: { ...CLAUDE, fallbackModel: 'x' } }),
     config(dir, { git: { ...config(dir).git, repositoryPath: 'relative' } }), config(dir, { claude: { ...CLAUDE, exposeValidationCommands: true } }),
-    config(dir, { offlineValidation: { runtimeReadPaths: ['relative'], searchPath: '/usr/bin' } }), config(dir, { offlineValidation: undefined })]) {
+    config(dir, { offlineValidation: { runtimeReadPaths: ['relative'], searchPath: '/usr/bin' } }), config(dir, { offlineValidation: undefined }),
+    config(dir, { modelProcess: undefined }), config(dir, { egressJournalDirectory: undefined }),
+    config(dir, { claude: { ...CLAUDE, destination: 'api.anthropic.com' } }), config(dir, { claude: { ...CLAUDE, egressDestinations: undefined } }),
+    config(dir, { claude: { ...CLAUDE, egressDestinations: ['anthropic'] } }), config(dir, { codex: { ...CODEX, egressDestinations: [...EGRESS].reverse() } }),
+    config(dir, { codex: { ...CODEX, egressDestinations: [] } }), config(dir, { claude: { ...CLAUDE, executable: 'claude' } }),
+    config(dir, { claude: { ...CLAUDE, executableSha256: undefined } }), config(dir, { codex: { ...CODEX, executableSha256: 'A'.repeat(64) } }),
+    config(dir, { claude: { ...CLAUDE, executableSha256: '0'.repeat(64) } }), config(dir, { codex: { ...CODEX, executable: CLAUDE.executable } }),
+    config(dir, { modelProcess: { runtimeReadPaths: [], searchPath: '/usr/bin', resolver: 'test' } })]) {
     assert.throws(() => createLiveAutomation(bad, deps));
   }
   const { claude, ...missing } = config(dir);
@@ -901,7 +1045,7 @@ check('importing and composing the live automation starts no process', withDir((
   const outcome = JSON.parse(result.stdout);
   assert.equal(outcome.started, 0);
   // Composition needs the production validation boundary; where it is missing, nothing is composed.
-  if (sandboxAvailable) assert.deepEqual(outcome, { started: 0, frozen: true, keys: ['controller', 'journal', 'reality', 'runner'] });
+  if (sandboxAvailable) assert.deepEqual(outcome, { started: 0, frozen: true, keys: ['controller', 'egressJournal', 'journal', 'reality', 'runner'] });
   else assert.match(outcome.refused, /isolation \(macOS Seatbelt\) is unavailable/);
 }));
 check('without the Seatbelt boundary there is no fallback: composition refuses', withDir((dir) => {
@@ -910,6 +1054,9 @@ check('without the Seatbelt boundary there is no fallback: composition refuses',
   const deps = { clock, environmentSource: { PATH: '/bin', HOME: dir }, executor: { async run() { ran += 1; } }, syncExecutor: { runSync() { ran += 1; } } };
   for (const platform of ['linux', 'win32', 'freebsd']) {
     assert.throws(() => createLiveAutomation(config(dir), { ...deps, platform }), /isolation \(macOS Seatbelt\) is unavailable/, platform);
+    // With validation supplied, the model process boundary is still required: there is no unsandboxed model CLI.
+    assert.throws(() => createLiveAutomation(config(dir), { ...deps, platform, offlineValidation: refusedValidation }),
+      /Model process isolation \(macOS Seatbelt\) is unavailable/, platform);
   }
   assert.equal(ran, 0);
 }));
@@ -926,7 +1073,7 @@ check('an offline run through the full live composition reaches ACCEPTED with SH
       stdout: `HTTP/2.0 ${sha ? 200 : 404} X\n\n${JSON.stringify(body)}` };
   } };
   const live = createLiveAutomation(config(dir), { clock, environmentSource: { PATH: process.env.PATH, HOME: dir, OPENAI_API_KEY: 'sk-never' },
-    executor: w.executor, syncExecutor: github, offlineValidation: w.validation });
+    executor: w.executor, syncExecutor: github, offlineValidation: w.validation, modelProcess: w.model });
   assert.equal(w.calls.length + github.calls.length, 0);
   live.controller.createRun('run-1', 'slice-1', REPO);
   live.controller.enterArchitecture('run-1', { id: 'architect', role: 'GPT_ARCHITECT' });
@@ -945,7 +1092,8 @@ check('an offline run through the full live composition reaches ACCEPTED with SH
 }));
 check('live production sources carry no bypass, force, main push, secret literal, or logging', () => {
   const sources = ['process-executor.ts', 'invocation-journal.ts', 'file-invocation-journal.ts', 'runner.ts', 'offline-validation.ts',
-    'live/common.ts', 'live/seatbelt-validation.ts',
+    'egress-destination.ts', 'egress-journal.ts', 'file-egress-journal.ts', 'live/connect-broker.ts', 'live/model-process-isolation.ts',
+    'live/seatbelt-model-process.ts', 'live/common.ts', 'live/seatbelt-validation.ts',
     'live/claude-code-implementation.ts', 'live/codex-architect-review.ts', 'live/github-cli-reality.ts', 'live/composition.ts']
     .map((name) => [name, readFileSync(`src/automation/${name}`, 'utf8')]);
   for (const [name, source] of sources) {
@@ -963,5 +1111,6 @@ for (const [name, fn] of tests) {
   try { await fn(); console.log(`  PASS ${name}`); passed++; }
   catch (error) { console.error(`  FAIL ${name}: ${error.stack}`); failed++; }
 }
+rmSync(PINS, { recursive: true, force: true });
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exitCode = 1;

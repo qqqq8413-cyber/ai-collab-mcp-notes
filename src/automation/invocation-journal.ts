@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
+import { isCanonicalEgressSet, sameEgressSet } from './egress-destination.js';
 import { isInstant, parseInstant } from './time.js';
 
 // Operational coordination state for external actor calls: was this exact call
@@ -39,7 +40,8 @@ export interface InvocationIdentity {
   actorKind: ActorKind;
   provider: string;
   model: string;
-  destination: string;
+  /** The exact canonical egress destination set the call was authorized and bound to. */
+  egressDestinations: string[];
   /** Linkage to the caller-supplied grant; the grant itself is never stored. */
   authorizationId: string;
 }
@@ -48,7 +50,7 @@ export interface StoredResult {
   serialized: string;
   sha256: string;
   completedAt: string;
-  metadata: { provider: string; model: string; destination: string; authorizationId: string };
+  metadata: { provider: string; model: string; egressDestinations: string[]; authorizationId: string };
 }
 export interface InvocationRecord {
   invocationId: string;
@@ -137,15 +139,16 @@ export function canonicalJson(value: unknown): string {
 const exact = z.string().min(1).refine((value) => value.trim() === value && !value.includes('\0'));
 const instant = z.string().refine(isInstant);
 const hex64 = z.string().regex(/^[0-9a-f]{64}$/);
+const egressSet = z.array(z.string()).refine((set) => isCanonicalEgressSet(set));
 const identitySchema = z.strictObject({
   runId: exact, sliceId: exact, packetId: exact, packetHash: hex64,
   occurrence: z.strictObject({ sequence: z.number().int().positive(), action: exact, timestamp: instant }),
-  actorKind: z.enum(ACTOR_KINDS), provider: exact, model: exact, destination: exact, authorizationId: exact,
+  actorKind: z.enum(ACTOR_KINDS), provider: exact, model: exact, egressDestinations: egressSet, authorizationId: exact,
 });
 const transitionSchema = z.strictObject({ state: z.enum(INVOCATION_STATES), at: instant, note: z.string().max(2000).optional() });
 const resultSchema = z.strictObject({
   serialized: z.string(), sha256: hex64, completedAt: instant,
-  metadata: z.strictObject({ provider: exact, model: exact, destination: exact, authorizationId: exact }),
+  metadata: z.strictObject({ provider: exact, model: exact, egressDestinations: egressSet, authorizationId: exact }),
 });
 const recordSchema = z.strictObject({
   invocationId: hex64, identity: identitySchema, state: z.enum(INVOCATION_STATES),
@@ -188,7 +191,8 @@ export function parseInvocationRecord(value: unknown): InvocationRecord {
     integrity(record.result.sha256 === sha256Hex(record.result.serialized), 'result digest does not match');
     const metadata = record.result.metadata;
     integrity(metadata.provider === identity.provider && metadata.model === identity.model &&
-      metadata.destination === identity.destination && metadata.authorizationId === identity.authorizationId, 'result metadata does not match its identity');
+      sameEgressSet(metadata.egressDestinations, identity.egressDestinations) && metadata.authorizationId === identity.authorizationId,
+    'result metadata does not match its identity');
   }
   integrity((record.state === 'APPLIED') === (record.application !== undefined), 'application does not match its state');
   if (record.application) integrity(record.application.sequence === identity.occurrence.sequence + 1, 'application is not the next controller entry');

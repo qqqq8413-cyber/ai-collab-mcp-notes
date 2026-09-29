@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -184,8 +185,11 @@ process.exit(readFileSync('fixture.txt', 'utf8') === 'inside\\n' && readFileSync
 // ---------------------------------------------------------------- packet-scoped validation view (real local Git)
 const SENTINEL = 'OUTSIDE-TRACKED-SENTINEL';
 const BRANCH = 'work/scoped-validation';
-const CLAUDE = { executable: 'claude', provider: 'anthropic', model: 'claude-opus-5-5', destination: 'api.anthropic.com', timeoutMs: 600_000,
-  maxTurns: 40, maxStdoutBytes: 1_000_000, maxStderrBytes: 1_000_000 };
+const EGRESS = Object.freeze(['api.anthropic.com:443', 'platform.claude.com:443']);
+// The pinned executable is this Node binary: real bytes, not a script. The fake model process never runs it.
+const CLAUDE = { executable: realpathSync(process.execPath), executableSha256: createHash('sha256').update(readFileSync(realpathSync(process.execPath))).digest('hex'),
+  provider: 'anthropic', model: 'claude-opus-5-5', egressDestinations: [...EGRESS], timeoutMs: 600_000, maxTurns: 40, maxStdoutBytes: 1_000_000,
+  maxStderrBytes: 1_000_000 };
 // Validation code inside the packet scope that tries to see the rest of the repository.
 const CHECK = `import { lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -249,8 +253,8 @@ async function scopedIteration(dir, { validation, commands, worktreesInClone = f
   const packet = { packetId: 'packet-1', packetVersion: 1, sliceId: 'slice-1', expectedBaseSha: base, targetBranch: BRANCH,
     objective: 'Scoped validation fixture', allowedAreas: ['allowed'], forbiddenChanges: ['.github'], invariants: ['human authority retained'],
     acceptanceCriteria: ['offline checks pass'], validationCommands: commands({ worktree, clone }),
-    networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: [BRANCH, CLAUDE.destination], purpose: 'fixture', budget: 1 },
-    providerCallAuthorization: { allowed: true, providers: [CLAUDE.provider], models: [CLAUDE.model], maxCalls: 6, budget: 0 },
+    networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: [BRANCH, ...EGRESS], purpose: 'fixture', budget: 1 },
+    providerCallAuthorization: { allowed: true, providers: [CLAUDE.provider], models: [CLAUDE.model], egressDestinations: [...EGRESS], maxCalls: 6, budget: 0 },
     destructiveOperationAuthorization: { allowed: false },
     iterationBudget: { maxImplementationIterationsPerSlice: 3, maxAcceptanceFailuresPerSlice: 3, maxRuntimeMinutesPerIteration: 60,
       maxParallelImplementationAgents: 1 } };
@@ -258,19 +262,21 @@ async function scopedIteration(dir, { validation, commands, worktreesInClone = f
   const journal = new FileInvocationJournal(join(dir, 'journal'), clock);
   const invocationId = journal.prepare({ runId: 'run-1', sliceId: 'slice-1', packetId: packet.packetId, packetHash: packetHash(packet),
     occurrence: { sequence: 4, action: 'BEGIN_IMPLEMENTATION', timestamp: clock.now() }, actorKind: 'IMPLEMENTATION', provider: CLAUDE.provider,
-    model: CLAUDE.model, destination: CLAUDE.destination, authorizationId: 'auth' }).invocationId;
+    model: CLAUDE.model, egressDestinations: [...EGRESS], authorizationId: 'auth' }).invocationId;
   journal.start(invocationId, 10);
-  const real = new NodeProcessExecutor();
-  const executor = { async run(request) {
-    if (request.executable !== 'claude') return real.run(request);
+  const executor = new NodeProcessExecutor();
+  // A fake egress-bound model process: it edits the model workspace and reports clean broker evidence.
+  const model = { async runModel(request) {
     writeFileSync(join(request.cwd, 'allowed/code.js'), 'export const value = 2;\n');
-    return { outcome: 'EXITED', exitCode: 0, signal: null, stderr: '', durationMs: 1, stdout: JSON.stringify({ type: 'result', subtype: 'success',
-      is_error: false, structured_output: { status: 'COMPLETED', reason: 'done' }, modelUsage: { [CLAUDE.model]: {} } }) };
+    return { isolation: 'ENFORCED', egress: { status: 'RECORDED', summary: { sessionId: request.invocationId, allowlist: [...request.scope.egressDestinations],
+      closed: true, connected: 1, denied: 0, connectFailed: 0 } },
+    result: { outcome: 'EXITED', exitCode: 0, signal: null, stderr: '', durationMs: 1, stdout: JSON.stringify({ type: 'result', subtype: 'success',
+      is_error: false, structured_output: { status: 'COMPLETED', reason: 'done' }, modelUsage: { [CLAUDE.model]: {} } }) } };
   } };
   const adapter = new ClaudeCodeImplementationAdapter({ claude: CLAUDE, environment: env, git: { executable: 'git', remote: 'origin', repositoryPath: clone,
     worktreeRoot, timeoutMs: 60_000, maxOutputBytes: 1_000_000, commitAuthor: { name: 'CHIEF automation', email: 'automation@example.invalid' },
     validationTimeoutMs: 120_000, validationMaxOutputBytes: 1_000_000, linkedDirectories: [{ path: 'node_modules', source: deps }] } },
-  { executor, validation, journal, clock });
+  { executor, model, validation, journal, clock });
   const result = await adapter.execute({ runId: 'run-1', sliceId: 'slice-1', implementationIteration: 1, packet, packetHash: packetHash(packet), invocationId });
   const pushed = spawnSync('git', ['rev-parse', '--verify', '-q', `refs/heads/${BRANCH}`], { cwd: origin, env, encoding: 'utf8' }).stdout.trim();
   const leaks = [`${worktree}.validation`, `${worktree}.logs`, `${worktree}.tmp`, `${worktree}.model`].flatMap(sentinelFiles);

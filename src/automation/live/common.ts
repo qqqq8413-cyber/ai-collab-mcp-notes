@@ -1,3 +1,4 @@
+import { sameEgressSet } from '../egress-destination.js';
 import type { ActorKind, InvocationJournal, InvocationRecord } from '../invocation-journal.js';
 import type { ProcessExecutor, ProcessResult } from '../process-executor.js';
 import type { ProviderCallScope } from '../types.js';
@@ -6,7 +7,7 @@ import type { ProviderCallScope } from '../types.js';
 
 /**
  * A live adapter dispatches nothing unless the journal shows this exact invocation
- * STARTED for this adapter's actor kind, provider, model, and destination, and for the
+ * STARTED for this adapter's actor kind, provider, model, and exact egress set, and for the
  * run and packet it was given. The runner writes STARTED only after the human-grant
  * gate and the call budget, so an adapter composed outside that path refuses to run.
  */
@@ -17,7 +18,7 @@ export function requireStartedInvocation(journal: InvocationJournal, input: { in
   const record = journal.get(id);
   const identity = record?.identity;
   if (!record || record.state !== 'STARTED' || identity!.actorKind !== kind || identity!.provider !== scope.provider ||
-      identity!.model !== scope.model || identity!.destination !== scope.destination || identity!.runId !== input.runId ||
+      identity!.model !== scope.model || !sameEgressSet(identity!.egressDestinations, scope.egressDestinations) || identity!.runId !== input.runId ||
       identity!.sliceId !== input.sliceId || identity!.packetId !== input.packet.packetId || identity!.packetHash !== input.packetHash) {
     throw new Error('Live adapter refuses: no STARTED invocation binds this exact call');
   }

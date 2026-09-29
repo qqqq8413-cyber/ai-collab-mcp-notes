@@ -18,10 +18,11 @@ function withDir(fn) {
     try { await fn(dir); } finally { rmSync(dir, { recursive: true, force: true }); }
   };
 }
+const EGRESS = ['api.anthropic.com:443', 'platform.claude.com:443'];
 function identity(overrides = {}) {
   return { runId: 'run-1', sliceId: 'slice-1', packetId: 'packet-1', packetHash: 'd'.repeat(64),
     occurrence: { sequence: 4, action: 'BEGIN_IMPLEMENTATION', timestamp: T }, actorKind: 'IMPLEMENTATION',
-    provider: 'anthropic', model: 'claude-opus-5-5', destination: 'api.anthropic.com', authorizationId: 'auth-live-impl', ...overrides };
+    provider: 'anthropic', model: 'claude-opus-5-5', egressDestinations: EGRESS, authorizationId: 'auth-live-impl', ...overrides };
 }
 const at = (sequence, kind = 'IMPLEMENTATION') => identity({ occurrence: { sequence, action: 'BEGIN_IMPLEMENTATION', timestamp: T }, actorKind: kind });
 const files = (dir) => readdirSync(dir).filter((name) => name.endsWith('.json'));
@@ -100,7 +101,7 @@ check('corrupted bytes fail closed: checksum, JSON, version, illegal history, fo
   assert.throws(() => journal.get(id), InvocationJournalIntegrityError);
   writeFileSync(file, '{not json');
   assert.throws(() => journal.get(id), InvocationJournalIntegrityError);
-  writeFileSync(file, original.replace('"schemaVersion":1', '"schemaVersion":2'));
+  writeFileSync(file, original.replace('"schemaVersion":2', '"schemaVersion":3'));
   assert.throws(() => journal.get(id), InvocationJournalIntegrityError);
   writeFileSync(file, original);
   reseal(dir, id, (record) => { record.state = 'APPLIED'; record.history.push({ state: 'APPLIED', at: T }); record.application = { sequence: 5, action: 'X' }; });
@@ -164,7 +165,7 @@ check('a stored result is detached, hashed, bounded plain data, and its digest i
   value.status = 'changed';
   assert.deepEqual(readStoredOutcome(record), { ok: true, value: { status: 'COMPLETED', validationEvidence: ['npm test: exit 0'] } });
   assert.equal(record.result.sha256, sha256Hex(record.result.serialized));
-  assert.deepEqual(record.result.metadata, { provider: 'anthropic', model: 'claude-opus-5-5', destination: 'api.anthropic.com',
+  assert.deepEqual(record.result.metadata, { provider: 'anthropic', model: 'claude-opus-5-5', egressDestinations: EGRESS,
     authorizationId: 'auth-live-impl' });
   reseal(dir, id, (stored) => { stored.result.serialized = stored.result.serialized.replace('exit 0', 'exit 1'); });
   assert.throws(() => journal.get(id), /digest/);
@@ -180,7 +181,7 @@ check('only the authorization id is stored: no grant, environment, or credential
   assert.match(text, /auth-live-impl/);
   const record = JSON.parse(text).record;
   assert.deepEqual(Object.keys(record).sort(), ['history', 'identity', 'invocationId', 'result', 'state']);
-  assert.deepEqual(Object.keys(record.identity).sort(), ['actorKind', 'authorizationId', 'destination', 'model', 'occurrence', 'packetHash',
+  assert.deepEqual(Object.keys(record.identity).sort(), ['actorKind', 'authorizationId', 'egressDestinations', 'model', 'occurrence', 'packetHash',
     'packetId', 'provider', 'runId', 'sliceId']);
   assert.doesNotMatch(text, /actorRole|issuedAt|expiresAt|reason|env|token|secret|password|api_?key/i);
 }));
@@ -220,6 +221,53 @@ check('two processes racing PREPARED -> STARTED: exactly one wins', withDir(asyn
   assert.equal(results.filter((result) => result === 'STARTED').length, 1, results.join());
   assert.equal(results.filter((result) => result === 'NOT_PREPARED').length, 2, results.join());
   assert.equal(journal.get(id).history.filter((entry) => entry.state === 'STARTED').length, 1);
+}));
+
+// ---------------------------------------------------------------- G1-R3C: exact egress sets, schema version 2
+check('the exact canonical egress set is stored; a non-canonical, empty, or logical set is refused at prepare', withDir((dir) => {
+  const journal = new FileInvocationJournal(dir, clock);
+  const record = journal.prepare(identity());
+  assert.deepEqual(record.identity.egressDestinations, EGRESS);
+  assert.deepEqual(JSON.parse(readFileSync(fileOf(dir, record.invocationId), 'utf8')).record.identity.egressDestinations, EGRESS);
+  const refused = [[], ['platform.claude.com:443', 'api.anthropic.com:443'], ['api.anthropic.com:443', 'api.anthropic.com:443'], ['anthropic'],
+    ['api.anthropic.com'], ['API.anthropic.com:443'], ['https://api.anthropic.com:443'], ['*.anthropic.com:443'], ['api.anthropic.com:0443'],
+    'api.anthropic.com:443', undefined];
+  for (const [index, egressDestinations] of refused.entries()) {
+    assert.throws(() => journal.prepare({ ...at(10 + index), egressDestinations }), undefined, JSON.stringify(egressDestinations));
+  }
+  assert.throws(() => journal.prepare({ ...at(30), destination: 'api.anthropic.com' }), undefined, 'the single-destination identity is not representable');
+  assert.deepEqual(files(dir), [`${record.invocationId}.json`]);
+}));
+check('stored metadata must bind exactly the identity egress set; a mismatch fails closed', withDir((dir) => {
+  const journal = new FileInvocationJournal(dir, clock);
+  const id = journal.prepare(identity()).invocationId;
+  journal.start(id, 5);
+  journal.complete(id, { ok: true, value: { status: 'COMPLETED', validationEvidence: ['pass'] } });
+  for (const set of [['api.anthropic.com:443'], [...EGRESS, 'statsig.anthropic.com:443'], ['api.anthropic.com:443', 'platform.claude.com:8443']]) {
+    reseal(dir, id, (stored) => { stored.result.metadata.egressDestinations = set; });
+    assert.throws(() => journal.get(id), /metadata does not match/, JSON.stringify(set));
+  }
+  reseal(dir, id, (stored) => { stored.result.metadata.egressDestinations = [...EGRESS]; });
+  assert.equal(journal.get(id).state, 'COMPLETED');
+}));
+check('version 2 envelopes carry the checksum; a version 1 record fails closed as unsupported and is never migrated', withDir((dir) => {
+  const journal = new FileInvocationJournal(dir, clock);
+  const id = journal.prepare(identity()).invocationId;
+  const envelope = JSON.parse(readFileSync(fileOf(dir, id), 'utf8'));
+  assert.equal(envelope.schemaVersion, 2);
+  assert.equal(envelope.checksum, sha256Hex(JSON.stringify(envelope.record)));
+  // A version 1 record as R3B wrote it: one destination string, correctly sealed for its version.
+  const legacy = { ...envelope.record, identity: { ...envelope.record.identity, destination: 'api.anthropic.com' } };
+  delete legacy.identity.egressDestinations;
+  const v1 = JSON.stringify({ schemaVersion: 1, record: legacy, checksum: sha256Hex(JSON.stringify(legacy)) });
+  writeFileSync(fileOf(dir, id), v1);
+  assert.throws(() => journal.get(id), /Unsupported invocation journal version 1; records are never migrated/);
+  assert.throws(() => journal.list('run-1'), InvocationJournalIntegrityError);
+  assert.throws(() => journal.start(id, 5), InvocationJournalIntegrityError);
+  assert.equal(readFileSync(fileOf(dir, id), 'utf8'), v1, 'the version 1 bytes are left exactly as they were');
+  // Relabelled as version 2, the single-destination shape is still refused.
+  writeFileSync(fileOf(dir, id), JSON.stringify({ schemaVersion: 2, record: legacy, checksum: sha256Hex(JSON.stringify(legacy)) }));
+  assert.throws(() => journal.get(id), /malformed/);
 }));
 
 let passed = 0, failed = 0;

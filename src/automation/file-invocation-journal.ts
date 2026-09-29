@@ -10,7 +10,10 @@ import {
 import { isInstant } from './time.js';
 import type { Clock } from './types.js';
 
-const VERSION = 1;
+// Version 1 bound one destination string that nothing enforced. It is never read as
+// version 2: turning such a string into an egress set would manufacture network
+// authority that was never proven, so a version 1 record fails closed as unsupported.
+const VERSION = 2;
 const RECORD_FILE = /^[0-9a-f]{64}\.json$/;
 
 // Durability follows FileControllerStore: a checksummed envelope per invocation, one
@@ -50,7 +53,9 @@ export class FileInvocationJournal implements InvocationJournal {
       throw new InvocationJournalIntegrityError('Invalid invocation journal envelope');
     }
     const stored = envelope as { schemaVersion: unknown; checksum: unknown; record: unknown };
-    if (stored.schemaVersion !== VERSION) throw new InvocationJournalIntegrityError('Unsupported invocation journal version');
+    if (stored.schemaVersion !== VERSION) {
+      throw new InvocationJournalIntegrityError(`Unsupported invocation journal version ${JSON.stringify(stored.schemaVersion)}; records are never migrated`);
+    }
     if (stored.checksum !== sha256Hex(JSON.stringify(stored.record))) throw new InvocationJournalIntegrityError('Invocation journal checksum mismatch');
     const record = parseInvocationRecord(stored.record);
     if (record.invocationId !== invocationId) throw new InvocationJournalIntegrityError('Invocation journal file holds another invocation');
@@ -146,8 +151,8 @@ export class FileInvocationJournal implements InvocationJournal {
   complete(invocationId: string, outcome: StoredOutcome): InvocationRecord {
     const serialized = serializeOutcome(outcome);
     return this.#advance(invocationId, 'COMPLETED', (current, at) => ({ result: { serialized, sha256: sha256Hex(serialized), completedAt: at,
-      metadata: { provider: current.identity.provider, model: current.identity.model, destination: current.identity.destination,
-        authorizationId: current.identity.authorizationId } } }));
+      metadata: { provider: current.identity.provider, model: current.identity.model,
+        egressDestinations: [...current.identity.egressDestinations], authorizationId: current.identity.authorizationId } } }));
   }
   markUncertain(invocationId: string, note: string): InvocationRecord {
     return this.#advance(invocationId, 'UNCERTAIN', undefined, note);

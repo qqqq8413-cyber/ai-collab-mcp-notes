@@ -23,7 +23,7 @@ function packet() {
     forbiddenChanges: ['src/stress-test'], invariants: ['human authority'], acceptanceCriteria: ['checks pass'],
     validationCommands: [{ commandId: 'test', executable: 'npm', args: ['test'], cwd: '.', classification: 'OFFLINE_VALIDATION' }],
     networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: ['main', branch], purpose: 'fixture', budget: 1 },
-    providerCallAuthorization: { allowed: false, providers: [], models: [], maxCalls: 0, budget: 0 },
+    providerCallAuthorization: { allowed: false, providers: [], models: [], egressDestinations: [], maxCalls: 0, budget: 0 },
     destructiveOperationAuthorization: { allowed: false },
     iterationBudget: { maxImplementationIterationsPerSlice: 3, maxAcceptanceFailuresPerSlice: 3,
       maxRuntimeMinutesPerIteration: 60, maxParallelImplementationAgents: 1 } };

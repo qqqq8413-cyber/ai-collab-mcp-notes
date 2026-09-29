@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { AutomationController } from './dist/automation/controller.js';
 import { InMemoryControllerStore } from './dist/automation/audit.js';
-import { parsePacket } from './dist/automation/packet.js';
-import { evaluatePolicy, OPERATION_POLICY } from './dist/automation/policy.js';
+import { isCanonicalEgressDestination, isCanonicalEgressSet, sameEgressSet } from './dist/automation/egress-destination.js';
+import { parsePacket, tryParsePacket } from './dist/automation/packet.js';
+import {
+  LIVE_PROVIDER_MODEL_CALL_TARGET, authorizeLiveModelCall, evaluatePolicy, OPERATION_POLICY, parseAuthorization,
+} from './dist/automation/policy.js';
 import { parseInstant } from './dist/automation/time.js';
 import { NETWORK_LEVELS, ROLES, STATES, STOP_CLASSES } from './dist/automation/types.js';
 
@@ -17,7 +20,10 @@ const K = { id: 'controller', role: 'CONTROLLER' };
 const GH = { id: 'github', role: 'GITHUB' };
 const ACTORS = [G, X, H, K, GH];
 const repo = 'synthetic/example';
-const DEST = 'api.synthetic-provider.test';
+const DEST = 'api.synthetic-provider.test:443';
+const AUTH_DEST = 'auth.synthetic-provider.test:443';
+const EGRESS = Object.freeze([DEST, AUTH_DEST]);
+const TARGET = 'live-provider-model-call';
 const realities = new WeakMap();
 function fakeReality() {
   return { workSha: B, mainSha: A, workBranch: 'work/synthetic-1', observedAt: T,
@@ -51,7 +57,7 @@ function packet(overrides = {}) {
     invariants: ['human authority retained'], acceptanceCriteria: ['offline checks pass'],
     validationCommands: [NPM_TEST, DIFF_CHECK, CI_STATUS],
     networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: ['work/synthetic-1', 'main', DEST], purpose: 'synthetic GitHub facts', budget: 1 },
-    providerCallAuthorization: { allowed: false, providers: [], models: [], maxCalls: 0, budget: 0 },
+    providerCallAuthorization: { allowed: false, providers: [], models: [], egressDestinations: [], maxCalls: 0, budget: 0 },
     destructiveOperationAuthorization: { allowed: false },
     iterationBudget: { maxImplementationIterationsPerSlice: 3, maxAcceptanceFailuresPerSlice: 3,
       maxRuntimeMinutesPerIteration: 60, maxParallelImplementationAgents: 1 },
@@ -60,8 +66,8 @@ function packet(overrides = {}) {
 }
 function providerPacket(overrides = {}) {
   return packet({
-    networkAuthorization: { level: 'READ_EXTERNAL_API', destinations: [DEST], purpose: 'synthetic model call', budget: 1 },
-    providerCallAuthorization: { allowed: true, providers: ['provider-a'], models: ['model-a'], maxCalls: 1, budget: 1 },
+    networkAuthorization: { level: 'READ_EXTERNAL_API', destinations: [...EGRESS], purpose: 'synthetic model call', budget: 1 },
+    providerCallAuthorization: { allowed: true, providers: ['provider-a'], models: ['model-a'], egressDestinations: [...EGRESS], maxCalls: 1, budget: 1 },
     ...overrides,
   });
 }
@@ -137,10 +143,10 @@ function request(overrides = {}) {
     runId: 'run-1', now: T, command: { executable: 'npm', args: ['test'], cwd: '.' }, ...overrides };
 }
 function modelCall(overrides = {}, authOverrides = {}) {
-  const scope = { provider: 'provider-a', model: 'model-a', destination: DEST };
-  return { operation: 'LIVE_PROVIDER_MODEL_CALL', target: DEST, actor: H, packet: providerPacket(),
+  const scope = { provider: 'provider-a', model: 'model-a', egressDestinations: [...EGRESS] };
+  return { operation: 'LIVE_PROVIDER_MODEL_CALL', target: TARGET, actor: H, packet: providerPacket(),
     runId: 'run-1', now: T, providerCall: scope,
-    authorization: auth('HUMAN', 'LIVE_PROVIDER_MODEL_CALL', DEST, { scope, ...authOverrides }), ...overrides };
+    authorization: auth('HUMAN', 'LIVE_PROVIDER_MODEL_CALL', TARGET, { scope, ...authOverrides }), ...overrides };
 }
 const decide = (req) => evaluatePolicy(req).decision;
 
@@ -538,7 +544,7 @@ check('resume grants with wrong operation, target, run, packet, role, or window 
   for (const bad of [grant({ operation: 'FAST_FORWARD_MAIN' }), grant({ target: 'run-1' }), grant({ target: 'stop-1' }),
     grant({ runId: 'run-2' }), grant({ runId: undefined }), grant({ packetId: 'packet-2' }), grant({ packetId: undefined }),
     grant({ actorRole: 'GPT_ARCHITECT' }), grant({ expiresAt: '2026-09-25T23:59:59.999Z', issuedAt: '2026-09-25T00:00:00Z' }),
-    grant({ issuedAt: '2026-09-26T00:00:00.001Z' }), grant({ scope: { provider: 'p', model: 'm', destination: 'd' } })]) {
+    grant({ issuedAt: '2026-09-26T00:00:00.001Z' }), grant({ scope: { provider: 'p', model: 'm', egressDestinations: ['api.p.test:443'] } })]) {
     rejectedWithoutMutation(c, () => c.resumeHuman('run-1', H, bad));
   }
   rejectedWithoutMutation(c, () => c.resumeHuman('run-1', G, grant()));
@@ -562,43 +568,45 @@ check('a promotion grant cannot be reused once consumed', () => {
 
 // ---------------------------------------------------------------- provider / model / network
 console.log('Provider, model, and network scope');
-check('allowed provider, model, destination, and exact human grant is AUTHORIZED', () => {
+check('allowed provider, model, exact egress set, and exact human grant is AUTHORIZED', () => {
   assert.equal(decide(modelCall()), 'AUTHORIZED');
 });
 check('wrong provider is DENIED, even when the model is allowlisted', () => {
-  assert.equal(decide(modelCall({ providerCall: { provider: 'provider-b', model: 'model-a', destination: DEST } },
-    { scope: { provider: 'provider-b', model: 'model-a', destination: DEST } })), 'DENIED');
+  assert.equal(decide(modelCall({ providerCall: { provider: 'provider-b', model: 'model-a', egressDestinations: [...EGRESS] } },
+    { scope: { provider: 'provider-b', model: 'model-a', egressDestinations: [...EGRESS] } })), 'DENIED');
 });
 check('wrong model is DENIED, even when the provider is allowlisted', () => {
-  assert.equal(decide(modelCall({ providerCall: { provider: 'provider-a', model: 'model-b', destination: DEST } },
-    { scope: { provider: 'provider-a', model: 'model-b', destination: DEST } })), 'DENIED');
+  assert.equal(decide(modelCall({ providerCall: { provider: 'provider-a', model: 'model-b', egressDestinations: [...EGRESS] } },
+    { scope: { provider: 'provider-a', model: 'model-b', egressDestinations: [...EGRESS] } })), 'DENIED');
 });
-check('wrong destination is DENIED', () => {
-  const scope = { provider: 'provider-a', model: 'model-a', destination: 'api.other.test' };
-  assert.equal(decide(modelCall({ target: 'api.other.test', providerCall: scope }, { target: 'api.other.test', scope })), 'DENIED');
-  assert.equal(decide(modelCall({ target: 'main' })), 'DENIED');
+check('wrong egress set is DENIED, and the target is never a network destination', () => {
+  const scope = { provider: 'provider-a', model: 'model-a', egressDestinations: ['api.other.test:443'] };
+  assert.equal(decide(modelCall({ providerCall: scope }, { scope })), 'DENIED');
+  for (const target of ['main', DEST, 'api.synthetic-provider.test', 'anthropic']) {
+    assert.equal(decide(modelCall({ target }, { target })), 'DENIED', target);
+  }
 });
 check('provider is never inferred from the model', () => {
-  const inferred = { model: 'provider-a/model-a', destination: DEST };
+  const inferred = { model: 'provider-a/model-a', egressDestinations: [...EGRESS] };
   assert.equal(decide(modelCall({ providerCall: inferred })), 'DENIED');
   assert.equal(decide(modelCall({ providerCall: { ...inferred, provider: '' } })), 'DENIED');
   const packetWithModelNamedAfterProvider = providerPacket({ providerCallAuthorization:
-    { allowed: true, providers: ['provider-b'], models: ['provider-a-model'], maxCalls: 1, budget: 1 } });
+    { allowed: true, providers: ['provider-b'], models: ['provider-a-model'], egressDestinations: [...EGRESS], maxCalls: 1, budget: 1 } });
   assert.equal(decide(modelCall({ packet: packetWithModelNamedAfterProvider,
-    providerCall: { provider: 'provider-a', model: 'provider-a-model', destination: DEST } })), 'DENIED');
+    providerCall: { provider: 'provider-a', model: 'provider-a-model', egressDestinations: [...EGRESS] } })), 'DENIED');
   assert.equal(decide(modelCall({ providerCall: undefined })), 'DENIED');
 });
 check('READ_WEB alone cannot authorize a model call', () => {
-  const readWeb = providerPacket({ networkAuthorization: { level: 'READ_WEB', destinations: [DEST], purpose: 'read', budget: 1 } });
+  const readWeb = providerPacket({ networkAuthorization: { level: 'READ_WEB', destinations: [...EGRESS], purpose: 'read', budget: 1 } });
   assert.equal(decide(modelCall({ packet: readWeb })), 'DENIED');
   assert.notEqual(decide(modelCall({}, { operation: 'READ_WEB' })), 'AUTHORIZED');
   assert.notEqual(decide({ operation: 'READ_WEB', target: DEST, actor: G, packet: readWeb, runId: 'run-1', now: T,
-    providerCall: { provider: 'provider-a', model: 'model-a', destination: DEST },
+    providerCall: { provider: 'provider-a', model: 'model-a', egressDestinations: [...EGRESS] },
     authorization: auth('GPT_ARCHITECT', 'READ_WEB', DEST) }), 'AUTHORIZED');
 });
-check('the human grant must name the exact provider, model, and destination', () => {
-  for (const scope of [undefined, { provider: 'provider-b', model: 'model-a', destination: DEST },
-    { provider: 'provider-a', model: 'model-b', destination: DEST }, { provider: 'provider-a', model: 'model-a', destination: 'api.other.test' }]) {
+check('the human grant must name the exact provider, model, and egress set', () => {
+  for (const scope of [undefined, { provider: 'provider-b', model: 'model-a', egressDestinations: [...EGRESS] },
+    { provider: 'provider-a', model: 'model-b', egressDestinations: [...EGRESS] }, { provider: 'provider-a', model: 'model-a', egressDestinations: [DEST] }]) {
     assert.notEqual(decide(modelCall({}, { scope })), 'AUTHORIZED', JSON.stringify(scope));
   }
   for (const overrides of [{ operation: 'FAST_FORWARD_MAIN' }, { target: 'main' }, { runId: 'run-2' }, { packetId: 'packet-2' },
@@ -609,15 +617,97 @@ check('the human grant must name the exact provider, model, and destination', ()
   assert.notEqual(decide(modelCall({ actor: K })), 'AUTHORIZED');
 });
 check('packet-level provider gates hold: disabled calls, zero budget, and no wildcards', () => {
-  assert.equal(decide(modelCall({ packet: providerPacket({ providerCallAuthorization: { allowed: false, providers: [], models: [], maxCalls: 0, budget: 0 } }) })), 'DENIED');
-  assert.equal(decide(modelCall({ packet: providerPacket({ providerCallAuthorization: { allowed: true, providers: ['provider-a'], models: ['model-a'], maxCalls: 0, budget: 1 } }) })), 'DENIED');
-  const wildcard = providerPacket({ providerCallAuthorization: { allowed: true, providers: ['*'], models: ['*'], maxCalls: 1, budget: 1 } });
+  assert.equal(decide(modelCall({ packet: providerPacket({ providerCallAuthorization: { allowed: false, providers: [], models: [], egressDestinations: [], maxCalls: 0, budget: 0 } }) })), 'DENIED');
+  assert.equal(decide(modelCall({ packet: providerPacket({ providerCallAuthorization: { allowed: true, providers: ['provider-a'], models: ['model-a'],
+    egressDestinations: [...EGRESS], maxCalls: 0, budget: 1 } }) })), 'DENIED');
+  const wildcard = providerPacket({ providerCallAuthorization: { allowed: true, providers: ['*'], models: ['*'], egressDestinations: [...EGRESS], maxCalls: 1, budget: 1 } });
   assert.equal(decide(modelCall({ packet: wildcard })), 'DENIED');
-  assert.equal(decide(modelCall({ providerCall: { provider: '*', model: '*', destination: DEST } },
-    { scope: { provider: '*', model: '*', destination: DEST } })), 'DENIED');
+  assert.equal(decide(modelCall({ providerCall: { provider: '*', model: '*', egressDestinations: [...EGRESS] } },
+    { scope: { provider: '*', model: '*', egressDestinations: [...EGRESS] } })), 'DENIED');
+  for (const egressDestinations of [['*.synthetic-provider.test:443'], ['*:443'], ['api.synthetic-provider.test:*']]) {
+    assert.equal(decide(modelCall({ providerCall: { provider: 'provider-a', model: 'model-a', egressDestinations } },
+      { scope: { provider: 'provider-a', model: 'model-a', egressDestinations } })), 'DENIED', JSON.stringify(egressDestinations));
+  }
 });
 check('provider-call facts are refused on other operations', () => {
-  assert.equal(decide({ ...request(), providerCall: { provider: 'provider-a', model: 'model-a', destination: DEST } }), 'DENIED');
+  assert.equal(decide({ ...request(), providerCall: { provider: 'provider-a', model: 'model-a', egressDestinations: [...EGRESS] } }), 'DENIED');
+});
+
+// ---------------------------------------------------------------- G1-R3C: exact egress sets
+console.log('G1-R3C: the live call binds an exact egress destination set');
+const egressCall = (callSet, grantSet = callSet, packetSet = [...EGRESS], networkSet = [...EGRESS], extra = {}) => {
+  const packetOverrides = { networkAuthorization: { level: 'READ_EXTERNAL_API', destinations: networkSet, purpose: 'synthetic model call', budget: 1 },
+    providerCallAuthorization: { allowed: true, providers: ['provider-a'], models: ['model-a'], egressDestinations: packetSet, maxCalls: 1, budget: 1 } };
+  return modelCall({ packet: providerPacket(packetOverrides), providerCall: { provider: 'provider-a', model: 'model-a', egressDestinations: callSet }, ...extra },
+    { scope: { provider: 'provider-a', model: 'model-a', egressDestinations: grantSet } });
+};
+check('human grant set == packet set == call set is AUTHORIZED; the grant target is the fixed live-call target', () => {
+  assert.equal(decide(egressCall([...EGRESS])), 'AUTHORIZED');
+  assert.equal(TARGET, LIVE_PROVIDER_MODEL_CALL_TARGET);
+  const verdict = authorizeLiveModelCall({ packet: providerPacket(), runId: 'run-1', now: T,
+    scope: { provider: 'provider-a', model: 'model-a', egressDestinations: [...EGRESS] },
+    authorization: auth('HUMAN', 'LIVE_PROVIDER_MODEL_CALL', TARGET, { scope: { provider: 'provider-a', model: 'model-a', egressDestinations: [...EGRESS] } }) });
+  assert.equal(verdict.decision, 'AUTHORIZED');
+});
+check('a missing, an extra, or a wrong-port destination is DENIED, in the call and in the packet', () => {
+  const extra = [...EGRESS, 'telemetry.synthetic-provider.test:443'].sort();
+  const port = ['api.synthetic-provider.test:8443', AUTH_DEST];
+  for (const [name, set] of [['missing', [DEST]], ['extra', extra], ['wrong port', port], ['empty', []]]) {
+    assert.equal(decide(egressCall(set)), 'DENIED', `call ${name}`);
+    if (set.length) assert.equal(decide(egressCall([...EGRESS], [...EGRESS], set, [...new Set([...EGRESS, ...set])].sort())), 'DENIED', `packet ${name}`);
+  }
+});
+check('a human grant whose set differs by one destination or one port is not an authorization', () => {
+  for (const set of [[DEST], [...EGRESS, 'telemetry.synthetic-provider.test:443'].sort(), ['api.synthetic-provider.test:8443', AUTH_DEST]]) {
+    const result = evaluatePolicy(egressCall([...EGRESS], set));
+    assert.equal(result.decision, 'REQUIRE_HUMAN', JSON.stringify(set));
+    assert.match(result.reason, /missing exact HUMAN authorization/);
+  }
+  for (const overrides of [{ runId: 'run-2' }, { packetId: 'packet-2' }]) {
+    assert.notEqual(decide(modelCall({}, overrides)), 'AUTHORIZED', JSON.stringify(overrides));
+  }
+  assert.equal(decide(modelCall({ runId: 'run-2' })), 'REQUIRE_HUMAN', 'a grant for run-1 does not bind run-2');
+  assert.equal(decide(modelCall({ authorization: undefined })), 'REQUIRE_HUMAN', 'no human grant, no call');
+});
+check('every egress destination must also be a packet network destination', () => {
+  assert.equal(decide(egressCall([...EGRESS], [...EGRESS], [...EGRESS], [DEST])), 'DENIED');
+  assert.equal(decide(egressCall([...EGRESS], [...EGRESS], [...EGRESS], [AUTH_DEST, 'work/synthetic-1'])), 'DENIED');
+  assert.equal(decide(egressCall([...EGRESS], [...EGRESS], [...EGRESS], [...EGRESS, 'work/synthetic-1'])), 'AUTHORIZED', 'other packet targets may coexist');
+});
+check('a logical label, a single-destination scope, or a non-canonical set is refused at ingress', () => {
+  for (const set of [['anthropic'], ['openai'], ['claude-cli'], ['codex-cli'], ['provider-api'], ['api.synthetic-provider.test'],
+    ['https://api.synthetic-provider.test:443'], ['user@api.synthetic-provider.test:443'], ['api.synthetic-provider.test:443/v1'],
+    ['API.synthetic-provider.test:443'], ['api.synthetic-provider.test.:443'], ['127.0.0.1:443'], [AUTH_DEST, DEST], [DEST, DEST], [' api.x.test:443']]) {
+    const packetRefused = tryParsePacket(providerPacket({ providerCallAuthorization: { allowed: true, providers: ['provider-a'], models: ['model-a'],
+      egressDestinations: set, maxCalls: 1, budget: 1 } }));
+    assert.equal(packetRefused, undefined, `packet ${JSON.stringify(set)}`);
+    assert.equal(parseAuthorization(auth('HUMAN', 'LIVE_PROVIDER_MODEL_CALL', TARGET, { scope: { provider: 'provider-a', model: 'model-a', egressDestinations: set } })),
+      undefined, `grant ${JSON.stringify(set)}`);
+    assert.equal(decide(egressCall(set)), 'DENIED', `call ${JSON.stringify(set)}`);
+  }
+  const single = { provider: 'provider-a', model: 'model-a', destination: DEST };
+  assert.equal(decide(modelCall({ providerCall: single }, { scope: single })), 'DENIED');
+  assert.equal(parseAuthorization(auth('HUMAN', 'LIVE_PROVIDER_MODEL_CALL', TARGET, { scope: single })), undefined);
+  assert.equal(tryParsePacket(providerPacket({ providerCallAuthorization: { allowed: true, providers: ['provider-a'], models: ['model-a'], maxCalls: 1, budget: 1 } })),
+    undefined, 'a packet must state its egress set');
+  assert.equal(tryParsePacket(providerPacket({ providerCallAuthorization: { allowed: true, providers: ['provider-a'], models: ['model-a'],
+    egressDestinations: [], maxCalls: 1, budget: 1 } })), undefined, 'allowed calls bind a non-empty set');
+  assert.equal(tryParsePacket(packet({ providerCallAuthorization: { allowed: false, providers: [], models: [], egressDestinations: [DEST], maxCalls: 0, budget: 0 } })),
+    undefined, 'denied calls carry no egress destinations');
+});
+check('canonical destinations: exact spelling only, no normalization at any layer', () => {
+  for (const good of ['api.anthropic.com:443', 'platform.claude.com:443', 'chatgpt.com:443', 'auth.openai.com:443', 'xn--bcher-kva.example:8443', 'a.b:1', 'a.b:65535']) {
+    assert.ok(isCanonicalEgressDestination(good), good);
+  }
+  for (const bad of ['api.anthropic.com', 'api.anthropic.com:', ':443', 'api.anthropic.com:0', 'api.anthropic.com:65536', 'api.anthropic.com:0443',
+    'API.anthropic.com:443', 'api.anthropic.com.:443', 'localhost:443', 'bücher.example:443', 'xn--zz.example:443', 'a..b:443', '-a.b:443', 'a-.b:443',
+    '1.2.3.4:443', '[::1]:443', '::1:443', 'a.b:443 ', 'a.b:44\u00003', 'a.b:4 43', '*.a.b:443', 'a.*:443', 'http://a.b:443', 'u:p@a.b:443', 'a.b:443?x', 'a.b:443#f',
+    'a.b/c:443', `${'a'.repeat(64)}.b:443`, 443, null, undefined, ['a.b:443']]) {
+    assert.ok(!isCanonicalEgressDestination(bad), JSON.stringify(bad));
+  }
+  assert.ok(isCanonicalEgressSet([...EGRESS]) && !isCanonicalEgressSet([]) && isCanonicalEgressSet([], { allowEmpty: true }));
+  assert.ok(!isCanonicalEgressSet([AUTH_DEST, DEST]) && !isCanonicalEgressSet([DEST, DEST]));
+  assert.ok(sameEgressSet([...EGRESS], [...EGRESS]) && !sameEgressSet([...EGRESS], [DEST]) && !sameEgressSet([AUTH_DEST, DEST], [AUTH_DEST, DEST]));
 });
 
 // ---------------------------------------------------------------- cross-entry: transactional rejection

@@ -9,6 +9,7 @@ import {
   type StoredOutcome,
 } from './invocation-journal.js';
 import { isStopState, isTerminalState } from './lifecycle.js';
+import { parseEgressSet } from './egress-destination.js';
 import { authorizeLiveModelCall, parseAuthorization } from './policy.js';
 import type {
   AuditEntry, Clock, ControllerOccurrenceGuard, ControllerRun, ControllerState, ProviderCallScope, StopClass,
@@ -49,7 +50,7 @@ export interface RunnerResult {
 
 export interface RunnerJournalOptions {
   journal: InvocationJournal;
-  /** The exact provider, model, and destination each actor's adapter calls. */
+  /** The exact provider, model, and egress destination set each actor's adapter calls. */
   scopes: Readonly<Record<ActorKind, ProviderCallScope>>;
   /** Caller-supplied live-call grants, one per actor kind, evaluated by the existing policy at every dispatch. */
   authorizations: Readonly<Partial<Record<ActorKind, unknown>>>;
@@ -168,11 +169,11 @@ function snapshotJournalOptions(value: RunnerJournalOptions): RunnerJournalOptio
   }
   if (typeof value.clock?.now !== 'function') throw new TypeError('AutomationRunner journal options require a clock');
   const scope = (input: unknown): ProviderCallScope => {
-    const { provider, model, destination } = (input ?? {}) as ProviderCallScope;
-    for (const part of [provider, model, destination]) {
-      if (typeof part !== 'string' || !part || part.trim() !== part) throw new TypeError('Actor call scope needs exact provider, model, and destination');
+    const { provider, model, egressDestinations } = (input ?? {}) as ProviderCallScope;
+    for (const part of [provider, model]) {
+      if (typeof part !== 'string' || !part || part.trim() !== part) throw new TypeError('Actor call scope needs exact provider, model, and egress destinations');
     }
-    return Object.freeze({ provider, model, destination });
+    return Object.freeze({ provider, model, egressDestinations: parseEgressSet(egressDestinations) as string[] });
   };
   const observe = value.observeRepository;
   if (observe !== undefined && typeof observe !== 'function') throw new TypeError('observeRepository must be a function');
@@ -346,7 +347,8 @@ export class AutomationRunner {
     const scope = live.scopes[kind];
     const record = live.journal.prepare({ runId: run.runId, sliceId: run.sliceId, packetId: run.activePacket!.packetId,
       packetHash: run.activePacketHash!, occurrence: { sequence: occurrence.sequence, action: occurrence.action, timestamp: occurrence.timestamp },
-      actorKind: kind, provider: scope.provider, model: scope.model, destination: scope.destination, authorizationId: grant.authorizationId });
+      actorKind: kind, provider: scope.provider, model: scope.model, egressDestinations: [...scope.egressDestinations],
+      authorizationId: grant.authorizationId });
     return { record };
   }
 
