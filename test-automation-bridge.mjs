@@ -22,7 +22,7 @@ function packet() {
     invariants: ['human authority retained'], acceptanceCriteria: ['offline checks pass'],
     validationCommands: [{ commandId: 'npm-test', executable: 'npm', args: ['test'], cwd: '.', classification: 'OFFLINE_VALIDATION' }],
     networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: [branch], purpose: 'synthetic', budget: 1 },
-    providerCallAuthorization: { allowed: false, providers: [], models: [], egressDestinations: [], maxCalls: 0, budget: 0 },
+    providerCallAuthorization: { allowed: false, calls: [], maxCalls: 0, budget: 0 },
     destructiveOperationAuthorization: { allowed: false },
     iterationBudget: { maxImplementationIterationsPerSlice: 3, maxAcceptanceFailuresPerSlice: 3,
       maxRuntimeMinutesPerIteration: 60, maxParallelImplementationAgents: 1 } };

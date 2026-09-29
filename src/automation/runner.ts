@@ -50,7 +50,7 @@ export interface RunnerResult {
 
 export interface RunnerJournalOptions {
   journal: InvocationJournal;
-  /** The exact provider, model, and egress destination set each actor's adapter calls. */
+  /** The exact scope each actor's adapter calls; each binds its own actor kind, never the other's. */
   scopes: Readonly<Record<ActorKind, ProviderCallScope>>;
   /** Caller-supplied live-call grants, one per actor kind, evaluated by the existing policy at every dispatch. */
   authorizations: Readonly<Partial<Record<ActorKind, unknown>>>;
@@ -168,17 +168,20 @@ function snapshotJournalOptions(value: RunnerJournalOptions): RunnerJournalOptio
     if (typeof journal?.[method] !== 'function') throw new TypeError('AutomationRunner journal options require an InvocationJournal');
   }
   if (typeof value.clock?.now !== 'function') throw new TypeError('AutomationRunner journal options require a clock');
-  const scope = (input: unknown): ProviderCallScope => {
-    const { provider, model, egressDestinations } = (input ?? {}) as ProviderCallScope;
+  const scope = (input: unknown, kind: ActorKind): ProviderCallScope => {
+    const { actorKind, provider, model, egressDestinations } = (input ?? {}) as ProviderCallScope;
+    // A scope stated for the other actor is a swapped scope, never a usable one.
+    if (actorKind !== kind) throw new TypeError(`The ${kind} call scope must bind actor kind ${kind}`);
     for (const part of [provider, model]) {
       if (typeof part !== 'string' || !part || part.trim() !== part) throw new TypeError('Actor call scope needs exact provider, model, and egress destinations');
     }
-    return Object.freeze({ provider, model, egressDestinations: parseEgressSet(egressDestinations) as string[] });
+    return Object.freeze({ actorKind: kind, provider, model, egressDestinations: parseEgressSet(egressDestinations) as string[] });
   };
   const observe = value.observeRepository;
   if (observe !== undefined && typeof observe !== 'function') throw new TypeError('observeRepository must be a function');
   return Object.freeze({ journal, clock: value.clock,
-    scopes: Object.freeze({ IMPLEMENTATION: scope(value.scopes?.IMPLEMENTATION), ARCHITECT_REVIEW: scope(value.scopes?.ARCHITECT_REVIEW) }),
+    scopes: Object.freeze({ IMPLEMENTATION: scope(value.scopes?.IMPLEMENTATION, 'IMPLEMENTATION'),
+      ARCHITECT_REVIEW: scope(value.scopes?.ARCHITECT_REVIEW, 'ARCHITECT_REVIEW') }),
     // Snapshotted: a grant changed after composition is not the grant that was supplied.
     authorizations: Object.freeze(structuredClone({ IMPLEMENTATION: value.authorizations?.IMPLEMENTATION,
       ARCHITECT_REVIEW: value.authorizations?.ARCHITECT_REVIEW })),

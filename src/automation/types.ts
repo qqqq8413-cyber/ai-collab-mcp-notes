@@ -19,14 +19,20 @@ export type AuthorizationClass = 'ALLOW_AUTOMATIC' | 'REQUIRE_GPT' | 'REQUIRE_HU
 export interface Actor { id: string; role: Role }
 export interface Clock { now(): string }
 
+/** The two actors whose calls are live model calls. */
+export const ACTOR_KINDS = Object.freeze(['IMPLEMENTATION', 'ARCHITECT_REVIEW'] as const);
+export type ActorKind = typeof ACTOR_KINDS[number];
+
 /**
- * The three separate facts a live model call is authorized against. None is inferred from
- * another. `egressDestinations` is the exact canonical set of `hostname:port` authorities
- * the model process may reach (sorted, unique; see egress-destination.ts). It is network
- * authority only because an approved egress-bound boundary enforces it; a declared
- * destination without that enforcement grants nothing.
+ * The facts a live model call is authorized against. None is inferred from another.
+ * `actorKind` names the one actor the call is for: a scope, a packet call entry, or a
+ * grant for one actor confers nothing on the other. `egressDestinations` is the exact
+ * canonical set of `hostname:port` authorities that actor's model process may reach
+ * (sorted, unique; see egress-destination.ts). It is network authority only because an
+ * approved egress-bound boundary enforces it; a declared destination without that
+ * enforcement grants nothing.
  */
-export interface ProviderCallScope { provider: string; model: string; egressDestinations: string[] }
+export interface ProviderCallScope { actorKind: ActorKind; provider: string; model: string; egressDestinations: string[] }
 
 export interface Authorization {
   authorizationId: string;
@@ -35,7 +41,7 @@ export interface Authorization {
   target: string;
   runId?: string;
   packetId?: string;
-  /** LIVE_PROVIDER_MODEL_CALL only: the exact provider, model, and egress destination set granted. */
+  /** LIVE_PROVIDER_MODEL_CALL only: the exact actor, provider, model, and egress destination set granted. */
   scope?: ProviderCallScope;
   issuedAt: string;
   expiresAt?: string;
@@ -71,8 +77,12 @@ export interface ImplementationPacket {
   acceptanceCriteria: string[];
   validationCommands: ValidationCommand[];
   networkAuthorization: { level: NetworkLevel; destinations: string[]; purpose: string; budget: number };
-  /** `egressDestinations`: the exact canonical egress set a live call may reach; empty when calls are not allowed. */
-  providerCallAuthorization: { allowed: boolean; providers: string[]; models: string[]; egressDestinations: string[]; maxCalls: number; budget: number };
+  /**
+   * `calls`: the one authority for live calls, at most one entry per actor kind, each the
+   * exact scope that actor's calls must state; empty when calls are not allowed.
+   * `maxCalls` is shared by every actor of the packet.
+   */
+  providerCallAuthorization: { allowed: boolean; calls: ProviderCallScope[]; maxCalls: number; budget: number };
   destructiveOperationAuthorization: { allowed: boolean };
   iterationBudget: {
     maxImplementationIterationsPerSlice: number;

@@ -19,10 +19,13 @@ const REPO = 'synthetic/example', BRANCH = 'work/synthetic-1';
 const clock = { now: () => T };
 const G = { id: 'architect', role: 'GPT_ARCHITECT' }, X = { id: 'implementer', role: 'CODEX_IMPLEMENTER' };
 const H = { id: 'human', role: 'HUMAN' }, K = { id: 'controller', role: 'CONTROLLER' };
-// One packet binds one exact egress set, so both actors' calls carry the same set.
-const EGRESS = Object.freeze(['api.anthropic.com:443', 'api.openai.com:443']);
-const IMPL = { provider: 'anthropic', model: 'claude-opus-5-5', egressDestinations: [...EGRESS] };
-const REVIEW = { provider: 'openai', model: 'gpt-5.5-codex', egressDestinations: [...EGRESS] };
+// Each actor has its own packet entry and its own exact egress set; neither sees the other's.
+const IMPL_EGRESS = Object.freeze(['api.anthropic.com:443', 'platform.claude.com:443']);
+const REVIEW_EGRESS = Object.freeze(['auth.openai.com:443', 'chatgpt.com:443']);
+const ALL_EGRESS = Object.freeze([...IMPL_EGRESS, ...REVIEW_EGRESS].sort());
+const IMPL = { actorKind: 'IMPLEMENTATION', provider: 'anthropic', model: 'claude-opus-5-5', egressDestinations: [...IMPL_EGRESS] };
+const REVIEW = { actorKind: 'ARCHITECT_REVIEW', provider: 'openai', model: 'gpt-5.5-codex', egressDestinations: [...REVIEW_EGRESS] };
+const callEntries = (implementation = IMPL, review = REVIEW) => [implementation, review].filter(Boolean).map((entry) => structuredClone(entry));
 const TARGET = 'live-provider-model-call';
 const tests = [];
 const check = (name, fn) => tests.push([name, fn]);
@@ -37,9 +40,8 @@ function packet(overrides = {}) {
     objective: 'Offline journal fixture', allowedAreas: ['src/automation'], forbiddenChanges: ['src/stress-test'],
     invariants: ['human authority retained'], acceptanceCriteria: ['offline checks pass'],
     validationCommands: [{ commandId: 'test', executable: 'npm', args: ['test'], cwd: '.', classification: 'OFFLINE_VALIDATION' }],
-    networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: [BRANCH, ...EGRESS], purpose: 'fixture', budget: 1 },
-    providerCallAuthorization: { allowed: true, providers: [IMPL.provider, REVIEW.provider], models: [IMPL.model, REVIEW.model],
-      egressDestinations: [...EGRESS], maxCalls: 6, budget: 0 },
+    networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: [BRANCH, ...ALL_EGRESS], purpose: 'fixture', budget: 1 },
+    providerCallAuthorization: { allowed: true, calls: callEntries(), maxCalls: 6, budget: 0 },
     destructiveOperationAuthorization: { allowed: false },
     iterationBudget: { maxImplementationIterationsPerSlice: 3, maxAcceptanceFailuresPerSlice: 3, maxRuntimeMinutesPerIteration: 60,
       maxParallelImplementationAgents: 1 }, ...overrides };
@@ -121,21 +123,30 @@ check('no exact current human grant, no dispatch: every mismatch stops for a hum
     'provider mismatch': { authorizations: grants({ IMPLEMENTATION: grant({ ...IMPL, provider: 'other' }) }) },
     'model mismatch': { authorizations: grants({ IMPLEMENTATION: grant({ ...IMPL, model: 'claude-other-1' }) }) },
     'egress set missing one': { authorizations: grants({ IMPLEMENTATION: grant({ ...IMPL, egressDestinations: ['api.anthropic.com:443'] }) }) },
-    'egress set with one extra': { authorizations: grants({ IMPLEMENTATION: grant({ ...IMPL, egressDestinations: [...EGRESS, 'platform.claude.com:443'] }) }) },
-    'egress wrong port': { authorizations: grants({ IMPLEMENTATION: grant({ ...IMPL, egressDestinations: ['api.anthropic.com:8443', 'api.openai.com:443'] }) }) },
+    'egress set with one extra': { authorizations: grants({ IMPLEMENTATION: grant({ ...IMPL, egressDestinations: [...IMPL_EGRESS, 'statsig.anthropic.com:443'] }) }) },
+    'egress wrong port': { authorizations: grants({ IMPLEMENTATION: grant({ ...IMPL, egressDestinations: ['api.anthropic.com:8443', 'platform.claude.com:443'] }) }) },
+    'review grant supplied to implementation': { authorizations: grants({ IMPLEMENTATION: grant(REVIEW) }) },
+    'grant naming the other actor kind': { authorizations: grants({ IMPLEMENTATION: grant({ ...IMPL, actorKind: 'ARCHITECT_REVIEW' }) }) },
+    'grant without an actor kind': { authorizations: grants({ IMPLEMENTATION: grant(IMPL, { scope: { provider: IMPL.provider, model: IMPL.model, egressDestinations: [...IMPL_EGRESS] } }) }) },
+    'union grant': { authorizations: grants({ IMPLEMENTATION: grant({ ...IMPL, egressDestinations: [...ALL_EGRESS] }) }) },
+    'both grants swapped': { authorizations: { IMPLEMENTATION: grant(REVIEW), ARCHITECT_REVIEW: grant(IMPL) } },
     'host as target': { authorizations: grants({ IMPLEMENTATION: grant(IMPL, { target: 'api.anthropic.com:443' }) }) },
-    'single-destination grant': { authorizations: grants({ IMPLEMENTATION: grant(IMPL, { scope: { provider: IMPL.provider, model: IMPL.model, destination: 'api.anthropic.com' } }) }) },
+    'single-destination grant': { authorizations: grants({ IMPLEMENTATION: grant(IMPL, { scope: { actorKind: IMPL.actorKind, provider: IMPL.provider, model: IMPL.model, destination: 'api.anthropic.com' } }) }) },
     'unscoped grant': { authorizations: grants({ IMPLEMENTATION: grant(IMPL, { scope: undefined }) }) },
     'expired grant': { authorizations: grants({ IMPLEMENTATION: grant(IMPL, { issuedAt: '2026-09-27T00:00:00.000Z', expiresAt: '2026-09-27T23:59:59.000Z' }) }) },
     'future grant': { authorizations: grants({ IMPLEMENTATION: grant(IMPL, { issuedAt: '2026-09-28T00:00:01.000Z' }) }) },
     'wrong operation': { authorizations: grants({ IMPLEMENTATION: grant(IMPL, { operation: 'FAST_FORWARD_MAIN' }) }) },
-    'packet disallows provider': { packetOverrides: { providerCallAuthorization: { allowed: true, providers: [REVIEW.provider], models: [IMPL.model, REVIEW.model], egressDestinations: [...EGRESS], maxCalls: 6, budget: 0 } } },
-    'packet disallows model': { packetOverrides: { providerCallAuthorization: { allowed: true, providers: [IMPL.provider, REVIEW.provider], models: [REVIEW.model], egressDestinations: [...EGRESS], maxCalls: 6, budget: 0 } } },
-    'packet egress set differs': { packetOverrides: { providerCallAuthorization: { allowed: true, providers: [IMPL.provider, REVIEW.provider], models: [IMPL.model, REVIEW.model], egressDestinations: [...EGRESS, 'platform.claude.com:443'], maxCalls: 6, budget: 0 },
-      networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: [BRANCH, ...EGRESS, 'platform.claude.com:443'], purpose: 'f', budget: 1 } } },
-    'packet denies calls': { packetOverrides: { providerCallAuthorization: { allowed: false, providers: [], models: [], egressDestinations: [], maxCalls: 0, budget: 0 } } },
-    'destination outside packet': { packetOverrides: { networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: [BRANCH, 'api.openai.com:443'], purpose: 'f', budget: 1 } } },
-    'network level too low': { packetOverrides: { networkAuthorization: { level: 'READ_WEB', destinations: [BRANCH, ...EGRESS], purpose: 'f', budget: 1 } } },
+    'packet entry names another provider': { packetOverrides: { providerCallAuthorization: { allowed: true, calls: callEntries({ ...IMPL, provider: 'anthropic-other' }), maxCalls: 6, budget: 0 } } },
+    'packet entry names another model': { packetOverrides: { providerCallAuthorization: { allowed: true, calls: callEntries({ ...IMPL, model: 'claude-other-1' }), maxCalls: 6, budget: 0 } } },
+    'packet egress set differs': { packetOverrides: { providerCallAuthorization: { allowed: true,
+      calls: callEntries({ ...IMPL, egressDestinations: [...IMPL_EGRESS, 'statsig.anthropic.com:443'] }), maxCalls: 6, budget: 0 },
+      networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: [BRANCH, ...ALL_EGRESS, 'statsig.anthropic.com:443'], purpose: 'f', budget: 1 } } },
+    'packet entry holds the union': { packetOverrides: { providerCallAuthorization: { allowed: true,
+      calls: callEntries({ ...IMPL, egressDestinations: [...ALL_EGRESS] }), maxCalls: 6, budget: 0 } } },
+    'packet has no implementation entry': { packetOverrides: { providerCallAuthorization: { allowed: true, calls: callEntries(null), maxCalls: 6, budget: 0 } } },
+    'packet denies calls': { packetOverrides: { providerCallAuthorization: { allowed: false, calls: [], maxCalls: 0, budget: 0 } } },
+    'destination outside packet': { packetOverrides: { networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: [BRANCH, 'api.anthropic.com:443', ...REVIEW_EGRESS], purpose: 'f', budget: 1 } } },
+    'network level too low': { packetOverrides: { networkAuthorization: { level: 'READ_WEB', destinations: [BRANCH, ...ALL_EGRESS], purpose: 'f', budget: 1 } } },
   };
   for (const [label, options] of Object.entries(cases)) {
     const live = open(join(dir, label.replace(/\W/g, '-')), { create: true, ...options });
@@ -147,8 +158,7 @@ check('no exact current human grant, no dispatch: every mismatch stops for a hum
   }
 }));
 check('the call budget counts every started call across the run, and exhaustion stops before dispatch', withDir(async (dir) => {
-  const live = open(dir, { create: true, packetOverrides: { providerCallAuthorization: { allowed: true, providers: [IMPL.provider, REVIEW.provider],
-    models: [IMPL.model, REVIEW.model], egressDestinations: [...EGRESS], maxCalls: 1, budget: 0 } } });
+  const live = open(dir, { create: true, packetOverrides: { providerCallAuthorization: { allowed: true, calls: callEntries(), maxCalls: 1, budget: 0 } } });
   const result = await live.runner.drive('run-1', 10);
   assert.deepEqual([result.state, result.stopReason], ['HUMAN_STOP', 'live model call budget exhausted; not dispatched']);
   assert.deepEqual([live.calls.implementation.length, live.calls.review.length], [1, 0]);
@@ -347,18 +357,68 @@ check('the runner snapshots each actor scope as an exact canonical egress set an
   const base = open(dir, { create: true });
   const make = (scopes) => new AutomationRunner(base.controller, { execute() { throw new Error('ran'); } }, { review() { throw new Error('ran'); } },
     { journal: base.journal, clock, authorizations: grants(), scopes });
-  for (const bad of [{ ...IMPL, egressDestinations: [...EGRESS].reverse() }, { ...IMPL, egressDestinations: [] }, { ...IMPL, egressDestinations: ['anthropic'] },
+  for (const bad of [{ ...IMPL, egressDestinations: [...IMPL_EGRESS].reverse() }, { ...IMPL, egressDestinations: [] }, { ...IMPL, egressDestinations: ['anthropic'] },
     { ...IMPL, egressDestinations: undefined, destination: 'api.anthropic.com' }, { ...IMPL, egressDestinations: ['api.anthropic.com:443', 'api.anthropic.com:443'] }]) {
     assert.throws(() => make({ IMPLEMENTATION: bad, ARCHITECT_REVIEW: REVIEW }), TypeError, JSON.stringify(bad.egressDestinations));
   }
   // A scope changed after composition is not the scope that was composed: the call still binds the original set.
-  const scopes = { IMPLEMENTATION: { ...IMPL, egressDestinations: [...EGRESS] }, ARCHITECT_REVIEW: REVIEW };
+  const scopes = { IMPLEMENTATION: { ...IMPL, egressDestinations: [...IMPL_EGRESS] }, ARCHITECT_REVIEW: REVIEW };
   const runner = new AutomationRunner(base.controller, { execute: () => ({ status: 'COMPLETED', validationEvidence: ['x'] }) },
     { review() { throw new Error('not reached'); } }, { journal: base.journal, clock, authorizations: grants(), scopes });
-  scopes.IMPLEMENTATION.egressDestinations.push('platform.claude.com:443');
+  scopes.IMPLEMENTATION.egressDestinations.push('statsig.anthropic.com:443');
   const result = await runner.drive('run-1', 2);
   assert.equal(result.state, 'IMPLEMENTATION_COMPLETE');
-  assert.deepEqual(base.journal.list('run-1').map((record) => [record.state, record.identity.egressDestinations]), [['APPLIED', [...EGRESS]]]);
+  assert.deepEqual(base.journal.list('run-1').map((record) => [record.state, record.identity.egressDestinations]), [['APPLIED', [...IMPL_EGRESS]]]);
+}));
+
+check('C1: a scope that does not bind its own actor kind fails composition', withDir(async (dir) => {
+  const base = open(dir, { create: true });
+  const make = (scopes) => new AutomationRunner(base.controller, { execute() { throw new Error('ran'); } }, { review() { throw new Error('ran'); } },
+    { journal: base.journal, clock, authorizations: grants(), scopes });
+  const { actorKind: _omitted, ...noKind } = IMPL;
+  for (const [scopes, name] of [[{ IMPLEMENTATION: REVIEW, ARCHITECT_REVIEW: IMPL }, 'both swapped'],
+    [{ IMPLEMENTATION: { ...IMPL, actorKind: 'ARCHITECT_REVIEW' }, ARCHITECT_REVIEW: REVIEW }, 'implementation names review'],
+    [{ IMPLEMENTATION: IMPL, ARCHITECT_REVIEW: { ...REVIEW, actorKind: 'IMPLEMENTATION' } }, 'review names implementation'],
+    [{ IMPLEMENTATION: noKind, ARCHITECT_REVIEW: REVIEW }, 'no actor kind'],
+    [{ IMPLEMENTATION: { ...IMPL, actorKind: 'implementation' }, ARCHITECT_REVIEW: REVIEW }, 'unknown actor kind']]) {
+    assert.throws(() => make(scopes), TypeError, name);
+  }
+  assert.equal(base.journal.list('run-1').length, 0);
+}));
+check('C1: a review dispatched with the implementation grant is refused; implementation ran on its own grant only', withDir(async (dir) => {
+  const live = open(dir, { create: true, authorizations: grants({ ARCHITECT_REVIEW: grant(IMPL) }) });
+  const result = await live.runner.drive('run-1', 10);
+  assert.deepEqual([result.state, result.stopReason], ['HUMAN_STOP', 'live model call not authorized by an exact current human grant; not dispatched']);
+  assert.deepEqual([live.calls.implementation.length, live.calls.review.length], [1, 0]);
+  assert.deepEqual(live.journal.list('run-1').map((record) => [record.identity.actorKind, record.state, record.identity.egressDestinations]).sort(),
+    [['ARCHITECT_REVIEW', 'ABANDONED', [...REVIEW_EGRESS]], ['IMPLEMENTATION', 'APPLIED', [...IMPL_EGRESS]]]);
+}));
+check('C1: each journaled call carries only its own actor\'s exact scope', withDir(async (dir) => {
+  const live = open(dir, { create: true });
+  const result = await live.runner.drive('run-1', 10);
+  assert.equal(result.state, 'ACCEPTED');
+  const byKind = Object.fromEntries(live.journal.list('run-1').map((record) => [record.identity.actorKind, record.identity]));
+  assert.deepEqual([byKind.IMPLEMENTATION.provider, byKind.IMPLEMENTATION.model, byKind.IMPLEMENTATION.egressDestinations],
+    [IMPL.provider, IMPL.model, [...IMPL_EGRESS]]);
+  assert.deepEqual([byKind.ARCHITECT_REVIEW.provider, byKind.ARCHITECT_REVIEW.model, byKind.ARCHITECT_REVIEW.egressDestinations],
+    [REVIEW.provider, REVIEW.model, [...REVIEW_EGRESS]]);
+}));
+check('C1: the call budget stays packet-wide; switching actor kind does not reset it', withDir(async (dir) => {
+  const rejectWithCorrection = (i) => ({
+    decision: { reviewId: 'r1', actor: 'GPT_ARCHITECT', packetId: i.packet.packetId, packetHash: i.packetHash, reviewedSha: i.remoteSha.sha,
+      decision: 'REJECT', findings: ['synthetic finding'], evidenceReferences: ['diff'], issuedAt: T },
+    correction: { correctionPacketId: 'correction-2', originalPacketId: i.packet.packetId, originalPacketHash: i.packetHash,
+      rejectedSha: i.remoteSha.sha, reviewerFindings: ['synthetic finding'], allowedCorrectionAreas: ['src/automation'],
+      unchangedInvariantReferences: [...i.packet.invariants], expectedBaseSha: i.remoteSha.sha, correctionIteration: 2, maxCorrectionIteration: 3 } });
+  const live = open(dir, { create: true, behaviour: { review: rejectWithCorrection },
+    packetOverrides: { providerCallAuthorization: { allowed: true, calls: callEntries(), maxCalls: 2, budget: 0 } } });
+  const result = await live.runner.drive('run-1', 20);
+  assert.deepEqual([result.state, result.stopReason], ['HUMAN_STOP', 'live model call budget exhausted; not dispatched']);
+  assert.deepEqual([live.calls.implementation.length, live.calls.review.length], [1, 1]);
+  const records = live.journal.list('run-1');
+  assert.deepEqual(records.map((record) => [record.identity.actorKind, record.state]).sort(),
+    [['ARCHITECT_REVIEW', 'APPLIED'], ['IMPLEMENTATION', 'ABANDONED'], ['IMPLEMENTATION', 'APPLIED']]);
+  assert.equal(records.filter((record) => record.history.some((entry) => entry.state === 'STARTED')).length, 2);
 }));
 
 let passed = 0, failed = 0;

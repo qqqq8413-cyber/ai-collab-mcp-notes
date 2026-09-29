@@ -9,7 +9,8 @@ import {
 import { FileEgressJournal } from './dist/automation/file-egress-journal.js';
 import { sha256Hex } from './dist/automation/invocation-journal.js';
 import {
-  BROKER_BIND_ADDRESS, ConnectBroker, PublicAddressResolver, TcpDialer, UnsafeAddressError, isPublicAddress,
+  BROKER_BIND_ADDRESS, ConnectBroker, DEFAULT_BROKER_LIMITS, HeadAccumulator, PublicAddressResolver, TcpDialer, UnsafeAddressError,
+  hasCredentialHeader, isPublicAddress,
 } from './dist/automation/live/connect-broker.js';
 
 // G1-R3C egress evidence and the CONNECT broker. Offline: every socket is on 127.0.0.1
@@ -72,6 +73,9 @@ check('events are appended in sequence with bounded fields only; reasons, result
     { result: 'DENIED', reason: 'NOT_ALLOWLISTED', requested: null, address: '1.2.3.4' },
     { result: 'CONNECT_FAILED', reason: 'RESOLUTION_FAILED', requested: 'evil.example:443' },
     { result: 'DENIED', reason: 'MADE_UP', requested: null },
+    // A credential-header refusal never names a destination, and is never anything but DENIED.
+    { result: 'DENIED', reason: 'CREDENTIAL_HEADER', requested: 'api.anthropic.com:443' },
+    { result: 'CONNECT_FAILED', reason: 'CREDENTIAL_HEADER', requested: null },
     { result: 'CONNECTED', reason: 'ALLOWLISTED', requested: 'api.anthropic.com:443', address: 'api.anthropic.com' },
     // Nothing secret-shaped is representable: headers, bodies, tokens, and free text are refused.
     { result: 'DENIED', reason: 'NOT_CONNECT', requested: null, headers: { 'proxy-authorization': 'Basic x' } },
@@ -352,20 +356,137 @@ check('resolution is bounded; a failed or hung resolution is CONNECT_FAILED and 
     assert.equal(b.provider.connections, 0);
   } finally { await b.stop(); }
 }));
-check('no request header, Proxy-Authorization, or credential reaches the egress journal', withDir(async (dir) => {
+check('ordinary bounded CONNECT headers are accepted and stored nowhere; tunnel bytes are never read as headers', withDir(async (dir) => {
   const b = await broker(dir);
   try {
-    const headers = 'Proxy-Authorization: Basic UFJPWFktQVVUSC1TRU5USU5FTA==\r\nAuthorization: Bearer sk-ant-HEADER-SENTINEL\r\nUser-Agent: UA-SENTINEL\r\nCookie: c=COOKIE-SENTINEL\r\n';
+    const headers = 'User-Agent: UA-SENTINEL/1.0\r\nProxy-Connection: Keep-Alive\r\n';
     const ok = await send(b.broker.port, connectTo(`allowed.test:${b.port}`, headers));
     assert.equal(ok.status, 200);
-    ok.socket.write('x-api-key: BODY-SENTINEL\r\n');
-    await until(() => b.provider.received.length > 0);
+    // After the 200 the stream is the client's: header-shaped bytes inside the tunnel are opaque payload.
+    ok.socket.write('Authorization: Bearer TUNNEL-SENTINEL\r\n');
+    await until(() => Buffer.concat(b.provider.received).includes('TUNNEL-SENTINEL'));
     ok.socket.destroy();
-    assert.equal((await send(b.broker.port, connectTo(`denied.test:${b.port}`, headers))).status, 403);
+    assert.deepEqual(b.events().map((event) => [event.result, event.reason]), [['CONNECTED', 'ALLOWLISTED']]);
     const stored = readdirSync(join(dir, 'egress')).map((name) => readFileSync(join(dir, 'egress', name), 'utf8')).join('\n');
-    assert.doesNotMatch(stored, /PROXY-AUTH|UFJPWFkt|HEADER-SENTINEL|UA-SENTINEL|COOKIE-SENTINEL|BODY-SENTINEL|Bearer|Basic|authorization|cookie|user-agent/i);
+    assert.doesNotMatch(stored, /UA-SENTINEL|TUNNEL-SENTINEL|Keep-Alive|Bearer|user-agent|proxy-connection|authorization/i);
     for (const event of b.events()) assert.deepEqual(Object.keys(event).filter((key) => !['sequence', 'at', 'result', 'reason', 'requested', 'address'].includes(key)), []);
   } finally { await b.stop(); }
+}));
+check('G1-R3C-C1: a CONNECT head with a credential-shaped header is DENIED whole; the value is stored, answered, and resolved nowhere', withDir(async (dir) => {
+  const b = await broker(dir);
+  const cases = [
+    'Authorization: Bearer sk-ant-AUTH-SENTINEL', 'Proxy-Authorization: Basic UFJPWFktU0VOVElORUw=', 'Cookie: session=COOKIE-SENTINEL',
+    'aUtHoRiZaTiOn: Bearer MIXED-SENTINEL', 'PROXY-AUTHORIZATION: Basic UPPER-SENTINEL', 'cookie:LOWER-SENTINEL',
+    'X-Api-Key: sk-ant-KEY-SENTINEL', 'api-key: AZURE-SENTINEL',
+  ];
+  try {
+    const answers = [];
+    for (const [index, header] of cases.entries()) {
+      // Allowlisted and outside destinations alike: the credential check comes before any destination decision.
+      for (const authority of [`allowed.test:${b.port}`, `denied.test:${b.port}`]) {
+        const refused = await send(b.broker.port, connectTo(authority, `User-Agent: ua\r\n${header}\r\n`));
+        assert.equal(refused.status, 400, `${index} ${authority}`);
+        answers.push(refused.head, refused.rest);
+        refused.socket.destroy();
+      }
+    }
+    assert.deepEqual(b.events().map((event) => [event.result, event.reason, event.requested]),
+      cases.flatMap(() => [['DENIED', 'CREDENTIAL_HEADER', null], ['DENIED', 'CREDENTIAL_HEADER', null]]));
+    assert.deepEqual([b.provider.connections, b.resolved.length, b.broker.faults], [0, 0, 0], 'nothing was resolved or connected');
+    const stored = readdirSync(join(dir, 'egress')).map((name) => readFileSync(join(dir, 'egress', name), 'utf8')).join('\n');
+    const secrets = /SENTINEL|UFJPWFkt|sk-ant|Bearer|Basic|session=|authorization|cookie|api-key/i;
+    assert.doesNotMatch(stored, secrets, 'the egress journal holds no header name or value');
+    assert.doesNotMatch(answers.join('\n'), secrets, 'the refusal the client hears names nothing it sent');
+    assert.doesNotMatch(JSON.stringify(summarizeEgress(b.journal.get(ID))), secrets, 'the evidence summary names nothing it sent');
+  } finally { await b.stop(); }
+  // The same refusal as a pure check: names only, any case, never values.
+  assert.ok(hasCredentialHeader(['Host: a.b:443', 'Cookie: x']) && hasCredentialHeader(['PROXY-AUTHORIZATION: x']) && hasCredentialHeader(['authorization:']));
+  assert.ok(!hasCredentialHeader(['Host: a.b:443', 'User-Agent: authorization cookie', 'Proxy-Connection: Keep-Alive', 'X-Authorization-Hint: 1']));
+}));
+check('G1-R3C-C1: the head accumulator never holds more than maxHeaderBytes, however large a single chunk is', () => {
+  const max = DEFAULT_BROKER_LIMITS.maxHeaderBytes;
+  const huge = Buffer.alloc(1024 * 1024, 0x61);
+  const flood = new HeadAccumulator(max);
+  assert.deepEqual(flood.push(huge), { kind: 'limit' });
+  assert.equal(flood.retained, max, 'a 1 MiB chunk leaves exactly the bound held, not the chunk');
+  // A complete head followed, in the same chunk, by a large payload: the payload is handed back, not held.
+  const head = Buffer.from('CONNECT allowed.test:443 HTTP/1.1\r\nHost: allowed.test:443\r\n\r\n');
+  const piped = new HeadAccumulator(max);
+  const step = piped.push(Buffer.concat([head, huge]));
+  assert.equal(step.kind, 'head');
+  assert.equal(step.head, 'CONNECT allowed.test:443 HTTP/1.1\r\nHost: allowed.test:443');
+  assert.equal(step.rest.length, huge.length);
+  assert.ok(piped.retained <= max, `held ${piped.retained}`);
+  // The terminator may be split across chunks; one byte at a time still finds it, and still within the bound.
+  const bytewise = new HeadAccumulator(max);
+  let last;
+  for (const byte of head) last = bytewise.push(Buffer.from([byte]));
+  assert.deepEqual([last.kind, last.head, last.rest.length], ['head', step.head, 0]);
+  // A head that ends exactly at the bound is read; one byte more is HEADER_LIMIT.
+  const exact = (size) => Buffer.from(`CONNECT a.b:1 HTTP/1.1\r\nX: ${'p'.repeat(size - 'CONNECT a.b:1 HTTP/1.1\r\nX: \r\n\r\n'.length)}\r\n\r\n`);
+  assert.equal(exact(64).length, 64);
+  assert.equal(new HeadAccumulator(64).push(exact(64)).kind, 'head');
+  const over = new HeadAccumulator(64);
+  assert.deepEqual([over.push(exact(65)).kind, over.retained], ['limit', 64]);
+  for (const bad of [0, 3, 1.5, Number.NaN, -1]) assert.throws(() => new HeadAccumulator(bad), RangeError, String(bad));
+});
+check('G1-R3C-C1: through the broker, one oversized write is HEADER_LIMIT with no content in the refusal', withDir(async (dir) => {
+  const b = await broker(dir, { limits: { maxHeaderBytes: 512 } });
+  try {
+    const flood = await send(b.broker.port, `CONNECT allowed.test:${b.port} HTTP/1.1\r\nX-Pad: ${'FLOOD-SENTINEL'.repeat(80_000)}\r\n\r\n`);
+    assert.equal(flood.status, 431);
+    assert.doesNotMatch(flood.head + flood.rest, /FLOOD-SENTINEL|allowed\.test/);
+    flood.socket.destroy();
+    assert.deepEqual(b.events().map((event) => [event.result, event.reason, event.requested]), [['DENIED', 'HEADER_LIMIT', null]]);
+    assert.deepEqual([b.provider.connections, b.resolved.length], [0, 0]);
+  } finally { await b.stop(); }
+}));
+check('G1-R3C-C1: bytes sent in the same write as the CONNECT head reach the provider after the 200, unchanged', withDir(async (dir) => {
+  const b = await broker(dir);
+  try {
+    const hello = Buffer.from([0x16, 0x03, 0x01, 0x02, 0x00, 0x01, 0x00, 0x01, 0xfc, 0x03, 0x03, 0x0d, 0x0a, 0x0d, 0x0a, 0xff]);
+    const opened = await send(b.broker.port, Buffer.concat([Buffer.from(connectTo(`allowed.test:${b.port}`)), hello]));
+    assert.equal(opened.status, 200);
+    await until(() => Buffer.concat(b.provider.received).length >= hello.length);
+    assert.deepEqual([...Buffer.concat(b.provider.received)], [...hello], 'the provider received exactly the pipelined bytes, once');
+    opened.socket.destroy();
+    assert.deepEqual(b.events().map((event) => event.reason), ['ALLOWLISTED']);
+  } finally { await b.stop(); }
+}));
+check('G1-R3C-C1: each actor\'s broker admits only that actor\'s set; the other actor\'s destinations and the union are refused', withDir(async (dir) => {
+  const provider = await upstream();
+  const port = provider.address().port;
+  const sets = { IMPLEMENTATION: [`api.impl.test:${port}`, `platform.impl.test:${port}`], ARCHITECT_REVIEW: [`auth.review.test:${port}`, `chat.review.test:${port}`] };
+  const union = [...sets.IMPLEMENTATION, ...sets.ARCHITECT_REVIEW].sort();
+  const names = Object.fromEntries(union.map((authority) => [authority.slice(0, authority.lastIndexOf(':')), '127.0.0.1']));
+  const journal = new FileEgressJournal(join(dir, 'egress'), clock);
+  const brokers = {};
+  try {
+    for (const [kind, id] of [['IMPLEMENTATION', ID], ['ARCHITECT_REVIEW', OTHER]]) {
+      journal.open(identity({ invocationId: id, egressDestinations: sets[kind] }));
+      await assert.rejects(ConnectBroker.start({ sessionId: id, allowlist: union, journal, resolver: mapResolver(names) }), /no open egress session/, `${kind}: union`);
+      brokers[kind] = await ConnectBroker.start({ sessionId: id, allowlist: sets[kind], journal, resolver: mapResolver(names),
+        limits: { closeGraceMs: 50 } });
+    }
+    for (const [kind, other] of [['IMPLEMENTATION', 'ARCHITECT_REVIEW'], ['ARCHITECT_REVIEW', 'IMPLEMENTATION']]) {
+      for (const authority of sets[other]) {
+        const refused = await send(brokers[kind].port, connectTo(authority));
+        assert.equal(refused.status, 403, `${kind} broker, ${authority}`);
+        refused.socket.destroy();
+      }
+      const own = await send(brokers[kind].port, connectTo(sets[kind][0]));
+      assert.equal(own.status, 200, `${kind} broker, own destination`);
+      own.socket.destroy();
+    }
+    assert.equal(provider.connections, 2, 'one connection per actor, each to its own destination');
+    for (const [kind, id, other] of [['IMPLEMENTATION', ID, 'ARCHITECT_REVIEW'], ['ARCHITECT_REVIEW', OTHER, 'IMPLEMENTATION']]) {
+      assert.deepEqual(journal.get(id).events.map((event) => [event.result, event.requested]),
+        [...sets[other].map((authority) => ['DENIED', authority]), ['CONNECTED', sets[kind][0]]], kind);
+    }
+  } finally {
+    for (const running of Object.values(brokers)) await running.close();
+    provider.close();
+  }
 }));
 check('closing stops new connections, closes open tunnels, and settles every decision before the session is closed', withDir(async (dir) => {
   const b = await broker(dir);
@@ -444,9 +565,13 @@ check('through the broker: a name resolving to a refused address is DENIED and n
   await assert.rejects(new TcpDialer().dial({ address: 'allowed.test', family: 4 }, 443, 100), /not an IP address/);
 }));
 check('the broker source terminates no TLS and reads no credential', () => {
-  // Code only: comments may say what the broker never does.
-  const source = readFileSync('src/automation/live/connect-broker.ts', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-  assert.doesNotMatch(source, /node:tls|node:https|node:http['"]|createSecureContext|TLSSocket|certificate|\.pem|authorization|cookie/i);
+  // Code only: comments may say what the broker never does. The one place credential header
+  // names appear is the fixed set of names whose presence refuses a head.
+  const code = readFileSync('src/automation/live/connect-broker.ts', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const refusal = /const CREDENTIAL_HEADERS = new Set\(\[[^\]]*\]\);/;
+  assert.match(code, refusal);
+  const source = code.replace(refusal, '');
+  assert.doesNotMatch(source, /node:tls|node:https|node:http['"]|createSecureContext|TLSSocket|certificate|\.pem|authorization|cookie|api-key/i);
   assert.doesNotMatch(source, /console\.|process\.env|process\.stdout|readFileSync|writeFileSync/);
 });
 

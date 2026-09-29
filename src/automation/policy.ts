@@ -3,7 +3,7 @@ import { isCanonicalEgressSet, sameEgressSet } from './egress-destination.js';
 import { tryParsePacket } from './packet.js';
 import { parseInstant } from './time.js';
 import {
-  ROLES, type Actor, type Authorization, type AuthorizationClass, type ImplementationPacket,
+  ACTOR_KINDS, ROLES, type Actor, type Authorization, type AuthorizationClass, type ImplementationPacket,
   type NetworkLevel, type ProviderCallScope, type ValidationCommand,
 } from './types.js';
 
@@ -54,7 +54,7 @@ const OPERATION_LEVEL: Readonly<Record<string, NetworkLevel>> = Object.freeze(Ob
 const exact = z.string().min(1).refine((s) => s.trim() === s && !s.includes('*'));
 const text = z.string().min(1).refine((s) => s.trim() === s);
 const instant = z.string().refine((s) => parseInstant(s) !== undefined);
-const scopeSchema = z.strictObject({ provider: exact, model: exact,
+const scopeSchema = z.strictObject({ actorKind: z.enum(ACTOR_KINDS), provider: exact, model: exact,
   egressDestinations: z.array(z.string()).refine((set) => isCanonicalEgressSet(set)) });
 const authSchema = z.strictObject({
   authorizationId: exact,
@@ -133,7 +133,8 @@ export function authorizationBinds(auth: Authorization, binding: AuthorizationBi
   if (binding.target === undefined || (binding.runId === undefined && binding.packetId === undefined)) return false;
   const sameScope = auth.scope === undefined || binding.scope === undefined
     ? auth.scope === binding.scope
-    : auth.scope.provider === binding.scope.provider && auth.scope.model === binding.scope.model &&
+    : auth.scope.actorKind === binding.scope.actorKind && auth.scope.provider === binding.scope.provider &&
+      auth.scope.model === binding.scope.model &&
       sameEgressSet(auth.scope.egressDestinations, binding.scope.egressDestinations);
   return auth.actorRole === binding.role && auth.operation === binding.operation && auth.target === binding.target &&
     auth.runId === binding.runId && auth.packetId === binding.packetId && sameScope;
@@ -182,16 +183,20 @@ function decide(input: unknown): PolicyResult {
     }
   }
   if (operation === 'LIVE_PROVIDER_MODEL_CALL') {
-    // Provider, model, and the egress destination set are separate facts, each separately bound.
+    // Actor, provider, model, and the egress destination set are separate facts, each
+    // separately bound, and only against the packet entry for this call's own actor.
     const call = request.providerCall;
     const allowed = packet.providerCallAuthorization;
-    if (!call) return deny('provider, model, and egress destinations must each be stated');
+    if (!call) return deny('actor, provider, model, and egress destinations must each be stated');
     if (request.target !== LIVE_PROVIDER_MODEL_CALL_TARGET) return deny(`target must be ${LIVE_PROVIDER_MODEL_CALL_TARGET}; network authority is the egress set`);
     if (!allowed.allowed || allowed.maxCalls < 1) return deny('provider calls not authorized in packet');
-    if (!allowed.providers.includes(call.provider)) return deny('provider not allowlisted in packet');
-    if (!allowed.models.includes(call.model)) return deny('model not allowlisted in packet');
-    // Exactly the packet's set: a missing or an extra destination is a different authority.
-    if (!sameEgressSet(call.egressDestinations, allowed.egressDestinations)) return deny('egress destinations differ from the packet egress set');
+    // No fallback to another actor's entry, and no search across entries.
+    const entry = allowed.calls.find((candidate) => candidate.actorKind === call.actorKind);
+    if (!entry) return deny('no packet call entry for this actor');
+    if (entry.provider !== call.provider) return deny('provider differs from the packet entry for this actor');
+    if (entry.model !== call.model) return deny('model differs from the packet entry for this actor');
+    // Exactly this actor's set: a missing, an extra, or a borrowed destination is a different authority.
+    if (!sameEgressSet(call.egressDestinations, entry.egressDestinations)) return deny('egress destinations differ from the packet entry for this actor');
     if (call.egressDestinations.some((destination) => !packet.networkAuthorization.destinations.includes(destination))) {
       return deny('egress destination not in packet network destinations');
     }
@@ -244,11 +249,11 @@ function decide(input: unknown): PolicyResult {
 
 /**
  * The live-model dispatch gate: the existing LIVE_PROVIDER_MODEL_CALL policy, evaluated
- * for exactly this call on the authority of the caller-supplied grant. The packet must
- * allow the provider and model and bind exactly this egress set, every destination of
- * which is a packet network destination, and the grant must be an exact, current HUMAN
- * authorization for this run, packet, provider, model, and egress set. A grant is
- * evaluated as the role it states, so any other role is refused.
+ * for exactly this call on the authority of the caller-supplied grant. The packet entry
+ * for the call's actor must name exactly this provider, model, and egress set, every
+ * destination of which is a packet network destination, and the grant must be an exact,
+ * current HUMAN authorization for this run, packet, actor, provider, model, and egress
+ * set. A grant is evaluated as the role it states, so any other role is refused.
  */
 export function authorizeLiveModelCall(input: { packet: unknown; runId: string; scope: ProviderCallScope;
   authorization: unknown; now: string }): PolicyResult {

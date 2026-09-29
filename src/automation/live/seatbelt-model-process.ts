@@ -4,6 +4,7 @@ import { isAbsolute, join, relative } from 'node:path';
 import { parseEgressSet } from '../egress-destination.js';
 import { summarizeEgress, type EgressJournal } from '../egress-journal.js';
 import type { ProcessExecutor, ProcessResult } from '../process-executor.js';
+import { ACTOR_KINDS } from '../types.js';
 import { succeeded, summary } from './common.js';
 import { ConnectBroker, type BrokerLimits, type EgressDialer, type EgressResolver } from './connect-broker.js';
 import {
@@ -91,6 +92,8 @@ export class SeatbeltModelProcessExecutor implements LiveModelProcessExecutor {
     let temporary: string | undefined;
     try {
       if (typeof request.invocationId !== 'string' || !/^[0-9a-f]{64}$/.test(request.invocationId)) throw new Error('invalid invocation id');
+      // The scope is one actor's; a request for the other actor carries none of its authority.
+      if (!ACTOR_KINDS.includes(request.actorKind) || request.scope?.actorKind !== request.actorKind) throw new Error('scope does not bind the requesting actor');
       egress = parseEgressSet(request.scope?.egressDestinations);
       const refused = refusedModelEnvironmentName(request.env);
       if (refused) throw new Error(`environment variable ${refused} is owned or refused by the model process boundary`);

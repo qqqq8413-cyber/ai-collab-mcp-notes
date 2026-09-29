@@ -32,12 +32,14 @@ const pinned = (name) => {
   writeFileSync(path, `SYNTHETIC-${name.toUpperCase()}-BINARY\n`, { mode: 0o755 });
   return { executable: path, executableSha256: createHash('sha256').update(readFileSync(path)).digest('hex') };
 };
-// One packet binds one exact egress set, so both actors carry the same set.
-const EGRESS = Object.freeze(['api.anthropic.com:443', 'api.openai.com:443']);
+// Each actor has its own exact egress set; the packet binds each to its own actor entry.
+const CLAUDE_EGRESS = Object.freeze(['api.anthropic.com:443', 'platform.claude.com:443']);
+const CODEX_EGRESS = Object.freeze(['auth.openai.com:443', 'chatgpt.com:443']);
+const ALL_EGRESS = Object.freeze([...CLAUDE_EGRESS, ...CODEX_EGRESS].sort());
 const TARGET = 'live-provider-model-call';
-const CLAUDE = { ...pinned('claude'), provider: 'anthropic', model: 'claude-opus-5-5', egressDestinations: [...EGRESS], timeoutMs: 600_000,
+const CLAUDE = { ...pinned('claude'), provider: 'anthropic', model: 'claude-opus-5-5', egressDestinations: [...CLAUDE_EGRESS], timeoutMs: 600_000,
   maxTurns: 40, maxStdoutBytes: 1_000_000, maxStderrBytes: 1_000_000 };
-const CODEX = { ...pinned('codex'), provider: 'openai', model: 'gpt-5.5-codex', egressDestinations: [...EGRESS], timeoutMs: 600_000,
+const CODEX = { ...pinned('codex'), provider: 'openai', model: 'gpt-5.5-codex', egressDestinations: [...CODEX_EGRESS], timeoutMs: 600_000,
   maxStdoutBytes: 1_000_000, maxStderrBytes: 1_000_000, maxResultBytes: 100_000, disabledFeatures: [] };
 const tests = [];
 const sandboxAvailable = process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec');
@@ -54,9 +56,10 @@ function packet(overrides = {}) {
     invariants: ['human authority retained'], acceptanceCriteria: ['offline checks pass'],
     validationCommands: [{ commandId: 'build', executable: 'npm', args: ['run', 'build'], cwd: '.', classification: 'OFFLINE_VALIDATION' },
       { commandId: 'test', executable: 'npm', args: ['test'], cwd: '.', classification: 'OFFLINE_VALIDATION' }],
-    networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: [BRANCH, ...EGRESS], purpose: 'fixture', budget: 1 },
-    providerCallAuthorization: { allowed: true, providers: [CLAUDE.provider, CODEX.provider], models: [CLAUDE.model, CODEX.model],
-      egressDestinations: [...EGRESS], maxCalls: 6, budget: 0 },
+    networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: [BRANCH, ...ALL_EGRESS], purpose: 'fixture', budget: 1 },
+    providerCallAuthorization: { allowed: true, calls: [
+      { actorKind: 'IMPLEMENTATION', provider: CLAUDE.provider, model: CLAUDE.model, egressDestinations: [...CLAUDE_EGRESS] },
+      { actorKind: 'ARCHITECT_REVIEW', provider: CODEX.provider, model: CODEX.model, egressDestinations: [...CODEX_EGRESS] }], maxCalls: 6, budget: 0 },
     destructiveOperationAuthorization: { allowed: false },
     iterationBudget: { maxImplementationIterationsPerSlice: 3, maxAcceptanceFailuresPerSlice: 3, maxRuntimeMinutesPerIteration: 60,
       maxParallelImplementationAgents: 1 }, ...overrides };
@@ -506,7 +509,7 @@ check('Claude failures, non-success, substitution, and its own stop reports neve
 }));
 check('delivery the packet does not grant is refused before any process runs', withDir(async (dir) => {
   const s = setup(dir, 'IMPLEMENTATION', {}, { networkAuthorization: { level: 'READ_EXTERNAL_API',
-    destinations: [BRANCH, ...EGRESS], purpose: 'fixture', budget: 1 } });
+    destinations: [BRANCH, ...ALL_EGRESS], purpose: 'fixture', budget: 1 } });
   const result = await s.implementation.execute(s.input);
   assert.deepEqual([result.status, /PUSH_WORK_BRANCH|CREATE_WORK_BRANCH|COMMIT_WORK_BRANCH/.test(result.reason)], ['ARCHITECTURE_STOP', true]);
   assert.equal(s.calls.length, 0);
@@ -550,8 +553,13 @@ check('Claude adapter dispatches nothing without a STARTED invocation bound to i
     // G1-R3C: an invocation journaled for a different egress set does not bind this adapter's scope.
     (s) => { const id = s.journal.prepare({ ...s.journal.get(s.invocationId).identity, egressDestinations: ['api.anthropic.com:443'],
       occurrence: { sequence: 9, action: 'BEGIN_IMPLEMENTATION', timestamp: T } }).invocationId; s.journal.start(id, 10); return { ...s.input, invocationId: id }; },
-    (s) => { const id = s.journal.prepare({ ...s.journal.get(s.invocationId).identity, egressDestinations: [...EGRESS, 'platform.claude.com:443'],
+    (s) => { const id = s.journal.prepare({ ...s.journal.get(s.invocationId).identity, egressDestinations: [...CLAUDE_EGRESS, 'statsig.anthropic.com:443'],
       occurrence: { sequence: 10, action: 'BEGIN_IMPLEMENTATION', timestamp: T } }).invocationId; s.journal.start(id, 10); return { ...s.input, invocationId: id }; },
+    // G1-R3C-C1: nor does one journaled for the review actor's set, or for the union of both actors' sets.
+    (s) => { const id = s.journal.prepare({ ...s.journal.get(s.invocationId).identity, egressDestinations: [...CODEX_EGRESS],
+      occurrence: { sequence: 11, action: 'BEGIN_IMPLEMENTATION', timestamp: T } }).invocationId; s.journal.start(id, 10); return { ...s.input, invocationId: id }; },
+    (s) => { const id = s.journal.prepare({ ...s.journal.get(s.invocationId).identity, egressDestinations: [...ALL_EGRESS],
+      occurrence: { sequence: 12, action: 'BEGIN_IMPLEMENTATION', timestamp: T } }).invocationId; s.journal.start(id, 10); return { ...s.input, invocationId: id }; },
   ];
   for (const [index, build] of cases.entries()) {
     const s = setup(join(dir, String(index)), 'IMPLEMENTATION');
@@ -786,7 +794,7 @@ check('Claude runs only through the egress-bound boundary with the exact scope, 
   const [request] = s.named('claude');
   assert.deepEqual([request.invocationId, request.actorKind, request.executable, request.executableSha256],
     [s.invocationId, 'IMPLEMENTATION', CLAUDE.executable, CLAUDE.executableSha256]);
-  assert.deepEqual(request.scope, { provider: CLAUDE.provider, model: CLAUDE.model, egressDestinations: [...EGRESS] });
+  assert.deepEqual(request.scope, { actorKind: 'IMPLEMENTATION', provider: CLAUDE.provider, model: CLAUDE.model, egressDestinations: [...CLAUDE_EGRESS] });
   assert.deepEqual([request.workspace, request.writablePaths, request.readOnlyPaths], [{ path: `${s.worktree}.model`, mode: 'READ_WRITE' }, [], []]);
   for (const [name, value] of Object.entries(CLAUDE_ENV)) assert.equal(request.env[name], value, name);
   assert.ok(!Object.keys(request.env).some((name) => /proxy/i.test(name)), 'the adapter names no proxy; the boundary owns it');
@@ -799,7 +807,7 @@ check('Codex runs only through the same boundary: read-only worktree, answers in
   const answers = join(s.worktreeRoot, `${s.invocationId}.review`);
   assert.deepEqual([request.actorKind, request.executable, request.workspace, request.writablePaths],
     ['ARCHITECT_REVIEW', CODEX.executable, { path: join(s.worktreeRoot, s.invocationId), mode: 'READ_ONLY' }, [answers]]);
-  assert.deepEqual(request.scope, { provider: CODEX.provider, model: CODEX.model, egressDestinations: [...EGRESS] });
+  assert.deepEqual(request.scope, { actorKind: 'ARCHITECT_REVIEW', provider: CODEX.provider, model: CODEX.model, egressDestinations: [...CODEX_EGRESS] });
   const value = (flag) => request.args[request.args.indexOf(flag) + 1];
   assert.deepEqual([dirname(value('--output-schema')), dirname(value('--output-last-message'))], [answers, answers]);
   const disabled = request.args.flatMap((arg, index) => (request.args[index - 1] === '--disable' ? [arg] : []));
@@ -816,7 +824,9 @@ check('a result is used only with clean broker evidence: no connection, a refusa
     ['broker faults', () => ({ status: 'AMBIGUOUS', reason: 'the broker could not record 1 connection decision(s)' }), /could not record/],
     ['no evidence at all', () => undefined, /missing or ambiguous/],
     ['allowlist is not the scope', (request) => ({ status: 'RECORDED', summary: { ...recorded(request).summary, allowlist: ['api.anthropic.com:443'] } }), /allowlist differs/],
-    ['allowlist wider than the scope', (request) => ({ status: 'RECORDED', summary: { ...recorded(request).summary, allowlist: [...EGRESS, 'platform.claude.com:443'] } }), /allowlist differs/],
+    ['allowlist is the union of both actors', (request) => ({ status: 'RECORDED', summary: { ...recorded(request).summary, allowlist: [...ALL_EGRESS] } }), /allowlist differs/],
+    ['allowlist is the other actor\'s set', (request) => ({ status: 'RECORDED', summary: { ...recorded(request).summary,
+      allowlist: request.actorKind === 'IMPLEMENTATION' ? [...CODEX_EGRESS] : [...CLAUDE_EGRESS] } }), /allowlist differs/],
     ['another session', (request) => ({ status: 'RECORDED', summary: { ...recorded(request).summary, sessionId: 'f'.repeat(64) } }), /does not close/],
     ['open session', (request) => ({ status: 'RECORDED', summary: { ...recorded(request).summary, closed: false } }), /does not close/],
   ];
@@ -1006,7 +1016,7 @@ function config(dir, overrides = {}) {
 function grant(kind) {
   const scope = kind === 'IMPLEMENTATION' ? CLAUDE : CODEX;
   return { authorizationId: `auth-live-${kind.toLowerCase()}`, actorRole: 'HUMAN', operation: 'LIVE_PROVIDER_MODEL_CALL', target: TARGET,
-    runId: 'run-1', packetId: 'packet-1', scope: { provider: scope.provider, model: scope.model, egressDestinations: [...scope.egressDestinations] }, issuedAt: T,
+    runId: 'run-1', packetId: 'packet-1', scope: { actorKind: kind, provider: scope.provider, model: scope.model, egressDestinations: [...scope.egressDestinations] }, issuedAt: T,
     reason: 'GRANT-TEXT-SENTINEL fresh human authorization' };
 }
 check('composition refuses implicit, aliased, or secret-bearing configuration', withDir((dir) => {
@@ -1020,7 +1030,7 @@ check('composition refuses implicit, aliased, or secret-bearing configuration', 
     config(dir, { offlineValidation: { runtimeReadPaths: ['relative'], searchPath: '/usr/bin' } }), config(dir, { offlineValidation: undefined }),
     config(dir, { modelProcess: undefined }), config(dir, { egressJournalDirectory: undefined }),
     config(dir, { claude: { ...CLAUDE, destination: 'api.anthropic.com' } }), config(dir, { claude: { ...CLAUDE, egressDestinations: undefined } }),
-    config(dir, { claude: { ...CLAUDE, egressDestinations: ['anthropic'] } }), config(dir, { codex: { ...CODEX, egressDestinations: [...EGRESS].reverse() } }),
+    config(dir, { claude: { ...CLAUDE, egressDestinations: ['anthropic'] } }), config(dir, { codex: { ...CODEX, egressDestinations: [...CODEX_EGRESS].reverse() } }),
     config(dir, { codex: { ...CODEX, egressDestinations: [] } }), config(dir, { claude: { ...CLAUDE, executable: 'claude' } }),
     config(dir, { claude: { ...CLAUDE, executableSha256: undefined } }), config(dir, { codex: { ...CODEX, executableSha256: 'A'.repeat(64) } }),
     config(dir, { claude: { ...CLAUDE, executableSha256: '0'.repeat(64) } }), config(dir, { codex: { ...CODEX, executable: CLAUDE.executable } }),

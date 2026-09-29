@@ -57,17 +57,21 @@ function packet(overrides = {}) {
     invariants: ['human authority retained'], acceptanceCriteria: ['offline checks pass'],
     validationCommands: [NPM_TEST, DIFF_CHECK, CI_STATUS],
     networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: ['work/synthetic-1', 'main', DEST], purpose: 'synthetic GitHub facts', budget: 1 },
-    providerCallAuthorization: { allowed: false, providers: [], models: [], egressDestinations: [], maxCalls: 0, budget: 0 },
+    providerCallAuthorization: { allowed: false, calls: [], maxCalls: 0, budget: 0 },
     destructiveOperationAuthorization: { allowed: false },
     iterationBudget: { maxImplementationIterationsPerSlice: 3, maxAcceptanceFailuresPerSlice: 3,
       maxRuntimeMinutesPerIteration: 60, maxParallelImplementationAgents: 1 },
     ...overrides,
   };
 }
+/** One packet call entry for the implementation actor, fresh each time. */
+function implCall(overrides = {}) {
+  return { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-a', egressDestinations: [...EGRESS], ...overrides };
+}
 function providerPacket(overrides = {}) {
   return packet({
     networkAuthorization: { level: 'READ_EXTERNAL_API', destinations: [...EGRESS], purpose: 'synthetic model call', budget: 1 },
-    providerCallAuthorization: { allowed: true, providers: ['provider-a'], models: ['model-a'], egressDestinations: [...EGRESS], maxCalls: 1, budget: 1 },
+    providerCallAuthorization: { allowed: true, calls: [implCall()], maxCalls: 1, budget: 1 },
     ...overrides,
   });
 }
@@ -143,7 +147,7 @@ function request(overrides = {}) {
     runId: 'run-1', now: T, command: { executable: 'npm', args: ['test'], cwd: '.' }, ...overrides };
 }
 function modelCall(overrides = {}, authOverrides = {}) {
-  const scope = { provider: 'provider-a', model: 'model-a', egressDestinations: [...EGRESS] };
+  const scope = { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-a', egressDestinations: [...EGRESS] };
   return { operation: 'LIVE_PROVIDER_MODEL_CALL', target: TARGET, actor: H, packet: providerPacket(),
     runId: 'run-1', now: T, providerCall: scope,
     authorization: auth('HUMAN', 'LIVE_PROVIDER_MODEL_CALL', TARGET, { scope, ...authOverrides }), ...overrides };
@@ -544,7 +548,7 @@ check('resume grants with wrong operation, target, run, packet, role, or window 
   for (const bad of [grant({ operation: 'FAST_FORWARD_MAIN' }), grant({ target: 'run-1' }), grant({ target: 'stop-1' }),
     grant({ runId: 'run-2' }), grant({ runId: undefined }), grant({ packetId: 'packet-2' }), grant({ packetId: undefined }),
     grant({ actorRole: 'GPT_ARCHITECT' }), grant({ expiresAt: '2026-09-25T23:59:59.999Z', issuedAt: '2026-09-25T00:00:00Z' }),
-    grant({ issuedAt: '2026-09-26T00:00:00.001Z' }), grant({ scope: { provider: 'p', model: 'm', egressDestinations: ['api.p.test:443'] } })]) {
+    grant({ issuedAt: '2026-09-26T00:00:00.001Z' }), grant({ scope: { actorKind: 'IMPLEMENTATION', provider: 'p', model: 'm', egressDestinations: ['api.p.test:443'] } })]) {
     rejectedWithoutMutation(c, () => c.resumeHuman('run-1', H, bad));
   }
   rejectedWithoutMutation(c, () => c.resumeHuman('run-1', G, grant()));
@@ -572,28 +576,28 @@ check('allowed provider, model, exact egress set, and exact human grant is AUTHO
   assert.equal(decide(modelCall()), 'AUTHORIZED');
 });
 check('wrong provider is DENIED, even when the model is allowlisted', () => {
-  assert.equal(decide(modelCall({ providerCall: { provider: 'provider-b', model: 'model-a', egressDestinations: [...EGRESS] } },
-    { scope: { provider: 'provider-b', model: 'model-a', egressDestinations: [...EGRESS] } })), 'DENIED');
+  assert.equal(decide(modelCall({ providerCall: { actorKind: 'IMPLEMENTATION', provider: 'provider-b', model: 'model-a', egressDestinations: [...EGRESS] } },
+    { scope: { actorKind: 'IMPLEMENTATION', provider: 'provider-b', model: 'model-a', egressDestinations: [...EGRESS] } })), 'DENIED');
 });
 check('wrong model is DENIED, even when the provider is allowlisted', () => {
-  assert.equal(decide(modelCall({ providerCall: { provider: 'provider-a', model: 'model-b', egressDestinations: [...EGRESS] } },
-    { scope: { provider: 'provider-a', model: 'model-b', egressDestinations: [...EGRESS] } })), 'DENIED');
+  assert.equal(decide(modelCall({ providerCall: { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-b', egressDestinations: [...EGRESS] } },
+    { scope: { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-b', egressDestinations: [...EGRESS] } })), 'DENIED');
 });
 check('wrong egress set is DENIED, and the target is never a network destination', () => {
-  const scope = { provider: 'provider-a', model: 'model-a', egressDestinations: ['api.other.test:443'] };
+  const scope = { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-a', egressDestinations: ['api.other.test:443'] };
   assert.equal(decide(modelCall({ providerCall: scope }, { scope })), 'DENIED');
   for (const target of ['main', DEST, 'api.synthetic-provider.test', 'anthropic']) {
     assert.equal(decide(modelCall({ target }, { target })), 'DENIED', target);
   }
 });
 check('provider is never inferred from the model', () => {
-  const inferred = { model: 'provider-a/model-a', egressDestinations: [...EGRESS] };
+  const inferred = { actorKind: 'IMPLEMENTATION', model: 'provider-a/model-a', egressDestinations: [...EGRESS] };
   assert.equal(decide(modelCall({ providerCall: inferred })), 'DENIED');
   assert.equal(decide(modelCall({ providerCall: { ...inferred, provider: '' } })), 'DENIED');
   const packetWithModelNamedAfterProvider = providerPacket({ providerCallAuthorization:
-    { allowed: true, providers: ['provider-b'], models: ['provider-a-model'], egressDestinations: [...EGRESS], maxCalls: 1, budget: 1 } });
+    { allowed: true, calls: [implCall({ provider: 'provider-b', model: 'provider-a-model' })], maxCalls: 1, budget: 1 } });
   assert.equal(decide(modelCall({ packet: packetWithModelNamedAfterProvider,
-    providerCall: { provider: 'provider-a', model: 'provider-a-model', egressDestinations: [...EGRESS] } })), 'DENIED');
+    providerCall: { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'provider-a-model', egressDestinations: [...EGRESS] } })), 'DENIED');
   assert.equal(decide(modelCall({ providerCall: undefined })), 'DENIED');
 });
 check('READ_WEB alone cannot authorize a model call', () => {
@@ -601,12 +605,12 @@ check('READ_WEB alone cannot authorize a model call', () => {
   assert.equal(decide(modelCall({ packet: readWeb })), 'DENIED');
   assert.notEqual(decide(modelCall({}, { operation: 'READ_WEB' })), 'AUTHORIZED');
   assert.notEqual(decide({ operation: 'READ_WEB', target: DEST, actor: G, packet: readWeb, runId: 'run-1', now: T,
-    providerCall: { provider: 'provider-a', model: 'model-a', egressDestinations: [...EGRESS] },
+    providerCall: { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-a', egressDestinations: [...EGRESS] },
     authorization: auth('GPT_ARCHITECT', 'READ_WEB', DEST) }), 'AUTHORIZED');
 });
 check('the human grant must name the exact provider, model, and egress set', () => {
-  for (const scope of [undefined, { provider: 'provider-b', model: 'model-a', egressDestinations: [...EGRESS] },
-    { provider: 'provider-a', model: 'model-b', egressDestinations: [...EGRESS] }, { provider: 'provider-a', model: 'model-a', egressDestinations: [DEST] }]) {
+  for (const scope of [undefined, { actorKind: 'IMPLEMENTATION', provider: 'provider-b', model: 'model-a', egressDestinations: [...EGRESS] },
+    { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-b', egressDestinations: [...EGRESS] }, { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-a', egressDestinations: [DEST] }]) {
     assert.notEqual(decide(modelCall({}, { scope })), 'AUTHORIZED', JSON.stringify(scope));
   }
   for (const overrides of [{ operation: 'FAST_FORWARD_MAIN' }, { target: 'main' }, { runId: 'run-2' }, { packetId: 'packet-2' },
@@ -617,36 +621,35 @@ check('the human grant must name the exact provider, model, and egress set', () 
   assert.notEqual(decide(modelCall({ actor: K })), 'AUTHORIZED');
 });
 check('packet-level provider gates hold: disabled calls, zero budget, and no wildcards', () => {
-  assert.equal(decide(modelCall({ packet: providerPacket({ providerCallAuthorization: { allowed: false, providers: [], models: [], egressDestinations: [], maxCalls: 0, budget: 0 } }) })), 'DENIED');
-  assert.equal(decide(modelCall({ packet: providerPacket({ providerCallAuthorization: { allowed: true, providers: ['provider-a'], models: ['model-a'],
-    egressDestinations: [...EGRESS], maxCalls: 0, budget: 1 } }) })), 'DENIED');
-  const wildcard = providerPacket({ providerCallAuthorization: { allowed: true, providers: ['*'], models: ['*'], egressDestinations: [...EGRESS], maxCalls: 1, budget: 1 } });
+  assert.equal(decide(modelCall({ packet: providerPacket({ providerCallAuthorization: { allowed: false, calls: [], maxCalls: 0, budget: 0 } }) })), 'DENIED');
+  assert.equal(decide(modelCall({ packet: providerPacket({ providerCallAuthorization: { allowed: true, calls: [implCall()], maxCalls: 0, budget: 1 } }) })), 'DENIED');
+  const wildcard = providerPacket({ providerCallAuthorization: { allowed: true, calls: [implCall({ provider: '*', model: '*' })], maxCalls: 1, budget: 1 } });
   assert.equal(decide(modelCall({ packet: wildcard })), 'DENIED');
-  assert.equal(decide(modelCall({ providerCall: { provider: '*', model: '*', egressDestinations: [...EGRESS] } },
-    { scope: { provider: '*', model: '*', egressDestinations: [...EGRESS] } })), 'DENIED');
+  assert.equal(decide(modelCall({ providerCall: { actorKind: 'IMPLEMENTATION', provider: '*', model: '*', egressDestinations: [...EGRESS] } },
+    { scope: { actorKind: 'IMPLEMENTATION', provider: '*', model: '*', egressDestinations: [...EGRESS] } })), 'DENIED');
   for (const egressDestinations of [['*.synthetic-provider.test:443'], ['*:443'], ['api.synthetic-provider.test:*']]) {
-    assert.equal(decide(modelCall({ providerCall: { provider: 'provider-a', model: 'model-a', egressDestinations } },
-      { scope: { provider: 'provider-a', model: 'model-a', egressDestinations } })), 'DENIED', JSON.stringify(egressDestinations));
+    assert.equal(decide(modelCall({ providerCall: { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-a', egressDestinations } },
+      { scope: { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-a', egressDestinations } })), 'DENIED', JSON.stringify(egressDestinations));
   }
 });
 check('provider-call facts are refused on other operations', () => {
-  assert.equal(decide({ ...request(), providerCall: { provider: 'provider-a', model: 'model-a', egressDestinations: [...EGRESS] } }), 'DENIED');
+  assert.equal(decide({ ...request(), providerCall: { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-a', egressDestinations: [...EGRESS] } }), 'DENIED');
 });
 
 // ---------------------------------------------------------------- G1-R3C: exact egress sets
 console.log('G1-R3C: the live call binds an exact egress destination set');
 const egressCall = (callSet, grantSet = callSet, packetSet = [...EGRESS], networkSet = [...EGRESS], extra = {}) => {
   const packetOverrides = { networkAuthorization: { level: 'READ_EXTERNAL_API', destinations: networkSet, purpose: 'synthetic model call', budget: 1 },
-    providerCallAuthorization: { allowed: true, providers: ['provider-a'], models: ['model-a'], egressDestinations: packetSet, maxCalls: 1, budget: 1 } };
-  return modelCall({ packet: providerPacket(packetOverrides), providerCall: { provider: 'provider-a', model: 'model-a', egressDestinations: callSet }, ...extra },
-    { scope: { provider: 'provider-a', model: 'model-a', egressDestinations: grantSet } });
+    providerCallAuthorization: { allowed: true, calls: [implCall({ egressDestinations: packetSet })], maxCalls: 1, budget: 1 } };
+  return modelCall({ packet: providerPacket(packetOverrides), providerCall: { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-a', egressDestinations: callSet }, ...extra },
+    { scope: { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-a', egressDestinations: grantSet } });
 };
 check('human grant set == packet set == call set is AUTHORIZED; the grant target is the fixed live-call target', () => {
   assert.equal(decide(egressCall([...EGRESS])), 'AUTHORIZED');
   assert.equal(TARGET, LIVE_PROVIDER_MODEL_CALL_TARGET);
   const verdict = authorizeLiveModelCall({ packet: providerPacket(), runId: 'run-1', now: T,
-    scope: { provider: 'provider-a', model: 'model-a', egressDestinations: [...EGRESS] },
-    authorization: auth('HUMAN', 'LIVE_PROVIDER_MODEL_CALL', TARGET, { scope: { provider: 'provider-a', model: 'model-a', egressDestinations: [...EGRESS] } }) });
+    scope: { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-a', egressDestinations: [...EGRESS] },
+    authorization: auth('HUMAN', 'LIVE_PROVIDER_MODEL_CALL', TARGET, { scope: { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-a', egressDestinations: [...EGRESS] } }) });
   assert.equal(verdict.decision, 'AUTHORIZED');
 });
 check('a missing, an extra, or a wrong-port destination is DENIED, in the call and in the packet', () => {
@@ -678,22 +681,25 @@ check('a logical label, a single-destination scope, or a non-canonical set is re
   for (const set of [['anthropic'], ['openai'], ['claude-cli'], ['codex-cli'], ['provider-api'], ['api.synthetic-provider.test'],
     ['https://api.synthetic-provider.test:443'], ['user@api.synthetic-provider.test:443'], ['api.synthetic-provider.test:443/v1'],
     ['API.synthetic-provider.test:443'], ['api.synthetic-provider.test.:443'], ['127.0.0.1:443'], [AUTH_DEST, DEST], [DEST, DEST], [' api.x.test:443']]) {
-    const packetRefused = tryParsePacket(providerPacket({ providerCallAuthorization: { allowed: true, providers: ['provider-a'], models: ['model-a'],
-      egressDestinations: set, maxCalls: 1, budget: 1 } }));
+    const packetRefused = tryParsePacket(providerPacket({ providerCallAuthorization: { allowed: true,
+      calls: [implCall({ egressDestinations: set })], maxCalls: 1, budget: 1 } }));
     assert.equal(packetRefused, undefined, `packet ${JSON.stringify(set)}`);
-    assert.equal(parseAuthorization(auth('HUMAN', 'LIVE_PROVIDER_MODEL_CALL', TARGET, { scope: { provider: 'provider-a', model: 'model-a', egressDestinations: set } })),
+    assert.equal(parseAuthorization(auth('HUMAN', 'LIVE_PROVIDER_MODEL_CALL', TARGET, { scope: { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-a', egressDestinations: set } })),
       undefined, `grant ${JSON.stringify(set)}`);
     assert.equal(decide(egressCall(set)), 'DENIED', `call ${JSON.stringify(set)}`);
   }
-  const single = { provider: 'provider-a', model: 'model-a', destination: DEST };
+  const single = { actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-a', destination: DEST };
   assert.equal(decide(modelCall({ providerCall: single }, { scope: single })), 'DENIED');
   assert.equal(parseAuthorization(auth('HUMAN', 'LIVE_PROVIDER_MODEL_CALL', TARGET, { scope: single })), undefined);
-  assert.equal(tryParsePacket(providerPacket({ providerCallAuthorization: { allowed: true, providers: ['provider-a'], models: ['model-a'], maxCalls: 1, budget: 1 } })),
-    undefined, 'a packet must state its egress set');
-  assert.equal(tryParsePacket(providerPacket({ providerCallAuthorization: { allowed: true, providers: ['provider-a'], models: ['model-a'],
-    egressDestinations: [], maxCalls: 1, budget: 1 } })), undefined, 'allowed calls bind a non-empty set');
-  assert.equal(tryParsePacket(packet({ providerCallAuthorization: { allowed: false, providers: [], models: [], egressDestinations: [DEST], maxCalls: 0, budget: 0 } })),
-    undefined, 'denied calls carry no egress destinations');
+  assert.equal(tryParsePacket(providerPacket({ providerCallAuthorization: { allowed: true,
+    calls: [{ actorKind: 'IMPLEMENTATION', provider: 'provider-a', model: 'model-a' }], maxCalls: 1, budget: 1 } })),
+    undefined, 'a packet call entry must state its egress set');
+  assert.equal(tryParsePacket(providerPacket({ providerCallAuthorization: { allowed: true,
+    calls: [implCall({ egressDestinations: [] })], maxCalls: 1, budget: 1 } })), undefined, 'an entry binds a non-empty set');
+  assert.equal(tryParsePacket(providerPacket({ providerCallAuthorization: { allowed: true, calls: [], maxCalls: 1, budget: 1 } })),
+    undefined, 'allowed calls bind at least one entry');
+  assert.equal(tryParsePacket(packet({ providerCallAuthorization: { allowed: false, calls: [implCall()], maxCalls: 0, budget: 0 } })),
+    undefined, 'denied calls carry no call entries');
 });
 check('canonical destinations: exact spelling only, no normalization at any layer', () => {
   for (const good of ['api.anthropic.com:443', 'platform.claude.com:443', 'chatgpt.com:443', 'auth.openai.com:443', 'xn--bcher-kva.example:8443', 'a.b:1', 'a.b:65535']) {
@@ -708,6 +714,120 @@ check('canonical destinations: exact spelling only, no normalization at any laye
   assert.ok(isCanonicalEgressSet([...EGRESS]) && !isCanonicalEgressSet([]) && isCanonicalEgressSet([], { allowEmpty: true }));
   assert.ok(!isCanonicalEgressSet([AUTH_DEST, DEST]) && !isCanonicalEgressSet([DEST, DEST]));
   assert.ok(sameEgressSet([...EGRESS], [...EGRESS]) && !sameEgressSet([...EGRESS], [DEST]) && !sameEgressSet([AUTH_DEST, DEST], [AUTH_DEST, DEST]));
+});
+
+// ---------------------------------------------------------------- G1-R3C-C1: actor-scoped authority
+console.log('G1-R3C-C1: live-call authority is scoped to one actor');
+const IMPL_SET = Object.freeze(['api.impl-provider.test:443', 'platform.impl-provider.test:443']);
+const REVIEW_SET = Object.freeze(['auth.review-provider.test:443', 'chat.review-provider.test:443']);
+const UNION = Object.freeze([...IMPL_SET, ...REVIEW_SET].sort());
+const IMPL_SCOPE = Object.freeze({ actorKind: 'IMPLEMENTATION', provider: 'impl-provider', model: 'impl-model-1', egressDestinations: IMPL_SET });
+const REVIEW_SCOPE = Object.freeze({ actorKind: 'ARCHITECT_REVIEW', provider: 'review-provider', model: 'review-model-1', egressDestinations: REVIEW_SET });
+// Every destination of both actors is a packet network destination, so only the actor entry can refuse a borrowed one.
+function actorPacket(calls = [IMPL_SCOPE, REVIEW_SCOPE]) {
+  return packet({ networkAuthorization: { level: 'READ_EXTERNAL_API', destinations: [...UNION], purpose: 'two synthetic actors', budget: 2 },
+    providerCallAuthorization: { allowed: true, calls: structuredClone(calls), maxCalls: 2, budget: 2 } });
+}
+const actorCall = (call, grant = call, livePacket = actorPacket()) => evaluatePolicy({ operation: 'LIVE_PROVIDER_MODEL_CALL', target: TARGET,
+  actor: H, packet: livePacket, runId: 'run-1', now: T, providerCall: structuredClone(call),
+  authorization: auth('HUMAN', 'LIVE_PROVIDER_MODEL_CALL', TARGET, { scope: structuredClone(grant) }) });
+const liveGate = (scope, grant = scope, livePacket = actorPacket()) => authorizeLiveModelCall({ packet: livePacket, runId: 'run-1', now: T,
+  scope: structuredClone(scope), authorization: auth('HUMAN', 'LIVE_PROVIDER_MODEL_CALL', TARGET, { scope: structuredClone(grant) }) });
+check('C1-1/2: each actor with its own exact entry and its own exact human grant is eligible', () => {
+  assert.equal(actorCall(IMPL_SCOPE).decision, 'AUTHORIZED');
+  assert.equal(actorCall(REVIEW_SCOPE).decision, 'AUTHORIZED');
+  assert.equal(liveGate(IMPL_SCOPE).decision, 'AUTHORIZED');
+  assert.equal(liveGate(REVIEW_SCOPE).decision, 'AUTHORIZED');
+});
+check('C1-3/4: a call carrying the other actor\'s egress set is DENIED', () => {
+  for (const [call, reason] of [[{ ...IMPL_SCOPE, egressDestinations: [...REVIEW_SET] }, 'implementation with review set'],
+    [{ ...REVIEW_SCOPE, egressDestinations: [...IMPL_SET] }, 'review with implementation set']]) {
+    const result = actorCall(call);
+    assert.equal(result.decision, 'DENIED', reason);
+    assert.match(result.reason, /egress destinations differ from the packet entry for this actor/, reason);
+  }
+});
+check('C1-5/6: one actor\'s human grant never authorizes the other actor', () => {
+  for (const [call, grant, name] of [[REVIEW_SCOPE, IMPL_SCOPE, 'implementation grant to review'],
+    [IMPL_SCOPE, REVIEW_SCOPE, 'review grant to implementation']]) {
+    const result = actorCall(call, grant);
+    assert.equal(result.decision, 'REQUIRE_HUMAN', name);
+    assert.match(result.reason, /missing exact HUMAN authorization/, name);
+    assert.notEqual(liveGate(call, grant).decision, 'AUTHORIZED', name);
+  }
+  // Twin entries: both actors name the same provider, model, and set. Only actorKind tells the grants apart.
+  const twinReview = { ...IMPL_SCOPE, actorKind: 'ARCHITECT_REVIEW' };
+  const twins = actorPacket([IMPL_SCOPE, twinReview]);
+  assert.equal(actorCall(IMPL_SCOPE, IMPL_SCOPE, twins).decision, 'AUTHORIZED');
+  assert.equal(actorCall(twinReview, twinReview, twins).decision, 'AUTHORIZED');
+  assert.equal(actorCall(twinReview, IMPL_SCOPE, twins).decision, 'REQUIRE_HUMAN', 'implementation grant to review twin');
+  assert.equal(actorCall(IMPL_SCOPE, twinReview, twins).decision, 'REQUIRE_HUMAN', 'review grant to implementation twin');
+  assert.equal(liveGate(twinReview, IMPL_SCOPE, twins).decision, 'REQUIRE_HUMAN');
+  assert.equal(liveGate(IMPL_SCOPE, twinReview, twins).decision, 'REQUIRE_HUMAN');
+});
+check('C1-7/8: the union of both actors\' destinations is DENIED to either actor', () => {
+  for (const scope of [IMPL_SCOPE, REVIEW_SCOPE]) {
+    const union = { ...scope, egressDestinations: [...UNION] };
+    assert.equal(actorCall(union).decision, 'DENIED', scope.actorKind);
+    assert.equal(liveGate(union).decision, 'DENIED', scope.actorKind);
+    assert.equal(actorCall(scope, union).decision, 'REQUIRE_HUMAN', `${scope.actorKind}: a union grant is not this actor's grant`);
+  }
+});
+check('C1-9: one destination borrowed from the other actor is DENIED; so is a subset or another actor\'s provider or model', () => {
+  const borrowed = [
+    { ...IMPL_SCOPE, egressDestinations: [...IMPL_SET, REVIEW_SET[0]].sort() },
+    { ...IMPL_SCOPE, egressDestinations: [IMPL_SET[0], REVIEW_SET[1]].sort() },
+    { ...REVIEW_SCOPE, egressDestinations: [...REVIEW_SET, IMPL_SET[1]].sort() },
+    { ...REVIEW_SCOPE, egressDestinations: [IMPL_SET[0], REVIEW_SET[1]].sort() },
+    { ...IMPL_SCOPE, egressDestinations: [IMPL_SET[0]] },
+    { ...IMPL_SCOPE, provider: REVIEW_SCOPE.provider },
+    { ...IMPL_SCOPE, model: REVIEW_SCOPE.model },
+    { ...REVIEW_SCOPE, provider: IMPL_SCOPE.provider, model: IMPL_SCOPE.model },
+  ];
+  for (const call of borrowed) assert.equal(actorCall(call).decision, 'DENIED', JSON.stringify(call));
+});
+check('C1: no fallback to another actor\'s entry; a one-actor packet authorizes only that actor', () => {
+  const reviewOnly = actorPacket([REVIEW_SCOPE]);
+  assert.equal(actorCall(REVIEW_SCOPE, REVIEW_SCOPE, reviewOnly).decision, 'AUTHORIZED');
+  for (const call of [IMPL_SCOPE, { ...REVIEW_SCOPE, actorKind: 'IMPLEMENTATION' }]) {
+    const result = actorCall(call, call, reviewOnly);
+    assert.equal(result.decision, 'DENIED');
+    assert.match(result.reason, /no packet call entry for this actor/);
+  }
+});
+check('C1-10: a duplicate, out-of-order, or surplus actor entry is a malformed packet', () => {
+  assert.ok(tryParsePacket(actorPacket()));
+  for (const [calls, name] of [[[IMPL_SCOPE, IMPL_SCOPE], 'duplicate implementation'], [[REVIEW_SCOPE, REVIEW_SCOPE], 'duplicate review'],
+    [[IMPL_SCOPE, { ...IMPL_SCOPE, egressDestinations: [...REVIEW_SET] }], 'duplicate implementation with another set'],
+    [[REVIEW_SCOPE, IMPL_SCOPE], 'out of actor-kind order'], [[IMPL_SCOPE, REVIEW_SCOPE, IMPL_SCOPE], 'three entries']]) {
+    assert.equal(tryParsePacket(actorPacket(calls)), undefined, name);
+    assert.equal(actorCall(IMPL_SCOPE, IMPL_SCOPE, actorPacket(calls)).decision, 'DENIED', name);
+  }
+  for (const entry of [{ ...IMPL_SCOPE, provider: ' impl-provider' }, { ...IMPL_SCOPE, model: 'impl-model-1 ' }, { ...IMPL_SCOPE, extra: true },
+    { ...IMPL_SCOPE, provider: 'impl\nprovider' }]) {
+    assert.equal(tryParsePacket(actorPacket([entry, REVIEW_SCOPE])), undefined, JSON.stringify(entry));
+  }
+});
+check('C1-11/12: a missing or unknown actorKind is refused in the packet, the call, and the grant', () => {
+  const { actorKind: _omitted, ...noKind } = IMPL_SCOPE;
+  for (const scope of [noKind, { ...IMPL_SCOPE, actorKind: 'REVIEW' }, { ...IMPL_SCOPE, actorKind: 'implementation' },
+    { ...IMPL_SCOPE, actorKind: 'CONTROLLER' }, { ...IMPL_SCOPE, actorKind: '' }, { ...IMPL_SCOPE, actorKind: null }]) {
+    const name = JSON.stringify(scope.actorKind);
+    assert.equal(tryParsePacket(actorPacket([scope, REVIEW_SCOPE])), undefined, `packet ${name}`);
+    assert.equal(tryParsePacket(actorPacket([scope])), undefined, `packet alone ${name}`);
+    assert.equal(parseAuthorization(auth('HUMAN', 'LIVE_PROVIDER_MODEL_CALL', TARGET, { scope })), undefined, `grant ${name}`);
+    assert.equal(actorCall(scope, IMPL_SCOPE).decision, 'DENIED', `call ${name}`);
+    assert.equal(actorCall(IMPL_SCOPE, scope).decision, 'DENIED', `grant on call ${name}`);
+  }
+});
+check('C1: the packet has one live-call authority; no packet-wide provider, model, or egress list is accepted', () => {
+  for (const legacy of [{ providers: ['impl-provider'] }, { models: ['impl-model-1'] }, { egressDestinations: [...UNION] }]) {
+    const livePacket = actorPacket();
+    Object.assign(livePacket.providerCallAuthorization, legacy);
+    assert.equal(tryParsePacket(livePacket), undefined, JSON.stringify(legacy));
+  }
+  const { calls: _calls, ...withoutCalls } = actorPacket().providerCallAuthorization;
+  assert.equal(tryParsePacket(packet({ providerCallAuthorization: withoutCalls })), undefined);
 });
 
 // ---------------------------------------------------------------- cross-entry: transactional rejection

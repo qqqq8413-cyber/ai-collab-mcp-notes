@@ -27,6 +27,8 @@ const REASONS = Object.freeze({
   NOT_CANONICAL: { result: 'DENIED', destination: 'NONE' },
   NOT_CONNECT: { result: 'DENIED', destination: 'NONE' },
   MALFORMED_REQUEST: { result: 'DENIED', destination: 'NONE' },
+  // The plaintext proxy head carried a credential-shaped header. Neither its name nor its value is kept.
+  CREDENTIAL_HEADER: { result: 'DENIED', destination: 'NONE' },
   HEADER_LIMIT: { result: 'DENIED', destination: 'NONE' },
   HANDSHAKE_TIMEOUT: { result: 'DENIED', destination: 'NONE' },
   CONNECTION_LIMIT: { result: 'DENIED', destination: 'NONE' },

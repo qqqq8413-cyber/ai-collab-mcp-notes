@@ -126,7 +126,7 @@ export class CodexArchitectReviewAdapter implements ArchitectReviewPort {
   }
 
   get scope(): ProviderCallScope {
-    return { provider: this.#codex.provider, model: this.#codex.model, egressDestinations: [...this.#codex.egressDestinations] };
+    return { actorKind: 'ARCHITECT_REVIEW', provider: this.#codex.provider, model: this.#codex.model, egressDestinations: [...this.#codex.egressDestinations] };
   }
 
   async review(input: Readonly<ArchitectReviewInput>): Promise<ArchitectReviewBundle> {

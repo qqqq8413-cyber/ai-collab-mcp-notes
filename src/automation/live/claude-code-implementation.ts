@@ -247,7 +247,7 @@ export class ClaudeCodeImplementationAdapter implements ImplementationAgentPort 
   }
 
   get scope(): ProviderCallScope {
-    return { provider: this.#claude.provider, model: this.#claude.model, egressDestinations: [...this.#claude.egressDestinations] };
+    return { actorKind: 'IMPLEMENTATION', provider: this.#claude.provider, model: this.#claude.model, egressDestinations: [...this.#claude.egressDestinations] };
   }
 
   async execute(input: Readonly<ImplementationInput>): Promise<ImplementationResult> {

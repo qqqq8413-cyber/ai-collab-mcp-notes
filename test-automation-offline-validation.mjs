@@ -254,7 +254,8 @@ async function scopedIteration(dir, { validation, commands, worktreesInClone = f
     objective: 'Scoped validation fixture', allowedAreas: ['allowed'], forbiddenChanges: ['.github'], invariants: ['human authority retained'],
     acceptanceCriteria: ['offline checks pass'], validationCommands: commands({ worktree, clone }),
     networkAuthorization: { level: 'WRITE_EXTERNAL', destinations: [BRANCH, ...EGRESS], purpose: 'fixture', budget: 1 },
-    providerCallAuthorization: { allowed: true, providers: [CLAUDE.provider], models: [CLAUDE.model], egressDestinations: [...EGRESS], maxCalls: 6, budget: 0 },
+    providerCallAuthorization: { allowed: true, calls: [{ actorKind: 'IMPLEMENTATION', provider: CLAUDE.provider, model: CLAUDE.model,
+      egressDestinations: [...EGRESS] }], maxCalls: 6, budget: 0 },
     destructiveOperationAuthorization: { allowed: false },
     iterationBudget: { maxImplementationIterationsPerSlice: 3, maxAcceptanceFailuresPerSlice: 3, maxRuntimeMinutesPerIteration: 60,
       maxParallelImplementationAgents: 1 } };

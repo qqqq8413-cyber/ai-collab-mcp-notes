@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { isCanonicalEgressSet, sameEgressSet } from './egress-destination.js';
 import { isInstant, parseInstant } from './time.js';
+import { ACTOR_KINDS, type ActorKind } from './types.js';
 
 // Operational coordination state for external actor calls: was this exact call
 // prepared, started, completed, applied? It records no authority. It is not an
@@ -10,8 +11,7 @@ import { isInstant, parseInstant } from './time.js';
 
 export const INVOCATION_STATES = Object.freeze(['PREPARED', 'STARTED', 'COMPLETED', 'APPLIED', 'UNCERTAIN', 'ABANDONED'] as const);
 export type InvocationState = typeof INVOCATION_STATES[number];
-export const ACTOR_KINDS = Object.freeze(['IMPLEMENTATION', 'ARCHITECT_REVIEW'] as const);
-export type ActorKind = typeof ACTOR_KINDS[number];
+export { ACTOR_KINDS, type ActorKind };
 
 /** A stored result is at most this many bytes of canonical JSON. */
 export const MAX_RESULT_BYTES = 256 * 1024;

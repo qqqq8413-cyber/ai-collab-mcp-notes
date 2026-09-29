@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { isCanonicalEgressSet } from './egress-destination.js';
-import { NETWORK_LEVELS, type CorrectionPacket, type ImplementationPacket } from './types.js';
+import { ACTOR_KINDS, NETWORK_LEVELS, type CorrectionPacket, type ImplementationPacket } from './types.js';
 
 // Schemas stay module-private. An exported zod object is mutable authority any
 // importer could alter; callers get parse functions instead.
@@ -28,6 +28,21 @@ const validationCommand = z.strictObject({
   classification: z.enum(['OFFLINE_VALIDATION', 'EXTERNAL_EFFECT']),
 });
 
+// One live-call authority entry: the exact scope one actor's calls must state. Names are
+// compared as given: surrounding whitespace is refused, not trimmed, and '*' is refused
+// rather than read as a wildcard. The egress set is canonical as given (sorted, unique
+// hostname:port); a spelling that would need normalizing is refused here, never
+// repaired, so every later comparison is exact.
+const callName = z.string().min(1).max(200).refine((value) => value.trim() === value && !value.includes('*') &&
+  !/[\u0000-\u001f\u007f]/.test(value));
+const providerCall = z.strictObject({
+  actorKind: z.enum(ACTOR_KINDS),
+  provider: callName,
+  model: callName,
+  egressDestinations: z.array(z.string()).refine((set) => isCanonicalEgressSet(set),
+    'egress destinations must be a non-empty, sorted, duplicate-free set of canonical hostname:port values'),
+});
+
 const packetSchema = z.strictObject({
   packetId: nonempty,
   packetVersion: z.number().int().positive(),
@@ -48,12 +63,9 @@ const packetSchema = z.strictObject({
   }),
   providerCallAuthorization: z.strictObject({
     allowed: z.boolean(),
-    providers: z.array(nonempty),
-    models: z.array(nonempty),
-    // Canonical as given (sorted, unique hostname:port); a spelling that would need
-    // normalizing is refused here, never repaired, so every later comparison is exact.
-    egressDestinations: z.array(z.string()).refine((set) => isCanonicalEgressSet(set, { allowEmpty: true }),
-      'egress destinations must be a sorted, duplicate-free set of canonical hostname:port values'),
+    // The only live-call authority: no packet-wide provider, model, or egress list exists
+    // beside it, so nothing can be borrowed from one actor for another.
+    calls: z.array(providerCall).max(ACTOR_KINDS.length),
     maxCalls: z.number().int().nonnegative(),
     budget: z.number().finite().nonnegative(),
   }),
@@ -69,14 +81,18 @@ const packetSchema = z.strictObject({
       (packet.networkAuthorization.destinations.length || packet.networkAuthorization.budget !== 0)) {
     context.addIssue({ code: 'custom', message: 'OFFLINE cannot name destinations or spend network budget' });
   }
-  if (!packet.providerCallAuthorization.allowed &&
-      (packet.providerCallAuthorization.providers.length || packet.providerCallAuthorization.models.length ||
-       packet.providerCallAuthorization.egressDestinations.length ||
-       packet.providerCallAuthorization.maxCalls || packet.providerCallAuthorization.budget)) {
-    context.addIssue({ code: 'custom', message: 'Denied provider calls cannot carry a budget or targets' });
+  const calls = packet.providerCallAuthorization;
+  if (!calls.allowed && (calls.calls.length || calls.maxCalls || calls.budget)) {
+    context.addIssue({ code: 'custom', message: 'Denied provider calls cannot carry a budget or call entries' });
   }
-  if (packet.providerCallAuthorization.allowed && packet.providerCallAuthorization.egressDestinations.length === 0) {
-    context.addIssue({ code: 'custom', message: 'Allowed provider calls must bind an exact non-empty egress destination set' });
+  if (calls.allowed && calls.calls.length === 0) {
+    context.addIssue({ code: 'custom', message: 'Allowed provider calls must bind at least one actor call entry' });
+  }
+  const kinds = calls.calls.map((call) => ACTOR_KINDS.indexOf(call.actorKind));
+  if (new Set(kinds).size !== kinds.length) {
+    context.addIssue({ code: 'custom', message: 'Provider call entries must be unique by actor kind' });
+  } else if (kinds.some((kind, index) => index > 0 && kind < kinds[index - 1])) {
+    context.addIssue({ code: 'custom', message: 'Provider call entries must be in actor-kind order' });
   }
   const ids = packet.validationCommands.map((command) => command.commandId);
   if (new Set(ids).size !== ids.length) {

@@ -7,9 +7,10 @@ import type { ProviderCallScope } from '../types.js';
 
 /**
  * A live adapter dispatches nothing unless the journal shows this exact invocation
- * STARTED for this adapter's actor kind, provider, model, and exact egress set, and for the
- * run and packet it was given. The runner writes STARTED only after the human-grant
- * gate and the call budget, so an adapter composed outside that path refuses to run.
+ * STARTED for this adapter's actor kind (which its scope must also bind), provider,
+ * model, and exact egress set, and for the run and packet it was given. The runner
+ * writes STARTED only after the human-grant gate and the call budget, so an adapter
+ * composed outside that path refuses to run.
  */
 export function requireStartedInvocation(journal: InvocationJournal, input: { invocationId?: string; runId: string; sliceId: string;
   packet: { packetId: string }; packetHash: string }, kind: ActorKind, scope: ProviderCallScope): InvocationRecord {
@@ -17,7 +18,7 @@ export function requireStartedInvocation(journal: InvocationJournal, input: { in
   if (typeof id !== 'string') throw new Error('Live adapter refuses: the call is not journaled');
   const record = journal.get(id);
   const identity = record?.identity;
-  if (!record || record.state !== 'STARTED' || identity!.actorKind !== kind || identity!.provider !== scope.provider ||
+  if (!record || record.state !== 'STARTED' || scope.actorKind !== kind || identity!.actorKind !== kind || identity!.provider !== scope.provider ||
       identity!.model !== scope.model || !sameEgressSet(identity!.egressDestinations, scope.egressDestinations) || identity!.runId !== input.runId ||
       identity!.sliceId !== input.sliceId || identity!.packetId !== input.packet.packetId || identity!.packetHash !== input.packetHash) {
     throw new Error('Live adapter refuses: no STARTED invocation binds this exact call');

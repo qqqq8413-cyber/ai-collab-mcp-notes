@@ -114,12 +114,53 @@ const STATUS: Readonly<Record<number, string>> = Object.freeze({ 400: 'Bad Reque
 const REQUEST_LINE = /^([A-Z]+) (\S+) HTTP\/1\.[01]$/;
 const HEADER_LINE = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+:[\t ]*[\x20-\x7e\t]*$/;
 
-type Head = { kind: 'head'; head: string; rest: Buffer } | { kind: 'refused'; reason: EgressReason; status: number } | { kind: 'silent' };
+// Plaintext proxy-head fields that carry credentials. The broker needs none of them, and a
+// head bearing one is refused whole; the header's name and value are never kept anywhere.
+const CREDENTIAL_HEADERS = new Set(['authorization', 'proxy-authorization', 'cookie', 'x-api-key', 'api-key']);
 
-/** Reads one request head from a fresh client connection, within the byte and time bounds. */
+/** Whether any header line of a parsed CONNECT head names a credential-shaped field. */
+export function hasCredentialHeader(headers: readonly string[]): boolean {
+  return headers.some((header) => CREDENTIAL_HEADERS.has(header.slice(0, header.indexOf(':')).toLowerCase()));
+}
+
+export type HeadStep = { kind: 'more' } | { kind: 'head'; head: string; rest: Buffer } | { kind: 'limit' };
+
+/**
+ * Accumulates one request head without ever retaining more than `maxHeaderBytes` of it,
+ * however large a single chunk is: bytes past the bound are never copied, and bytes past
+ * the end of the head are handed back as `rest` (tunnel payload), not kept here.
+ */
+export class HeadAccumulator {
+  readonly #max: number;
+  #held: Buffer = Buffer.alloc(0);
+
+  constructor(maxHeaderBytes: number) {
+    if (!Number.isSafeInteger(maxHeaderBytes) || maxHeaderBytes < 4) throw new RangeError('maxHeaderBytes must be an integer of at least 4');
+    this.#max = maxHeaderBytes;
+  }
+
+  /** The head bytes held so far; never more than maxHeaderBytes. */
+  get retained(): number { return this.#held.length; }
+
+  push(chunk: Buffer): HeadStep {
+    const before = this.#held.length;
+    const taken = chunk.subarray(0, this.#max - before);
+    this.#held = Buffer.concat([this.#held, taken]);
+    const end = this.#held.indexOf('\r\n\r\n', Math.max(0, before - 3));
+    if (end !== -1) return { kind: 'head', head: this.#held.subarray(0, end).toString('latin1'), rest: chunk.subarray(end + 4 - before) };
+    return this.#held.length >= this.#max ? { kind: 'limit' } : { kind: 'more' };
+  }
+}
+
+type Head = { kind: 'head'; head: string } | { kind: 'refused'; reason: EgressReason; status: number } | { kind: 'silent' };
+
+/**
+ * Reads one request head from a fresh client connection, within the byte and time bounds.
+ * Bytes the client sent past the head go back onto the socket, unread and unchanged.
+ */
 function readHead(socket: Socket, limits: BrokerLimits): Promise<Head> {
   return new Promise((resolve) => {
-    const chunks: Buffer[] = [];
+    const accumulator = new HeadAccumulator(limits.maxHeaderBytes);
     let bytes = 0;
     const done = (head: Head) => {
       clearTimeout(timer);
@@ -130,12 +171,12 @@ function readHead(socket: Socket, limits: BrokerLimits): Promise<Head> {
       resolve(head);
     };
     const onData = (chunk: Buffer) => {
-      chunks.push(chunk);
       bytes += chunk.length;
-      const all = Buffer.concat(chunks);
-      const end = all.indexOf('\r\n\r\n');
-      if (end !== -1 && end + 4 <= limits.maxHeaderBytes) done({ kind: 'head', head: all.subarray(0, end).toString('latin1'), rest: all.subarray(end + 4) });
-      else if (bytes >= limits.maxHeaderBytes) done({ kind: 'refused', reason: 'HEADER_LIMIT', status: 431 });
+      const step = accumulator.push(chunk);
+      if (step.kind === 'head') {
+        done({ kind: 'head', head: step.head });
+        if (step.rest.length) socket.unshift(step.rest);
+      } else if (step.kind === 'limit') done({ kind: 'refused', reason: 'HEADER_LIMIT', status: 431 });
     };
     const onEnd = () => done(bytes === 0 ? { kind: 'silent' } : { kind: 'refused', reason: 'MALFORMED_REQUEST', status: 400 });
     const timer = setTimeout(() => done({ kind: 'refused', reason: 'HANDSHAKE_TIMEOUT', status: 408 }), limits.handshakeTimeoutMs);
@@ -269,6 +310,9 @@ export class ConnectBroker {
     const [line, ...headers] = read.head.split('\r\n');
     const request = REQUEST_LINE.exec(line);
     if (!request || !headers.every((header) => HEADER_LINE.test(header))) return deny('MALFORMED_REQUEST', 400);
+    // Header lines are checked for syntax and for credential-shaped names only: none is
+    // kept, used as authority, or forwarded.
+    if (hasCredentialHeader(headers)) return deny('CREDENTIAL_HEADER', 400);
     if (request[1] !== 'CONNECT') return deny('NOT_CONNECT', 405);
     const authority = request[2];
     if (!isCanonicalEgressDestination(authority)) return deny('NOT_CANONICAL', 400);
@@ -311,7 +355,7 @@ export class ConnectBroker {
       return;
     }
     client.write('HTTP/1.1 200 Connection Established\r\n\r\n');
-    if (read.rest.length) upstream.write(read.rest);
+    // Anything the client sent past its head was put back on the socket; the pipe carries it first, as sent.
     client.pipe(upstream);
     upstream.pipe(client);
     client.once('close', () => upstream!.destroy());

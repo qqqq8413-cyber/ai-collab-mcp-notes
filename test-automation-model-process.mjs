@@ -164,7 +164,7 @@ async function boundary(dir, { executor = new NodeProcessExecutor(), journal: wr
   const resolver = { async resolve(hostname) { resolved.push(hostname); return [{ address: '127.0.0.1', family: 4 }]; } };
   const model = new SeatbeltModelProcessExecutor({ runtimeReadPaths: [dirname(dirname(NODE)), cli], searchPath: `${dirname(NODE)}:/usr/bin:/bin` },
     { executor, egressJournal: journal, resolver, home, brokerLimits: { closeGraceMs: 50, connectTimeoutMs: 5_000 } });
-  const scope = { provider: 'fixture-provider', model: 'fixture-model-1', egressDestinations: [`allowed.test:${port}`] };
+  const scope = { actorKind: 'IMPLEMENTATION', provider: 'fixture-provider', model: 'fixture-model-1', egressDestinations: [`allowed.test:${port}`] };
   const request = (plan, overrides = {}) => ({ invocationId: randomBytes(32).toString('hex'), actorKind: 'IMPLEMENTATION', scope, executable: NODE,
     executableSha256: NODE_SHA, args: [join(cli, 'cli.mjs'), JSON.stringify(plan)], cwd: work, workspace: { path: work, mode: 'READ_WRITE' },
     writablePaths: [], readOnlyPaths: [], env: { LANG: 'C' }, stdin: '', timeoutMs: 60_000, maxStdoutBytes: 1_000_000, maxStderrBytes: 1_000_000, ...overrides });
@@ -313,10 +313,13 @@ check('real Seatbelt: an unconfinable workspace, cwd, or path refuses the run be
   try {
     for (const overrides of [{ cwd: b.outside }, { workspace: { path: b.home, mode: 'READ_WRITE' }, cwd: b.home }, { writablePaths: [join(b.home, '.ssh')] },
       { readOnlyPaths: ['/'] }, { workspace: { path: b.work, mode: 'BOTH' } }, { invocationId: 'not-an-id' },
-      { scope: { ...b.scope, egressDestinations: ['allowed.test'] } }, { scope: { ...b.scope, egressDestinations: [] } }]) {
+      { scope: { ...b.scope, egressDestinations: ['allowed.test'] } }, { scope: { ...b.scope, egressDestinations: [] } },
+      // G1-R3C-C1: the scope must be the requesting actor's own.
+      { scope: { ...b.scope, actorKind: 'ARCHITECT_REVIEW' } }, { actorKind: 'ARCHITECT_REVIEW' }, { scope: { ...b.scope, actorKind: undefined } },
+      { actorKind: 'CONTROLLER', scope: { ...b.scope, actorKind: 'CONTROLLER' } }]) {
       const request = b.request({ marker: join(b.work, 'ran') }, overrides);
       const outcome = await b.model.runModel(request);
-      assert.equal(outcome.isolation, 'UNAVAILABLE', JSON.stringify(Object.keys(overrides)));
+      assert.equal(outcome.isolation, 'UNAVAILABLE', JSON.stringify(overrides));
       if (/^[0-9a-f]{64}$/.test(request.invocationId)) assert.equal(b.journal.get(request.invocationId), undefined);
     }
     assert.equal(existsSync(join(b.work, 'ran')), false);
