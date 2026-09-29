@@ -597,15 +597,18 @@ check('a dependent linked source refuses composition and adapter construction: n
   for (const source of [join(dir, 'repo'), join(dir, 'repo', 'node_modules'), dir, join(dir, 'worktrees'), join(dir, 'worktrees', 'cache'),
     join(dir, 'alias'), join(dir, 'missing')]) {
     const linkedDirectories = [{ path: 'node_modules', source }];
+    // Both isolation boundaries are supplied, so the dependency check itself is what refuses, on any host.
     assert.throws(() => createLiveAutomation(config(dir, { git: { ...config(dir).git, linkedDirectories } }), { clock,
-      environmentSource: { PATH: '/bin', HOME: dir }, executor, syncExecutor: { runSync() { processes += 1; } }, offlineValidation: validation }),
-    /linked dependency node_modules source/, source);
+      environmentSource: { PATH: '/bin', HOME: dir }, executor, syncExecutor: { runSync() { processes += 1; } }, offlineValidation: validation,
+      modelProcess: refusedModel }), /linked dependency node_modules source/, source);
     assert.throws(() => new ClaudeCodeImplementationAdapter({ ...adapterSettings(dir), git: { ...adapterSettings(dir).git, repositoryPath: join(dir, 'repo'),
-      worktreeRoot: join(dir, 'worktrees'), linkedDirectories } }, { executor, validation, journal: {}, clock }), /linked dependency node_modules source/, source);
+      worktreeRoot: join(dir, 'worktrees'), linkedDirectories } }, { executor, model: refusedModel, validation, journal: {}, clock }),
+    /linked dependency node_modules source/, source);
   }
   assert.deepEqual([processes, validations], [0, 0]);
   const live = createLiveAutomation(config(dir, { git: { ...config(dir).git, linkedDirectories: [{ path: 'node_modules', source: join(dir, 'deps') }] } }),
-    { clock, environmentSource: { PATH: '/bin', HOME: dir }, executor, syncExecutor: { runSync() { processes += 1; } }, offlineValidation: validation });
+    { clock, environmentSource: { PATH: '/bin', HOME: dir }, executor, syncExecutor: { runSync() { processes += 1; } }, offlineValidation: validation,
+      modelProcess: refusedModel });
   assert.ok(Object.isFrozen(live), 'an external dependency composes');
 }));
 check('a source retargeted into the repository after composition is refused before the model call, and again before validation', withDir(async (dir) => {
