@@ -124,7 +124,7 @@ function composerHTML(big) {
   const p = project();
   return `<form class="composer" id="composer-form" autocomplete="off"><label class="sr" for="composer">交給 Chief 的目標</label>
     <textarea id="composer" rows="${big ? 3 : 1}" maxlength="2000" placeholder="${p ? `告訴 Chief 你想完成的目標，會加入「${esc(p.displayName)}」的工作清單…` : '先在設定檔加入專案'}" ${p ? '' : 'disabled'}></textarea>
-    <div class="c-row"><span class="c-hint">Enter 送出 · Shift + Enter 換行</span><button class="send" type="submit" id="send" ${S.sending || !p ? 'disabled' : ''}>加入工作清單 ${ic('arrow', 16)}</button></div></form>`;
+    <div class="c-row"><span class="c-hint">Enter 送出 · Shift + Enter 換行</span><button class="send" type="submit" id="send" title="加入工作清單" ${S.sending || !p ? 'disabled' : ''}><span class="sr">加入工作清單</span>${ic('up', 18)}</button></div></form>`;
 }
 
 function ackHTML(goal, removed, position) {
@@ -132,7 +132,7 @@ function ackHTML(goal, removed, position) {
   const pills = removed
     ? '<span class="wl-pill gone">已從工作清單移除</span>'
     : `<span class="wl-pill q">${ic('clock', 13)}排隊中</span><span class="wl-pill">尚未開始執行</span>${position ? `<span class="wl-pill">第 ${position} 個</span>` : ''}`;
-  return `<div class="item m-human"><div class="bubble">${esc(goal.text).replace(/\n/g, '<br>')}</div><span class="meta num">${time(goal.createdAt)}</span></div>
+  return `<div class="item m-human"><div class="bubble"><span class="sr">你：</span>${esc(goal.text).replace(/\n/g, '<br>')}</div><span class="meta num">${time(goal.createdAt)}</span></div>
     <div class="item m-chief"><span class="av" aria-hidden="true">C</span><div class="c-body"><div class="meta"><b>Chief</b></div>
       <div class="txt"><p>${removed ? '這個目標已經從工作清單移除。' : `已收到這個目標。我已經把它加入${esc(p?.displayName ?? '')}的工作清單。`}</p></div>
       <div class="wl-pills wl-after">${pills}</div></div></div>`;
@@ -346,6 +346,48 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
+// ---------- glaze: one seeded craquelure (開片), drawn once on a canvas and used as a CSS mask so its colour
+// follows the theme. Decoration only: it is set after the first render, and without a canvas the desk stays plain.
+function crackle(size, big, small, width, seed) {
+  let s = seed;
+  const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const points = (n) => Array.from({ length: n }, () => [rnd() * size, rnd() * size]);
+  const A = points(big), B = points(small), T = (2 * Math.PI) / size;
+  const edge = (Q, x, y) => {
+    let a = 1e9, b = 1e9;
+    for (const [px, py] of Q) {
+      let dx = Math.abs(x - px); dx = Math.min(dx, size - dx);
+      let dy = Math.abs(y - py); dy = Math.min(dy, size - dy);
+      const q = dx * dx + dy * dy;
+      if (q < a) { b = a; a = q; } else if (q < b) b = q;
+    }
+    return Math.sqrt(b) - Math.sqrt(a);
+  };
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const g = canvas.getContext('2d');
+  const img = g.createImageData(size, size);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) { // a periodic warp keeps the tile seamless and the cracks irregular
+    const wx = x + 2.4 * Math.sin(3 * T * y) + 1.2 * Math.sin(7 * T * (x + y));
+    const wy = y + 2.4 * Math.sin(4 * T * x) + 1.2 * Math.sin(5 * T * (x - y));
+    const a = Math.max(0, 1 - edge(A, wx, wy) / width);
+    const b = B.length ? Math.max(0, 1 - edge(B, wx, wy) / (width * 0.6)) * 0.45 : 0;
+    const v = Math.max(a * a, b * b);
+    if (v > 0.01) img.data[(y * size + x) * 4 + 3] = Math.round(255 * Math.min(1, v));
+  }
+  g.putImageData(img, 0, 0);
+  return `url(${canvas.toDataURL('image/png')})`;
+}
+function glaze() {
+  try {
+    const root = document.documentElement.style; // CSSOM custom properties, which the content security policy allows
+    root.setProperty('--crackle-s', crackle(80, 7, 0, 2.2, 7));
+    root.setProperty('--crackle', crackle(520, 24, 60, 1.4, 11));
+    $('#app').classList.add('glazed');
+  } catch { /* no canvas: the desk stays plain */ }
+}
+
 source.subscribe(applyEvent, (state) => { S.conn = state; if (!DEMO) render(); });
 await reloadAll();
+setTimeout(glaze, 60);
 window.__WORKSPACE = Object.freeze({ mode: source.mode, state: () => structuredClone({ view: S.view, pid: S.pid, conn: S.conn, projects: S.projects, queues: S.queues }) });

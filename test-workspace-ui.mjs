@@ -100,5 +100,14 @@ await check('the UI needs no inline style or script, so its strict content secur
   }
 });
 
+await check('the material system fetches nothing and keeps the composer accessible (WS-VIS1A)', () => {
+  const css = read('styles.css'), app = read('app.js');
+  assert.doesNotMatch(css, /@import|@font-face|url\(\s*['"]?(https?:)?\/\//i, 'system font stacks only; no third-party request from the stylesheet');
+  assert.doesNotMatch(read('index.html'), /<link[^>]+(https?:)?\/\//i);
+  assert.match(css, /--crackle:linear-gradient\(transparent,transparent\)/, 'the texture falls back to nothing when no canvas draws it');
+  assert.match(app, /<button class="send" type="submit" id="send"[^>]*><span class="sr">加入工作清單<\/span>/, 'the round send button keeps its words for screen readers');
+  assert.match(app, /<div class="bubble"><span class="sr">你：<\/span>/, 'the Human bubble keeps the Human identity for screen readers');
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exitCode = 1;
