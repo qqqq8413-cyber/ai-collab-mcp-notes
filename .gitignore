@@ -9,3 +9,4 @@
 /orchestrator-run-*.json
 /orchestrator-run-*.txt
 *.local.md
+/.chief-workspace/
