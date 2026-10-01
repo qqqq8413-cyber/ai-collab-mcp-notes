@@ -339,7 +339,7 @@ function render() {
   $('#rail').innerHTML = railHTML();
   $('#tabs').innerHTML = tabsHTML();
   $('#main').innerHTML = S.view === 'home' ? homeView() : S.view === 'project' ? projectView()
-    : `<div class="view other"><div class="scroll" id="other-scroll">${S.view === 'projects' ? projectsView() : S.view === 'activity' ? activityView() : advancedView()}</div></div>`;
+    : `<div class="view other"><div class="scroll" id="other-scroll" tabindex="0" aria-label="${{ projects: '專案', activity: '活動', advanced: '進階' }[S.view]}">${S.view === 'projects' ? projectsView() : S.view === 'activity' ? activityView() : advancedView()}</div></div>`;
   $('#pop').innerHTML = popHTML();
   // Positioned through the CSSOM: the page's content security policy allows no inline style attributes.
   const pop = $('#pop .pop');
