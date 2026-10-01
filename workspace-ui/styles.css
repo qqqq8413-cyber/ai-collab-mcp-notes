@@ -213,6 +213,27 @@ ol,ul{margin:0;padding:0;list-style:none}
 .exb{display:inline-flex;align-items:center;min-height:40px;padding:8px 18px;border-radius:999px;background:var(--tint);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 8%,transparent);font-size:14px;color:var(--fg);transition:background var(--dur-1),box-shadow var(--dur-1)}
 .exb:hover{background:var(--chief-bg);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--chief) 35%,transparent)}
 
+/* Home (belongs to no project): the project target in the composer, the hand-over acknowledgement, relevant work */
+.c-to{font-size:12.5px;color:var(--muted);letter-spacing:.06em;white-space:nowrap}
+.c-sel{min-width:0;max-width:220px;height:34px;padding:0 10px;border-radius:999px;border:0;background:var(--sunk);color:var(--fg);font-size:13.5px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 12%,transparent);cursor:pointer}
+.c-sel:hover{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 28%,transparent)}
+.home-ack{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:-14px;font-size:14px;color:var(--fg)}
+.home-ack .i{color:var(--chief)}
+.home-ack .adv{margin-left:0}
+.hw{display:grid;gap:6px}
+.hlist{display:grid}
+.hp{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center;width:100%;padding:14px 4px;border-top:1px solid var(--line);color:var(--fg);transition:background var(--dur-1)}
+.hlist li:first-child .hp{border-top:0}
+.hp:hover{background:color-mix(in srgb,var(--card) 70%,transparent)}
+.hp>.i{color:var(--muted);transition:transform .3s var(--spring),color var(--dur-1)}
+.hp:hover>.i{color:var(--fg);transform:translateX(3px)}
+.hp-b{display:grid;gap:1px;min-width:0}
+.hp-n{font-size:12.5px;color:var(--muted);letter-spacing:.06em}
+.hp-g{font-size:16px;line-height:1.5;overflow-wrap:anywhere}
+.hp-s{font-size:12.5px;color:var(--muted)}
+/* a Human-required project (future read model only; WS-L1 has none): the one place gold marks a spine */
+.pulse.need{box-shadow:inset 0 0 0 1.5px var(--gold),0 0 0 3px color-mix(in srgb,var(--gold) 24%,transparent);background:radial-gradient(circle,var(--gold) 0 30%,transparent 33%)}
+
 /* other views */
 .page{padding-block:44px 64px;display:grid;gap:30px;align-content:start}
 .page-h{display:grid;gap:8px}
@@ -320,6 +341,7 @@ ol,ul{margin:0;padding:0;list-style:none}
   .hero{padding:48px 18px 28px}
   .hero .composer textarea{font-size:16.5px}
   .c-hint{display:none}
+  .c-sel{max-width:none;flex:1}
   .page{padding-block:30px 44px}
   .page-h h1{font-size:28px}
   .tl li{grid-template-columns:82px 20px minmax(0,1fr)}

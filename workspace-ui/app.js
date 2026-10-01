@@ -38,11 +38,58 @@ const toast = (text) => {
   toastTimer = setTimeout(() => { $('#toast').innerHTML = ''; }, 3600);
 };
 
+// ---------- entry resolver (pure: no DOM, no storage, no network; tested in test-workspace-ui.mjs)
+// One signal per configured project, in configured order. WS-L1 has no execution and no Human-required state, so
+// signalsOf() reports working = false and humanRequired = false; only a future, Architect-approved read model may
+// supply them. Queued goals never count as working.
+function signalsOf(projects) {
+  return projects.map((item, order) => ({ projectId: item.projectId, order, queued: item.queued ?? 0, working: false, humanRequired: false, humanRequiredSince: null }));
+}
+function knownProject(signals, projectId) {
+  return signals.some((signal) => signal.projectId === projectId) ? projectId : null;
+}
+// The oldest outstanding Human request first (by its own request time); ties and missing times fall back to configured order.
+function byOldestRequest(a, b) {
+  const at = (signal) => { const t = Date.parse(signal.humanRequiredSince ?? ''); return Number.isNaN(t) ? Number.MAX_SAFE_INTEGER : t; };
+  return (at(a) - at(b)) || (a.order - b.order);
+}
+// Root entry only: an explicit destination always wins; otherwise a Human-required item opens its project; otherwise Home.
+// Working never bypasses Home.
+function resolveEntry(signals, explicitProjectId) {
+  const attention = signals.filter((signal) => signal.humanRequired).sort(byOldestRequest).map((signal) => signal.projectId);
+  const explicit = knownProject(signals, explicitProjectId);
+  if (explicit) return { kind: 'project', projectId: explicit, attention };
+  if (attention.length) return { kind: 'project', projectId: attention[0], focal: 'human-required', attention };
+  return { kind: 'home', attention };
+}
+// Home lists only relevant projects: working first, then those with queued goals; idle projects stay in the spines.
+function homeProjects(signals, lastViewed) {
+  const group = (list) => {
+    const sorted = [...list].sort((a, b) => a.order - b.order);
+    const last = sorted.findIndex((signal) => signal.projectId === lastViewed);
+    return last > 0 ? [sorted[last], ...sorted.slice(0, last), ...sorted.slice(last + 1)] : sorted;
+  };
+  return [...group(signals.filter((signal) => signal.working)), ...group(signals.filter((signal) => !signal.working && signal.queued > 0))];
+}
+// The Home composer's default target: a working project (last viewed if it is one), else last viewed, else the first configured.
+function defaultTarget(signals, lastViewed) {
+  const last = knownProject(signals, lastViewed);
+  const working = signals.filter((signal) => signal.working).sort((a, b) => a.order - b.order);
+  if (working.length) return working.some((signal) => signal.projectId === last) ? last : working[0].projectId;
+  return last ?? [...signals].sort((a, b) => a.order - b.order)[0]?.projectId ?? null;
+}
+// ---------- end entry resolver
+
 // ---------- state
+// view: home (belongs to no project) | project (one project's 此刻 / 往來) | projects | activity | advanced
 const S = {
-  view: 'chief', pid: null, projects: [], queues: {}, conn: 'connecting', pop: null, sheet: null,
+  view: 'home', pid: null, target: null, homeAck: null, projects: [], queues: {}, conn: 'connecting', pop: null, sheet: null,
   confirm: null, sending: false, loadError: null, pane: 'now',
 };
+const LAST = `chief.workspace.${source.mode}.project`; // last viewed project: a local, non-authoritative UI preference
+const readLastViewed = () => { try { return localStorage.getItem(LAST); } catch { return null; } };
+const writeLastViewed = (projectId) => { try { localStorage.setItem(LAST, projectId); } catch { /* optional */ } };
+const byId = (projectId) => S.projects.find((item) => item.projectId === projectId);
 const project = () => S.projects.find((item) => item.projectId === S.pid);
 const queue = () => S.queues[S.pid] ?? { revision: 0, goals: [], history: [] };
 
@@ -50,11 +97,11 @@ const queue = () => S.queues[S.pid] ?? { revision: 0, goals: [], history: [] };
 async function loadProjects() {
   const data = await source.projects();
   S.projects = data.projects;
-  let remembered = null;
-  try { remembered = localStorage.getItem(`chief.workspace.${source.mode}.project`); } catch { remembered = null; }
+  const remembered = readLastViewed();
   if (!S.projects.some((item) => item.projectId === S.pid)) {
     S.pid = S.projects.some((item) => item.projectId === remembered) ? remembered : S.projects[0]?.projectId ?? null;
   }
+  if (!byId(S.target)) S.target = defaultTarget(signalsOf(S.projects), remembered);
 }
 async function loadQueue(projectId) {
   const data = await source.queue(projectId);
@@ -106,30 +153,37 @@ const connChip = () => {
   return `<span class="wl-conn" role="status" title="與本機 Workspace 伺服器的連線"><span class="dot ${S.conn === 'open' ? 'open' : S.conn === 'retrying' ? 'retrying' : ''}"></span><span class="lbltext">${label}</span></span>`;
 };
 const NOTE = `<p class="wl-note">${ic('info', 15)}<span>目前這個版本只會保存與排列工作，還不會自動啟動 AI 執行。</span></p>`;
-const VIEWS = [['chief', 'chat', 'Chief'], ['projects', 'folder', '專案'], ['activity', 'pulse', '活動'], ['advanced', 'scope', '進階']];
+const VIEWS = [['home', 'chat', 'Chief'], ['projects', 'folder', '專案'], ['activity', 'pulse', '活動'], ['advanced', 'scope', '進階']];
 
 function topHTML() {
   const p = project();
-  return `<a class="brand" href="${DEMO ? '?demo=1' : '/'}" data-act="nav" data-v="chief" aria-label="CHIEF，回到首頁"><span class="mark" aria-hidden="true"></span><span class="word" aria-hidden="true">CHIEF</span></a>
+  return `<a class="brand" href="${DEMO ? '?demo=1#/' : '#/'}" data-act="nav" data-v="home" aria-label="CHIEF，回到首頁"><span class="mark" aria-hidden="true"></span><span class="word" aria-hidden="true">CHIEF</span></a>
     <nav class="tnav" aria-label="主要選單">${VIEWS.map(([v, , label]) => `<button class="tn-i" data-act="nav" data-v="${v}" ${S.view === v ? 'aria-current="page"' : ''}>${label}</button>`).join('')}</nav>
-    ${p ? `<button class="tbtn" data-act="pop" data-v="proj" aria-haspopup="true" aria-expanded="${S.pop === 'proj'}"><span class="sr">切換專案，目前是</span><span class="pname">${esc(p.displayName)}</span>${ic('chev', 14)}</button>` : ''}
+    ${S.projects.length ? `<button class="tbtn" data-act="pop" data-v="proj" aria-haspopup="true" aria-expanded="${S.pop === 'proj'}">${S.view === 'project' && p ? `<span class="sr">切換專案，目前是</span><span class="pname">${esc(p.displayName)}</span>` : '<span class="pname">選擇專案</span>'}${ic('chev', 14)}</button>` : ''}
     <span class="sp"></span>${DEMO ? '<span class="proto" title="示範模式：資料只存在這個頁面">示範資料</span>' : ''}${connChip()}<span class="avatar" aria-hidden="true">你</span>`;
 }
 // Projects as spines on wide layouts: the name and queue count stand in a tall tab, read in normal order by screen readers.
 function railHTML() {
-  return `<div class="spines">${S.projects.map((item) => `<button class="spine${item.projectId === S.pid ? ' on' : ''}" data-act="switch" data-v="${esc(item.projectId)}" ${item.projectId === S.pid ? 'aria-current="true"' : ''}>
-      <span class="pulse idle" aria-hidden="true"></span><span class="sn">${esc(item.displayName)}</span><span class="sq num" aria-hidden="true">${item.queued ?? 0}</span><span class="sr">，${item.queued ?? 0} 個排隊</span></button>`).join('')}</div>
-`;
+  const attention = new Set(signalsOf(S.projects).filter((signal) => signal.humanRequired).map((signal) => signal.projectId));
+  return `<div class="spines">${S.projects.map((item) => {
+    const on = S.view === 'project' && item.projectId === S.pid;
+    const need = attention.has(item.projectId);
+    return `<button class="spine${on ? ' on' : ''}" data-act="open" data-v="${esc(item.projectId)}" ${on ? 'aria-current="page"' : ''}>
+      <span class="pulse idle${need ? ' need' : ''}" aria-hidden="true"></span><span class="sn">${esc(item.displayName)}</span><span class="sq num" aria-hidden="true">${item.queued ?? 0}</span><span class="sr">，${item.queued ?? 0} 個排隊${need ? '，需要你決定' : ''}</span></button>`;
+  }).join('')}</div>`;
 }
 function tabsHTML() {
   return VIEWS.map(([v, icon, label]) => `<button class="nav" data-act="nav" data-v="${v}" ${S.view === v ? 'aria-current="page"' : ''}>${ic(icon, 18)}<span class="nl">${label}</span></button>`).join('');
 }
 
-function composerHTML(big) {
-  const p = project();
+// Home: the larger composer with a visible, changeable project target (a goal always belongs to exactly one project).
+// Project: the docked composer adds to that project.
+function composerHTML(home) {
+  const p = home ? byId(S.target) : project();
+  const target = home ? `<label class="c-to" for="target">交給哪個專案</label><select id="target" class="c-sel">${S.projects.map((item) => `<option value="${esc(item.projectId)}" ${item.projectId === S.target ? 'selected' : ''}>${esc(item.displayName)}</option>`).join('')}</select>` : '<span class="c-hint">Enter 送出 · Shift + Enter 換行</span>';
   return `<form class="composer" id="composer-form" autocomplete="off"><label class="sr" for="composer">交給 Chief 的目標</label>
-    <textarea id="composer" rows="${big ? 3 : 1}" maxlength="2000" placeholder="${p ? `告訴 Chief 你想完成的目標，會加入「${esc(p.displayName)}」的工作清單…` : '先在設定檔加入專案'}" ${p ? '' : 'disabled'}></textarea>
-    <div class="c-row"><span class="c-hint">Enter 送出 · Shift + Enter 換行</span><button class="send" type="submit" id="send" title="加入工作清單" ${S.sending || !p ? 'disabled' : ''}><span class="sr">加入工作清單</span>${ic('up', 18)}</button></div></form>`;
+    <textarea id="composer" rows="${home ? 3 : 1}" maxlength="2000" placeholder="${p ? (home ? '告訴 Chief 你想完成的目標…' : `告訴 Chief 你想完成的目標，會加入「${esc(p.displayName)}」的工作清單…`) : '先在設定檔加入專案'}" ${p ? '' : 'disabled'}></textarea>
+    <div class="c-row">${target}<button class="send" type="submit" id="send" title="加入工作清單" ${S.sending || !p ? 'disabled' : ''}><span class="sr">加入工作清單</span>${ic('up', 18)}</button></div></form>`;
 }
 
 // 往來: one Human bubble and Chief's plain reply per goal. The goal on the stage gets a light pointer, not a second card.
@@ -182,21 +236,38 @@ function stageHTML() {
     </div>`;
 }
 
-function chiefView() {
-  const p = project();
+// Home belongs to no project: Chief's question, the larger composer with its project target, an acknowledgement after
+// a hand-over (the Human stays here), and the projects with relevant work (working first, then queued; idle ones are not
+// listed here). Every row states its true WS-L1 state and opens that project.
+function homeView() {
   if (S.loadError) return `<div class="view other"><div class="scroll"><div class="col page"><p class="wl-err">${esc(S.loadError)}</p></div></div></div>`;
-  if (!p) return `<div class="view other"><div class="scroll"><div class="col page"><header class="page-h"><h1>還沒有專案</h1><p>在 Workspace 設定檔的 projects 裡加入專案，重新啟動後就會出現在這裡。</p></header></div></div></div>`;
-  const q = queue();
-  const added = q.history.filter((event) => event.kind === 'GOAL_ADDED');
-  if (!added.length) {
-    const examples = [`繼續做${p.displayName}`, '整理目前進度，列出下一步', '檢查有沒有需要我決定的事'];
-    return `<div class="view chief idle"><div class="scroll"><div class="col hero">
-      <div class="h-who"><span class="av" aria-hidden="true"></span><span><b>Chief</b> · ${esc(p.displayName)}</span></div>
+  if (!S.projects.length) return `<div class="view other"><div class="scroll"><div class="col page"><header class="page-h"><h1>還沒有專案</h1><p>在 Workspace 設定檔的 projects 裡加入專案，重新啟動後就會出現在這裡。</p></header></div></div></div>`;
+  const target = byId(S.target);
+  const examples = [`繼續做${target?.displayName ?? ''}`, '整理目前進度，列出下一步', '檢查有沒有需要我決定的事'];
+  const rows = homeProjects(signalsOf(S.projects), readLastViewed()).map((signal) => {
+    const item = byId(signal.projectId);
+    const goals = S.queues[signal.projectId]?.goals ?? [];
+    return `<li><button class="hp" data-act="open" data-v="${esc(signal.projectId)}"><span class="pulse idle" aria-hidden="true"></span>
+      <span class="hp-b"><span class="hp-n">${esc(item.displayName)}</span><span class="hp-g">${esc(goals[0]?.text ?? '')}</span><span class="hp-s">排隊中 · 尚未開始執行${goals.length > 1 ? ` · 共 ${goals.length} 個排隊` : ''}</span></span>${ic('arrow', 16)}</button></li>`;
+  }).join('');
+  const ack = S.homeAck && byId(S.homeAck);
+  return `<div class="view chief idle home"><div class="scroll"><div class="col hero">
+      <div class="h-who"><span class="av" aria-hidden="true"></span><span><b>Chief</b></span></div>
       <h1>今天要我幫你<em>完成</em>什麼？</h1>
       ${composerHTML(true)}
+      ${ack ? `<p class="home-ack">${ic('check', 15)}<span>已加入「${esc(ack.displayName)}」的工作清單 · 排隊中 · 尚未開始執行</span><button class="adv" data-act="open" data-v="${esc(ack.projectId)}">打開「${esc(ack.displayName)}」</button></p>` : ''}
       <div class="sec"><p class="lbl">可以這樣說</p><div class="ex">${examples.map((text) => `<button class="exb" data-act="fill" data-v="${esc(text)}">${esc(text)}</button>`).join('')}</div></div>
+      ${rows ? `<section class="hw" aria-labelledby="hw-h"><h2 class="lbl" id="hw-h">各專案的工作</h2><ol class="hlist">${rows}</ol></section>` : ''}
       ${NOTE}</div></div></div>`;
-  }
+}
+
+// One project: 此刻 (stage) and 往來 (correspondence) with the docked composer.
+function projectView() {
+  const p = project();
+  if (S.loadError) return `<div class="view other"><div class="scroll"><div class="col page"><p class="wl-err">${esc(S.loadError)}</p></div></div></div>`;
+  if (!p) return homeView();
+  const q = queue();
+  const added = q.history.filter((event) => event.kind === 'GOAL_ADDED');
   const removed = new Set(q.history.filter((event) => event.kind === 'GOAL_REMOVED').map((event) => event.goalId));
   const position = new Map(q.goals.map((goal, index) => [goal.goalId, index + 1]));
   const stream = q.history.map((event) => {
@@ -209,14 +280,14 @@ function chiefView() {
       <div class="mtabs"><div class="mt" role="group" aria-label="顯示">${tab('now', '此刻')}${tab('log', '往來', ` <span class="tn num">${added.length}</span>`)}</div></div>
       <section class="stage" id="stage" aria-label="此刻"><div class="scroll" id="stage-scroll">${stageHTML()}</div></section>
       <section class="journal" id="journal" aria-labelledby="journal-h"><header class="jh"><h2 id="journal-h">往來</h2><span class="num" aria-hidden="true">${added.length}</span></header>
-        <div class="jscroll" id="scroller" tabindex="0" aria-label="和 Chief 的往來紀錄"><div class="stream">${stream}</div></div></section>
+        <div class="jscroll" id="scroller" tabindex="0" aria-label="和 Chief 的往來紀錄"><div class="stream">${stream || '<p class="wl-empty">還沒有往來紀錄。在下面輸入目標，就會加入這個專案的工作清單。</p>'}</div></div></section>
       <div class="dock">${composerHTML(false)}</div>
     </div>`;
 }
 
 function projectsView() {
   return `<div class="col page"><header class="page-h"><h1>專案</h1><p>${DEMO ? '示範資料。' : '專案來自本機 Workspace 設定檔。'}每個專案一次只執行一個目標；這個版本只保存與排列工作清單。</p></header>
-    <div class="pgrid">${S.projects.map((item) => `<button class="pcard ${item.projectId === S.pid ? 'cur' : ''}" data-act="switch" data-v="${esc(item.projectId)}">
+    <div class="pgrid">${S.projects.map((item) => `<button class="pcard ${item.projectId === S.pid ? 'cur' : ''}" data-act="open" data-v="${esc(item.projectId)}">
       <div class="pc-top"><b>${esc(item.displayName)}</b><span class="spill">${item.queued ?? 0} 個排隊</span></div>
       <dl><dt>位置</dt><dd>${esc(item.repository)}</dd><dt>執行</dt><dd>尚未開始</dd></dl></button>`).join('')}</div></div>`;
 }
@@ -246,7 +317,7 @@ function popHTML() {
   const anchor = $('[data-act=pop][data-v=proj]');
   const box = anchor ? anchor.getBoundingClientRect() : { left: 12, bottom: 60 };
   return `<div class="pop" role="menu" aria-label="切換專案" data-left="${Math.round(box.left)}" data-top="${Math.round(box.bottom + 6)}"><p class="pop-h lbl">切換專案</p>
-    ${S.projects.map((item) => `<button class="pitem" role="menuitemradio" aria-checked="${item.projectId === S.pid}" data-act="switch" data-v="${esc(item.projectId)}"><span class="dot" aria-hidden="true"></span><span><span class="pt">${esc(item.displayName)}</span><span class="ps">${item.queued ?? 0} 個排隊 · 尚未開始執行</span></span></button>`).join('')}</div>`;
+    ${S.projects.map((item) => `<button class="pitem" role="menuitemradio" aria-checked="${S.view === 'project' && item.projectId === S.pid}" data-act="open" data-v="${esc(item.projectId)}"><span class="dot" aria-hidden="true"></span><span><span class="pt">${esc(item.displayName)}</span><span class="ps">${item.queued ?? 0} 個排隊 · 尚未開始執行</span></span></button>`).join('')}</div>`;
 }
 
 function sheetHTML() {
@@ -267,7 +338,7 @@ function render() {
   $('#top').innerHTML = topHTML();
   $('#rail').innerHTML = railHTML();
   $('#tabs').innerHTML = tabsHTML();
-  $('#main').innerHTML = S.view === 'chief' ? chiefView()
+  $('#main').innerHTML = S.view === 'home' ? homeView() : S.view === 'project' ? projectView()
     : `<div class="view other"><div class="scroll" id="other-scroll">${S.view === 'projects' ? projectsView() : S.view === 'activity' ? activityView() : advancedView()}</div></div>`;
   $('#pop').innerHTML = popHTML();
   // Positioned through the CSSOM: the page's content security policy allows no inline style attributes.
@@ -288,14 +359,18 @@ function render() {
 async function submitGoal() {
   const composer = $('#composer');
   const text = composer?.value.trim();
-  if (!text || S.sending || !S.pid) return;
+  // From Home the goal goes to the project chosen in 交給哪個專案; inside a project, to that project. Never to none.
+  const home = S.view === 'home';
+  const projectId = home ? S.target : S.pid;
+  if (!text || S.sending || !byId(projectId)) return;
   S.sending = true;
   render();
   try {
-    const data = await source.addGoal(S.pid, text);
+    const data = await source.addGoal(projectId, text);
     applyEvent('goal.created', data);
     $('#composer').value = '';
-    announce('已加入工作清單，尚未開始執行。');
+    if (home) { S.homeAck = projectId; announce(`已加入「${byId(projectId).displayName}」的工作清單，尚未開始執行。`); } // the Human stays on Home
+    else announce('已加入工作清單，尚未開始執行。');
     requestAnimationFrame(() => { const scroller = $('#scroller'); if (scroller) scroller.scrollTop = scroller.scrollHeight; });
   } catch (error) {
     toast(error.message);
@@ -333,18 +408,39 @@ async function remove(goalId) {
   }
 }
 
+// ---------- navigation: explicit Human navigation is always respected; the entry resolver runs once, at root entry.
+const ROUTES = ['projects', 'activity', 'advanced'];
+function parseRoute(hash) {
+  const m = /^#\/p\/(.+)$/.exec(hash);
+  if (m) return { view: 'project', projectId: decodeURIComponent(m[1]) };
+  const v = /^#\/(\w+)$/.exec(hash)?.[1];
+  return ROUTES.includes(v) ? { view: v } : { view: 'home' };
+}
+const hashOf = () => (S.view === 'project' ? `#/p/${encodeURIComponent(S.pid)}` : S.view === 'home' ? '#/' : `#/${S.view}`);
+function go(view, projectId, { replace = false } = {}) {
+  S.pop = null; S.confirm = null; S.homeAck = null;
+  if (view === 'project') {
+    if (!byId(projectId)) view = 'home';
+    else { if (S.pid !== projectId) S.pane = 'now'; S.pid = projectId; writeLastViewed(projectId); }
+  }
+  S.view = view;
+  if (location.hash !== hashOf()) history[replace ? 'replaceState' : 'pushState'](null, '', `${location.search}${hashOf()}`);
+  render();
+}
+addEventListener('popstate', () => { const route = parseRoute(location.hash); go(route.view, route.projectId); });
+
+document.addEventListener('change', (event) => {
+  if (event.target.id === 'target') { S.target = event.target.value; render(); }
+});
 document.addEventListener('click', (event) => {
   const el = event.target.closest('[data-act]');
   if (!el) { if (S.pop && !event.target.closest('.pop')) { S.pop = null; render(); } return; }
   const { act, v } = el.dataset;
   if (el.tagName === 'A') event.preventDefault();
   switch (act) {
-    case 'nav': S.view = v; S.pop = null; render(); break;
+    case 'nav': go(v); break;
+    case 'open': go('project', v); break;
     case 'pop': S.pop = S.pop === v ? null : v; render(); break;
-    case 'switch':
-      S.pid = v; S.pop = null; S.confirm = null; S.view = 'chief';
-      try { localStorage.setItem(`chief.workspace.${source.mode}.project`, v); } catch { /* optional */ }
-      render(); break;
     case 'fill': { const composer = $('#composer'); if (composer) { composer.value = v; composer.focus(); } break; }
     case 'up': void move(v, -1); break;
     case 'down': void move(v, 1); break;
@@ -372,4 +468,11 @@ document.addEventListener('keydown', (event) => {
 
 source.subscribe(applyEvent, (state) => { S.conn = state; if (!DEMO) render(); });
 await reloadAll();
-window.__WORKSPACE = Object.freeze({ mode: source.mode, state: () => structuredClone({ view: S.view, pid: S.pid, conn: S.conn, projects: S.projects, queues: S.queues }) });
+// Root entry: a deep link to a project is explicit and kept; otherwise the resolver decides (WS-L1: always Home).
+{
+  const route = parseRoute(location.hash);
+  const entry = resolveEntry(signalsOf(S.projects), route.view === 'project' ? route.projectId : null);
+  if (entry.kind === 'project') go('project', entry.projectId, { replace: true });
+  else go(route.view === 'project' ? 'home' : route.view, undefined, { replace: true });
+}
+window.__WORKSPACE = Object.freeze({ mode: source.mode, state: () => structuredClone({ view: S.view, pid: S.pid, target: S.target, conn: S.conn, projects: S.projects, queues: S.queues }) });

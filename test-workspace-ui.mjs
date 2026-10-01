@@ -120,5 +120,73 @@ await check('the stage shows one focal object and never fakes execution (WS-VIS1
   assert.match(app, /在「此刻」/, 'the correspondence points at the stage instead of repeating the focal card');
 });
 
+// The entry resolver is a pure block inside app.js; it is evaluated on its own so the future-contract rules can be
+// proved with plain fixtures, without any fake server execution data.
+const resolver = (() => {
+  const app = read('app.js');
+  const block = app.slice(app.indexOf('// ---------- entry resolver'), app.indexOf('// ---------- end entry resolver'));
+  return new Function(`${block}\nreturn { signalsOf, resolveEntry, homeProjects, defaultTarget };`)();
+})();
+const sig = (projectId, order, extra = {}) => ({ projectId, order, queued: 0, working: false, humanRequired: false, humanRequiredSince: null, ...extra });
+
+await check('current WS-L1: root opens Home, queued is never working, and LIVE has no Human-required gold', () => {
+  const live = resolver.signalsOf([{ projectId: 'a', queued: 2 }, { projectId: 'b', queued: 0 }, { projectId: 'c' }]);
+  assert.ok(live.every((s) => s.working === false && s.humanRequired === false && s.humanRequiredSince === null), 'WS-L1 has no execution or Human-required signal');
+  assert.deepEqual(resolver.resolveEntry(live, null), { kind: 'home', attention: [] });
+  assert.deepEqual(resolver.homeProjects(live, null).map((s) => s.projectId), ['a'], 'only projects with queued goals; idle ones stay off Home');
+  const app = read('app.js');
+  const home = app.slice(app.indexOf('function homeView'), app.indexOf('function projectView'));
+  assert.match(home, /排隊中 · 尚未開始執行/);
+  assert.doesNotMatch(home, /正在|執行中|working/i, 'Home never calls a queued goal active');
+  assert.doesNotMatch(app, /class="pulse need|humanRequired: true/, 'nothing in the page creates a Human-required state');
+});
+
+await check('Home composer: explicit visible target, writes to the selected project, and does not navigate', () => {
+  const app = read('app.js');
+  assert.match(app, /<label class="c-to" for="target">交給哪個專案<\/label><select id="target"/);
+  const submit = app.slice(app.indexOf('async function submitGoal'), app.indexOf('async function move'));
+  assert.match(submit, /const projectId = home \? S\.target : S\.pid;/);
+  assert.match(submit, /source\.addGoal\(projectId, text\)/, 'the existing POST /projects/:projectId/goals path');
+  assert.match(submit, /!byId\(projectId\)\) return;/, 'no unassigned or unknown-project goal');
+  assert.doesNotMatch(submit, /\bgo\(|S\.view\s*=(?!=)/, 'a hand-over from Home stays on Home');
+  assert.match(submit, /S\.homeAck = projectId/, 'Home acknowledges the target project');
+});
+
+await check('default target: working, then last viewed, then configured order; bad preferences fall back', () => {
+  const { defaultTarget } = resolver;
+  const idle = [sig('a', 0), sig('b', 1), sig('c', 2)];
+  assert.equal(defaultTarget(idle, 'b'), 'b', 'last viewed sets the default target');
+  assert.equal(defaultTarget(idle, null), 'a');
+  assert.equal(defaultTarget(idle, 'deleted-project'), 'a', 'unknown last-viewed falls back to configured order');
+  assert.equal(defaultTarget(idle, '{"corrupt"'), 'a');
+  const working = [sig('a', 0), sig('b', 1, { working: true }), sig('c', 2, { working: true })];
+  assert.equal(defaultTarget(working, 'a'), 'b', 'working beats last viewed');
+  assert.equal(defaultTarget(working, 'c'), 'c', 'last viewed wins among working projects');
+  assert.equal(defaultTarget([], null), null);
+});
+
+await check('entry resolver: Human-required beats Home, oldest request wins, explicit navigation is never overridden', () => {
+  const { resolveEntry, homeProjects } = resolver;
+  const signals = [
+    sig('a', 0, { working: true }),
+    sig('b', 1, { humanRequired: true, humanRequiredSince: '2026-10-01T10:00:00.000Z' }),
+    sig('c', 2, { humanRequired: true, humanRequiredSince: '2026-10-01T09:00:00.000Z' }),
+    sig('d', 3, { queued: 1 }),
+  ];
+  assert.deepEqual(resolveEntry(signals, null), { kind: 'project', projectId: 'c', focal: 'human-required', attention: ['c', 'b'] }, 'oldest request; the other stays marked');
+  assert.deepEqual(resolveEntry(signals, 'd'), { kind: 'project', projectId: 'd', attention: ['c', 'b'] }, 'an explicit destination is kept');
+  assert.equal(resolveEntry(signals, 'unknown').projectId, 'c', 'an unknown deep link does not hijack the rule');
+  const tie = [sig('x', 0, { humanRequired: true, humanRequiredSince: '2026-10-01T09:00:00.000Z' }), sig('y', 1, { humanRequired: true, humanRequiredSince: '2026-10-01T09:00:00.000Z' })];
+  assert.equal(resolveEntry([...tie].reverse(), null).projectId, 'x', 'equal times fall back to configured order, not array order');
+  assert.equal(resolveEntry([sig('m', 0, { humanRequired: true }), sig('n', 1, { humanRequired: true, humanRequiredSince: '2026-10-01T09:00:00.000Z' })], null).projectId, 'n', 'a missing request time is never treated as oldest');
+  const working = [sig('a', 0, { working: true }), sig('b', 1, { queued: 2 })];
+  assert.deepEqual(resolveEntry(working, null), { kind: 'home', attention: [] }, 'working does not bypass Home');
+  assert.deepEqual(homeProjects([sig('q', 0, { queued: 1 }), sig('w', 1, { working: true }), sig('v', 2, { working: true }), sig('z', 3)], 'v').map((s) => s.projectId), ['v', 'w', 'q'], 'working first (last viewed preferred within it), then queued, idle omitted');
+  const app = read('app.js');
+  const boot = app.slice(app.indexOf('// Root entry:'), app.indexOf('window.__WORKSPACE'));
+  assert.equal((app.match(/resolveEntry\(signalsOf/g) ?? []).length, 1, 'the resolver runs once, at root entry, never on SSE updates');
+  assert.match(boot, /resolveEntry\(signalsOf\(S\.projects\)/);
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exitCode = 1;
