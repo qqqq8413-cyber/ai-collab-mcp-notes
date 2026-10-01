@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import type { WorkspaceConfig, WorkspaceProject } from './config.js';
 import { FileGoalStore, GoalQueueRequestError, GoalStoreIntegrityError, type GoalQueue, type QueueChange } from './goal-store.js';
@@ -239,7 +238,10 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
     // Loopback only. There is no option to listen on another address.
     server.listen(options.port, HOST, () => {
       server.off('error', fail);
-      port = (server.address() as AddressInfo).port;
+      // server.address() is string | AddressInfo | null; a TCP listener yields the object form.
+      const address = server.address();
+      if (address === null || typeof address === 'string') { fail(new Error('Workspace server did not bind a TCP port')); return; }
+      port = address.port;
       done(Object.freeze({
         server, port, url: `http://${HOST}:${port}/`,
         close: () => new Promise<void>((closed) => {
