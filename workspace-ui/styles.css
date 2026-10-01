@@ -1,60 +1,35 @@
-/* Chief Workspace styles (WS-VIS1A: material system). The layout is the accepted Workspace v3.1 one
-   (top bar, rail, one conversation column, the "目前工作" panel; bottom tabs under 760px); the material is the
-   accepted visual baseline: a celadon desk with a faint craquelure holds one porcelain sheet, the composer is glass
-   docked on it, and Chief is a celadon glaze bead that never animates unless Chief is genuinely working (WS-L1 has
-   no execution, so it is always still here). Gold is reserved for decisions the Human must make. Human words are set
-   in the Kai stack and Chief's in the Song stack as a voice cue only, never authority; controls use the system sans.
-   Conversation follows the accepted mainstream AI-chat convention: familiar for input, distinctive for work.
-   System fonts only: the stacks fall back to locally installed faces, so the page makes no third-party request.
-   The craquelure is drawn once on a canvas by app.js; without it the desk stays plain. WS-L1 rules follow at the end. */
+/* Chief Workspace styles (WS-VIS1A: material system, black). The layout is the accepted Workspace v3.1 one
+   (top bar, rail, one conversation column, the "目前工作" panel; bottom tabs under 760px). The material is black,
+   on the Human's request: a deep, quiet black page with no background texture or light; one barely lifted sheet
+   with a hairline edge holds the conversation; cards sit a shade lighter. Chief writes in ink blue: a small ink dot
+   in a hairline ring that never animates unless Chief is genuinely working (WS-L1 has no execution, so it is always
+   still here); the brand mark and Chief's avatar are a Didot C in a hairline ring. Gold is reserved for decisions
+   the Human must make. Conversation follows the accepted mainstream AI-chat convention: familiar for input,
+   distinctive for work. System fonts only (Avenir Next / PingFang for words, Didot for the wordmark and numerals),
+   so the page makes no third-party request. WS-L1 rules follow at the end. */
 :root{
-  --desk:#E1EAE6; --slab:#FBFCFB; --card:#FFFFFF; --tint:#F0F5F2; --sunk:#E9EFEC;
-  --fg:#17201E; --muted:#52605B; --line:#D9E2DE; --ctl:#76857F;
-  --chief:#2B5A51; --chief-bg:#E1EDE8; --on-chief:#FFFFFF;
-  --glaze:#9DBFB6; --glaze-hi:#D9EAE5; --glaze-deep:#5E8C82;
-  --human:#86540E; --human-bg:#F7EFDF; --human-glow:#C79A4B; --on-human:#FFFDF8;
-  --gold:#D4A857; --gold-hi:#F5E2B8; --gold-deep:#9A6A1F;
-  --pass:#2B5A51; --pass-bg:#E1EDE8; --link:#2B5A51;
-  --crack:#3F635B; --crack-a:.06; --mist:rgba(255,255,255,.55); --light:rgba(255,255,255,.62);
-  --glass:rgba(251,252,251,.76); --glass-strong:rgba(251,252,251,.94); --glass-line:rgba(255,255,255,.85);
-  --scrim:rgba(23,32,30,.3);
-  --shadow-1:0 1px 1px rgba(23,32,30,.04),0 8px 22px -14px rgba(23,32,30,.2);
-  --shadow-2:0 2px 4px rgba(23,32,30,.04),0 30px 64px -30px rgba(23,32,30,.32);
-  --font-body:"PingFang TC","Heiti TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
-  --font-display:"Songti TC","Songti SC","STSong","Noto Serif TC","PMingLiU","MingLiU",serif;
-  --font-hand:"Kaiti TC","BiauKai","STKaiti","DFKai-SB","TW-Kai","Songti TC",serif;
-  --font-latin:"Baskerville","Hoefler Text","Iowan Old Style","Palatino",Georgia,serif;
+  --desk:#030304; --slab:#0B0B0D; --card:#121215; --tint:#101013; --sunk:#1A1A1E;
+  --fg:#EDECE8; --muted:#9C9B97; --line:#232327; --ctl:#606066;
+  --chief:#9DB4F0; --chief-bg:#141A2A; --on-chief:#07080B;
+  --blue:#6F8AD8; --blue-hi:#B8C8F4; --blue-deep:#33498F;
+  --glaze:var(--blue); --glaze-hi:var(--blue-hi); --glaze-deep:var(--blue-deep);
+  --human:#E2C07F; --human-bg:#1E1A11; --human-glow:#B88F45; --on-human:#120E06;
+  --gold:#CDA45C; --gold-hi:#F0DCAB; --gold-deep:#6E5019;
+  --pass:#9DB4F0; --pass-bg:#141A2A; --link:#9DB4F0;
+  --crack:transparent; --crack-a:0; --mist:transparent; --light:transparent;
+  --crackle:linear-gradient(transparent,transparent); --crackle-s:linear-gradient(transparent,transparent);
+  --glass:rgba(18,18,21,.82); --glass-strong:rgba(18,18,21,.96); --glass-line:rgba(255,255,255,.05);
+  --scrim:rgba(0,0,0,.62);
+  --shadow-1:0 1px 1px rgba(0,0,0,.5),0 8px 22px -14px rgba(0,0,0,.9);
+  --shadow-2:0 2px 6px rgba(0,0,0,.5),0 30px 64px -28px rgba(0,0,0,1);
+  --font-body:"Avenir Next","Avenir","PingFang TC","Heiti TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+  --font-display:var(--font-body); --font-hand:var(--font-body);
+  --font-latin:"Didot","Bodoni 72","Bodoni MT","Sitka Display","Iowan Old Style",Georgia,"PingFang TC",serif;
   --font-mono:ui-monospace,SFMono-Regular,Menlo,monospace;
   --dur-1:160ms; --dur-2:300ms; --dur-3:700ms; --ease:cubic-bezier(.22,.8,.24,1); --spring:cubic-bezier(.34,1.4,.5,1);
-  --topbar:64px; --railw:208px; --panelw:340px; --r:22px; --r-s:14px;
-  --crackle:linear-gradient(transparent,transparent); --crackle-s:linear-gradient(transparent,transparent);
+  --topbar:64px; --railw:208px; --panelw:340px; --r:16px; --r-s:10px;
+  color-scheme:dark;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --desk:#0D1311; --slab:#151C1A; --card:#1B2321; --tint:#19211F; --sunk:#212B28;
-  --fg:#E3EBE7; --muted:#97A7A1; --line:#28332F; --ctl:#5C6C67;
-  --chief:#8CC3B6; --chief-bg:#1E302B; --on-chief:#0E1412;
-  --glaze:#4F7E74; --glaze-hi:#93BEB3; --glaze-deep:#2B4D45;
-  --human:#E2B263; --human-bg:#2C2417; --human-glow:#B98A3E; --on-human:#17120A;
-  --gold:#C89A4C; --gold-hi:#F0D59C; --gold-deep:#6E4A14;
-  --pass:#8CC3B6; --pass-bg:#1E302B; --link:#8CC3B6;
-  --crack:#A8D0C6; --crack-a:.05; --mist:rgba(140,195,182,.07); --light:rgba(255,255,255,.035);
-  --glass:rgba(27,35,33,.74); --glass-strong:rgba(27,35,33,.95); --glass-line:rgba(255,255,255,.06);
-  --scrim:rgba(0,0,0,.55);
-  --shadow-1:0 1px 1px rgba(0,0,0,.3),0 10px 24px -14px rgba(0,0,0,.6);
-  --shadow-2:0 2px 6px rgba(0,0,0,.3),0 32px 66px -26px rgba(0,0,0,.75); color-scheme:dark}}
-:root[data-theme="dark"]{
-  --desk:#0D1311; --slab:#151C1A; --card:#1B2321; --tint:#19211F; --sunk:#212B28;
-  --fg:#E3EBE7; --muted:#97A7A1; --line:#28332F; --ctl:#5C6C67;
-  --chief:#8CC3B6; --chief-bg:#1E302B; --on-chief:#0E1412;
-  --glaze:#4F7E74; --glaze-hi:#93BEB3; --glaze-deep:#2B4D45;
-  --human:#E2B263; --human-bg:#2C2417; --human-glow:#B98A3E; --on-human:#17120A;
-  --gold:#C89A4C; --gold-hi:#F0D59C; --gold-deep:#6E4A14;
-  --pass:#8CC3B6; --pass-bg:#1E302B; --link:#8CC3B6;
-  --crack:#A8D0C6; --crack-a:.05; --mist:rgba(140,195,182,.07); --light:rgba(255,255,255,.035);
-  --glass:rgba(27,35,33,.74); --glass-strong:rgba(27,35,33,.95); --glass-line:rgba(255,255,255,.06);
-  --scrim:rgba(0,0,0,.55);
-  --shadow-1:0 1px 1px rgba(0,0,0,.3),0 10px 24px -14px rgba(0,0,0,.6);
-  --shadow-2:0 2px 6px rgba(0,0,0,.3),0 32px 66px -26px rgba(0,0,0,.75); color-scheme:dark}
 
 *,*::before,*::after{box-sizing:border-box}
 html,body{height:100%}
@@ -752,3 +727,29 @@ body{display:flex;flex-direction:column}
 .m-human:hover .meta,.m-human:focus-within .meta{opacity:1}
 .m-chief .wl-pills{margin-top:2px}
 @media (max-width:759px){.hero .composer textarea{font-size:16.5px}}
+
+/* ---------- black material: Chief's ink dot replaces the glaze bead; type and sheet in the Western register */
+.mark::after,.av::after,.pulse::after,.donemark::after{content:none}
+.app::before{content:none}
+.pulse{--o:var(--chief);width:16px;height:16px;background:radial-gradient(circle,var(--o) 0 30%,transparent 33%);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--o) 38%,transparent)}
+.pulse:not(.idle):not(.need){animation:ink 3.6s ease-in-out infinite}
+@keyframes ink{0%,100%{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--o) 38%,transparent),0 0 0 0 color-mix(in srgb,var(--o) 26%,transparent)}60%{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--o) 60%,transparent),0 0 0 6px color-mix(in srgb,var(--o) 0%,transparent)}}
+.pulse.need,.need .pulse{--o:var(--gold);background:radial-gradient(circle,var(--gold) 0 30%,transparent 33%);box-shadow:inset 0 0 0 1.5px var(--gold),0 0 0 3px color-mix(in srgb,var(--gold) 24%,transparent);animation:none}
+.pulse.idle{--o:var(--ctl);background:none;box-shadow:inset 0 0 0 1.5px var(--ctl);animation:none}
+.mark,.av{display:grid;place-items:center;background:var(--card);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 24%,transparent),0 1px 2px rgba(0,0,0,.5)}
+.mark::before,.av::before{content:"C";font:400 15px/1 var(--font-latin);color:var(--fg);margin-top:1px}
+.av::before{font-size:12.5px}
+.h-who .av::before{font-size:15px}
+.word{font:400 19px/1 var(--font-latin);letter-spacing:.26em;padding-bottom:0}
+.main{background:var(--slab);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 8%,transparent),var(--shadow-2);border-radius:20px}
+.hero h1{font-weight:300;letter-spacing:.04em}
+.page-h h1{font-weight:300;letter-spacing:.05em}
+.txt{font-weight:400;letter-spacing:.02em;line-height:1.85}
+.q4 dd,.wl-queue .qt,.ch-t,.pname{letter-spacing:.02em}
+.bubble{background:color-mix(in srgb,var(--fg) 10%,var(--slab));font-weight:400;letter-spacing:.01em}
+.send{background:var(--fg);color:var(--slab)}
+.send:not(:disabled):hover{background:var(--blue-hi)}
+.nav[aria-current=page]{background:var(--card);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 8%,transparent)}
+.avatar{font:400 15px/1 var(--font-body)}
+.composer:focus-within{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--chief) 80%,transparent),0 0 0 4px color-mix(in srgb,var(--blue-hi) 22%,transparent),var(--shadow-2)}
+@media (max-width:759px){.main{border-radius:18px 18px 0 0}}

@@ -104,7 +104,7 @@ await check('the material system fetches nothing and keeps the composer accessib
   const css = read('styles.css'), app = read('app.js');
   assert.doesNotMatch(css, /@import|@font-face|url\(\s*['"]?(https?:)?\/\//i, 'system font stacks only; no third-party request from the stylesheet');
   assert.doesNotMatch(read('index.html'), /<link[^>]+(https?:)?\/\//i);
-  assert.match(css, /--crackle:linear-gradient\(transparent,transparent\)/, 'the texture falls back to nothing when no canvas draws it');
+  assert.doesNotMatch(app, /canvas|toDataURL/, 'no generated background texture: the black material is plain');
   assert.match(app, /<button class="send" type="submit" id="send"[^>]*><span class="sr">加入工作清單<\/span>/, 'the round send button keeps its words for screen readers');
   assert.match(app, /<div class="bubble"><span class="sr">你：<\/span>/, 'the Human bubble keeps the Human identity for screen readers');
 });

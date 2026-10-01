@@ -346,48 +346,6 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-// ---------- glaze: one seeded craquelure (開片), drawn once on a canvas and used as a CSS mask so its colour
-// follows the theme. Decoration only: it is set after the first render, and without a canvas the desk stays plain.
-function crackle(size, big, small, width, seed) {
-  let s = seed;
-  const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
-  const points = (n) => Array.from({ length: n }, () => [rnd() * size, rnd() * size]);
-  const A = points(big), B = points(small), T = (2 * Math.PI) / size;
-  const edge = (Q, x, y) => {
-    let a = 1e9, b = 1e9;
-    for (const [px, py] of Q) {
-      let dx = Math.abs(x - px); dx = Math.min(dx, size - dx);
-      let dy = Math.abs(y - py); dy = Math.min(dy, size - dy);
-      const q = dx * dx + dy * dy;
-      if (q < a) { b = a; a = q; } else if (q < b) b = q;
-    }
-    return Math.sqrt(b) - Math.sqrt(a);
-  };
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = size;
-  const g = canvas.getContext('2d');
-  const img = g.createImageData(size, size);
-  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) { // a periodic warp keeps the tile seamless and the cracks irregular
-    const wx = x + 2.4 * Math.sin(3 * T * y) + 1.2 * Math.sin(7 * T * (x + y));
-    const wy = y + 2.4 * Math.sin(4 * T * x) + 1.2 * Math.sin(5 * T * (x - y));
-    const a = Math.max(0, 1 - edge(A, wx, wy) / width);
-    const b = B.length ? Math.max(0, 1 - edge(B, wx, wy) / (width * 0.6)) * 0.45 : 0;
-    const v = Math.max(a * a, b * b);
-    if (v > 0.01) img.data[(y * size + x) * 4 + 3] = Math.round(255 * Math.min(1, v));
-  }
-  g.putImageData(img, 0, 0);
-  return `url(${canvas.toDataURL('image/png')})`;
-}
-function glaze() {
-  try {
-    const root = document.documentElement.style; // CSSOM custom properties, which the content security policy allows
-    root.setProperty('--crackle-s', crackle(80, 7, 0, 2.2, 7));
-    root.setProperty('--crackle', crackle(520, 24, 60, 1.4, 11));
-    $('#app').classList.add('glazed');
-  } catch { /* no canvas: the desk stays plain */ }
-}
-
 source.subscribe(applyEvent, (state) => { S.conn = state; if (!DEMO) render(); });
 await reloadAll();
-setTimeout(glaze, 60);
 window.__WORKSPACE = Object.freeze({ mode: source.mode, state: () => structuredClone({ view: S.view, pid: S.pid, conn: S.conn, projects: S.projects, queues: S.queues }) });

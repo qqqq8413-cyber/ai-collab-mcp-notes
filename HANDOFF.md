@@ -2562,3 +2562,10 @@ M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型�
 - Unchanged: API routes, goal-store schema, queue semantics, SSE contract, project config, localhost isolation, CSP, LIVE/demo separation, copy, `src/workspace/*`, the WS-L1-C1 boundary guard (green, untouched).
 - Tests: `test-workspace-ui.mjs` adds one check (stylesheet and page make no third-party request; transparent texture fallback; send words and Human identity kept for screen readers). `npm test` green.
 - Not implemented: WS-VIS1B (Stage / Correspondence), any execution, D1, R4P, R4T, R4A0, R4L. Provider/model calls: 0. Controller runs created: 0.
+
+### WS-VIS1A material changed to black (Human request "改成黑色", 2026-10-01)
+
+- The Human (product owner) asked for the black material after reading the celadon port (`b88b377`). This replaces the celadon material in the same slice; it is a visual-layer change only and still awaits Architect review (the Architect's v7.3 decision accepted only the conversation convention, not the v7.x material, so this needs an explicit Architect decision).
+- `styles.css`: the token block is the v7.3 black set (page `#030304`, sheet `#0B0B0D`, cards `#121215`; Chief ink blue `#9DB4F0`; gold `#CDA45C` / `#E2C07F` for Human attention only), always dark (WS-L1 has no theme setting). No background texture or light. Chief's glaze bead becomes the ink dot in a hairline ring (`.pulse`; still static in LIVE), the brand mark and Chief's avatar a Didot C in a hairline ring, the wordmark tracked Didot. Words in Avenir Next / PingFang (Human and Chief alike; the Kai/Song voice cue is dropped with the Chinese register). Structure, WS-L1 rules and the conversation convention are unchanged.
+- `app.js`: the canvas craquelure (`glaze()`) is removed; nothing else changes. `test-workspace-ui.mjs`: the texture-fallback assertion becomes "no generated background texture".
+- Checks rerun against the real server with its CSP (layout, axe, external requests, CSP, JS errors, running animations, gold) at 1440 / 1180 / 1000 / 720 / 390 / 360 / 320 and the view states; `npm test` green.
