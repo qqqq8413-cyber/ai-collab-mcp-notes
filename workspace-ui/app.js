@@ -53,14 +53,28 @@ function byOldestRequest(a, b) {
   const at = (signal) => { const t = Date.parse(signal.humanRequiredSince ?? ''); return Number.isNaN(t) ? Number.MAX_SAFE_INTEGER : t; };
   return (at(a) - at(b)) || (a.order - b.order);
 }
-// Root entry only: an explicit destination always wins; otherwise a Human-required item opens its project; otherwise Home.
-// Working never bypasses Home.
-function resolveEntry(signals, explicitProjectId) {
+// Root entry only: a Human-required item opens the project with the oldest outstanding request; otherwise Home.
+// Working never bypasses Home. The project signal only chooses where to land and what to mark: the Human Decision
+// itself (its question, options and content) will come from the approved governed read model into the stage's focal slot.
+function resolveEntry(signals) {
   const attention = signals.filter((signal) => signal.humanRequired).sort(byOldestRequest).map((signal) => signal.projectId);
-  const explicit = knownProject(signals, explicitProjectId);
-  if (explicit) return { kind: 'project', projectId: explicit, attention };
   if (attention.length) return { kind: 'project', projectId: attention[0], focal: 'human-required', attention };
   return { kind: 'home', attention };
+}
+// Routes: '', '#' and '#/' are the root; '#/p/<id>', '#/projects', '#/activity', '#/advanced' are explicit destinations.
+const ROUTES = ['projects', 'activity', 'advanced'];
+function parseRoute(hash) {
+  const m = /^#\/p\/(.+)$/.exec(hash);
+  if (m) return { view: 'project', projectId: decodeURIComponent(m[1]), root: false };
+  const v = /^#\/(\w+)$/.exec(hash)?.[1];
+  if (ROUTES.includes(v)) return { view: v, root: false };
+  return { view: 'home', root: true };
+}
+// Boot decision: only the root runs the attention resolver; an explicit destination is kept as it is.
+function entryFor(route, signals) {
+  if (!route.root) return { view: route.view, projectId: route.projectId };
+  const entry = resolveEntry(signals);
+  return entry.kind === 'project' ? { view: 'project', projectId: entry.projectId, focal: entry.focal } : { view: 'home' };
 }
 // Home lists only relevant projects: working first, then those with queued goals; idle projects stay in the spines.
 function homeProjects(signals, lastViewed) {
@@ -77,6 +91,11 @@ function defaultTarget(signals, lastViewed) {
   const working = signals.filter((signal) => signal.working).sort((a, b) => a.order - b.order);
   if (working.length) return working.some((signal) => signal.projectId === last) ? last : working[0].projectId;
   return last ?? [...signals].sort((a, b) => a.order - b.order)[0]?.projectId ?? null;
+}
+// The target is recomputed only on an actual entry into Home; while the Human stays on Home their choice is kept
+// (unless the project it names no longer exists).
+function homeTarget({ entering, current }, signals, lastViewed) {
+  return entering || !knownProject(signals, current) ? defaultTarget(signals, lastViewed) : current;
 }
 // ---------- end entry resolver
 
@@ -101,7 +120,7 @@ async function loadProjects() {
   if (!S.projects.some((item) => item.projectId === S.pid)) {
     S.pid = S.projects.some((item) => item.projectId === remembered) ? remembered : S.projects[0]?.projectId ?? null;
   }
-  if (!byId(S.target)) S.target = defaultTarget(signalsOf(S.projects), remembered);
+  S.target = homeTarget({ entering: false, current: S.target }, signalsOf(S.projects), remembered);
 }
 async function loadQueue(projectId) {
   const data = await source.queue(projectId);
@@ -409,20 +428,15 @@ async function remove(goalId) {
 }
 
 // ---------- navigation: explicit Human navigation is always respected; the entry resolver runs once, at root entry.
-const ROUTES = ['projects', 'activity', 'advanced'];
-function parseRoute(hash) {
-  const m = /^#\/p\/(.+)$/.exec(hash);
-  if (m) return { view: 'project', projectId: decodeURIComponent(m[1]) };
-  const v = /^#\/(\w+)$/.exec(hash)?.[1];
-  return ROUTES.includes(v) ? { view: v } : { view: 'home' };
-}
 const hashOf = () => (S.view === 'project' ? `#/p/${encodeURIComponent(S.pid)}` : S.view === 'home' ? '#/' : `#/${S.view}`);
+let booted = false;
 function go(view, projectId, { replace = false } = {}) {
   S.pop = null; S.confirm = null; S.homeAck = null;
   if (view === 'project') {
     if (!byId(projectId)) view = 'home';
     else { if (S.pid !== projectId) S.pane = 'now'; S.pid = projectId; writeLastViewed(projectId); }
   }
+  if (view === 'home') S.target = homeTarget({ entering: S.view !== 'home' || !booted, current: S.target }, signalsOf(S.projects), readLastViewed());
   S.view = view;
   if (location.hash !== hashOf()) history[replace ? 'replaceState' : 'pushState'](null, '', `${location.search}${hashOf()}`);
   render();
@@ -468,11 +482,11 @@ document.addEventListener('keydown', (event) => {
 
 source.subscribe(applyEvent, (state) => { S.conn = state; if (!DEMO) render(); });
 await reloadAll();
-// Root entry: a deep link to a project is explicit and kept; otherwise the resolver decides (WS-L1: always Home).
+// Entry: only the root runs the attention resolver (WS-L1: always Home); an explicit route is kept. Back/forward and
+// clicks go straight to their destination, and SSE updates never navigate.
 {
-  const route = parseRoute(location.hash);
-  const entry = resolveEntry(signalsOf(S.projects), route.view === 'project' ? route.projectId : null);
-  if (entry.kind === 'project') go('project', entry.projectId, { replace: true });
-  else go(route.view === 'project' ? 'home' : route.view, undefined, { replace: true });
+  const entry = entryFor(parseRoute(location.hash), signalsOf(S.projects));
+  go(entry.view, entry.projectId, { replace: true });
+  booted = true;
 }
 window.__WORKSPACE = Object.freeze({ mode: source.mode, state: () => structuredClone({ view: S.view, pid: S.pid, target: S.target, conn: S.conn, projects: S.projects, queues: S.queues }) });
