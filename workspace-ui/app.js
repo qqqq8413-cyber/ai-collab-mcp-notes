@@ -41,7 +41,7 @@ const toast = (text) => {
 // ---------- state
 const S = {
   view: 'chief', pid: null, projects: [], queues: {}, conn: 'connecting', pop: null, sheet: null,
-  confirm: null, sending: false, loadError: null, stripOpen: false,
+  confirm: null, sending: false, loadError: null, pane: 'now',
 };
 const project = () => S.projects.find((item) => item.projectId === S.pid);
 const queue = () => S.queues[S.pid] ?? { revision: 0, goals: [], history: [] };
@@ -97,27 +97,32 @@ function applyEvent(name, data) {
 }
 
 // ---------- pieces
-const statusLine = () => {
-  const n = queue().goals.length;
-  return n ? `${n} 個目標排隊中 · 尚未開始執行` : '工作清單是空的';
-};
+// Structure (WS-VIS1B): 此刻 (the stage) answers what was asked, what Chief is doing, whether you are needed, how far it
+// got and what comes next, around one focal object; 往來 (the correspondence) keeps the full Human ↔ Chief record.
+// In WS-L1 the only true facts are queued goals, their order, and that nothing has started: the stage shows exactly that.
 const connChip = () => {
   if (DEMO) return '';
   const label = { connecting: '正在連線', open: '即時更新', retrying: '重新連線中' }[S.conn] ?? '連線中';
   return `<span class="wl-conn" role="status" title="與本機 Workspace 伺服器的連線"><span class="dot ${S.conn === 'open' ? 'open' : S.conn === 'retrying' ? 'retrying' : ''}"></span><span class="lbltext">${label}</span></span>`;
 };
 const NOTE = `<p class="wl-note">${ic('info', 15)}<span>目前這個版本只會保存與排列工作，還不會自動啟動 AI 執行。</span></p>`;
+const VIEWS = [['chief', 'chat', 'Chief'], ['projects', 'folder', '專案'], ['activity', 'pulse', '活動'], ['advanced', 'scope', '進階']];
 
 function topHTML() {
   const p = project();
-  return `<a class="brand" href="${DEMO ? '?demo=1' : '/'}" data-act="nav" data-v="chief" aria-label="CHIEF，回到首頁"><span class="mark" aria-hidden="true">C</span><span class="word">CHIEF</span></a><span class="vr" aria-hidden="true"></span>
-    ${p ? `<button class="tbtn" data-act="pop" data-v="proj" aria-haspopup="true" aria-expanded="${S.pop === 'proj'}"><span class="dot" aria-hidden="true"></span><span class="pname">${esc(p.displayName)}</span>${ic('chev', 14)}</button>` : ''}
+  return `<a class="brand" href="${DEMO ? '?demo=1' : '/'}" data-act="nav" data-v="chief" aria-label="CHIEF，回到首頁"><span class="mark" aria-hidden="true"></span><span class="word" aria-hidden="true">CHIEF</span></a>
+    <nav class="tnav" aria-label="主要選單">${VIEWS.map(([v, , label]) => `<button class="tn-i" data-act="nav" data-v="${v}" ${S.view === v ? 'aria-current="page"' : ''}>${label}</button>`).join('')}</nav>
+    ${p ? `<button class="tbtn" data-act="pop" data-v="proj" aria-haspopup="true" aria-expanded="${S.pop === 'proj'}"><span class="sr">切換專案，目前是</span><span class="pname">${esc(p.displayName)}</span>${ic('chev', 14)}</button>` : ''}
     <span class="sp"></span>${DEMO ? '<span class="proto" title="示範模式：資料只存在這個頁面">示範資料</span>' : ''}${connChip()}<span class="avatar" aria-hidden="true">你</span>`;
 }
+// Projects as spines on wide layouts: the name and queue count stand in a tall tab, read in normal order by screen readers.
 function railHTML() {
-  const items = [['chief', 'chat', 'Chief'], ['projects', 'folder', '專案'], ['activity', 'pulse', '活動'], ['advanced', 'scope', '進階']];
-  return `${items.map(([v, icon, label]) => `<button class="nav" data-act="nav" data-v="${v}" ${S.view === v ? 'aria-current="page"' : ''}>${ic(icon, 18)}<span class="nl">${label}</span>${v === 'projects' && S.projects.length > 1 ? '' : ''}</button>`).join('')}
-    <span class="rsp"></span><p class="rail-foot">${DEMO ? '示範模式' : '本機 Workspace · 只保存工作清單'}</p>`;
+  return `<div class="spines">${S.projects.map((item) => `<button class="spine${item.projectId === S.pid ? ' on' : ''}" data-act="switch" data-v="${esc(item.projectId)}" ${item.projectId === S.pid ? 'aria-current="true"' : ''}>
+      <span class="pulse idle" aria-hidden="true"></span><span class="sn">${esc(item.displayName)}</span><span class="sq num" aria-hidden="true">${item.queued ?? 0}</span><span class="sr">，${item.queued ?? 0} 個排隊</span></button>`).join('')}</div>
+`;
+}
+function tabsHTML() {
+  return VIEWS.map(([v, icon, label]) => `<button class="nav" data-act="nav" data-v="${v}" ${S.view === v ? 'aria-current="page"' : ''}>${ic(icon, 18)}<span class="nl">${label}</span></button>`).join('');
 }
 
 function composerHTML(big) {
@@ -127,44 +132,70 @@ function composerHTML(big) {
     <div class="c-row"><span class="c-hint">Enter 送出 · Shift + Enter 換行</span><button class="send" type="submit" id="send" title="加入工作清單" ${S.sending || !p ? 'disabled' : ''}><span class="sr">加入工作清單</span>${ic('up', 18)}</button></div></form>`;
 }
 
+// 往來: one Human bubble and Chief's plain reply per goal. The goal on the stage gets a light pointer, not a second card.
 function ackHTML(goal, removed, position) {
   const p = project();
   const pills = removed
     ? '<span class="wl-pill gone">已從工作清單移除</span>'
-    : `<span class="wl-pill q">${ic('clock', 13)}排隊中</span><span class="wl-pill">尚未開始執行</span>${position ? `<span class="wl-pill">第 ${position} 個</span>` : ''}`;
+    : `<span class="wl-pill q">${ic('clock', 13)}排隊中</span><span class="wl-pill">尚未開始執行</span>${position ? `<span class="wl-pill">第 ${position} 個</span>` : ''}${position === 1 ? '<span class="wl-pill ptr">在「此刻」</span>' : ''}`;
   return `<div class="item m-human"><div class="bubble"><span class="sr">你：</span>${esc(goal.text).replace(/\n/g, '<br>')}</div><span class="meta num">${time(goal.createdAt)}</span></div>
-    <div class="item m-chief"><span class="av" aria-hidden="true">C</span><div class="c-body"><div class="meta"><b>Chief</b></div>
+    <div class="item m-chief"><span class="av" aria-hidden="true"></span><div class="c-body"><div class="meta"><b>Chief</b></div>
       <div class="txt"><p>${removed ? '這個目標已經從工作清單移除。' : `已收到這個目標。我已經把它加入${esc(p?.displayName ?? '')}的工作清單。`}</p></div>
       <div class="wl-pills wl-after">${pills}</div></div></div>`;
 }
 
-function queueCardHTML() {
+// 工作順序: the ledger at the foot of the stage. Reorder and remove keep their confirmation.
+function queueHTML() {
   const goals = queue().goals;
-  const rows = goals.map((goal, index) => `<li data-goal="${esc(goal.goalId)}">
-      <span class="qn">第 ${index + 1} 個</span>
+  const rows = goals.map((goal, index) => `<li data-goal="${esc(goal.goalId)}" class="${index === 0 ? 'qcur' : ''}">
+      <span class="qn">${index === 0 ? '目前' : `第 ${index + 1} 個`}</span>
       <span class="qt">${esc(goal.text)}<span class="qs">排隊中 · 尚未開始執行 · ${time(goal.createdAt)} 加入</span></span>
       <span class="qa"><button class="qb" data-act="up" data-v="${esc(goal.goalId)}" ${index === 0 ? 'disabled' : ''} aria-label="往前移：${esc(goal.text)}">${ic('up', 16)}</button><button class="qb" data-act="down" data-v="${esc(goal.goalId)}" ${index === goals.length - 1 ? 'disabled' : ''} aria-label="往後移：${esc(goal.text)}">${ic('down', 16)}</button><button class="qb" data-act="ask-remove" data-v="${esc(goal.goalId)}" aria-label="移除：${esc(goal.text)}">${ic('trash', 16)}</button></span>
       ${S.confirm === goal.goalId ? `<div class="wl-confirm"><span>要把「${esc(goal.text.slice(0, 40))}${goal.text.length > 40 ? '…' : ''}」從工作清單移除嗎？它還沒開始執行，移除後不會有其他影響。</span><button class="btn danger" data-act="remove" data-v="${esc(goal.goalId)}">移除</button><button class="btn quiet" data-act="cancel-remove">取消</button></div>` : ''}
     </li>`).join('');
-  return `<section class="card wl-queue" aria-label="工作清單"><header class="card-h"><span class="ch-t">工作清單</span><span class="ch-s">${esc(project()?.displayName ?? '')}</span><span class="ch-r num">${goals.length} 個排隊</span></header>
-    <div class="card-b">${goals.length ? `<ol>${rows}</ol>` : '<p class="wl-empty">目前沒有排隊的目標。在下面輸入目標，就會加入這裡。</p>'}</div>
-    <footer class="card-f">${NOTE}</footer></section>`;
+  return `<section class="queue" aria-labelledby="q-h"><h2 class="lbl" id="q-h">工作順序 <span class="num">${goals.length}</span></h2>
+    ${goals.length ? `<ol>${rows}</ol>` : '<p class="wl-empty">目前沒有排隊的目標。在下面輸入目標，就會加入這裡。</p>'}</section>`;
+}
+
+// 此刻: the goal as the headline, Chief now / need, then exactly one focal object, then the ledger.
+function stageHTML() {
+  const p = project();
+  const goals = queue().goals;
+  const first = goals[0];
+  const focal = first
+    ? `<section class="card focal" aria-labelledby="focal-h"><header class="card-h"><span class="pulse idle" aria-hidden="true"></span><h2 class="ch-t" id="focal-h">已加入工作清單 · 排隊第 1 個</h2><span class="ch-s">尚未開始執行 · ${time(first.createdAt)} 加入</span></header>
+        <div class="card-b">${NOTE}</div></section>`
+    : `<section class="card focal" aria-labelledby="focal-h"><header class="card-h"><span class="pulse idle" aria-hidden="true"></span><h2 class="ch-t" id="focal-h">工作清單是空的</h2><span class="ch-s">目前沒有排隊的目標</span></header>
+        <div class="card-b">${NOTE}</div></section>`;
+  return `<div class="work">
+      <div class="sn-meta"><span class="sn-k">此刻</span><span>${esc(p.displayName)}</span><button class="adv" data-act="console">查看詳細監看 ${ic('ext', 13)}</button></div>
+      <p class="lbl asked">你交辦的</p>
+      <h1 class="goal" id="stage-h">${first ? esc(first.text) : '還沒有排隊的目標'}</h1>
+      <dl class="now">
+        <div class="nw"><dt>Chief 現在</dt><dd>${first ? '尚未開始執行' : '沒有工作'}</dd></div>
+        <div class="nw"><dt>需要你嗎</dt><dd>不需要</dd></div>
+      </dl>
+      <div class="focus">${focal}</div>
+      <div class="ledger">${queueHTML()}
+        <section aria-labelledby="ctx-h"><h2 class="lbl" id="ctx-h">專案</h2><dl class="ctx"><dt>專案</dt><dd>${esc(p.displayName)}</dd><dt>位置</dt><dd>${esc(p.repository)}</dd><dt>狀態</dt><dd><span class="stat"><span class="dot" aria-hidden="true"></span>尚未開始執行</span></dd></dl></section>
+      </div>
+    </div>`;
 }
 
 function chiefView() {
   const p = project();
-  if (S.loadError) return `<div class="scroll"><div class="col page"><p class="wl-err">${esc(S.loadError)}</p></div></div>`;
-  if (!p) return `<div class="scroll"><div class="col page"><header class="page-h"><h1>還沒有專案</h1><p>在 Workspace 設定檔的 projects 裡加入專案，重新啟動後就會出現在這裡。</p></header></div></div>`;
+  if (S.loadError) return `<div class="view other"><div class="scroll"><div class="col page"><p class="wl-err">${esc(S.loadError)}</p></div></div></div>`;
+  if (!p) return `<div class="view other"><div class="scroll"><div class="col page"><header class="page-h"><h1>還沒有專案</h1><p>在 Workspace 設定檔的 projects 裡加入專案，重新啟動後就會出現在這裡。</p></header></div></div></div>`;
   const q = queue();
   const added = q.history.filter((event) => event.kind === 'GOAL_ADDED');
   if (!added.length) {
     const examples = [`繼續做${p.displayName}`, '整理目前進度，列出下一步', '檢查有沒有需要我決定的事'];
-    return `<div class="scroll"><div class="col hero">
-      <div class="h-who"><span class="av" aria-hidden="true">C</span><span><b>Chief</b> · ${esc(p.displayName)}</span></div>
+    return `<div class="view chief idle"><div class="scroll"><div class="col hero">
+      <div class="h-who"><span class="av" aria-hidden="true"></span><span><b>Chief</b> · ${esc(p.displayName)}</span></div>
       <h1>今天要我幫你<em>完成</em>什麼？</h1>
       ${composerHTML(true)}
       <div class="sec"><p class="lbl">可以這樣說</p><div class="ex">${examples.map((text) => `<button class="exb" data-act="fill" data-v="${esc(text)}">${esc(text)}</button>`).join('')}</div></div>
-      ${NOTE}</div></div>`;
+      ${NOTE}</div></div></div>`;
   }
   const removed = new Set(q.history.filter((event) => event.kind === 'GOAL_REMOVED').map((event) => event.goalId));
   const position = new Map(q.goals.map((goal, index) => [goal.goalId, index + 1]));
@@ -173,36 +204,21 @@ function chiefView() {
     if (event.kind === 'QUEUE_REORDERED') return `<div class="item m-sys"><span>你調整了工作清單的順序 · <span class="num">${time(event.at)}</span></span></div>`;
     return '';
   }).join('');
-  return `<div class="stripbox">${stripHTML()}</div><div class="scroll" id="scroller"><div class="col"><div class="stream">${stream}${queueCardHTML()}</div></div></div>
-    <div class="dock"><div class="col">${composerHTML(false)}</div></div>`;
-}
-
-function stripHTML() {
-  return `<button class="strip" data-act="strip" aria-expanded="${S.stripOpen}"><span class="pulse idle" aria-hidden="true"></span><span class="sd">${esc(statusLine())}</span><span class="sn">不需要你</span>${ic('chev', 14)}</button>${S.stripOpen ? `<div class="stripx">${quadHTML()}</div>` : ''}`;
-}
-
-function quadHTML() {
-  const goals = queue().goals;
-  return `<dl class="q4">
-    <div class="q"><dt>你交辦的</dt><dd>${goals.length ? esc(goals[0].text) : '還沒有排隊的目標'}</dd></div>
-    <div class="q"><dt>Chief 正在</dt><dd>沒有正在執行的工作。這個版本只保存工作清單，不會啟動執行。</dd></div>
-    <div class="q"><dt>需要你嗎</dt><dd>不需要</dd></div>
-    <div class="q"><dt>工作清單</dt><dd class="num">${goals.length} 個目標排隊中</dd></div></dl>`;
-}
-
-function panelHTML() {
-  const p = project();
-  if (!p) return '';
-  return `<div class="pn-h"><span class="lbl">目前工作</span><span class="fine">${esc(p.displayName)}</span></div>${quadHTML()}
-    <dl class="ctx"><dt>專案</dt><dd>${esc(p.displayName)}</dd><dt>位置</dt><dd>${esc(p.repository)}</dd><dt>狀態</dt><dd><span class="stat"><span class="dot" aria-hidden="true"></span>尚未開始執行</span></dd></dl>
-    <button class="adv" data-act="console">查看詳細監看 ${ic('ext', 13)}</button>`;
+  const tab = (id, label, extra = '') => `<button type="button" data-act="pane" data-v="${id}" aria-pressed="${S.pane === id}" aria-controls="${id === 'now' ? 'stage' : 'journal'}">${label}${extra}</button>`;
+  return `<div class="view chief" data-pane="${S.pane}">
+      <div class="mtabs"><div class="mt" role="group" aria-label="顯示">${tab('now', '此刻')}${tab('log', '往來', ` <span class="tn num">${added.length}</span>`)}</div></div>
+      <section class="stage" id="stage" aria-label="此刻"><div class="scroll" id="stage-scroll">${stageHTML()}</div></section>
+      <section class="journal" id="journal" aria-labelledby="journal-h"><header class="jh"><h2 id="journal-h">往來</h2><span class="num" aria-hidden="true">${added.length}</span></header>
+        <div class="jscroll" id="scroller" tabindex="0" aria-label="和 Chief 的往來紀錄"><div class="stream">${stream}</div></div></section>
+      <div class="dock">${composerHTML(false)}</div>
+    </div>`;
 }
 
 function projectsView() {
-  return `<div class="scroll"><div class="col page"><header class="page-h"><h1>專案</h1><p>${DEMO ? '示範資料。' : '專案來自本機 Workspace 設定檔。'}每個專案一次只執行一個目標；這個版本只保存與排列工作清單。</p></header>
+  return `<div class="col page"><header class="page-h"><h1>專案</h1><p>${DEMO ? '示範資料。' : '專案來自本機 Workspace 設定檔。'}每個專案一次只執行一個目標；這個版本只保存與排列工作清單。</p></header>
     <div class="pgrid">${S.projects.map((item) => `<button class="pcard ${item.projectId === S.pid ? 'cur' : ''}" data-act="switch" data-v="${esc(item.projectId)}">
       <div class="pc-top"><b>${esc(item.displayName)}</b><span class="spill">${item.queued ?? 0} 個排隊</span></div>
-      <dl><dt>位置</dt><dd>${esc(item.repository)}</dd><dt>執行</dt><dd>尚未開始</dd></dl></button>`).join('')}</div></div></div>`;
+      <dl><dt>位置</dt><dd>${esc(item.repository)}</dd><dt>執行</dt><dd>尚未開始</dd></dl></button>`).join('')}</div></div>`;
 }
 
 function activityView() {
@@ -214,15 +230,15 @@ function activityView() {
         : `你移除了目標「${esc(textOf.get(event.goalId) ?? '')}」`;
     return `<li><span class="tm num">${time(event.at)}</span><span class="tk" aria-hidden="true"></span><span class="tx">${label}</span></li>`;
   }).join('');
-  return `<div class="scroll"><div class="col page"><header class="page-h"><h1>活動</h1><p>${esc(project()?.displayName ?? '')}的工作清單紀錄。這裡只有你對工作清單做的事；這個版本沒有任何執行紀錄。</p></header>
-    ${rows ? `<ol class="tl">${rows}</ol>` : '<p class="wl-empty">還沒有活動。</p>'}</div></div>`;
+  return `<div class="col page"><header class="page-h"><h1>活動</h1><p>${esc(project()?.displayName ?? '')}的工作清單紀錄。這裡只有你對工作清單做的事；這個版本沒有任何執行紀錄。</p></header>
+    ${rows ? `<ol class="tl">${rows}</ol>` : '<p class="wl-empty">還沒有活動。</p>'}</div>`;
 }
 
 const CONSOLE_TEXT = `<p>進階監看（CHIEF Console）目前是凍結的設計稿，使用示範資料。</p>
   <p>工作清單裡的目標還沒有開始執行，也還沒有對應的執行編號，所以現在無法連到對應的監看畫面。等之後有真正的執行紀錄與共用的讀取模型，才會提供直接連結。</p>`;
 function advancedView() {
-  return `<div class="scroll"><div class="col page"><header class="page-h"><h1>進階</h1><p>給需要看細節的人。</p></header>
-    <section class="adv-hero"><h2 class="wl-h2">查看詳細監看</h2>${CONSOLE_TEXT}<button class="btn" data-act="console">了解目前的狀況 ${ic('arrow', 15)}</button></section></div></div>`;
+  return `<div class="col page"><header class="page-h"><h1>進階</h1><p>給需要看細節的人。</p></header>
+    <section class="adv-hero"><h2 class="wl-h2">查看詳細監看</h2>${CONSOLE_TEXT}<button class="btn" data-act="console">了解目前的狀況 ${ic('arrow', 15)}</button></section></div>`;
 }
 
 function popHTML() {
@@ -241,15 +257,18 @@ function sheetHTML() {
 }
 
 // ---------- render
+let lastView = null;
 function render() {
   const focusId = document.activeElement?.id;
   const draft = $('#composer')?.value ?? '';
+  const same = lastView === S.view; lastView = S.view;
+  const keep = same ? { stage: $('#stage-scroll')?.scrollTop, journal: $('#scroller')?.scrollTop, other: $('#other-scroll')?.scrollTop } : {};
   $('#banner').innerHTML = DEMO ? `<div class="wl-demo" role="note"><b>示範模式</b><span>以下都是示範資料，只存在這個頁面，不會儲存，也不會送到 Workspace 伺服器。</span><a href="/">回到正式模式</a></div>` : '';
   $('#top').innerHTML = topHTML();
   $('#rail').innerHTML = railHTML();
-  $('#main').innerHTML = `<div class="view">${S.view === 'projects' ? projectsView() : S.view === 'activity' ? activityView() : S.view === 'advanced' ? advancedView() : chiefView()}</div>`;
-  $('#panel').innerHTML = panelHTML();
-  $('#panel').hidden = !project();
+  $('#tabs').innerHTML = tabsHTML();
+  $('#main').innerHTML = S.view === 'chief' ? chiefView()
+    : `<div class="view other"><div class="scroll" id="other-scroll">${S.view === 'projects' ? projectsView() : S.view === 'activity' ? activityView() : advancedView()}</div></div>`;
   $('#pop').innerHTML = popHTML();
   // Positioned through the CSSOM: the page's content security policy allows no inline style attributes.
   const pop = $('#pop .pop');
@@ -258,6 +277,11 @@ function render() {
   const composer = $('#composer');
   if (composer) { composer.value = draft; if (focusId === 'composer') composer.focus(); }
   if (focusId && focusId !== 'composer') document.getElementById(focusId)?.focus();
+  // Re-rendering keeps where you were reading; the correspondence opens at its latest entry.
+  const journal = $('#scroller');
+  if (journal) journal.scrollTop = keep.journal ?? journal.scrollHeight;
+  if ($('#stage-scroll') && keep.stage !== undefined) $('#stage-scroll').scrollTop = keep.stage;
+  if ($('#other-scroll') && keep.other !== undefined) $('#other-scroll').scrollTop = keep.other;
 }
 
 // ---------- actions
@@ -329,7 +353,7 @@ document.addEventListener('click', (event) => {
     case 'remove': void remove(v); break;
     case 'console': S.sheet = 'console'; render(); break;
     case 'close-sheet': S.sheet = null; render(); break;
-    case 'strip': S.stripOpen = !S.stripOpen; render(); break;
+    case 'pane': S.pane = v; render(); if (v === 'log') { const j = $('#scroller'); if (j) j.scrollTop = j.scrollHeight; } break;
     default: break;
   }
 });

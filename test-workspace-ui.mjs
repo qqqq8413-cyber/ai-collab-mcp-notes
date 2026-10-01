@@ -109,5 +109,16 @@ await check('the material system fetches nothing and keeps the composer accessib
   assert.match(app, /<div class="bubble"><span class="sr">你：<\/span>/, 'the Human bubble keeps the Human identity for screen readers');
 });
 
+await check('the stage shows one focal object and never fakes execution (WS-VIS1B)', () => {
+  const app = read('app.js'), css = read('styles.css');
+  assert.match(app, /aria-label="此刻"/, 'the stage is a labelled region');
+  assert.match(app, /id="journal-h">往來</, 'the correspondence is a labelled region');
+  const focal = app.slice(app.indexOf('function stageHTML'), app.indexOf('function chiefView'));
+  assert.equal((focal.match(/class="card focal"/g) ?? []).length, 2, 'one focal card per branch (queued / empty), never both');
+  assert.doesNotMatch(app, /class="pulse(?! idle)/, 'every Chief mark in WS-L1 is the idle one');
+  assert.doesNotMatch(css, /\.pulse[^{]*\{[^}]*animation/, 'the Chief mark has no animation rule at all');
+  assert.match(app, /在「此刻」/, 'the correspondence points at the stage instead of repeating the focal card');
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exitCode = 1;
