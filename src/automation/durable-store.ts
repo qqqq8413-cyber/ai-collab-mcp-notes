@@ -14,6 +14,7 @@ import type { AuditEntry, Clock, ControllerRun } from './types.js';
 
 const VERSION = 1;
 const RUN_FILE = /^[0-9a-f]{64}\.json$/;
+const CLAIM_FILE = RUN_FILE;
 const REFUSAL_FILE = /^[0-9a-f-]{36}\.json$/;
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 
@@ -79,11 +80,26 @@ export class FileControllerStore implements ControllerStore {
     assertRunInvariants(stored.run as ControllerRun);
     return stored.run as ControllerRun;
   }
-  // The store opens only when every run in it is the admitted ROOT of its change. A run
-  // that is not (created before admission existed, or written around the store) fails
-  // closed: indexing it now would mean guessing which run of its change came first, so
-  // nothing is backfilled.
+  // The store opens only when admissions and runs form one-to-one ROOT relations, checked
+  // from both sides. Each admission's runId is the ROOT of that change alone, and a run
+  // file under it belongs to that change; a pending ROOT (no run file yet) is valid. Each
+  // run is the admitted ROOT of its change. A run that is not (created before admission
+  // existed, or written around the store) fails closed: indexing it now would mean
+  // guessing which run of its change came first, so nothing is backfilled or repaired.
   #assertIndexed(): void {
+    const owners = new Set<string>();
+    for (const record of this.#claims()) {
+      if (owners.has(record.rootRunId)) {
+        throw new RunAdmissionIntegrityError('ADMISSION_REGISTRY_MISMATCH', 'One runId is claimed as ROOT by two changes', record.changeKey);
+      }
+      owners.add(record.rootRunId);
+      const file = this.#file(record.rootRunId);
+      if (!existsSync(file)) continue;
+      const run = this.#read(file, (stored) => stored === record.rootRunId);
+      if (run.repository !== record.repository || run.sliceId !== record.sliceId) {
+        throw new RunAdmissionIntegrityError('ADMISSION_REGISTRY_MISMATCH', 'An admitted ROOT run belongs to another change', record.changeKey);
+      }
+    }
     for (const name of readdirSync(this.#directory)) {
       if (!RUN_FILE.test(name)) continue;
       this.#assertRoot(this.#read(join(this.#directory, name), (stored) => typeof stored === 'string' && `${digest(stored)}.json` === name));
@@ -100,6 +116,18 @@ export class FileControllerStore implements ControllerStore {
     }
   }
   #admissionFile(changeKey: string): string { return join(this.#changes, `${changeKey}.json`); }
+  // Canonical claims only: temp names and refusal evidence never take part.
+  #claims(): AdmissionRecord[] {
+    return readdirSync(this.#changes).filter((name) => CLAIM_FILE.test(name))
+      .map((name) => this.#admission(name.slice(0, -'.json'.length))!);
+  }
+  // A runId is the ROOT of at most one change. Runs under that runId's lock, and only a
+  // writer holding it can publish a claim naming it, so no such claim can appear meanwhile.
+  #assertRootUnclaimed(runId: string, changeKey: string): void {
+    if (this.#claims().some((record) => record.rootRunId === runId && record.changeKey !== changeKey)) {
+      throw new RunAdmissionIntegrityError('ADMISSION_REGISTRY_MISMATCH', 'This runId is already the ROOT of another change', changeKey);
+    }
+  }
   #admission(changeKey: string): AdmissionRecord | undefined {
     let text: string;
     try { text = readFileSync(this.#admissionFile(changeKey), 'utf8'); }
@@ -125,6 +153,7 @@ export class FileControllerStore implements ControllerStore {
     const changeKey = changeKeyOf(change);
     let record = this.#admission(changeKey);
     if (!record) {
+      this.#assertRootUnclaimed(runId, changeKey);
       if (this.#claim(admissionRecordOf(change, runId, this.#now()))) return;
       // EEXIST: another writer owns the change. Its claim decides.
       record = this.#admission(changeKey);
@@ -133,6 +162,7 @@ export class FileControllerStore implements ControllerStore {
     if (admissionDecision(record, change, runId) === 'ROOT_PENDING') {
       // A claim that outlived a crash before its run was written. Only this run may finish
       // it; the claim is made durable before the run is.
+      this.#assertRootUnclaimed(runId, changeKey);
       this.#sync(this.#changes);
       return;
     }

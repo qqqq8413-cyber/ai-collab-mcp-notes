@@ -420,6 +420,77 @@ check('file: refusal evidence that cannot be written leaves the refusal intact',
   assert.deepEqual(runFiles(second), [`${sha('run-1')}.json`]);
 });
 
+// ---------------------------------------------------------------- C1: one runId is the ROOT of at most one change
+const OTHER = { repository: REPO, sliceId: 'slice-2' };
+/** Publishes a valid claim by hand, as a writer around the store would. */
+function writeClaim(dir, change, runId) {
+  mkdirSync(join(dir, 'changes'), { recursive: true });
+  writeFileSync(claimFile(dir, keyOf(change.repository, change.sliceId)),
+    admission.sealAdmissionRecord(admission.admissionRecordOf(change, runId, T)));
+}
+check('file C1: a pending ROOT runId cannot be admitted for another change; its own change can still finish it', (dir) => {
+  const store = new FileControllerStore(dir, clock);
+  assert.throws(() => withFs('renameSync', () => () => { throw new Error('crash before the run is written'); },
+    () => store.create(fresh('run-x'))), /crash before the run is written/);
+  assert.equal(existsSync(`${runFile(dir, 'run-x')}.lock`), false, 'the run lock was not released');
+  const claimA = readFileSync(claimFile(dir), 'utf8');
+  failsClosed(() => store.create(fresh('run-x', 'slice-2')), 'ADMISSION_REGISTRY_MISMATCH');
+  failsClosed(() => new FileControllerStore(dir, clock).create(fresh('run-x', 'slice-2')), 'ADMISSION_REGISTRY_MISMATCH');
+  failsClosed(() => new AutomationController(clock, store, fakeReality()).createRun('run-x', 'slice-2', REPO), 'ADMISSION_REGISTRY_MISMATCH');
+  assert.equal(store.admissionRecord(OTHER), undefined);
+  assert.deepEqual(claims(dir), [`${keyOf()}.json`]);
+  assert.deepEqual(runFiles(dir), []);
+  assert.deepEqual(store.admissionRefusals(OTHER), [], 'recorded as a second run');
+  assert.equal(readFileSync(claimFile(dir), 'utf8'), claimA);
+  store.create(fresh('run-x'));
+  assert.equal(new FileControllerStore(dir, clock).get('run-x').sliceId, SLICE);
+  assert.equal(readFileSync(claimFile(dir), 'utf8'), claimA);
+  assert.throws(() => store.create(fresh('run-x', 'slice-2')), /Duplicate runId/);
+  store.create(fresh('run-y', 'slice-2'));
+  assert.equal(store.admissionRecord(OTHER).rootRunId, 'run-y');
+});
+check('file C1: two admissions naming the same ROOT runId fail closed at open', (dir) => {
+  writeClaim(dir, CHANGE, 'run-x'); writeClaim(dir, OTHER, 'run-x');
+  failsClosed(() => new FileControllerStore(dir, clock), 'ADMISSION_REGISTRY_MISMATCH');
+  const withRun = join(dir, 'with-run'); const store = new FileControllerStore(withRun, clock);
+  store.create(fresh('run-x'));
+  writeClaim(withRun, OTHER, 'run-x');
+  failsClosed(() => new FileControllerStore(withRun, clock), 'ADMISSION_REGISTRY_MISMATCH');
+  // Forged after open: that change already has a claim, so the ordinary refusal applies and nothing is admitted.
+  refused(() => store.create(fresh('run-y', 'slice-2')), { existingRootRunId: 'run-x' });
+  assert.deepEqual(runFiles(withRun), [`${sha('run-x')}.json`]);
+});
+check('file C1: an admission whose ROOT run file belongs to another change fails closed at open', (dir) => {
+  writeClaim(dir, CHANGE, 'run-x');
+  writeLegacyRun(dir, fresh('run-x', 'slice-2'));
+  failsClosed(() => new FileControllerStore(dir, clock), 'ADMISSION_REGISTRY_MISMATCH');
+  const both = join(dir, 'both');
+  writeClaim(both, CHANGE, 'run-x'); writeClaim(both, OTHER, 'run-x');
+  writeLegacyRun(both, fresh('run-x', 'slice-2'));
+  failsClosed(() => new FileControllerStore(both, clock), 'ADMISSION_REGISTRY_MISMATCH');
+});
+check('file C1: a pending ROOT with no run file stays valid; temps and refusal evidence take no part', (dir) => {
+  writeClaim(dir, CHANGE, 'run-x');
+  // A temp holding a claim with the same ROOT for another change is not a claim.
+  writeFileSync(join(dir, 'changes', `${keyOf(REPO, 'slice-2')}.00000000-0000-4000-8000-000000000000.tmp`),
+    admission.sealAdmissionRecord(admission.admissionRecordOf(OTHER, 'run-x', T)));
+  const store = new FileControllerStore(dir, clock);
+  assert.equal(store.get('run-x'), undefined);
+  refused(() => store.create(fresh('run-y')), { existingRootRunId: 'run-x' });
+  assert.equal(new FileControllerStore(dir, clock).admissionRefusals(CHANGE).length, 1);
+  store.create(fresh('run-x'));
+  assert.equal(new FileControllerStore(dir, clock).get('run-x').runId, 'run-x');
+});
+check('memory C1: a runId is the ROOT of at most one change', () => {
+  const store = new InMemoryControllerStore(clock);
+  store.create(fresh('run-x'));
+  assert.throws(() => store.create(fresh('run-x', 'slice-2')), /Duplicate runId/);
+  assert.equal(store.admissionRecord(OTHER), undefined);
+  store.create(fresh('run-y', 'slice-2'));
+  assert.equal(store.admissionRecord(OTHER).rootRunId, 'run-y');
+  assert.equal(store.admissionRecord(CHANGE).rootRunId, 'run-x');
+});
+
 // ---------------------------------------------------------------- concurrency (separate processes)
 const WORKER = `
   import { FileControllerStore } from './dist/automation/durable-store.js';

@@ -1,6 +1,6 @@
 import type { AuditEntry, Clock, ControllerRun } from './types.js';
 import {
-  admissionDecision, admissionRecordOf, changeKeyOf, parseChangeIdentity, refuseSecondRun, type AdmissionRecord,
+  RunAdmissionIntegrityError, admissionDecision, admissionRecordOf, changeKeyOf, parseChangeIdentity, refuseSecondRun, type AdmissionRecord,
   type AdmissionRefusalRecord, type ChangeIdentity,
 } from './admission.js';
 import { assertFreshRun, assertTransition } from './lifecycle.js';
@@ -38,6 +38,8 @@ export class InMemoryControllerStore implements ControllerStore {
   // one synchronous step, so exactly one run per change can be admitted.
   readonly #admissions = new Map<string, AdmissionRecord>();
   readonly #refusals = new Map<string, AdmissionRefusalRecord[]>();
+  // runId -> changeKey of the change it is ROOT of: a runId is the ROOT of at most one change.
+  readonly #roots = new Map<string, string>();
   readonly #clock: Clock;
   #bound = false;
 
@@ -54,9 +56,14 @@ export class InMemoryControllerStore implements ControllerStore {
     const changeKey = changeKeyOf(change);
     const record = this.#admissions.get(changeKey);
     if (!record) {
+      const owner = this.#roots.get(run.runId);
+      if (owner !== undefined && owner !== changeKey) {
+        throw new RunAdmissionIntegrityError('ADMISSION_REGISTRY_MISMATCH', 'This runId is already the ROOT of another change', changeKey);
+      }
       const admittedAt = this.#clock.now();
       if (!isInstant(admittedAt)) throw new Error('Storage clock returned an invalid timestamp');
       this.#admissions.set(changeKey, admissionRecordOf(change, run.runId, admittedAt));
+      this.#roots.set(run.runId, changeKey);
     } else if (admissionDecision(record, change, run.runId) !== 'ROOT_PENDING') {
       refuseSecondRun(record, change, run.runId, this.#clock,
         (refusal) => { this.#refusals.set(changeKey, [...this.#refusals.get(changeKey) ?? [], refusal]); });

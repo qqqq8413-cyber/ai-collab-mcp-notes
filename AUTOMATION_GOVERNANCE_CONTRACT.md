@@ -110,8 +110,11 @@ of a change as its ROOT and refuses any other runId for that change
 (`SECOND_RUN_FOR_CHANGE`) before the run exists, whatever the ROOT's state,
 `CLOSED` and `FAILED_CLOSED` included. Budget, authority, Human stop, lifecycle
 and governance state therefore cannot be reset by opening another run. The
-admission record is an operational record, not authority; continuation is
-reserved and not implemented.
+relation is one-to-one in both directions: a runId is the ROOT of at most one
+change, so a runId already claimed by one change (even while its run is still
+pending) is never admitted for another; admissions and runs that contradict
+this fail closed. The admission record is an operational record, not
+authority; continuation is reserved and not implemented.
 
 Admission is a structural invariant, not authorization: it cannot tell whether
 two different sliceIds are the same real work. Activation prerequisite: before
