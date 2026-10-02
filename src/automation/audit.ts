@@ -1,7 +1,18 @@
-import type { AuditEntry, ControllerRun } from './types.js';
+import type { AuditEntry, Clock, ControllerRun } from './types.js';
+import {
+  admissionDecision, admissionRecordOf, changeKeyOf, parseChangeIdentity, refuseSecondRun, type AdmissionRecord,
+  type AdmissionRefusalRecord, type ChangeIdentity,
+} from './admission.js';
 import { assertFreshRun, assertTransition } from './lifecycle.js';
+import { SYSTEM_CLOCK, isInstant } from './time.js';
 
 export interface ControllerStore {
+  /**
+   * Creates a fresh run and admits it as the one ROOT run of its change (repository +
+   * sliceId, exact) under CHIEF-GOV/1. Every implementation enforces admission itself, so
+   * no create path can open a second run for a change: that throws
+   * RunAdmissionRefusedError (SECOND_RUN_FOR_CHANGE) before the run exists.
+   */
   create(run: ControllerRun): void;
   get(runId: string): ControllerRun | undefined;
   replace(run: ControllerRun): void;
@@ -23,16 +34,43 @@ export function requiresControllerWriter(action: unknown): boolean { return type
 // Runs live in a true private field; a TypeScript `private` is still writable at runtime.
 export class InMemoryControllerStore implements ControllerStore {
   readonly #runs = new Map<string, ControllerRun>();
+  // CHIEF-GOV/1 admission with the file store's records and decisions. Check and set are
+  // one synchronous step, so exactly one run per change can be admitted.
+  readonly #admissions = new Map<string, AdmissionRecord>();
+  readonly #refusals = new Map<string, AdmissionRefusalRecord[]>();
+  readonly #clock: Clock;
   #bound = false;
 
-  constructor() {
+  constructor(clock: Clock = SYSTEM_CLOCK) {
+    if (!clock || typeof clock.now !== 'function') throw new Error('Storage clock required');
+    this.#clock = clock;
     Object.freeze(this);
   }
   create(input: ControllerRun): void {
     const run = structuredClone(input);
     if (this.#runs.has(run.runId)) throw new Error('Duplicate runId');
     assertFreshRun(run);
+    const change = parseChangeIdentity(run);
+    const changeKey = changeKeyOf(change);
+    const record = this.#admissions.get(changeKey);
+    if (!record) {
+      const admittedAt = this.#clock.now();
+      if (!isInstant(admittedAt)) throw new Error('Storage clock returned an invalid timestamp');
+      this.#admissions.set(changeKey, admissionRecordOf(change, run.runId, admittedAt));
+    } else if (admissionDecision(record, change, run.runId) !== 'ROOT_PENDING') {
+      refuseSecondRun(record, change, run.runId, this.#clock,
+        (refusal) => { this.#refusals.set(changeKey, [...this.#refusals.get(changeKey) ?? [], refusal]); });
+    }
     this.#runs.set(run.runId, run);
+  }
+  /** The admission record of a change, if it has one. Operational integrity data; it grants nothing. */
+  admissionRecord(change: ChangeIdentity): AdmissionRecord | undefined {
+    const record = this.#admissions.get(changeKeyOf(change));
+    return record ? structuredClone(record) : undefined;
+  }
+  /** Recorded refusals of second runs for a change, oldest first. Operational evidence; it grants nothing. */
+  admissionRefusals(change: ChangeIdentity): AdmissionRefusalRecord[] {
+    return structuredClone(this.#refusals.get(changeKeyOf(change)) ?? []);
   }
   get(runId: string): ControllerRun | undefined {
     const run = this.#runs.get(runId);

@@ -1,3 +1,5 @@
+import type { Clock } from './types.js';
+
 // Authorization windows and evidence ordering compare instants, never strings:
 // '2026-09-26T00:00:00Z' sorts after '2026-09-26T00:00:00.900Z' because '.' < 'Z'.
 // Accepted form is an RFC 3339 date-time with an explicit Z or ±HH:MM offset and at
@@ -25,3 +27,6 @@ export function parseInstant(value: unknown): number | undefined {
 export function isInstant(value: unknown): value is string {
   return parseInstant(value) !== undefined;
 }
+
+/** Wall-clock time, the default where no clock is injected. */
+export const SYSTEM_CLOCK: Clock = Object.freeze({ now: () => new Date().toISOString() });

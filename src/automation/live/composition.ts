@@ -97,7 +97,7 @@ export function createLiveAutomation(input: unknown, dependencies: { clock?: Clo
   const journal = new FileInvocationJournal(config.journalDirectory, clock);
   const reality = new GitHubCliRepositoryRealityPort({ ...config.github, repository: config.repository,
     workingDirectory: config.git.repositoryPath }, { executor: syncExecutor, clock, environment });
-  const controller = new AutomationController(clock, new FileControllerStore(config.controllerStoreDirectory), reality);
+  const controller = new AutomationController(clock, new FileControllerStore(config.controllerStoreDirectory, clock), reality);
   const gitSettings = { executable: config.git.executable, remote: config.git.remote, repositoryPath: config.git.repositoryPath,
     worktreeRoot: config.git.worktreeRoot, timeoutMs: config.git.timeoutMs, maxOutputBytes: config.git.maxOutputBytes };
   const implementation = new ClaudeCodeImplementationAdapter({ claude: config.claude, git: { ...gitSettings,

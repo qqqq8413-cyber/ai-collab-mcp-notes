@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseChangeIdentity } from './admission.js';
 import { InMemoryControllerStore, type ControllerStore } from './audit.js';
 import {
   acceptedAt, assertRunInvariants, assertTransition, isActiveState, isStopState, isTerminalState, parseAcceptanceDecision,
@@ -49,7 +50,7 @@ export class AutomationController {
   readonly #write: (run: ControllerRun) => void;
   readonly #reality: RepositoryRealityPort;
 
-  constructor(clock: Clock, store: ControllerStore = new InMemoryControllerStore(),
+  constructor(clock: Clock, store: ControllerStore = new InMemoryControllerStore(clock),
     reality: RepositoryRealityPort = unavailableRepositoryRealityPort()) {
     this.#clock = clock;
     this.#store = store;
@@ -58,8 +59,11 @@ export class AutomationController {
     Object.freeze(this);
   }
 
+  // A convenience path, not the guard: the store's create admits the run (CHIEF-GOV/1, one
+  // ROOT run per change). The change identity is passed on exactly, never trimmed.
   createRun(runId: string, sliceId: string, repository: string): ControllerRun {
-    const run: ControllerRun = { runId: text.parse(runId), sliceId: text.parse(sliceId), repository: text.parse(repository),
+    const change = parseChangeIdentity({ repository, sliceId });
+    const run: ControllerRun = { runId: text.parse(runId), sliceId: change.sliceId, repository: change.repository,
       state: 'IDLE', implementationIterations: 0, acceptanceFailures: 0, audit: [] };
     this.#store.create(run);
     return this.get(run.runId);

@@ -93,9 +93,37 @@ Any active nonterminal state may enter an applicable stop state. Resume from
 repair. `ARCHITECTURE_STOP` resumes through `ARCHITECTURE` and a new packet
 version; `HUMAN_STOP` resumes only from the state/action the human explicitly
 authorizes, with all stale preconditions rechecked. `FAILED_CLOSED` is a
-terminal condition for an unreconcilable or unsafe run, not a fourth stop class;
-new work requires a new run and authorization. No automatic retry of an
-uncertain external side effect.
+terminal condition for an unreconcilable or unsafe run, not a fourth stop class.
+A terminal run keeps its change closed: new work requires a new governed change
+identity and authorization, never another run of the same change (Section 3.1).
+No automatic retry of an uncertain external side effect.
+
+### 3.1 Run Admission (G1-R4L-1)
+
+CHIEF-GOV/1: one change, exactly one ROOT run, ever. A change is
+`ChangeRefV1 { kind: 'SLICE', changeId: sliceId }` in one repository, keyed by
+`sha256("chief.change.v1\0" + repository + "\0" + sliceId)` over the exact
+identity: `sliceId` matches `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$` and is
+case-sensitive, the repository is `owner/name`, and a non-canonical spelling is
+refused, never normalised. Every `ControllerStore.create` admits the first run
+of a change as its ROOT and refuses any other runId for that change
+(`SECOND_RUN_FOR_CHANGE`) before the run exists, whatever the ROOT's state,
+`CLOSED` and `FAILED_CLOSED` included. Budget, authority, Human stop, lifecycle
+and governance state therefore cannot be reset by opening another run. The
+admission record is an operational record, not authority; continuation is
+reserved and not implemented.
+
+Admission is a structural invariant, not authorization: it cannot tell whether
+two different sliceIds are the same real work. Activation prerequisite: before
+any run-creation surface (Workspace, API, agent or executor) goes live, new
+change identities must come from a governed change-mint or adoption process,
+and who may request a run is decided at the governed authorization boundary. No
+caller may choose an arbitrary new sliceId to obtain a fresh change.
+
+The file store requires a local filesystem with atomic, exclusive link(2)
+publication and durable directory fsync. Network, sync and remote filesystems
+are unsupported for `controllerStoreDirectory`; where link publication is
+unavailable, admission fails closed.
 
 ## 4. Exactly Three Operational Stop Classes
 
@@ -114,7 +142,8 @@ Conservative defaults per slice: `max_implementation_iterations_per_slice=3`,
 `max_acceptance_failures_per_slice=3`, `max_parallel_implementation_agents=1`,
 `max_runtime_minutes_per_iteration=60`. Count an iteration when implementation
 begins; count an acceptance failure on explicit REJECT. Exhaustion yields
-`HUMAN_STOP`; neither agent can reset counters. Proposed warning thresholds are
+`HUMAN_STOP`; neither agent can reset counters, and opening another run for the
+same change is refused (Section 3.1). Proposed warning thresholds are
 10 changed files or 500 changed diff lines per iteration. Warnings trigger
 explicit scope review, not automatic semantic rejection. Packets may lower
 limits; raising them requires explicit GPT architecture review and human

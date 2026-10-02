@@ -1,31 +1,66 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { closeSync, existsSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync,
-  unlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync,
+  renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import {
+  RunAdmissionIntegrityError, admissionDecision, admissionRecordOf, changeKeyOf, openAdmissionRecord,
+  openAdmissionRefusalRecord, parseChangeIdentity, refuseSecondRun, sealAdmissionRecord, type AdmissionRecord,
+  type AdmissionRefusalRecord, type ChangeIdentity,
+} from './admission.js';
 import { assertFreshRun, assertRunInvariants, assertTransition } from './lifecycle.js';
 import { requiresControllerWriter, type ControllerStore } from './audit.js';
-import type { AuditEntry, ControllerRun } from './types.js';
+import { SYSTEM_CLOCK, isInstant, parseInstant } from './time.js';
+import type { AuditEntry, Clock, ControllerRun } from './types.js';
 
 const VERSION = 1;
+const RUN_FILE = /^[0-9a-f]{64}\.json$/;
+const REFUSAL_FILE = /^[0-9a-f-]{36}\.json$/;
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 
+// Admission (CHIEF-GOV/1, G1-R4L-1) lives beside the runs. changes/<changeKey>.json is
+// the write-once claim that makes one run the ROOT of its change; changes/refusals/
+// <changeKey>/ holds best-effort evidence of refused second runs. Both are operational
+// records, never authority.
+//
+// Filesystem contract: the directory must be on a LOCAL filesystem whose link(2)
+// publishes a name atomically and exclusively (EEXIST when the name exists) and whose
+// fsync makes a directory entry durable. Network, sync and remote filesystems are not
+// supported. Where link publication is unavailable, admission fails closed; there is no
+// weaker fallback.
 export class FileControllerStore implements ControllerStore {
   readonly #directory: string;
+  readonly #changes: string;
+  readonly #clock: Clock;
   #bound = false;
 
-  constructor(directory: string) {
+  constructor(directory: string, clock: Clock = SYSTEM_CLOCK) {
     if (typeof directory !== 'string' || !directory.trim()) throw new Error('Storage directory required');
+    if (!clock || typeof clock.now !== 'function') throw new Error('Storage clock required');
     this.#directory = resolve(directory);
+    this.#changes = join(this.#directory, 'changes');
+    this.#clock = clock;
     mkdirSync(this.#directory, { recursive: true, mode: 0o700 });
+    mkdirSync(this.#changes, { recursive: true, mode: 0o700 });
+    this.#sync(this.#directory);
+    this.#assertIndexed();
     Object.freeze(this);
   }
   #file(runId: string): string {
     if (typeof runId !== 'string' || !runId.trim()) throw new Error('Invalid runId');
     return join(this.#directory, `${digest(runId)}.json`);
   }
+  #sync(directory: string): void {
+    const fd = openSync(directory, 'r');
+    try { fsyncSync(fd); } finally { closeSync(fd); }
+  }
   #load(runId: string): ControllerRun | undefined {
     const file = this.#file(runId);
     if (!existsSync(file)) return undefined;
+    const run = this.#read(file, (stored) => stored === runId);
+    this.#assertRoot(run);
+    return run;
+  }
+  #read(file: string, owns: (runId: unknown) => boolean): ControllerRun {
     let envelope: unknown;
     try { envelope = JSON.parse(readFileSync(file, 'utf8')); }
     catch { throw new Error('Corrupt controller storage JSON'); }
@@ -38,11 +73,116 @@ export class FileControllerStore implements ControllerStore {
     if (typeof stored.checksum !== 'string' || stored.checksum !== digest(JSON.stringify(stored.run))) {
       throw new Error('Controller storage checksum mismatch');
     }
-    if (!stored.run || typeof stored.run !== 'object' || (stored.run as ControllerRun).runId !== runId) {
+    if (!stored.run || typeof stored.run !== 'object' || !owns((stored.run as ControllerRun).runId)) {
       throw new Error('Controller storage identity mismatch');
     }
     assertRunInvariants(stored.run as ControllerRun);
     return stored.run as ControllerRun;
+  }
+  // The store opens only when every run in it is the admitted ROOT of its change. A run
+  // that is not (created before admission existed, or written around the store) fails
+  // closed: indexing it now would mean guessing which run of its change came first, so
+  // nothing is backfilled.
+  #assertIndexed(): void {
+    for (const name of readdirSync(this.#directory)) {
+      if (!RUN_FILE.test(name)) continue;
+      this.#assertRoot(this.#read(join(this.#directory, name), (stored) => typeof stored === 'string' && `${digest(stored)}.json` === name));
+    }
+  }
+  #assertRoot(run: ControllerRun): void {
+    let changeKey: string;
+    try { changeKey = changeKeyOf(run); }
+    catch { throw new RunAdmissionIntegrityError('LEGACY_UNINDEXED_RUN', 'Stored run has no canonical change identity; it predates admission'); }
+    const record = this.#admission(changeKey);
+    if (!record) throw new RunAdmissionIntegrityError('LEGACY_UNINDEXED_RUN', 'Stored run has no admission record', changeKey);
+    if (record.rootRunId !== run.runId) {
+      throw new RunAdmissionIntegrityError('ADMISSION_REGISTRY_MISMATCH', 'Stored run is not the admitted ROOT of its change', changeKey);
+    }
+  }
+  #admissionFile(changeKey: string): string { return join(this.#changes, `${changeKey}.json`); }
+  #admission(changeKey: string): AdmissionRecord | undefined {
+    let text: string;
+    try { text = readFileSync(this.#admissionFile(changeKey), 'utf8'); }
+    catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT') return undefined;
+      throw new RunAdmissionIntegrityError('ADMISSION_RECORD_INVALID', `Admission record is unreadable (${code ?? 'unknown error'})`, changeKey);
+    }
+    const record = openAdmissionRecord(text);
+    if (record.changeKey !== changeKey) {
+      throw new RunAdmissionIntegrityError('ADMISSION_REGISTRY_MISMATCH', 'Admission record is filed under another change', changeKey);
+    }
+    return record;
+  }
+  #now(): string {
+    const at = this.#clock.now();
+    if (!isInstant(at)) throw new Error('Storage clock returned an invalid timestamp');
+    return at;
+  }
+  // Runs under the requested run's lock, so finishing a pending ROOT cannot race another
+  // writer of that run, and no other run of the change gets past an existing claim.
+  #admit(runId: string, change: ChangeIdentity): void {
+    const changeKey = changeKeyOf(change);
+    let record = this.#admission(changeKey);
+    if (!record) {
+      if (this.#claim(admissionRecordOf(change, runId, this.#now()))) return;
+      // EEXIST: another writer owns the change. Its claim decides.
+      record = this.#admission(changeKey);
+      if (!record) throw new RunAdmissionIntegrityError('ADMISSION_REGISTRY_MISMATCH', 'A lost admission claim left no record', changeKey);
+    }
+    if (admissionDecision(record, change, runId) === 'ROOT_PENDING') {
+      // A claim that outlived a crash before its run was written. Only this run may finish
+      // it; the claim is made durable before the run is.
+      this.#sync(this.#changes);
+      return;
+    }
+    refuseSecondRun(record, change, runId, this.#clock, (refusal) => this.#recordRefusal(refusal));
+  }
+  // One link(2) publishes the complete record atomically and exclusively: the name is
+  // either absent or names the whole claim. EEXIST means another writer owns the change.
+  // No lock file is involved, so admission has no stale lock, and a crash leaves either
+  // nothing or a whole claim. Any other failure means the primitive is unavailable here:
+  // fail closed, never fall back to check-then-write, rename-over-existing or a lock.
+  #claim(record: AdmissionRecord): boolean {
+    const temp = join(this.#changes, `${record.changeKey}.${randomUUID()}.tmp`);
+    const fd = openSync(temp, 'wx', 0o600);
+    try {
+      try {
+        writeFileSync(fd, sealAdmissionRecord(record));
+        fsyncSync(fd);
+      } finally { closeSync(fd); }
+      try { linkSync(temp, this.#admissionFile(record.changeKey)); }
+      catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code === 'EEXIST') return false;
+        throw new RunAdmissionIntegrityError('ADMISSION_CLAIM_UNAVAILABLE',
+          `Atomic admission claim is unavailable (${code ?? 'unknown error'}); no fallback is attempted`, record.changeKey);
+      }
+      this.#sync(this.#changes);
+      return true;
+    } finally {
+      // Temp names are never read; one left behind by a crash is harmless.
+      try { unlinkSync(temp); } catch { /* best effort */ }
+    }
+  }
+  // Best-effort, append-only operational evidence. Never authority, never read by
+  // admission, and never a condition of the refusal it records.
+  #recordRefusal(refusal: AdmissionRefusalRecord): void {
+    const directory = join(this.#changes, 'refusals', refusal.changeKey);
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    const target = join(directory, `${randomUUID()}.json`);
+    const temp = `${target}.tmp`;
+    const fd = openSync(temp, 'wx', 0o600);
+    try {
+      try {
+        writeFileSync(fd, sealAdmissionRecord(refusal));
+        fsyncSync(fd);
+      } finally { closeSync(fd); }
+      linkSync(temp, target);
+    } finally {
+      try { unlinkSync(temp); } catch { /* best effort */ }
+    }
+    this.#sync(directory);
   }
   #locked(runId: string, action: () => void): void {
     const lock = `${this.#file(runId)}.lock`;
@@ -79,10 +219,29 @@ export class FileControllerStore implements ControllerStore {
   create(input: ControllerRun): void {
     const run = structuredClone(input);
     assertFreshRun(run);
+    const change = parseChangeIdentity(run);
     this.#locked(run.runId, () => {
       if (this.#load(run.runId)) throw new Error('Duplicate runId');
+      this.#admit(run.runId, change);
       this.#write(run.runId, run);
     });
+  }
+  /** The admission record of a change, if it has one. Operational integrity data; it grants nothing. */
+  admissionRecord(change: ChangeIdentity): AdmissionRecord | undefined {
+    return this.#admission(changeKeyOf(change));
+  }
+  /** Recorded refusals of second runs for a change, oldest first. Operational evidence; it grants nothing. */
+  admissionRefusals(change: ChangeIdentity): AdmissionRefusalRecord[] {
+    const changeKey = changeKeyOf(change);
+    const directory = join(this.#changes, 'refusals', changeKey);
+    if (!existsSync(directory)) return [];
+    return readdirSync(directory).filter((name) => REFUSAL_FILE.test(name)).map((name) => {
+      const refusal = openAdmissionRefusalRecord(readFileSync(join(directory, name), 'utf8'));
+      if (refusal.changeKey !== changeKey) {
+        throw new RunAdmissionIntegrityError('ADMISSION_REGISTRY_MISMATCH', 'Refusal record is filed under another change', changeKey);
+      }
+      return refusal;
+    }).sort((a, b) => parseInstant(a.refusedAt)! - parseInstant(b.refusedAt)!);
   }
   get(runId: string): ControllerRun | undefined {
     const run = this.#load(runId);
