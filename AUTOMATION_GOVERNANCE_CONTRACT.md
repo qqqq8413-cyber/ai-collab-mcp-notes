@@ -175,6 +175,28 @@ changed files and results; implementer summary, local unpushed files, and
 claimed counts alone are insufficient. A later SHA invalidates the prior
 acceptance for promotion. GitHub CI success alone is not semantic acceptance.
 
+### 6.1 Authority Archive (G1-R4P-1)
+
+Direct authority (implementation packets, correction packets, acceptance
+decisions and authorizations) is preserved in an append-only
+`AUTHORITY_ARCHIVE` as `AuthorityDocumentV1` records of class
+`DIRECT_AUTHORITY`. The archive preserves authority; it does not create it,
+authenticate a Human, or authorize execution. Each body is validated by the
+repository's canonical parser for its kind and must already be in canonical
+form. The document's own identifier (`packetId`, `correctionPacketId`,
+`reviewId`, `authorizationId`) is its `authorityId`, exact and matching
+`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`. `version` counts archive revisions of that
+one document (1, 2, ... without gaps, each superseding the exact previous record
+hash); it is not a packet's run-scoped `packetVersion`, which stays in the body.
+An identical retry returns the same reference; a different record for an
+archived version fails closed. `bodyHash` and `recordHash` detect corruption;
+they are not signatures and not authentication. Operational records (journals,
+APPLIED results, controller audit, R4L admission and refusal, CI results,
+provider or executor output, replay traces, connector executions) never become
+direct authority, and no API promotes them. The archive root is separately
+configured and holds only `records/`; this is storage separation, not R4T
+capability governance.
+
 ## 7. Git and Promotion
 
 Canonical branch is `main`; implementation branches are `work/**`. No direct
