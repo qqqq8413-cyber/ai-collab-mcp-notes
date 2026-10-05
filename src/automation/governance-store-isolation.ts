@@ -88,7 +88,8 @@ function overlapping(a: PathIdentity, b: PathIdentity): boolean {
     within(a.path, b.path) || within(b.path, a.path);
 }
 
-interface ProtectedRoot { kind: GovernanceRootKind; identity: PathIdentity }
+// `birth` also tells a recreated root from the original where an inode number is reused.
+interface ProtectedRoot { kind: GovernanceRootKind; identity: PathIdentity; birth: bigint }
 
 /**
  * A protected root as LIVE composition requires it: an existing, real directory (not a
@@ -97,14 +98,14 @@ interface ProtectedRoot { kind: GovernanceRootKind; identity: PathIdentity }
  */
 function protectedRoot(kind: GovernanceRootKind, path: unknown): ProtectedRoot {
   const identity = identify(kind, path);
-  let stats;
-  try { stats = lstatSync(path as string); }
+  let stats: BigIntStats;
+  try { stats = lstatSync(path as string, { bigint: true }); }
   catch (error) { throw fail(absent(error) ? `${kind} root does not exist; LIVE composition provisions nothing` : `${kind} root cannot be inspected`); }
   if (stats.isSymbolicLink()) throw fail(`${kind} root is a symlink`);
   if (!stats.isDirectory()) throw fail(`${kind} root is not a directory`);
-  if (typeof process.getuid === 'function' && stats.uid !== process.getuid()) throw fail(`${kind} root is not owned by the host account`);
-  if ((stats.mode & 0o022) !== 0) throw fail(`${kind} root is writable by group or others`);
-  return { kind, identity };
+  if (typeof process.getuid === 'function' && stats.uid !== BigInt(process.getuid())) throw fail(`${kind} root is not owned by the host account`);
+  if ((stats.mode & 0o022n) !== 0n) throw fail(`${kind} root is writable by group or others`);
+  return { kind, identity, birth: stats.birthtimeNs };
 }
 
 /**
@@ -136,7 +137,9 @@ export class GovernanceStoreIsolation {
     const candidate = identify(label, path);
     for (const root of this.#roots) {
       const current = protectedRoot(root.kind, root.identity.path);
-      if (current.identity.node !== root.identity.node) throw fail(`${root.kind} root changed after composition`);
+      if (current.identity.node !== root.identity.node || current.birth !== root.birth) {
+        throw fail(`${root.kind} root changed after composition`);
+      }
       if (overlapping(current.identity, candidate)) throw fail(`${label} overlaps the protected ${root.kind} root`);
     }
   }

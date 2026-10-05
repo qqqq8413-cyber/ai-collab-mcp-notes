@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync,
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, symlinkSync,
   writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
@@ -98,12 +98,15 @@ check('10. a root owned by another account is refused', (dir) => {
   const { authority } = roots(dir);
   refused(() => isolation('/usr', authority), /not owned by the host account/);
 }, { requires: typeof process.getuid === 'function' && process.getuid() !== 0 ? undefined : 'a non-root POSIX account' });
-check('a root replaced after composition fails closed at the next check', (dir) => {
+check('a root swapped after composition fails closed at the next check', (dir) => {
   const { controller, authority } = roots(dir);
   const governance = isolation(controller, authority);
-  rmSync(controller, { recursive: true });
+  renameSync(controller, join(dir, 'moved-away'));
   directory(controller);
   refused(() => governance.assertDisjoint('elsewhere', directory(join(dir, 'elsewhere'))), /changed after composition/);
+  const second = roots(join(dir, 'second')), later = isolation(second.controller, second.authority);
+  renameSync(second.authority, join(dir, 'authority-moved'));
+  refused(() => later.assertDisjoint('elsewhere', join(dir, 'elsewhere')), /AUTHORITY_ARCHIVE root does not exist/);
 });
 
 // ---------------------------------------------------------------- static composition (the real createLiveAutomation)
