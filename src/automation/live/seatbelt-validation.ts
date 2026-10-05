@@ -1,6 +1,7 @@
 import { existsSync, realpathSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, relative } from 'node:path';
+import { GovernanceStoreIsolation } from '../governance-store-isolation.js';
 import type { OfflineValidationExecutor, OfflineValidationOutcome, OfflineValidationRequest } from '../offline-validation.js';
 import type { ProcessExecutor } from '../process-executor.js';
 import { succeeded, summary } from './common.js';
@@ -23,6 +24,37 @@ const SYSTEM_READ_FILES = Object.freeze(['/', '/private/etc/localtime', '/dev/nu
 // Root-level symlinks whose metadata runtimes inspect while resolving paths.
 const SYSTEM_METADATA = Object.freeze(['/', '/etc', '/tmp', '/var']);
 const SYSTEM_WRITE_FILES = Object.freeze(['/dev/null']);
+
+/**
+ * G1-R4T-1: the fixed part of every Seatbelt profile may not reach a protected governance
+ * root, wherever the roots are configured: no root inside or containing a fixed readable
+ * tree, and no root that is one of the fixed readable or writable entries.
+ */
+export function assertFixedSeatbeltTreesIsolated(governance: GovernanceStoreIsolation): void {
+  for (const tree of SYSTEM_READ_TREES) governance.assertDisjoint(`fixed Seatbelt readable tree ${tree}`, tree);
+  for (const entry of new Set([...SYSTEM_READ_FILES, ...SYSTEM_METADATA, ...SYSTEM_WRITE_FILES])) {
+    governance.assertNotRoot(`fixed Seatbelt entry ${entry}`, entry);
+  }
+}
+/** The configured search path directories a sandboxed command may be resolved from. */
+export function searchPathDirectories(searchPath: string): string[] {
+  return searchPath.split(':');
+}
+/**
+ * G1-R4T-1: refuses one invocation whose effective policy reaches a protected governance
+ * root: every readable and writable tree of its profile, its cwd, its search path, and an
+ * absolute executable. Both Seatbelt boundaries call this before anything they run exists.
+ */
+export function assertInvocationIsolated(governance: GovernanceStoreIsolation, boundary: string,
+  invocation: { policy: SeatbeltPolicy; cwd: string; searchPath: string; executable?: string }): void {
+  for (const path of invocation.policy.writeTrees) governance.assertDisjoint(`${boundary} writable path`, path);
+  for (const path of invocation.policy.readTrees) governance.assertDisjoint(`${boundary} readable path`, path);
+  governance.assertDisjoint(`${boundary} cwd`, invocation.cwd);
+  for (const path of searchPathDirectories(invocation.searchPath)) governance.assertDisjoint(`${boundary} search path`, path);
+  if (invocation.executable !== undefined && isAbsolute(invocation.executable)) {
+    governance.assertDisjoint(`${boundary} executable`, realpathSync(invocation.executable));
+  }
+}
 
 // Locations a configured path may neither be inside nor contain: they hold keys,
 // tokens, keychains, or tool credentials.
@@ -93,9 +125,11 @@ export interface SeatbeltSettings {
 export class SeatbeltOfflineValidationExecutor implements OfflineValidationExecutor {
   readonly #settings: SeatbeltSettings;
   readonly #executor: ProcessExecutor;
+  readonly #governance: GovernanceStoreIsolation;
   readonly #home: string;
 
-  constructor(settings: SeatbeltSettings, dependencies: { executor: ProcessExecutor; platform?: string; home?: string }) {
+  constructor(settings: SeatbeltSettings, dependencies: { executor: ProcessExecutor; governance: GovernanceStoreIsolation; platform?: string;
+    home?: string }) {
     const platform = dependencies.platform ?? process.platform;
     if (platform !== 'darwin' || !existsSync(SANDBOX_EXEC)) {
       throw new Error('Offline validation isolation (macOS Seatbelt) is unavailable on this host; live automation is not composed');
@@ -103,8 +137,17 @@ export class SeatbeltOfflineValidationExecutor implements OfflineValidationExecu
     if (typeof settings.searchPath !== 'string' || !settings.searchPath.split(':').every((part) => isAbsolute(part) && !part.includes('\0'))) {
       throw new Error('Validation search path must list absolute directories only');
     }
+    // The boundary itself knows the protected governance roots; without them it is not built.
+    if (!(dependencies.governance instanceof GovernanceStoreIsolation)) {
+      throw new Error('Offline validation isolation requires the protected governance roots');
+    }
+    assertFixedSeatbeltTreesIsolated(dependencies.governance);
+    for (const path of [...settings.runtimeReadPaths, ...searchPathDirectories(settings.searchPath)]) {
+      dependencies.governance.assertDisjoint('validation runtime path', path);
+    }
     this.#settings = Object.freeze({ runtimeReadPaths: Object.freeze([...settings.runtimeReadPaths]), searchPath: settings.searchPath });
     this.#executor = dependencies.executor;
+    this.#governance = dependencies.governance;
     this.#home = realpathSync(dependencies.home ?? homedir());
     Object.freeze(this);
   }
@@ -121,6 +164,10 @@ export class SeatbeltOfflineValidationExecutor implements OfflineValidationExecu
       if (!within(cwd, workspace)) throw new Error('Validation cwd is outside the validation workspace');
       const readTrees = [...request.readOnlyPaths, ...this.#settings.runtimeReadPaths].map((path) => confinedPath(path, this.#home));
       policy = { readTrees: [...new Set(readTrees)], writeTrees: [...new Set([workspace, temporary])] };
+      // G1-R4T-1: the effective policy of this invocation, checked again before generated code runs.
+      if (typeof request.executable !== 'string' || !request.executable) throw new Error('Validation executable is required');
+      assertInvocationIsolated(this.#governance, 'validation', { policy, cwd, searchPath: this.#settings.searchPath,
+        executable: request.executable });
     } catch (error) {
       return { isolation: 'UNAVAILABLE', reason: error instanceof Error ? error.message : String(error) };
     }
@@ -136,6 +183,7 @@ export class SeatbeltOfflineValidationExecutor implements OfflineValidationExecu
       maxStderrBytes: request.maxStderrBytes });
     return { isolation: 'ENFORCED', result };
   }
+
 }
 Object.freeze(SeatbeltOfflineValidationExecutor);
 Object.freeze(SeatbeltOfflineValidationExecutor.prototype);

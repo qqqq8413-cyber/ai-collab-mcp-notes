@@ -5,6 +5,7 @@ import { FileControllerStore } from '../durable-store.js';
 import { isCanonicalEgressSet } from '../egress-destination.js';
 import { FileEgressJournal } from '../file-egress-journal.js';
 import { FileInvocationJournal } from '../file-invocation-journal.js';
+import { GovernanceStoreIsolation } from '../governance-store-isolation.js';
 import {
   NodeProcessExecutor, SyncNodeProcessExecutor, environmentFromAllowlist, type ProcessExecutor, type SyncProcessExecutor,
 } from '../process-executor.js';
@@ -18,7 +19,7 @@ import { PublicAddressResolver } from './connect-broker.js';
 import { GitHubCliRepositoryRealityPort } from './github-cli-reality.js';
 import type { LiveModelProcessExecutor } from './model-process-isolation.js';
 import { SeatbeltModelProcessExecutor } from './seatbelt-model-process.js';
-import { SeatbeltOfflineValidationExecutor } from './seatbelt-validation.js';
+import { SeatbeltOfflineValidationExecutor, assertFixedSeatbeltTreesIsolated, searchPathDirectories } from './seatbelt-validation.js';
 
 // Wires the live automation: durable controller store, invocation journal, controller,
 // runner, the two agent adapters, and GitHub reality. Importing this module starts
@@ -30,6 +31,13 @@ import { SeatbeltOfflineValidationExecutor } from './seatbelt-validation.js';
 // CONNECT broker that enforces the actor's exact egress set, with a pinned executable);
 // where either boundary is unavailable, nothing is composed. The broker's resolver is
 // the public-address resolver; nothing in this configuration can replace it.
+//
+// G1-R4T-1: the Controller store and the Authority Archive are protected governance roots.
+// Before anything is constructed, both must already exist as safe, mutually disjoint
+// directories, and neither may overlap any path an agent, a model process or generated
+// code can see (see agentVisiblePaths). The archive root is named here only so it can be
+// protected: no archive reader or appender is opened. Both Seatbelt boundaries receive
+// the roots and check every invocation's effective paths again.
 
 const exact = z.string().min(1).refine((value) => value.trim() === value && !value.includes('\0'));
 const absolute = exact.refine(isAbsolute, 'must be an absolute path');
@@ -42,6 +50,8 @@ const MB = 1024 * 1024;
 const configSchema = z.strictObject({
   repository: z.string().regex(/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/),
   controllerStoreDirectory: absolute,
+  /** Protected, never opened by the live composition (G1-R4T-1). */
+  authorityArchiveDirectory: absolute,
   journalDirectory: absolute,
   egressJournalDirectory: absolute,
   environment: z.strictObject({ allow: z.array(z.string()).max(64) }),
@@ -77,22 +87,47 @@ export interface LiveAutomation {
   reality: GitHubCliRepositoryRealityPort;
 }
 
+/**
+ * Every configured path that can become visible to the Claude implementation process, the
+ * Codex review process, offline validation or model-generated code, plus the operational
+ * journals, which may not share a governance root either.
+ */
+function agentVisiblePaths(config: LiveAutomationConfig): Array<[string, string]> {
+  return [
+    ['git.repositoryPath', config.git.repositoryPath],
+    ['git.worktreeRoot', config.git.worktreeRoot],
+    ...config.git.linkedDirectories.map((link): [string, string] => [`git.linkedDirectories[${link.path}].source`, link.source]),
+    ...config.offlineValidation.runtimeReadPaths.map((path, index): [string, string] => [`offlineValidation.runtimeReadPaths[${index}]`, path]),
+    ...searchPathDirectories(config.offlineValidation.searchPath).map((path, index): [string, string] => [`offlineValidation.searchPath[${index}]`, path]),
+    ...config.modelProcess.runtimeReadPaths.map((path, index): [string, string] => [`modelProcess.runtimeReadPaths[${index}]`, path]),
+    ...searchPathDirectories(config.modelProcess.searchPath).map((path, index): [string, string] => [`modelProcess.searchPath[${index}]`, path]),
+    ['claude.executable', config.claude.executable],
+    ['codex.executable', config.codex.executable],
+    ['journalDirectory', config.journalDirectory],
+    ['egressJournalDirectory', config.egressJournalDirectory],
+  ];
+}
+
 export function createLiveAutomation(input: unknown, dependencies: { clock?: Clock; environmentSource?: Readonly<Record<string, string | undefined>>;
   executor?: ProcessExecutor; syncExecutor?: SyncProcessExecutor; offlineValidation?: OfflineValidationExecutor;
   modelProcess?: LiveModelProcessExecutor; platform?: string } = {}): Readonly<LiveAutomation> {
   const config = configSchema.parse(input);
   assertExactModel(config.claude.model);
   assertExactModel(config.codex.model);
+  // Nothing has been created yet: an unsafe configuration is refused untouched.
+  const governance = GovernanceStoreIsolation.forLiveRoots(config);
+  for (const [label, path] of agentVisiblePaths(config)) governance.assertDisjoint(label, path);
+  assertFixedSeatbeltTreesIsolated(governance);
   const clock: Clock = dependencies.clock ?? Object.freeze({ now: () => new Date().toISOString() });
   const environment = Object.freeze({ ...environmentFromAllowlist(dependencies.environmentSource ?? process.env, config.environment.allow),
     ...FIXED_ENVIRONMENT });
   const executor = dependencies.executor ?? new NodeProcessExecutor();
   const syncExecutor = dependencies.syncExecutor ?? new SyncNodeProcessExecutor();
   const validation = dependencies.offlineValidation ?? new SeatbeltOfflineValidationExecutor(config.offlineValidation,
-    { executor, platform: dependencies.platform });
+    { executor, governance, platform: dependencies.platform });
   const egressJournal = new FileEgressJournal(config.egressJournalDirectory, clock);
   const model = dependencies.modelProcess ?? new SeatbeltModelProcessExecutor(config.modelProcess,
-    { executor, egressJournal, resolver: new PublicAddressResolver(), platform: dependencies.platform });
+    { executor, egressJournal, resolver: new PublicAddressResolver(), governance, platform: dependencies.platform });
 
   const journal = new FileInvocationJournal(config.journalDirectory, clock);
   const reality = new GitHubCliRepositoryRealityPort({ ...config.github, repository: config.repository,

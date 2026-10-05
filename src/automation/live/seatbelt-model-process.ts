@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, realpathSync, rmSync, statSync } from 'node:fs
 import { homedir, tmpdir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import { parseEgressSet } from '../egress-destination.js';
+import { GovernanceStoreIsolation } from '../governance-store-isolation.js';
 import { summarizeEgress, type EgressJournal } from '../egress-journal.js';
 import type { ProcessExecutor, ProcessResult } from '../process-executor.js';
 import { ACTOR_KINDS } from '../types.js';
@@ -11,7 +12,9 @@ import {
   proxyEnvironment, refusedModelEnvironmentName, verifyPinnedExecutable, type EgressEvidence, type LiveModelProcessExecutor,
   type ModelProcessOutcome, type ModelProcessRequest,
 } from './model-process-isolation.js';
-import { SANDBOX_EXEC, confinedPath, seatbeltProfile } from './seatbelt-validation.js';
+import {
+  SANDBOX_EXEC, assertFixedSeatbeltTreesIsolated, assertInvocationIsolated, confinedPath, searchPathDirectories, seatbeltProfile,
+} from './seatbelt-validation.js';
 
 // The production LIVE MODEL PROCESS boundary on macOS. Per invocation:
 //   verify the executable pin and the exact scope; open the durable egress session;
@@ -56,10 +59,11 @@ export class SeatbeltModelProcessExecutor implements LiveModelProcessExecutor {
   readonly #resolver: EgressResolver;
   readonly #dialer: EgressDialer | undefined;
   readonly #limits: Partial<BrokerLimits> | undefined;
+  readonly #governance: GovernanceStoreIsolation;
   readonly #home: string;
 
   constructor(settings: ModelProcessSettings, dependencies: { executor: ProcessExecutor; egressJournal: EgressJournal; resolver: EgressResolver;
-    dialer?: EgressDialer; brokerLimits?: Partial<BrokerLimits>; platform?: string; home?: string }) {
+    governance: GovernanceStoreIsolation; dialer?: EgressDialer; brokerLimits?: Partial<BrokerLimits>; platform?: string; home?: string }) {
     const platform = dependencies.platform ?? process.platform;
     if (platform !== 'darwin' || !existsSync(SANDBOX_EXEC)) {
       throw new Error('Model process isolation (macOS Seatbelt) is unavailable on this host; live automation is not composed');
@@ -71,6 +75,15 @@ export class SeatbeltModelProcessExecutor implements LiveModelProcessExecutor {
         typeof dependencies.resolver?.resolve !== 'function') {
       throw new Error('Model process isolation requires a process executor, an egress journal, and a resolver');
     }
+    // The boundary itself knows the protected governance roots; without them it is not built.
+    if (!(dependencies.governance instanceof GovernanceStoreIsolation)) {
+      throw new Error('Model process isolation requires the protected governance roots');
+    }
+    assertFixedSeatbeltTreesIsolated(dependencies.governance);
+    for (const path of [...settings.runtimeReadPaths, ...searchPathDirectories(settings.searchPath)]) {
+      dependencies.governance.assertDisjoint('model runtime path', path);
+    }
+    this.#governance = dependencies.governance;
     this.#settings = Object.freeze({ runtimeReadPaths: Object.freeze([...settings.runtimeReadPaths]), searchPath: settings.searchPath });
     this.#executor = dependencies.executor;
     this.#journal = dependencies.egressJournal;
@@ -110,6 +123,9 @@ export class SeatbeltModelProcessExecutor implements LiveModelProcessExecutor {
       if (!readOnlyWorkspace && request.workspace.mode !== 'READ_WRITE') throw new Error('unknown workspace mode');
       policy = { readTrees: [...new Set([executable, ...readable, ...(readOnlyWorkspace ? [workspace] : [])])],
         writeTrees: [...new Set([...(readOnlyWorkspace ? [] : [workspace]), ...writable, temporary])] };
+      // G1-R4T-1: the effective policy of this invocation, checked again before the session, the
+      // broker or the CLI exists.
+      assertInvocationIsolated(this.#governance, 'model', { policy, cwd, searchPath: this.#settings.searchPath });
     } catch (error) {
       if (temporary) rmSync(temporary, { recursive: true, force: true });
       return unavailable(`model process isolation refused before anything ran: ${reason(error)}`);

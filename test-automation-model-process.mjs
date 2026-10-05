@@ -12,6 +12,7 @@ import {
 } from './dist/automation/live/model-process-isolation.js';
 import { SeatbeltModelProcessExecutor, modelProcessProfile } from './dist/automation/live/seatbelt-model-process.js';
 import { SANDBOX_EXEC } from './dist/automation/live/seatbelt-validation.js';
+import { GovernanceStoreIsolation } from './dist/automation/governance-store-isolation.js';
 
 // G1-R3C LIVE MODEL PROCESS boundary. Unit checks run everywhere. The real capability
 // checks run where macOS Seatbelt is present and are reported as skipped elsewhere. The
@@ -22,6 +23,12 @@ import { SANDBOX_EXEC } from './dist/automation/live/seatbelt-validation.js';
 
 const T = '2026-09-29T00:00:00.000Z';
 const clock = { now: () => T };
+/** G1-R4T-1: the protected governance roots every Seatbelt boundary must know. Holds no store capability. */
+const GOVERNANCE_DIR = realpathSync(mkdtempSync(join(tmpdir(), 'chief-governance-')));
+for (const name of ['controller', 'authority']) mkdirSync(join(GOVERNANCE_DIR, name), { mode: 0o700 });
+process.on('exit', () => rmSync(GOVERNANCE_DIR, { recursive: true, force: true }));
+const GOVERNANCE = GovernanceStoreIsolation.forLiveRoots({ controllerStoreDirectory: join(GOVERNANCE_DIR, 'controller'),
+  authorityArchiveDirectory: join(GOVERNANCE_DIR, 'authority') });
 const tests = [];
 const check = (name, fn, { requires } = {}) => tests.push([name, fn, requires]);
 const seatbelt = process.platform === 'darwin' && existsSync(SANDBOX_EXEC) &&
@@ -95,14 +102,15 @@ check('broker evidence gates the result: exact closed session and allowlist, no 
   }
 });
 check('without macOS Seatbelt, or without its journal, resolver, or an absolute search path, the boundary is not constructed', withDir((dir) => {
-  const dependencies = { executor: new NodeProcessExecutor(), egressJournal: new FileEgressJournal(join(dir, 'e'), clock), resolver: { resolve: async () => [] } };
+  const dependencies = { executor: new NodeProcessExecutor(), egressJournal: new FileEgressJournal(join(dir, 'e'), clock), resolver: { resolve: async () => [] },
+    governance: GOVERNANCE };
   for (const platform of ['linux', 'win32', 'freebsd']) {
     assert.throws(() => new SeatbeltModelProcessExecutor({ runtimeReadPaths: [], searchPath: '/usr/bin' }, { ...dependencies, platform }),
       /Model process isolation \(macOS Seatbelt\) is unavailable/, platform);
   }
   if (!seatbelt) return;
   assert.throws(() => new SeatbeltModelProcessExecutor({ runtimeReadPaths: [], searchPath: 'bin' }, dependencies), /absolute/);
-  for (const missing of ['executor', 'egressJournal', 'resolver']) {
+  for (const missing of ['executor', 'egressJournal', 'resolver', 'governance']) {
     assert.throws(() => new SeatbeltModelProcessExecutor({ runtimeReadPaths: [], searchPath: '/usr/bin' }, { ...dependencies, [missing]: undefined }), /requires/);
   }
 }));
@@ -163,7 +171,7 @@ async function boundary(dir, { executor = new NodeProcessExecutor(), journal: wr
   const resolved = [];
   const resolver = { async resolve(hostname) { resolved.push(hostname); return [{ address: '127.0.0.1', family: 4 }]; } };
   const model = new SeatbeltModelProcessExecutor({ runtimeReadPaths: [dirname(dirname(NODE)), cli], searchPath: `${dirname(NODE)}:/usr/bin:/bin` },
-    { executor, egressJournal: journal, resolver, home, brokerLimits: { closeGraceMs: 50, connectTimeoutMs: 5_000 } });
+    { executor, egressJournal: journal, resolver, governance: GOVERNANCE, home, brokerLimits: { closeGraceMs: 50, connectTimeoutMs: 5_000 } });
   const scope = { actorKind: 'IMPLEMENTATION', provider: 'fixture-provider', model: 'fixture-model-1', egressDestinations: [`allowed.test:${port}`] };
   const request = (plan, overrides = {}) => ({ invocationId: randomBytes(32).toString('hex'), actorKind: 'IMPLEMENTATION', scope, executable: NODE,
     executableSha256: NODE_SHA, args: [join(cli, 'cli.mjs'), JSON.stringify(plan)], cwd: work, workspace: { path: work, mode: 'READ_WRITE' },

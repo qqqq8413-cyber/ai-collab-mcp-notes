@@ -47,7 +47,10 @@ const check = (name, fn) => tests.push([name, fn]);
 function withDir(fn) {
   return async () => {
     const dir = mkdtempSync(join(tmpdir(), 'chief-live-'));
-    try { await fn(dir); } finally { rmSync(dir, { recursive: true, force: true }); }
+    try { await fn(dir); } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(`${dir}.governance`, { recursive: true, force: true });
+    }
   };
 }
 function packet(overrides = {}) {
@@ -1001,8 +1004,18 @@ check('every GitHub command is one read-only GET; bad names and other repositori
 }));
 
 // ---------------------------------------------------------------- composition
+/**
+ * G1-R4T-1: LIVE composition requires both protected governance roots to exist already, safe and
+ * apart from every agent-visible path, so they live beside the fixture directory, not inside it.
+ */
+function governanceRoots(dir) {
+  const roots = { store: join(`${dir}.governance`, 'store'), authority: join(`${dir}.governance`, 'authority') };
+  for (const root of Object.values(roots)) mkdirSync(root, { recursive: true, mode: 0o700 });
+  return roots;
+}
 function config(dir, overrides = {}) {
-  return { repository: REPO, controllerStoreDirectory: join(dir, 'store'), journalDirectory: join(dir, 'journal'),
+  const roots = governanceRoots(dir);
+  return { repository: REPO, controllerStoreDirectory: roots.store, authorityArchiveDirectory: roots.authority, journalDirectory: join(dir, 'journal'),
     egressJournalDirectory: join(dir, 'egress'), environment: { allow: ['PATH', 'HOME'] }, claude: CLAUDE, codex: CODEX,
     git: { executable: 'git', remote: 'origin', repositoryPath: join(dir, 'repo'), worktreeRoot: join(dir, 'worktrees'), timeoutMs: 60_000,
       maxOutputBytes: 1_000_000, commitAuthor: { name: 'CHIEF automation', email: 'automation@example.invalid' }, validationTimeoutMs: 60_000,

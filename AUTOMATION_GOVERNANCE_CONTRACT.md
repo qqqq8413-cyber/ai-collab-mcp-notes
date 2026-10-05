@@ -326,6 +326,40 @@ Actor scoping (G1-R3C-C1) keeps version 2: the stored shape is unchanged, and
 the actor kind is stored once, in the invocation identity, which the call
 scope must equal.
 
+### 8.2 Governance Store Isolation (G1-R4T-1)
+
+1. The Controller store (runs and R4L admission state) and the Authority
+   Archive (DIRECT_AUTHORITY) are the protected governance roots.
+2. No agent, model process, model workspace, offline validation process or
+   model-generated code may read or write either root's raw files. A checksum
+   is no substitute: whoever can rewrite a record can rewrite its checksum.
+3. The two roots must be mutually disjoint and disjoint from every
+   agent-visible filesystem tree: repository, worktree root, linked dependency
+   sources, model and validation runtime paths and search paths, model
+   executables, the operational journals, and the fixed Seatbelt trees. Overlap
+   means equal, inside, containing, or the same tree through any alias; it is
+   decided by filesystem identity and component-wise canonical paths, never by
+   string prefixes. Unresolvable identity fails closed.
+4. LIVE composition requires both roots to exist already as real directories
+   (not symlinks) owned by the host account and not writable by group or
+   others. It refuses, before constructing anything, on any unsafe identity,
+   alias, ownership or permission, and repairs nothing
+   (`GOVERNANCE_STORE_ISOLATION`, not a stop class).
+5. The model process and offline validation boundaries hold the roots and
+   re-check each invocation's effective paths (workspace, cwd, readable and
+   writable paths, runtime and search paths, executable, temporary directory)
+   before any session, broker, profile probe or command exists; an overlap
+   answers `UNAVAILABLE` and nothing runs.
+6. The authority appender has zero production runtime holders in R4T-1; the
+   archive reader is not exposed either.
+7. Workspace receives no governance writer and no controller, runner, store
+   or model capability.
+8. R4T is capability and storage isolation inside one trusted host account,
+   not Human authentication, and it does not protect against the kernel, root,
+   the host account, or code already inside the trusted host process.
+9. R4T does not make hashes authentic.
+10. R4A0 and D1 remain unimplemented.
+
 ## 9. CHIEF Domain Boundary
 
 `HumanAdjudication` remains the sole human decision authority. Model consensus,

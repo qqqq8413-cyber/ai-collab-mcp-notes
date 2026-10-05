@@ -11,6 +11,7 @@ import { packetHash } from './dist/automation/packet.js';
 import { NodeProcessExecutor, parseProcessRequest } from './dist/automation/process-executor.js';
 import { ClaudeCodeImplementationAdapter } from './dist/automation/live/claude-code-implementation.js';
 import { SANDBOX_EXEC, SeatbeltOfflineValidationExecutor, confinedPath, seatbeltProfile } from './dist/automation/live/seatbelt-validation.js';
+import { GovernanceStoreIsolation } from './dist/automation/governance-store-isolation.js';
 
 // The OFFLINE_VALIDATION boundary. Profile and path rules are checked everywhere; the
 // executor, and the real capability checks with harmless fixtures, run where macOS
@@ -18,6 +19,12 @@ import { SANDBOX_EXEC, SeatbeltOfflineValidationExecutor, confinedPath, seatbelt
 // network destination is reached: the forbidden network attempt targets a listener this
 // test owns on 127.0.0.1.
 
+/** G1-R4T-1: the protected governance roots every Seatbelt boundary must know. Holds no store capability. */
+const GOVERNANCE_DIR = realpathSync(mkdtempSync(join(tmpdir(), 'chief-governance-')));
+for (const name of ['controller', 'authority']) mkdirSync(join(GOVERNANCE_DIR, name), { mode: 0o700 });
+process.on('exit', () => rmSync(GOVERNANCE_DIR, { recursive: true, force: true }));
+const GOVERNANCE = GovernanceStoreIsolation.forLiveRoots({ controllerStoreDirectory: join(GOVERNANCE_DIR, 'controller'),
+  authorityArchiveDirectory: join(GOVERNANCE_DIR, 'authority') });
 const tests = [];
 const check = (name, fn, { requires } = {}) => tests.push([name, fn, requires]);
 const seatbelt = process.platform === 'darwin' && existsSync(SANDBOX_EXEC) &&
@@ -75,17 +82,17 @@ check('no configured path may be the root, contain the home directory, or overla
 }));
 check('without macOS Seatbelt the executor cannot be constructed; a relative search path is refused', () => {
   for (const platform of ['linux', 'win32']) {
-    assert.throws(() => new SeatbeltOfflineValidationExecutor({ runtimeReadPaths: [], searchPath: '/usr/bin' }, { executor: {}, platform }), /unavailable/);
+    assert.throws(() => new SeatbeltOfflineValidationExecutor({ runtimeReadPaths: [], searchPath: '/usr/bin' }, { governance: GOVERNANCE, executor: {}, platform }), /unavailable/);
   }
   if (seatbelt) {
-    assert.throws(() => new SeatbeltOfflineValidationExecutor({ runtimeReadPaths: [], searchPath: 'bin:/usr/bin' }, { executor: {} }), /absolute/);
+    assert.throws(() => new SeatbeltOfflineValidationExecutor({ runtimeReadPaths: [], searchPath: 'bin:/usr/bin' }, { governance: GOVERNANCE, executor: {} }), /absolute/);
   }
 });
 check('every command runs under sandbox-exec after a probe, with exactly the explicit environment', withDir(async (dir) => {
   const { home, work, temp, deps } = fixture(dir);
   const calls = [];
   const executor = { async run(request) { parseProcessRequest(request); calls.push(request); return ok(); } };
-  const sandbox = new SeatbeltOfflineValidationExecutor({ runtimeReadPaths: [], searchPath: '/usr/bin:/bin' }, { executor, home });
+  const sandbox = new SeatbeltOfflineValidationExecutor({ runtimeReadPaths: [], searchPath: '/usr/bin:/bin' }, { governance: GOVERNANCE, executor, home });
   const outcome = await sandbox.runOffline({ executable: 'npm', args: ['test'], cwd: work, workspace: work, temporaryDirectory: temp,
     readOnlyPaths: [deps], env: { LANG: 'C', PATH: '/parent/path', HOME: '/parent/home' }, ...limits });
   assert.equal(outcome.isolation, 'ENFORCED');
@@ -105,16 +112,16 @@ check('an unavailable profile, a misplaced cwd, or an unconfinable path is UNAVA
   const request = { executable: 'npm', args: ['test'], cwd: work, workspace: work, temporaryDirectory: temp, readOnlyPaths: [deps], env: {}, ...limits };
   const calls = [];
   const failing = { async run(request) { calls.push(request); return { ...ok(), exitCode: 71, stderr: 'sandbox-exec: sandbox_apply: Operation not permitted' }; } };
-  const sandbox = new SeatbeltOfflineValidationExecutor({ runtimeReadPaths: [], searchPath: '/usr/bin' }, { executor: failing, home });
+  const sandbox = new SeatbeltOfflineValidationExecutor({ runtimeReadPaths: [], searchPath: '/usr/bin' }, { governance: GOVERNANCE, executor: failing, home });
   const probe = await sandbox.runOffline(request);
   assert.deepEqual([probe.isolation, /could not be applied/.test(probe.reason), calls.length], ['UNAVAILABLE', true, 1]);
   const none = { async run() { throw new Error('ran'); } };
-  const strict = new SeatbeltOfflineValidationExecutor({ runtimeReadPaths: [], searchPath: '/usr/bin' }, { executor: none, home });
+  const strict = new SeatbeltOfflineValidationExecutor({ runtimeReadPaths: [], searchPath: '/usr/bin' }, { governance: GOVERNANCE, executor: none, home });
   for (const bad of [{ cwd: temp }, { workspace: home, cwd: home }, { readOnlyPaths: [join(home, '.ssh')] }, { readOnlyPaths: [dir] },
     { temporaryDirectory: join(dir, 'missing') }]) {
     assert.equal((await strict.runOffline({ ...request, ...bad })).isolation, 'UNAVAILABLE', JSON.stringify(bad));
   }
-  const configured = new SeatbeltOfflineValidationExecutor({ runtimeReadPaths: [join(home, '.ssh')], searchPath: '/usr/bin' }, { executor: none, home });
+  const configured = new SeatbeltOfflineValidationExecutor({ runtimeReadPaths: [join(home, '.ssh')], searchPath: '/usr/bin' }, { governance: GOVERNANCE, executor: none, home });
   assert.equal((await configured.runOffline(request)).isolation, 'UNAVAILABLE');
 }), { requires: 'seatbelt' });
 
@@ -149,7 +156,7 @@ check('real Seatbelt: workspace and temp are usable; outside files, dependency w
   try {
     const node = realpathSync(process.execPath);
     const sandbox = new SeatbeltOfflineValidationExecutor({ runtimeReadPaths: [dirname(dirname(node))], searchPath: `${dirname(node)}:/usr/bin:/bin` },
-      { executor: new NodeProcessExecutor() });
+      { governance: GOVERNANCE, executor: new NodeProcessExecutor() });
     const outcome = await sandbox.runOffline({ executable: 'node', args: ['probe.mjs', sentinel, String(server.address().port), deps], cwd: work,
       workspace: work, temporaryDirectory: temp, readOnlyPaths: [deps], env: { LANG: 'C' }, ...limits });
     assert.equal(outcome.isolation, 'ENFORCED', outcome.reason);
@@ -173,7 +180,7 @@ check('real Seatbelt: a normal local fixture validation passes, a failing one fa
 process.exit(readFileSync('fixture.txt', 'utf8') === 'inside\\n' && readFileSync(process.argv[2] + '/dep.txt', 'utf8') === 'dependency\\n' ? 0 : 3);`);
   const node = realpathSync(process.execPath);
   const sandbox = new SeatbeltOfflineValidationExecutor({ runtimeReadPaths: [dirname(dirname(node))], searchPath: `${dirname(node)}:/usr/bin:/bin` },
-    { executor: new NodeProcessExecutor() });
+    { governance: GOVERNANCE, executor: new NodeProcessExecutor() });
   const request = { executable: 'node', args: ['check.mjs', deps], cwd: work, workspace: work, temporaryDirectory: temp, readOnlyPaths: [deps], env: {}, ...limits };
   const passed = await sandbox.runOffline(request);
   assert.deepEqual([passed.isolation, passed.result.outcome, passed.result.exitCode], ['ENFORCED', 'EXITED', 0], passed.result?.stderr);
@@ -294,7 +301,7 @@ const viewOnly = { async runOffline(request) {
 const seatbeltValidation = () => {
   const node = realpathSync(process.execPath);
   return new SeatbeltOfflineValidationExecutor({ runtimeReadPaths: [dirname(dirname(node))], searchPath: `${dirname(node)}:/usr/bin:/bin` },
-    { executor: new NodeProcessExecutor() });
+    { governance: GOVERNANCE, executor: new NodeProcessExecutor() });
 };
 
 check('real git: the validation view holds only allowedAreas; the out-of-scope tracked sentinel is absent and allowed reads succeed', withDir(async (dir) => {
