@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { closeSync, existsSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, unlinkSync,
-  writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { closeSync, constants, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync,
+  unlinkSync, writeFileSync, type Stats } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { canonicalJson } from '../invocation-journal.js';
 import {
   AuthorityArchiveError, authorityKeyOf, authorityRefOf, openAuthorityRecord, parseAuthorityDocument, parseAuthorityRef,
@@ -20,8 +20,12 @@ import {
 //
 // The root is the archive's own and separately configured: it holds `records/` and
 // nothing else, so it cannot be shared with a controller run store, R4L admission or a
-// Workspace goal store. That is storage separation, not protection: a process that can
-// write this directory can write anything (R4T governs writable capabilities).
+// Workspace goal store. An existing root is inspected before anything is created, so a
+// root that is not an archive is refused untouched. The root, records/, key directories
+// and canonical record files must be real directories and regular files: symlinks are
+// never followed into another store. That is storage separation, not protection: a
+// process that can write this directory can write anything (R4T governs writable
+// capabilities), and the hashes are still not authenticity.
 //
 // Reading and writing are separate capabilities. A reader exposes only get /
 // listVersions / latest; an appender exposes only append. Neither can update, replace,
@@ -45,6 +49,33 @@ const fileOf = (version: number) => `${String(version).padStart(8, '0')}.json`;
 const integrity = (message: string) => new AuthorityArchiveError('ARCHIVE_INTEGRITY', message);
 // Dot entries (for example a file manager's .DS_Store) are neither authority nor errors.
 const ignored = (name: string) => name.startsWith('.');
+/** The entry itself, never a symlink's target; undefined when absent. */
+function entry(path: string): Stats | undefined {
+  try { return lstatSync(path); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw error;
+  }
+}
+const createdOrPresent = (create: () => void) => {
+  try { create(); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
+};
+/** A canonical record file's text, only if it is a regular file reached without a symlink. */
+function readRecord(path: string): string {
+  const notRegular = () => integrity('A canonical authority record is not a regular file (symlinks are not followed)');
+  if (!entry(path)?.isFile()) throw notRegular();
+  let fd: number;
+  try { fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ELOOP') throw notRegular();
+    throw error;
+  }
+  try {
+    if (!fstatSync(fd).isFile()) throw notRegular();
+    return readFileSync(fd, 'utf8');
+  } finally { closeSync(fd); }
+}
 
 class FileAuthorityArchive {
   readonly #root: string;
@@ -54,9 +85,19 @@ class FileAuthorityArchive {
     if (typeof root !== 'string' || !root.trim()) throw new Error('Authority archive root required');
     this.#root = resolve(root);
     this.#records = join(this.#root, 'records');
-    if (create) {
-      mkdirSync(this.#records, { recursive: true, mode: 0o700 });
-      this.#sync(this.#root);
+    // Inspect first, create second: an existing root that is not an archive is refused
+    // before the archive changes anything in it.
+    let present = this.#inspect();
+    if (create && !present.records) {
+      if (!present.root) {
+        mkdirSync(dirname(this.#root), { recursive: true, mode: 0o700 });
+        createdOrPresent(() => mkdirSync(this.#root, { mode: 0o700 }));
+        present = this.#inspect();
+      }
+      if (!present.records) {
+        createdOrPresent(() => mkdirSync(this.#records, { mode: 0o700 }));
+        this.#sync(this.#root);
+      }
     }
     this.#verify();
     Object.freeze(this);
@@ -65,13 +106,21 @@ class FileAuthorityArchive {
     const fd = openSync(directory, 'r');
     try { fsyncSync(fd); } finally { closeSync(fd); }
   }
-  // Opening replays every chain. Any contradiction fails closed; nothing is repaired.
-  #verify(): void {
-    if (!existsSync(this.#root)) return;
+  /** Read-only: whether the root and records/ exist, refusing anything that is not an archive. */
+  #inspect(): { root: boolean; records: boolean } {
+    const root = entry(this.#root);
+    if (!root) return { root: false, records: false };
+    if (!root.isDirectory()) throw integrity('The authority archive root is not a directory (symlinks are not followed)');
     for (const name of readdirSync(this.#root)) {
       if (!ignored(name) && name !== 'records') throw integrity('The authority archive root holds something other than records');
     }
-    if (!existsSync(this.#records)) return;
+    const records = entry(this.#records);
+    if (records && !records.isDirectory()) throw integrity('records is not a directory (symlinks are not followed)');
+    return { root: true, records: Boolean(records) };
+  }
+  // Opening replays every chain. Any contradiction fails closed; nothing is repaired.
+  #verify(): void {
+    if (!this.#inspect().records) return;
     for (const name of readdirSync(this.#records)) {
       if (ignored(name)) continue;
       if (!KEY_DIRECTORY.test(name) || !lstatSync(join(this.#records, name)).isDirectory()) {
@@ -83,12 +132,14 @@ class FileAuthorityArchive {
   /** The validated chain of one logical key: versions 1..n, each superseding the one before. */
   #chain(key: string): AuthorityRecordV1[] {
     const directory = join(this.#records, key);
-    if (!existsSync(directory)) return [];
+    const status = entry(directory);
+    if (!status) return [];
+    if (!status.isDirectory()) throw integrity('An authority key entry is not a directory (symlinks are not followed)');
     const chain: AuthorityRecordV1[] = [];
     for (const name of readdirSync(directory)) {
       if (ignored(name) || TEMP_FILE.test(name)) continue;
       if (!RECORD_FILE.test(name)) throw integrity('Unexpected entry in an authority chain');
-      const record = openAuthorityRecord(readFileSync(join(directory, name), 'utf8'));
+      const record = openAuthorityRecord(readRecord(join(directory, name)));
       if (authorityKeyOf(record.kind, record.authorityId) !== key) throw integrity('Authority record is in the wrong logical directory');
       if (fileOf(record.version) !== name) throw integrity('Authority record is filed under the wrong version');
       chain.push(record);
@@ -123,8 +174,8 @@ class FileAuthorityArchive {
     const text = canonicalJson(record);
     const key = authorityKeyOf(record.kind, record.authorityId);
     const directory = join(this.#records, key);
-    if (!existsSync(directory)) {
-      mkdirSync(directory, { recursive: true, mode: 0o700 });
+    if (!entry(directory)) {
+      createdOrPresent(() => mkdirSync(directory, { mode: 0o700 }));
       this.#sync(this.#records);
     }
     const chain = this.#chain(key);

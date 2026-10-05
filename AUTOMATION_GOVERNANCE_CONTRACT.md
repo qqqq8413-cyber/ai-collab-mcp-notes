@@ -194,8 +194,11 @@ they are not signatures and not authentication. Operational records (journals,
 APPLIED results, controller audit, R4L admission and refusal, CI results,
 provider or executor output, replay traces, connector executions) never become
 direct authority, and no API promotes them. The archive root is separately
-configured and holds only `records/`; this is storage separation, not R4T
-capability governance.
+configured and holds only `records/`. An existing root is inspected before the
+archive creates anything: a root that is not an archive (another store, foreign
+content, or a symlink) is refused without any change, and symlinked `records/`,
+key directories or record files are never followed or read as authority. This
+is storage separation, not R4T capability governance.
 
 ## 7. Git and Promotion
 

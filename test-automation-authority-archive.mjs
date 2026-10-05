@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 // archive instances and simulate crashes. Nothing here reaches production code.
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import fs, { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import fs, { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, renameSync, rmSync, statSync,
+  symlinkSync, writeFileSync } from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
@@ -34,6 +35,23 @@ function withFs(name, replace, fn) {
   const original = fs[name];
   fs[name] = replace(original); syncBuiltinESMExports();
   try { return fn(); } finally { fs[name] = original; syncBuiltinESMExports(); }
+}
+/** Every entry under a directory, as it is on disk: symlinks are recorded, never followed. */
+function snapshot(directory) {
+  return readdirSync(directory).sort().flatMap((name) => {
+    const path = join(directory, name), status = lstatSync(path);
+    if (status.isSymbolicLink()) return [[name, 'link', readlinkSync(path)]];
+    if (status.isDirectory()) return [[name, 'dir'], ...snapshot(path).map(([child, ...rest]) => [`${name}/${child}`, ...rest])];
+    return [[name, 'file', readFileSync(path, 'utf8')]];
+  });
+}
+/** Symlinks may be unavailable to an unprivileged user on some platforms; such a check says so instead of passing silently. */
+function link(target, path) {
+  try { symlinkSync(target, path); return true; }
+  catch (error) {
+    if (process.platform === 'win32' && error.code === 'EPERM') { console.log(`  NOTE symlink unavailable here; ${path} check not exercised`); return false; }
+    throw error;
+  }
 }
 function walk(directory) {
   return readdirSync(directory).flatMap((name) => {
@@ -437,14 +455,96 @@ check('36. a matching hash is integrity, never authenticity', (root) => {
   const source = readFileSync(join(ROOT, 'src/automation/authority/document.ts'), 'utf8');
   assert.match(source, /not a signature, not Human authentication/);
 });
-check('storage separation: the archive refuses a root it shares with another store', (root) => {
-  new FileControllerStore(root).create({ runId: 'run-1', sliceId: 'slice-1', repository: REPO, state: 'IDLE',
-    implementationIterations: 0, acceptanceFailures: 0, audit: [] });
+check('C1-1. an existing Controller store root is refused without any archive mutation', (root) => {
+  const store = new FileControllerStore(root);
+  store.create({ runId: 'run-1', sliceId: 'slice-1', repository: REPO, state: 'IDLE', implementationIterations: 0, acceptanceFailures: 0, audit: [] });
+  const admitted = JSON.stringify(store.admissionRecord({ repository: REPO, sliceId: 'slice-1' }));
+  const before = snapshot(root);
   fails(() => openAuthorityArchiveAppender(root), 'ARCHIVE_INTEGRITY');
   fails(() => openAuthorityArchiveReader(root), 'ARCHIVE_INTEGRITY');
-  const reader = openAuthorityArchiveReader(join(root, 'absent'));
+  assert.deepEqual(snapshot(root), before, 'the archive changed a Controller store root');
+  assert.equal(existsSync(join(root, 'records')), false);
+  const reopened = new FileControllerStore(root);
+  assert.equal(reopened.get('run-1').state, 'IDLE');
+  assert.equal(JSON.stringify(reopened.admissionRecord({ repository: REPO, sliceId: 'slice-1' })), admitted);
+});
+check('C1-2. an arbitrary foreign non-empty root is refused without mutation', (root) => {
+  mkdirSync(join(root, 'data'), { recursive: true });
+  writeFileSync(join(root, 'notes.txt'), 'not an archive');
+  writeFileSync(join(root, 'data', 'goals.json'), '{"goals":[]}');
+  const before = snapshot(root);
+  fails(() => openAuthorityArchiveAppender(root), 'ARCHIVE_INTEGRITY');
+  fails(() => openAuthorityArchiveReader(root), 'ARCHIVE_INTEGRITY');
+  assert.deepEqual(snapshot(root), before);
+  // A regular file where the root should be is refused too.
+  const file = join(dirname(root), 'plain-file');
+  writeFileSync(file, 'x');
+  fails(() => openAuthorityArchiveAppender(file), 'ARCHIVE_INTEGRITY');
+  assert.equal(readFileSync(file, 'utf8'), 'x');
+});
+check('C1-3. a symlinked archive root is refused without following or changing its target', (root) => {
+  const target = join(dirname(root), 'target');
+  mkdirSync(target);
+  if (!link(target, root)) return;
+  fails(() => openAuthorityArchiveAppender(root), 'ARCHIVE_INTEGRITY');
+  fails(() => openAuthorityArchiveReader(root), 'ARCHIVE_INTEGRITY');
+  assert.deepEqual(readdirSync(target), [], 'the archive wrote through a symlinked root');
+  // Even when the target is a valid archive.
+  openAuthorityArchiveAppender(target).append(packetDoc());
+  const before = snapshot(target);
+  fails(() => openAuthorityArchiveReader(root), 'ARCHIVE_INTEGRITY');
+  fails(() => openAuthorityArchiveAppender(root), 'ARCHIVE_INTEGRITY');
+  assert.deepEqual(snapshot(target), before);
+});
+check('C1-4. a symlinked records directory is refused', (root) => {
+  const elsewhere = join(dirname(root), 'elsewhere');
+  openAuthorityArchiveAppender(elsewhere).append(packetDoc());
+  mkdirSync(root);
+  if (!link(join(elsewhere, 'records'), join(root, 'records'))) return;
+  const before = snapshot(elsewhere);
+  fails(() => openAuthorityArchiveReader(root), 'ARCHIVE_INTEGRITY');
+  fails(() => openAuthorityArchiveAppender(root), 'ARCHIVE_INTEGRITY');
+  assert.deepEqual(snapshot(elsewhere), before);
+});
+check('C1-5. a symlinked canonical record or key directory is never authority', (root) => {
+  const appender = openAuthorityArchiveAppender(root);
+  appender.append(packetDoc());
+  const file = recordFile(root, 'IMPLEMENTATION_PACKET', 'packet-1', 1);
+  const copy = join(dirname(root), 'copy.json');
+  cpSync(file, copy);
+  rmSync(file);
+  if (!link(copy, file)) return;
+  fails(() => openAuthorityArchiveReader(root), 'ARCHIVE_INTEGRITY');
+  fails(() => openAuthorityArchiveAppender(root), 'ARCHIVE_INTEGRITY');
+  // Opened before the alias appeared: reads and appends refuse it too.
+  rmSync(file); cpSync(copy, file);
+  const reader = openAuthorityArchiveReader(root);
+  rmSync(file); link(copy, file);
+  fails(() => reader.listVersions('IMPLEMENTATION_PACKET', 'packet-1'), 'ARCHIVE_INTEGRITY');
+  fails(() => appender.append(packetDoc()), 'ARCHIVE_INTEGRITY');
+  // A key directory aliased to another archive's key directory.
+  const other = join(dirname(root), 'other');
+  openAuthorityArchiveAppender(other).append(doc('AUTHORIZATION'));
+  const key = join(root, 'records', keyOf('AUTHORIZATION', 'auth-promote'));
+  link(join(other, 'records', keyOf('AUTHORIZATION', 'auth-promote')), key);
+  fails(() => reader.listVersions('AUTHORIZATION', 'auth-promote'), 'ARCHIVE_INTEGRITY');
+});
+check('C1-6/7/8. a valid archive opens normally; an absent root is created only by an appender', (root) => {
+  const nested = join(root, 'deeper', 'archive');
+  const reader = openAuthorityArchiveReader(nested);
   assert.deepEqual(reader.listVersions('AUTHORIZATION', 'auth-promote'), []);
-  assert.equal(existsSync(join(root, 'absent')), false, 'a reader created the archive');
+  assert.equal(existsSync(root), false, 'a reader created the archive');
+  const appender = openAuthorityArchiveAppender(nested);
+  assert.deepEqual(readdirSync(nested), ['records']);
+  const refs = KINDS.map((kind) => appender.append(doc(kind)));
+  writeFileSync(join(nested, '.DS_Store'), 'x');
+  assert.deepEqual(KINDS.map((kind, i) => openAuthorityArchiveReader(nested).listVersions(kind, refs[i].authorityId)), refs.map((ref) => [ref]));
+  assert.deepEqual(openAuthorityArchiveAppender(nested).append(doc('AUTHORIZATION')), refs[3]);
+  // An existing empty directory is a valid place to start an archive.
+  const empty = join(root, 'empty');
+  mkdirSync(empty);
+  openAuthorityArchiveAppender(empty);
+  assert.deepEqual(readdirSync(empty), ['records']);
 });
 check('the archive is wired into no runtime surface', () => {
   const sources = walk(join(ROOT, 'src')).filter((path) => path.endsWith('.ts') && !path.includes('/automation/authority/'));
