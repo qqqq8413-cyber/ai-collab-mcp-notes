@@ -31,3 +31,52 @@ jobs:
       - run: npm run build
 
       - run: npm test
+
+  # G1-R4T-1 acceptance gate. The production isolation boundary is macOS Seatbelt, so the
+  # real model-process and offline-validation boundary checks run here on the exact commit.
+  # A runner without a working sandbox-exec, or any suite that skips a check, fails the job:
+  # nothing is mocked and a skip is never a pass. Ubuntu above remains the full suite.
+  r4t-macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          package-manager-cache: false
+
+      - name: Require a working macOS Seatbelt
+        run: |
+          sw_vers
+          test -x /usr/bin/sandbox-exec
+          /usr/bin/sandbox-exec -p '(version 1)(allow default)' /usr/bin/true
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Run the isolation suites with every check executed
+        shell: bash
+        run: |
+          set -euo pipefail
+          for suite in test-automation-governance-isolation.mjs test-automation-model-process.mjs \
+            test-automation-offline-validation.mjs test-automation-run-admission.mjs test-automation-authority-archive.mjs; do
+            log="$RUNNER_TEMP/$suite.log"
+            echo "::group::$suite"
+            node "$suite" | tee "$log"
+            echo "::endgroup::"
+            if grep -E '^[[:space:]]*SKIP ' "$log"; then
+              echo "::error::$suite skipped checks on macOS"
+              exit 1
+            fi
+            summary="$(tail -n 1 "$log")"
+            if ! printf '%s\n' "$summary" | grep -Eq '^[0-9]+ passed, 0 failed$'; then
+              echo "::error::$suite did not execute and pass every check: $summary"
+              exit 1
+            fi
+            echo "$suite: $summary"
+          done
