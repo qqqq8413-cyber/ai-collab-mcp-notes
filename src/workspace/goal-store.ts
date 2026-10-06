@@ -4,9 +4,9 @@ import {
 } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { z } from 'zod';
-import { PROJECT_ID } from './config.js';
+import { PROJECT_ID, humanPrincipalSchema, parseHumanPrincipalV1, type HumanPrincipalV1 } from './config.js';
 
-// The Workspace goal queue. A goal here is LOCAL OPERATOR INPUT: a Human typed it into
+// The Workspace goal queue. A goal here is LOCAL OPERATOR INPUT submitted through
 // the local Workspace. It is NON-AUTHORITATIVE and NOT STARTED. It carries no run,
 // change, packet, or authorization identity, and nothing in this module can start
 // execution. It is a separate store from the Controller's; it never reads or writes
@@ -41,12 +41,13 @@ const goalSchema = z.strictObject({
   classification: z.literal('LOCAL_OPERATOR_INPUT'),
   authority: z.literal('NON_AUTHORITATIVE'),
   execution: z.literal('NOT_STARTED'),
+  submittedBy: humanPrincipalSchema.nullable().optional(),
 });
-export type GoalRecord = z.infer<typeof goalSchema>;
+export type GoalRecord = Omit<z.infer<typeof goalSchema>, 'submittedBy'> & { submittedBy: HumanPrincipalV1 | null };
 
 const eventSchema = z.discriminatedUnion('kind', [
   z.strictObject({ sequence: z.number().int().positive(), at: instant, kind: z.literal('GOAL_ADDED'),
-    goal: z.strictObject({ goalId, text: goalText, createdAt: instant }) }),
+    goal: z.strictObject({ goalId, text: goalText, createdAt: instant, submittedBy: humanPrincipalSchema.optional() }) }),
   z.strictObject({ sequence: z.number().int().positive(), at: instant, kind: z.literal('QUEUE_REORDERED'), order: z.array(goalId).max(MAX_QUEUED_GOALS) }),
   z.strictObject({ sequence: z.number().int().positive(), at: instant, kind: z.literal('GOAL_REMOVED'), goalId }),
 ]);
@@ -59,7 +60,7 @@ const queueSchema = z.strictObject({
   goals: z.array(goalSchema).max(MAX_QUEUED_GOALS),
   history: z.array(eventSchema).max(MAX_HISTORY),
 });
-export type GoalQueue = z.infer<typeof queueSchema>;
+export type GoalQueue = Omit<z.infer<typeof queueSchema>, 'goals'> & { goals: GoalRecord[] };
 
 /** The stored queue failed validation: unreadable, tampered with, or not replayable. Nothing is repaired. */
 export class GoalStoreIntegrityError extends Error {
@@ -79,7 +80,8 @@ export class GoalQueueRequestError extends Error {
 
 function goalOf(projectId: string, added: Extract<QueueEvent, { kind: 'GOAL_ADDED' }>['goal']): GoalRecord {
   return { goalId: added.goalId, projectId, text: added.text, createdAt: added.createdAt, status: 'QUEUED',
-    classification: 'LOCAL_OPERATOR_INPUT', authority: 'NON_AUTHORITATIVE', execution: 'NOT_STARTED' };
+    classification: 'LOCAL_OPERATOR_INPUT', authority: 'NON_AUTHORITATIVE', execution: 'NOT_STARTED',
+    submittedBy: added.submittedBy ?? null };
 }
 
 /** The queue that a history produces, or why it cannot. Pure: the same history always gives the same queue. */
@@ -125,8 +127,9 @@ export function validateQueue(value: unknown, projectId: string): GoalQueue {
   if (queue.projectId !== projectId) throw new GoalStoreIntegrityError('queue belongs to another project');
   if (queue.revision !== queue.history.length) throw new GoalStoreIntegrityError('queue revision does not match its history');
   const replayed = replayHistory(projectId, queue.history);
-  if (JSON.stringify(replayed) !== JSON.stringify(queue.goals)) throw new GoalStoreIntegrityError('queue does not equal the replay of its history');
-  return queue;
+  const goals = queue.goals.map((goal) => ({ ...goal, submittedBy: goal.submittedBy ?? null }));
+  if (JSON.stringify(replayed) !== JSON.stringify(goals)) throw new GoalStoreIntegrityError('queue does not equal the replay of its history');
+  return { ...queue, goals };
 }
 
 export interface GoalStoreOptions {
@@ -235,14 +238,16 @@ export class FileGoalStore {
     return structuredClone(this.#load(projectId));
   }
 
-  addGoal(projectId: string, text: unknown): QueueChange {
+  addGoal(projectId: string, text: unknown, submittedBy: HumanPrincipalV1): QueueChange {
     const parsed = goalText.safeParse(typeof text === 'string' ? text.trim() : text);
     if (!parsed.success) throw new GoalQueueRequestError('BAD_TEXT', parsed.error.issues[0]?.message ?? 'invalid goal text');
+    const principal = parseHumanPrincipalV1(submittedBy);
     return this.#append(projectId, (queue, at) => {
       if (queue.goals.length >= MAX_QUEUED_GOALS) throw new GoalQueueRequestError('QUEUE_FULL', `a project can queue at most ${MAX_QUEUED_GOALS} goals`);
       const id = goalId.parse(this.#newGoalId());
       if (queue.history.some((event) => event.kind === 'GOAL_ADDED' && event.goal.goalId === id)) throw new Error('Goal id collision');
-      return { sequence: queue.history.length + 1, at, kind: 'GOAL_ADDED', goal: { goalId: id, text: parsed.data, createdAt: at } };
+      return { sequence: queue.history.length + 1, at, kind: 'GOAL_ADDED',
+        goal: { goalId: id, text: parsed.data, createdAt: at, submittedBy: principal } };
     });
   }
 

@@ -11,6 +11,14 @@ export const PROJECT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const MAX_PROJECTS = 50;
 
 const text = (max: number) => z.string().trim().min(1).max(max).refine((value) => !/[\u0000-\u001f\u007f]/.test(value), 'control characters are not allowed');
+const principalRef = z.string().min(1).max(256)
+  .refine((value) => value.trim() === value && !/\p{Cc}/u.test(value), 'principalRef must be exact and contain no control characters');
+export const humanPrincipalSchema = z.strictObject({ schemaVersion: z.literal(1), kind: z.literal('HUMAN'), principalRef });
+export type HumanPrincipalV1 = Readonly<z.infer<typeof humanPrincipalSchema>>;
+
+export function parseHumanPrincipalV1(input: unknown): HumanPrincipalV1 {
+  return Object.freeze(humanPrincipalSchema.parse(input));
+}
 
 const projectSchema = z.strictObject({
   projectId: z.string().regex(PROJECT_ID, 'projectId must be lower-case letters, digits, and hyphens (at most 63)'),
@@ -23,12 +31,14 @@ const configSchema = z.strictObject({
   schemaVersion: z.literal(1),
   /** Directory holding the goal queues. Relative paths resolve against the configuration file's directory. */
   dataDirectory: text(1024),
+  humanPrincipal: z.strictObject({ principalRef }),
   projects: z.array(projectSchema).min(1).max(MAX_PROJECTS),
 });
 
 export type WorkspaceProject = Readonly<z.infer<typeof projectSchema>>;
 export interface WorkspaceConfig {
   readonly dataDirectory: string;
+  readonly humanPrincipal: HumanPrincipalV1;
   readonly projects: readonly WorkspaceProject[];
 }
 
@@ -43,6 +53,7 @@ export function parseWorkspaceConfig(input: unknown, baseDirectory: string): Wor
   const dataDirectory = isAbsolute(parsed.dataDirectory) ? parsed.dataDirectory : resolve(baseDirectory, parsed.dataDirectory);
   return Object.freeze({
     dataDirectory,
+    humanPrincipal: parseHumanPrincipalV1({ schemaVersion: 1, kind: 'HUMAN', principalRef: parsed.humanPrincipal.principalRef }),
     projects: Object.freeze(parsed.projects.map((project) => Object.freeze({ ...project }))),
   });
 }

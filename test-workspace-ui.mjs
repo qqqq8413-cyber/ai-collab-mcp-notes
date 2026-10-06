@@ -47,21 +47,26 @@ await check('demo mode runs entirely in memory and never touches the network', a
 await check('demo values never reach the LIVE server or the LIVE source', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'chief-ws-ui-'));
   const config = parseWorkspaceConfig({ schemaVersion: 1, dataDirectory: join(dir, 'q'),
+    humanPrincipal: { principalRef: 'human:local-owner' },
     projects: [{ projectId: 'cand', displayName: '候選人平台', repository: 'org/cand' }] }, dir);
   const ws = await startWorkspaceServer({ config, uiDirectory: 'workspace-ui', port: 0 });
   try {
+    const bootstrap = await fetch(ws.url);
+    const cookie = bootstrap.headers.get('set-cookie').split(';')[0];
     const demo = createDemoSource();
     await demo.addGoal('demo-candidate', 'only in demo');
     const requested = [];
     // The page's own fetch, as the browser sends it from the Workspace origin.
     const fetchImpl = (url, init) => { requested.push(`${init.method} ${url}`);
-      return fetch(new URL(url, ws.url), { ...init, headers: { ...init.headers, Origin: `http://${HOST}:${ws.port}` } }); };
+      return fetch(new URL(url, ws.url), { ...init,
+        headers: { ...init.headers, Cookie: cookie, Origin: `http://${HOST}:${ws.port}` } }); };
     const live = createLiveSource({ fetchImpl, EventSourceImpl: class {} });
     assert.equal(live.mode, 'live');
     const { projects } = await live.projects();
     assert.deepEqual(projects.map((project) => project.projectId), ['cand']);
     const added = await live.addGoal('cand', '繼續做候選人平台');
     assert.equal(added.goal.execution, 'NOT_STARTED');
+    assert.deepEqual(added.goal.submittedBy, { schemaVersion: 1, kind: 'HUMAN', principalRef: 'human:local-owner' });
     const queue = await live.queue('cand');
     assert.deepEqual(queue.goals.map((goal) => goal.text), ['繼續做候選人平台']);
     assert.doesNotMatch(JSON.stringify([projects, queue]), /demo|示範|only in demo/);
@@ -81,6 +86,12 @@ await check('the LIVE module never loads demo data, and demo loads only on expli
   assert.match(app, /const DEMO = new URLSearchParams\(location\.search\)\.get\('demo'\) === '1';/);
   assert.match(app, /const source = DEMO \? \(await import\('\.\/demo\.js'\)\)\.createDemoSource\(\) : \(await import\('\.\/live\.js'\)\)\.createLiveSource\(\);/);
   assert.match(app, /示範模式/, 'demo mode is labelled on screen');
+});
+
+await check('browser assets do not keep a Human session secret in JavaScript storage', () => {
+  const assets = ['index.html', 'app.js', 'live.js', 'demo.js', 'collaboration.js', 'styles.css'].map(read).join('\n');
+  assert.doesNotMatch(assets, /chief_workspace_session|humanPrincipal|principalRef/);
+  assert.doesNotMatch(read('live.js'), /localStorage|sessionStorage|document\.cookie/);
 });
 
 await check('the UI calls only the WS-L1 routes and shows no execution it does not have', () => {

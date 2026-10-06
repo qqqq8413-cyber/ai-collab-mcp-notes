@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "dataDirectory": "./.chief-workspace",
+  "humanPrincipal": { "principalRef": "human:local-owner" },
   "projects": [
     { "projectId": "candidate-platform", "displayName": "候選人平台", "repository": "example-org/candidate-platform" },
     { "projectId": "chief", "displayName": "CHIEF", "repository": "qqqq8413-cyber/ai-collab-mcp-notes" }

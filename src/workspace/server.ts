@@ -1,7 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { join } from 'node:path';
-import type { WorkspaceConfig, WorkspaceProject } from './config.js';
+import { parseHumanPrincipalV1, type HumanPrincipalV1, type WorkspaceConfig, type WorkspaceProject } from './config.js';
 import { FileGoalStore, GoalQueueRequestError, GoalStoreIntegrityError, type GoalQueue, type QueueChange } from './goal-store.js';
 
 // The local Workspace server (WS-L1). It serves the Workspace UI and a small API over
@@ -31,6 +32,8 @@ const MAX_BODY_BYTES = 16 * 1024;
 const MAX_STREAMS = 32;
 const HEARTBEAT_MS = 20_000;
 const REQUEST_HEADER = 'x-chief-workspace';
+const SESSION_COOKIE = 'chief_workspace_session';
+const MAX_SESSIONS = 1024;
 const NOTICE = 'Local operator input. Non-authoritative. Execution has not started and cannot be started from the Workspace in this version.';
 
 const STATIC: Readonly<Record<string, { file: string; type: string }>> = Object.freeze({
@@ -89,10 +92,12 @@ function changeEvent(projectId: string, change: QueueChange): { name: string; da
 
 export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<RunningWorkspace> {
   const { config } = options;
+  const principal = parseHumanPrincipalV1(config.humanPrincipal);
   const store = options.store ?? new FileGoalStore(config.dataDirectory, options.clock ? { clock: options.clock } : {});
   const projects = new Map(config.projects.map((project) => [project.projectId, project]));
   const ui = new Map(Object.entries(STATIC).map(([path, entry]) => [path, { ...entry, body: readFileSync(join(options.uiDirectory, entry.file)) }]));
   const streams = new Set<ServerResponse>();
+  const sessions = new Map<string, HumanPrincipalV1>();
   let port = 0;
 
   const origins = () => [`http://${HOST}:${port}`, `http://localhost:${port}`];
@@ -104,6 +109,24 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
   const broadcast = (name: string, data: unknown) => {
     const frame = `event: ${name}\ndata: ${JSON.stringify(data)}\n\n`;
     for (const stream of streams) stream.write(frame);
+  };
+  const sessionOf = (request: IncomingMessage): HumanPrincipalV1 | undefined => {
+    const cookies = (request.headers.cookie ?? '').split(';').map((part) => part.trim())
+      .filter((part) => part.startsWith(`${SESSION_COOKIE}=`));
+    if (cookies.length !== 1) return undefined;
+    return sessions.get(cookies[0].slice(SESSION_COOKIE.length + 1));
+  };
+  const bindSession = (request: IncomingMessage, response: ServerResponse) => {
+    if (sessionOf(request)) return;
+    if (sessions.size >= MAX_SESSIONS) throw new HttpError(503, 'SESSION_LIMIT', 'Too many local Workspace sessions.');
+    const token = randomUUID();
+    sessions.set(token, principal);
+    response.setHeader('Set-Cookie', `${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/`);
+  };
+  const requireSession = (request: IncomingMessage): HumanPrincipalV1 => {
+    const bound = sessionOf(request);
+    if (!bound) throw new HttpError(401, 'NO_LOCAL_SESSION', 'Open the Workspace page to start a local session.');
+    return bound;
   };
 
   // DNS rebinding and cross-site requests stop here, before any route runs.
@@ -155,6 +178,7 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
     if (!path.startsWith('/api/')) {
       const asset = ui.get(path);
       if (!asset || mutation) throw new HttpError(404, 'NOT_FOUND', 'Not found.');
+      if (method === 'GET' && (path === '/' || path === '/index.html')) bindSession(request, response);
       response.writeHead(200, { 'Content-Type': asset.type, 'Content-Length': asset.body.length, 'Cache-Control': 'no-store',
         'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY' });
       response.end(method === 'HEAD' ? undefined : asset.body);
@@ -164,6 +188,7 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
     let parts: string[];
     try { parts = path.split('/').filter(Boolean).map(decodeURIComponent); } catch { throw new HttpError(400, 'BAD_PATH', 'The address is not valid.'); }
     if (parts[0] !== 'api' || parts[1] !== 'v0') throw new HttpError(404, 'NOT_FOUND', 'Not found.');
+    const submittedBy = requireSession(request);
     const rest = parts.slice(2);
 
     if (method === 'GET' && rest.length === 1 && rest[0] === 'stream') {
@@ -189,7 +214,7 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
       if (rest.length === 3 && method === 'POST') {
         const body = await readJson(request);
         only(body, ['text']);
-        const change = store.addGoal(current.projectId, body.text);
+        const change = store.addGoal(current.projectId, body.text, submittedBy);
         const event = changeEvent(current.projectId, change);
         broadcast(event.name, event.data);
         json(response, 201, { ...(event.data as object), notice: NOTICE });
@@ -206,6 +231,10 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
         return;
       }
       if (rest.length === 4 && rest[3] !== 'order' && method === 'DELETE') {
+        if (request.headers['content-type'] !== undefined || request.headers['transfer-encoding'] !== undefined ||
+            (request.headers['content-length'] !== undefined && request.headers['content-length'] !== '0')) {
+          throw new HttpError(400, 'UNEXPECTED_BODY', 'A goal removal does not accept request fields.');
+        }
         const change = store.removeGoal(current.projectId, rest[3]);
         const event = changeEvent(current.projectId, change);
         broadcast(event.name, event.data);
@@ -248,6 +277,7 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
         close: () => new Promise<void>((closed) => {
           for (const stream of streams) stream.end();
           streams.clear();
+          sessions.clear();
           server.close(() => closed());
           server.closeAllConnections();
         }),

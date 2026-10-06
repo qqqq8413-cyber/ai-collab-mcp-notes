@@ -9,15 +9,20 @@ import { API_ROUTES, HOST, startWorkspaceServer } from './dist/workspace/server.
 // WS-L1 local Workspace server: loopback only, same-origin mutations, SSE for queue changes.
 
 const UI = join(process.cwd(), 'workspace-ui');
+const HUMAN = { schemaVersion: 1, kind: 'HUMAN', principalRef: 'human:local-owner' };
 let passed = 0, failed = 0;
 async function check(name, fn) {
   const dir = mkdtempSync(join(tmpdir(), 'chief-ws-server-'));
   let ws;
   try {
-    const config = parseWorkspaceConfig({ schemaVersion: 1, dataDirectory: join(dir, 'queues'), projects: [
+    const config = parseWorkspaceConfig({ schemaVersion: 1, dataDirectory: join(dir, 'queues'),
+      humanPrincipal: { principalRef: HUMAN.principalRef }, projects: [
       { projectId: 'cand', displayName: '候選人平台', repository: 'example-org/candidate-platform' },
       { projectId: 'site', displayName: '嶼光官網', repository: 'example-org/site' }] }, dir);
-    ws = await startWorkspaceServer({ config, uiDirectory: UI, port: 0 });
+    const running = await startWorkspaceServer({ config, uiDirectory: UI, port: 0 });
+    const bootstrap = await call(running, 'GET', '/');
+    ws = { ...running, bootstrap, cookie: bootstrap.headers['set-cookie']?.[0]?.split(';')[0] };
+    assert.ok(ws.cookie, 'the Workspace page establishes a local session');
     await fn(ws, { dir, config });
     console.log(`  PASS ${name}`); passed++;
   } catch (error) { console.error(`  FAIL ${name}: ${error.stack}`); failed++; }
@@ -27,7 +32,8 @@ async function check(name, fn) {
 function call(ws, method, path, { headers = {}, body, raw } = {}) {
   return new Promise((done, fail) => {
     const payload = raw ?? (body === undefined ? undefined : JSON.stringify(body));
-    const req = request({ host: HOST, port: ws.port, method, path, headers: { Host: `${HOST}:${ws.port}`, ...headers } }, (res) => {
+    const req = request({ host: HOST, port: ws.port, method, path,
+      headers: { Host: `${HOST}:${ws.port}`, ...(ws.cookie ? { Cookie: ws.cookie } : {}), ...headers } }, (res) => {
       const chunks = [];
       res.on('data', (chunk) => chunks.push(chunk));
       res.on('end', () => {
@@ -49,7 +55,8 @@ function openStream(ws) {
   return new Promise((done, fail) => {
     const events = [];
     const waiters = [];
-    const req = request({ host: HOST, port: ws.port, path: '/api/v0/stream', headers: { Host: `${HOST}:${ws.port}`, Accept: 'text/event-stream' } }, (res) => {
+    const req = request({ host: HOST, port: ws.port, path: '/api/v0/stream',
+      headers: { Host: `${HOST}:${ws.port}`, Cookie: ws.cookie, Accept: 'text/event-stream' } }, (res) => {
       let buffer = '';
       res.setEncoding('utf8');
       res.on('data', (chunk) => {
@@ -86,6 +93,49 @@ await check('the server listens on the IPv4 loopback address only', async (ws) =
   assert.equal(ws.url, `http://127.0.0.1:${ws.port}/`);
 });
 
+await check('the server refuses missing or malformed Human principal even for direct options', async (_ws, { config }) => {
+  for (const humanPrincipal of [undefined, null, { ...HUMAN, principalRef: ' bad' }, { ...HUMAN, kind: 'CONTROLLER' }]) {
+    assert.throws(() => startWorkspaceServer({ config: { ...config, humanPrincipal }, uiDirectory: UI, port: 0 }));
+  }
+});
+
+await check('local sessions bind only the configured Human without exposing the cookie to page data', async (ws) => {
+  const cookie = ws.bootstrap.headers['set-cookie'][0];
+  assert.match(cookie, /^chief_workspace_session=[0-9a-f-]{36}; HttpOnly; SameSite=Strict; Path=\/$/);
+  assert.doesNotMatch(ws.bootstrap.text, /chief_workspace_session|human:local-owner|localStorage|sessionStorage/);
+  assert.equal((await call(ws, 'GET', '/api/v0/projects', { headers: { Cookie: '' } })).status, 401);
+  assert.equal((await call(ws, 'POST', '/api/v0/projects/cand/goals', {
+    headers: page(ws, { Cookie: 'chief_workspace_session=forged', 'Content-Type': 'application/json' }),
+    body: { text: 'forged' } })).status, 401);
+  const second = await call(ws, 'GET', '/', { headers: { Cookie: '' } });
+  const secondCookie = second.headers['set-cookie'][0].split(';')[0];
+  assert.notEqual(secondCookie, ws.cookie);
+  const fromSecond = await call(ws, 'POST', '/api/v0/projects/cand/goals', {
+    headers: page(ws, { Cookie: secondCookie, 'Content-Type': 'application/json' }), body: { text: 'second session' } });
+  assert.equal(fromSecond.status, 201);
+  assert.deepEqual(fromSecond.json.goal.submittedBy, HUMAN);
+  assert.doesNotMatch(JSON.stringify(fromSecond.json), /chief_workspace_session/);
+  assert.ok(!JSON.stringify(fromSecond.json).includes(secondCookie.split('=')[1]), 'the response contains no session token');
+  assert.deepEqual((await call(ws, 'GET', '/api/v0/projects/cand/goals')).json.goals[0].submittedBy, HUMAN);
+});
+
+await check('browser mutation fields cannot forge identity, role, issuer or authority', async (ws) => {
+  for (const field of ['principalRef', 'humanPrincipal', 'submittedBy', 'actorRole', 'role', 'issuer', 'authority', 'provider', 'model']) {
+    const res = await call(ws, 'POST', '/api/v0/projects/cand/goals', {
+      headers: page(ws, { 'Content-Type': 'application/json' }), body: { text: 'x', [field]: 'HUMAN' } });
+    assert.equal(res.status, 400, field);
+    assert.equal(res.json.error.code, 'UNKNOWN_FIELD', field);
+  }
+  assert.equal((await call(ws, 'GET', '/api/v0/projects/cand/goals')).json.revision, 0);
+  const created = await add(ws, 'stays queued');
+  const removal = await call(ws, 'DELETE', `/api/v0/projects/cand/goals/${created.json.goal.goalId}`, {
+    headers: page(ws, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(JSON.stringify({ actorRole: 'HUMAN' })) }),
+    body: { actorRole: 'HUMAN' } });
+  assert.equal(removal.status, 400);
+  assert.equal(removal.json.error.code, 'UNEXPECTED_BODY');
+  assert.equal((await call(ws, 'GET', '/api/v0/projects/cand/goals')).json.goals.length, 1);
+});
+
 await check('projects come from the explicit configuration', async (ws) => {
   const res = await call(ws, 'GET', '/api/v0/projects');
   assert.equal(res.status, 200);
@@ -101,21 +151,27 @@ await check('a goal is created, labelled non-authoritative, and read back', asyn
   assert.equal(res.status, 201);
   assert.equal(res.json.goal.text, '繼續做候選人平台');
   assert.equal(res.json.goal.execution, 'NOT_STARTED');
+  assert.deepEqual(res.json.goal.submittedBy, HUMAN);
   assert.match(res.json.notice, /Non-authoritative/);
   const read = await call(ws, 'GET', '/api/v0/projects/cand/goals');
   assert.equal(read.json.authority, 'NON_AUTHORITATIVE');
   assert.equal(read.json.provenance, 'LOCAL_OPERATOR_INPUT');
   assert.deepEqual(read.json.goals.map((goal) => goal.text), ['繼續做候選人平台']);
+  assert.deepEqual(read.json.goals[0].submittedBy, HUMAN);
+  assert.deepEqual(read.json.history[0].goal.submittedBy, HUMAN);
   assert.doesNotMatch(read.text, /runId|changeId|authorizationId|packetId/);
 });
 
 await check('goals survive a server restart', async (ws, { config }) => {
   await add(ws, 'one'); await add(ws, 'two');
   await ws.close();
-  const again = await startWorkspaceServer({ config, uiDirectory: UI, port: 0 });
+  const running = await startWorkspaceServer({ config, uiDirectory: UI, port: 0 });
+  const page = await call(running, 'GET', '/');
+  const again = { ...running, cookie: page.headers['set-cookie'][0].split(';')[0] };
   try {
     const read = await call(again, 'GET', '/api/v0/projects/cand/goals');
     assert.deepEqual(read.json.goals.map((goal) => goal.text), ['one', 'two']);
+    assert.deepEqual(read.json.goals.map((goal) => goal.submittedBy), [HUMAN, HUMAN]);
   } finally { await again.close(); }
 });
 
@@ -178,8 +234,11 @@ await check('requests from other origins, hosts, or without the Workspace header
   const rebinding = await call(ws, 'GET', '/api/v0/projects', { headers: { Host: 'attacker.example' } });
   assert.equal(rebinding.status, 421, 'a rebound host name cannot read the queue');
   assert.equal((await add(ws, 'from the 127.0.0.1 page')).status, 201);
+  const localPage = await call(ws, 'GET', '/', { headers: { Host: `localhost:${ws.port}`, Cookie: '' } });
+  const localCookie = localPage.headers['set-cookie'][0].split(';')[0];
   const viaLocalhost = await call(ws, 'POST', '/api/v0/projects/cand/goals', { body,
-    headers: { Host: `localhost:${ws.port}`, Origin: `http://localhost:${ws.port}`, 'X-Chief-Workspace': '1', 'Content-Type': 'application/json' } });
+    headers: { Host: `localhost:${ws.port}`, Cookie: localCookie, Origin: `http://localhost:${ws.port}`,
+      'X-Chief-Workspace': '1', 'Content-Type': 'application/json' } });
   assert.equal(viaLocalhost.status, 201, 'the same page opened as localhost is accepted');
   assert.equal((await call(ws, 'GET', '/api/v0/projects/cand/goals')).json.goals.length, 2);
 });
@@ -224,6 +283,8 @@ await check('SSE: hello on connect, then goal.created, queue.reordered, goal.rem
     assert.equal(created.revision, 1);
     assert.equal(created.goal.text, 'a');
     assert.equal(created.goal.execution, 'NOT_STARTED');
+    assert.deepEqual(created.goal.submittedBy, HUMAN);
+    assert.doesNotMatch(JSON.stringify([hello, created]), /chief_workspace_session/);
     const b = (await add(ws, 'b')).json.goal.goalId;
     await stream.next('goal.created');
     await call(ws, 'POST', '/api/v0/projects/cand/goals/order', { headers: page(ws, { 'Content-Type': 'application/json' }), body: { order: [b, a] } });

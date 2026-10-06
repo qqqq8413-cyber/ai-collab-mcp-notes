@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { builtinModules } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // WS-L1 automation boundary for the Node production code under src/workspace.
 //
@@ -242,11 +243,16 @@ check('at runtime the server loads no automation, provider, or execution module 
     const { mkdtempSync } = await import('node:fs');
     const { tmpdir } = await import('node:os');
     const dir = mkdtempSync(tmpdir() + '/chief-ws-boundary-');
-    const config = parseWorkspaceConfig({ schemaVersion: 1, dataDirectory: dir, projects: [{ projectId: 'cand', displayName: 'C', repository: 'r' }] }, dir);
+    const config = parseWorkspaceConfig({ schemaVersion: 1, dataDirectory: dir,
+      humanPrincipal: { principalRef: 'human:local-owner' },
+      projects: [{ projectId: 'cand', displayName: 'C', repository: 'r' }] }, dir);
     const ws = await startWorkspaceServer({ config, uiDirectory: 'workspace-ui', port: 0 });
-    const headers = { Origin: 'http://127.0.0.1:' + ws.port, 'X-Chief-Workspace': '1', 'Content-Type': 'application/json' };
+    const bootstrap = await fetch(ws.url);
+    const cookie = bootstrap.headers.get('set-cookie').split(';')[0];
+    const headers = { Origin: 'http://127.0.0.1:' + ws.port, 'X-Chief-Workspace': '1', 'Content-Type': 'application/json', Cookie: cookie };
     const created = await (await fetch(ws.url + 'api/v0/projects/cand/goals', { method: 'POST', headers, body: JSON.stringify({ text: 'x' }) })).json();
-    const removed = await fetch(ws.url + 'api/v0/projects/cand/goals/' + created.goal.goalId, { method: 'DELETE', headers });
+    const { 'Content-Type': _contentType, ...deleteHeaders } = headers;
+    const removed = await fetch(ws.url + 'api/v0/projects/cand/goals/' + created.goal.goalId, { method: 'DELETE', headers: deleteHeaders });
     await ws.close();
     console.log(JSON.stringify({ loaded: [...loaded], outbound, binds, created: !!created.goal, removed: removed.status }));`;
   const run = spawnSync(process.execPath, ['--input-type=module', '-e', script], { cwd: ROOT, encoding: 'utf8' });
@@ -254,7 +260,7 @@ check('at runtime the server loads no automation, provider, or execution module 
   const result = JSON.parse(run.stdout.trim().split('\n').at(-1));
   assert.equal(result.created, true, 'goal create still works');
   assert.equal(result.removed, 200, 'goal delete still works');
-  const local = result.loaded.filter((url) => url.startsWith('file:')).map((url) => relative(ROOT, new URL(url).pathname));
+  const local = result.loaded.filter((url) => url.startsWith('file:')).map((url) => relative(ROOT, fileURLToPath(url)));
   const bad = local.filter((file) => file.startsWith('dist/') && !file.startsWith('dist/workspace/'));
   assert.deepEqual(bad, [], `${WHY}: the running server loaded ${bad.join(', ')}`);
   assert.ok(!result.loaded.some((url) => /@anthropic-ai|\/openai\/|@google\/generative-ai|@modelcontextprotocol/.test(url)),
