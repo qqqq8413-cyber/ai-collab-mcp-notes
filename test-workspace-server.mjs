@@ -207,7 +207,7 @@ await check('the UI is served from the same origin with a strict content securit
   assert.match(res.headers['content-type'], /text\/html/);
   assert.match(res.headers['content-security-policy'], /connect-src 'self'/);
   assert.match(res.headers['content-security-policy'], /frame-ancestors 'none'/);
-  for (const path of ['/app.js', '/live.js', '/demo.js', '/styles.css']) assert.equal((await call(ws, 'GET', path)).status, 200, path);
+  for (const path of ['/app.js', '/live.js', '/demo.js', '/collaboration.js', '/styles.css']) assert.equal((await call(ws, 'GET', path)).status, 200, path);
   for (const path of ['/../package.json', '/workspace.example.json', '/dist/workspace/server.js', '/.env']) assert.equal((await call(ws, 'GET', path)).status, 404, path);
 });
 

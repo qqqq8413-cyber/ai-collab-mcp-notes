@@ -39,6 +39,7 @@ const STATIC: Readonly<Record<string, { file: string; type: string }>> = Object.
   '/app.js': { file: 'app.js', type: 'text/javascript; charset=utf-8' },
   '/live.js': { file: 'live.js', type: 'text/javascript; charset=utf-8' },
   '/demo.js': { file: 'demo.js', type: 'text/javascript; charset=utf-8' },
+  '/collaboration.js': { file: 'collaboration.js', type: 'text/javascript; charset=utf-8' },
   '/styles.css': { file: 'styles.css', type: 'text/css; charset=utf-8' },
 });
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; " +

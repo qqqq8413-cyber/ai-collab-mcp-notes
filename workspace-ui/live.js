@@ -30,6 +30,9 @@ export function createLiveSource({ fetchImpl = globalThis.fetch.bind(globalThis)
     addGoal: (projectId, text) => call('POST', `/projects/${enc(projectId)}/goals`, { text }),
     reorder: (projectId, order, expectedRevision) => call('POST', `/projects/${enc(projectId)}/goals/order`, { order, expectedRevision }),
     removeGoal: (projectId, goalId) => call('DELETE', `/projects/${enc(projectId)}/goals/${enc(goalId)}`),
+    // WS-P1 has no execution, so nothing produces AI collaboration events: LIVE answers with none, without a request,
+    // and 協作室 shows its empty state. Only a future, Architect-approved read model may supply events here.
+    collaboration: async (projectId) => ({ projectId, provenance: 'NONE', events: [] }),
     /** onEvent(name, data) for hello / goal.created / queue.reordered / goal.removed; onState('connecting' | 'open' | 'retrying'). */
     subscribe(onEvent, onState) {
       const stream = new EventSourceImpl(`${API}/stream`);

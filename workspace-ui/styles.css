@@ -1,8 +1,9 @@
-/* Chief Workspace styles (WS-VIS1B: stage / correspondence on the frozen black material).
-   Structure: 此刻, the stage, is one barely lifted sheet that answers what you asked, what Chief is doing, whether you
-   are needed, how far it got and what comes next, around exactly one focal object; 往來, the correspondence, sits on
-   the black page beside it with the composer. Projects stand as spines on wide layouts; under 1180px the stage and
-   the correspondence become two panes, under 760px the views move to bottom tabs and the project switcher to the top.
+/* Chief Workspace styles (WS-VIS1B stage / correspondence, WS-P1 三個專案檢視, on the frozen black material).
+   Structure: a project has three views, each its own address, switched at every width: 此刻, the stage, is one barely
+   lifted sheet that answers what you asked, what Chief is doing, whether you are needed, how far it got and what comes
+   next, around exactly one focal object; 往來, the correspondence, is a reading column on the black page with the
+   composer docked under it (also under 此刻); 協作室 is the AIs' work record on a sheet like the stage. Projects stand
+   as spines on wide layouts; under 760px the views move to bottom tabs and the project switcher to the top.
    Material (frozen in WS-VIS1A): a deep, quiet black with no texture or background light; Chief writes in ink blue,
    its mark a small dot in a hairline ring that never moves unless Chief is genuinely working (WS-L1 has no execution,
    so it is always still); gold is reserved for decisions the Human must make, and WS-L1 has none.
@@ -13,6 +14,7 @@
   --chief:#9DB4F0; --chief-bg:#141A2A; --blue-hi:#B8C8F4;
   --human:#E2C07F; --human-bg:#1E1A11; --gold:#CDA45C;
   --link:#9DB4F0;
+  --ev-challenge:#D99A8B; --ev-agree:#93BFA4;
   --glass:rgba(18,18,21,.82); --glass-strong:rgba(18,18,21,.96); --glass-line:rgba(255,255,255,.05);
   --scrim:rgba(0,0,0,.62);
   --shadow-1:0 1px 1px rgba(0,0,0,.5),0 8px 22px -14px rgba(0,0,0,.9);
@@ -20,7 +22,7 @@
   --font-body:"Avenir Next","Avenir","PingFang TC","Heiti TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
   --font-latin:"Didot","Bodoni 72","Bodoni MT","Sitka Display","Iowan Old Style",Georgia,"PingFang TC",serif;
   --dur-1:160ms; --dur-2:300ms; --dur-3:700ms; --ease:cubic-bezier(.22,.8,.24,1); --spring:cubic-bezier(.34,1.4,.5,1);
-  --topbar:64px; --railw:100px; --jw:392px; --r:16px; --r-s:10px; --r-l:20px;
+  --topbar:64px; --railw:100px; --r:16px; --r-s:10px; --r-l:20px;
   color-scheme:dark;
 }
 
@@ -97,13 +99,19 @@ ol,ul{margin:0;padding:0;list-style:none}
 .col{width:100%;max-width:880px;margin-inline:auto;padding-inline:48px}
 .view.other{margin:0 20px 20px 0;background:var(--slab);border-radius:var(--r-l);overflow:hidden;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 8%,transparent),var(--shadow-2)}
 
-/* the chief view: 此刻 on the sheet, 往來 on the black beside it, the composer under 往來 */
-.view.chief{display:grid;grid-template-columns:minmax(0,1fr) var(--jw);grid-template-rows:minmax(0,1fr) auto;grid-template-areas:"stage journal" "stage dock";column-gap:28px;padding:0 20px 20px 0}
+/* a project: the view switch, one view, and the composer under 此刻 and 往來 */
 .view.chief.idle{display:flex;padding:0 20px 20px 0}
-.mtabs{display:none}
-.stage{grid-area:stage;min-height:0;display:flex;flex-direction:column;background:var(--slab);border-radius:var(--r-l);overflow:hidden;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 8%,transparent),var(--shadow-2);animation:settle var(--dur-3) var(--ease) both}
+.view.proj{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"tabs" "pane" "dock";padding:0 20px 20px 0}
+.mtabs{grid-area:tabs;padding:0 0 12px;min-width:0}
+.mt{display:inline-flex;gap:4px;padding:4px;max-width:100%;overflow-x:auto;scrollbar-width:none;border-radius:calc(var(--r-s) + 4px);background:color-mix(in srgb,var(--card) 50%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 8%,transparent)}
+.mt a{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 18px;border-radius:var(--r-s);font-size:14px;font-weight:500;letter-spacing:.24em;color:var(--muted);text-decoration:none;white-space:nowrap;transition:color var(--dur-1),background var(--dur-1)}
+.mt a:hover{color:var(--fg)}
+.mt a[aria-current=page]{background:var(--slab);color:var(--fg);font-weight:600;box-shadow:var(--shadow-1)}
+.mt .tn{font:400 15px/1 var(--font-latin);letter-spacing:0}
+.tneed{width:7px;height:7px;border-radius:50%;background:var(--gold);margin-left:-2px}
+.stage{grid-area:pane;min-height:0;display:flex;flex-direction:column;background:var(--slab);border-radius:var(--r-l);overflow:hidden;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 8%,transparent),var(--shadow-2);animation:settle var(--dur-3) var(--ease) both}
 @keyframes settle{from{opacity:0;transform:translateY(12px)}}
-.work{padding:42px clamp(28px,4.4vw,64px) 56px;max-width:1000px}
+.work{padding:42px clamp(28px,4.4vw,64px) 56px;max-width:1000px;margin-inline:auto}
 .sn-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;font-size:12.5px;color:var(--muted)}
 .sn-k{font-size:12px;font-weight:600;color:var(--fg);letter-spacing:.34em}
 .adv{display:inline-flex;align-items:center;gap:6px;min-height:28px;margin-left:auto;font-size:13px;color:var(--link);white-space:nowrap}
@@ -155,11 +163,8 @@ ol,ul{margin:0;padding:0;list-style:none}
 .ctx dd{margin:0;overflow-wrap:anywhere}
 .stat{display:inline-flex;align-items:center;gap:8px}
 
-/* 往來: the correspondence */
-.journal{grid-area:journal;min-height:0;display:flex;flex-direction:column}
-.jh{display:flex;align-items:baseline;gap:14px;padding:6px 6px 12px}
-.jh h2{font-size:14px;font-weight:600;line-height:1.2;letter-spacing:.3em}
-.jh .num{font:400 20px/1 var(--font-latin);color:var(--muted)}
+/* 往來: the correspondence, a reading column on the black page */
+.journal{grid-area:pane;min-height:0;display:flex;flex-direction:column;width:100%;max-width:760px;justify-self:center}
 .jscroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:4px 8px 14px 4px;border-radius:var(--r-s);-webkit-mask:linear-gradient(to bottom,transparent,#000 14px,#000 calc(100% - 18px),transparent);mask:linear-gradient(to bottom,transparent,#000 14px,#000 calc(100% - 18px),transparent)}
 .stream{display:flex;flex-direction:column;gap:22px;padding:10px 2px 6px}
 .item{min-width:0}
@@ -184,7 +189,7 @@ ol,ul{margin:0;padding:0;list-style:none}
 .m-sys span{max-width:80%;text-align:center}
 
 /* composer: the accepted mainstream AI chat box */
-.dock{grid-area:dock;padding-top:10px}
+.dock{grid-area:dock;padding-top:10px;width:100%;max-width:760px;justify-self:center}
 .composer{display:grid;gap:6px;background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(1.4);backdrop-filter:blur(20px) saturate(1.4);border-radius:24px;padding:12px 10px 10px 20px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 10%,transparent),inset 0 1px 0 var(--glass-line),var(--shadow-2);transition:box-shadow var(--dur-2)}
 .composer:focus-within{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--chief) 80%,transparent),0 0 0 4px color-mix(in srgb,var(--blue-hi) 22%,transparent),var(--shadow-2)}
 .composer textarea{display:block;width:100%;border:0;background:none;resize:none;outline:none;font-size:15.5px;line-height:1.65;padding:4px 8px 2px 0;max-height:180px;color:var(--fg)}
@@ -234,6 +239,98 @@ ol,ul{margin:0;padding:0;list-style:none}
 /* a Human-required project (future read model only; WS-L1 has none): the one place gold marks a spine */
 .pulse.need{box-shadow:inset 0 0 0 1.5px var(--gold),0 0 0 3px color-mix(in srgb,var(--gold) 24%,transparent);background:radial-gradient(circle,var(--gold) 0 30%,transparent 33%)}
 
+/* 此刻: the 需要你 focal object (gold: the Human's) and the way into 協作室 */
+.card.focal.need{background:var(--human-bg);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 40%,transparent),var(--shadow-1)}
+.focal.need .ch-t{color:var(--human)}
+.need-x{font-size:16px;line-height:1.75;margin-bottom:16px;overflow-wrap:anywhere}
+.need-a{color:var(--human)}
+.to-room{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin-top:14px;font-size:13.5px;color:var(--muted)}
+.to-room .adv{margin-left:0}
+.btn.gold{background:none;color:var(--human);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 70%,transparent);text-decoration:none}
+.btn.gold:hover{background:var(--gold);color:var(--slab);box-shadow:none}
+
+/* 協作室: the AIs' work record. Summary first, then 需要你, then the record, oldest first, on one hairline thread */
+.room-lede{margin-top:12px;color:var(--muted);font-size:13.5px;max-width:40em}
+.demo-tag{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;margin-top:22px;padding:10px 16px;border-radius:var(--r-s);border:1px dashed var(--ctl);font-size:13px;color:var(--muted)}
+.demo-tag b{color:var(--fg);font-weight:600;letter-spacing:.06em}
+.c-empty{display:grid;gap:12px;padding:64px 0 32px;max-width:30em}
+.ce-h{font:300 clamp(24px,2.4vw,30px)/1.4 var(--font-body);letter-spacing:.03em}
+.c-empty p{color:var(--muted);line-height:1.85}
+.c-left{margin-top:18px;font-size:13px;color:var(--muted)}
+.csum{margin-top:26px;display:grid;gap:18px;padding:22px 26px 24px;border-radius:var(--r);background:var(--card);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 8%,transparent),var(--shadow-1)}
+.csum-f{display:grid;gap:6px;font-size:16px}
+.csum-f li{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
+.cn{font:400 22px/1 var(--font-latin)}
+.csum-f li.need{color:var(--human)}
+.csum-who{flex-basis:100%;font-size:13px;color:var(--muted)}
+.csum-l{display:grid;gap:10px;padding-top:16px;border-top:1px solid var(--line)}
+.bul{display:grid;gap:10px}
+.bul li{position:relative;padding-left:20px;font-size:15px;line-height:1.7;overflow-wrap:anywhere}
+.bul li::before{content:"";position:absolute;left:3px;top:.85em;width:7px;height:1px;background:var(--muted)}
+.bul-by{display:block;font-size:12px;color:var(--muted)}
+.needb{margin-top:18px;display:grid;justify-items:start;gap:12px;padding:20px 26px 22px;border-radius:var(--r);background:var(--human-bg);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 40%,transparent),var(--shadow-1)}
+.needb-h{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+.needb-h h2{font-size:17px;font-weight:600;letter-spacing:.12em;color:var(--human)}
+.needb-m{font-size:12.5px;color:var(--muted)}
+.needb-x{font-size:16px;line-height:1.75;overflow-wrap:anywhere}
+.thread{margin-top:44px;display:grid;gap:12px}
+.thread h2.lbl{display:flex;align-items:baseline;gap:10px}
+.thread h2 .num{font:400 16px/1 var(--font-latin);color:var(--muted)}
+.evs{position:relative;display:grid;gap:28px;padding:8px 0 4px}
+.evs::before{content:"";position:absolute;left:5px;top:16px;bottom:16px;width:1px;background:var(--line)}
+.ev{position:relative;display:grid;grid-template-columns:11px minmax(0,1fr);column-gap:22px;min-width:0}
+.ev-n{position:relative;z-index:1;width:11px;height:11px;margin-top:8px;border-radius:50%;background:var(--slab);box-shadow:inset 0 0 0 1.5px var(--ctl)}
+.ev-b{min-width:0;max-width:44em;display:grid;gap:6px}
+.ev-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px}
+.ev-a{font-weight:600;letter-spacing:.04em}
+.ev-m{font-size:12.5px;color:var(--muted)}
+.ev-t{margin-left:auto;font-size:12px;font-weight:500;letter-spacing:.14em;color:var(--muted);white-space:nowrap}
+.ev-x{font-size:15px;line-height:1.85;letter-spacing:.02em;overflow-wrap:anywhere;max-width:40em}
+/* each kind of event: the shape of its node and the colour of its word. Gold stays the Human's (需要你). */
+.t-proposal .ev-n{box-shadow:inset 0 0 0 1.5px var(--fg)}
+.t-proposal .ev-t,.t-response .ev-t,.t-handoff .ev-t{color:var(--fg)}
+.t-question .ev-n{box-shadow:none;border:1.5px dashed var(--muted)}
+.t-challenge .ev-n{background:var(--ev-challenge);box-shadow:none}
+.t-challenge .ev-t{color:var(--ev-challenge)}
+.t-response .ev-n{background:var(--fg);box-shadow:0 0 0 3px var(--slab);transform:scale(.72)}
+.t-handoff .ev-n{border-radius:2px;transform:rotate(45deg) scale(.82);box-shadow:inset 0 0 0 1.5px var(--fg)}
+.t-evidence .ev-n{border-radius:2px;background:var(--muted);box-shadow:0 0 0 3px var(--slab);transform:scale(.78)}
+.t-agreement .ev-n{background:var(--ev-agree);box-shadow:none}
+.t-agreement .ev-t{color:var(--ev-agree)}
+.t-escalation .ev-n{box-shadow:inset 0 0 0 1.5px var(--gold),0 0 0 3px color-mix(in srgb,var(--gold) 24%,transparent);background:radial-gradient(circle,var(--gold) 0 30%,var(--slab) 33%)}
+.t-escalation .ev-t{color:var(--human)}
+.ev.ev-sys{display:block;padding-left:33px}
+.ev-sl{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
+.ev-sys .ev-t{margin-left:0}
+/* evidence: display only */
+.evd{display:grid;gap:4px;margin:4px 0 0;padding:10px 14px;border-radius:var(--r-s);background:var(--tint);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 7%,transparent);max-width:40em;min-width:0;font-size:13.5px}
+.evd-r{display:grid;grid-template-columns:3.4em minmax(0,1fr);gap:10px;align-items:baseline}
+.evd dt{color:var(--muted);font-size:12px;letter-spacing:.1em}
+.evd dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.evd code{font:13px/1.6 ui-monospace,"SF Mono",Menlo,Consolas,monospace;overflow-wrap:anywhere}
+/* 查看決策: read-only */
+.dec-q{font-size:18px;line-height:1.7;overflow-wrap:anywhere}
+.dec-m{font-size:12.5px;color:var(--muted)}
+.dec-na{padding:14px 16px;border-radius:var(--r-s);background:var(--tint);font-size:14px;color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+.sh-b>.btn{justify-self:start}
+
+/* Home: 需要你 above Chief's question (never a redirect), then 目前的工作 / 排隊中 / 最近開啟 */
+.h-need{display:grid;gap:8px}
+.h-need .lbl{color:var(--human)}
+.hn-l{display:grid;gap:8px}
+.hn{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center;width:100%;padding:14px 18px;border-radius:var(--r);background:var(--human-bg);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 40%,transparent);color:var(--fg);text-decoration:none;transition:box-shadow var(--dur-1)}
+.hn:hover{box-shadow:inset 0 0 0 1px var(--gold)}
+.hn-b{display:grid;gap:2px;min-width:0}
+.hn-p{font-size:12.5px;color:var(--human);letter-spacing:.06em}
+.hn-x{font-size:16px;line-height:1.5;overflow-wrap:anywhere}
+.hn>.i{color:var(--human);transition:transform .3s var(--spring)}
+.hn:hover>.i{transform:translateX(3px)}
+.hsecs{display:grid;gap:26px}
+.recent{display:flex;flex-wrap:wrap;gap:8px}
+.rp{display:inline-flex;align-items:center;gap:10px;min-height:40px;padding:6px 16px;border-radius:999px;background:var(--tint);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 8%,transparent);font-size:14px;color:var(--fg);text-decoration:none;transition:background var(--dur-1),box-shadow var(--dur-1)}
+.rp .num{font:400 15px/1 var(--font-latin);color:var(--muted)}
+.rp:hover{background:var(--chief-bg);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--chief) 35%,transparent)}
+
 /* other views */
 .page{padding-block:44px 64px;display:grid;gap:30px;align-content:start}
 .page-h{display:grid;gap:8px}
@@ -282,18 +379,8 @@ ol,ul{margin:0;padding:0;list-style:none}
 .toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;background:var(--fg);color:var(--slab);padding:11px 20px;border-radius:999px;font-size:14px;box-shadow:var(--shadow-2);max-width:calc(100vw - 32px);animation:fade var(--dur-2) var(--ease)}
 
 /* responsive */
-@media (max-width:1279px){ :root{--jw:356px} }
 @media (max-width:1179px){
-  .view.chief{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"tabs" "pane" "dock";padding:0 18px 14px 0}
-  .mtabs{display:block;grid-area:tabs;padding:0 0 12px}
-  .stage,.journal{grid-area:pane}
-  .view.chief[data-pane="now"] .journal{display:none}
-  .view.chief[data-pane="log"] .stage{display:none}
-  .jh{display:none}
-  .mt{display:inline-flex;gap:4px;padding:4px;border-radius:calc(var(--r-s) + 4px);background:color-mix(in srgb,var(--card) 50%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 8%,transparent)}
-  .mt button{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 18px;border-radius:var(--r-s);font-size:14px;font-weight:500;letter-spacing:.24em;color:var(--muted)}
-  .mt button[aria-pressed=true]{background:var(--slab);color:var(--fg);font-weight:600;box-shadow:var(--shadow-1)}
-  .mt .tn{font:400 15px/1 var(--font-latin);letter-spacing:0}
+  .view.proj{padding:0 18px 14px 0}
   .ledger{grid-template-columns:minmax(0,1fr)}
 }
 @media (max-width:1099px){
@@ -319,14 +406,18 @@ ol,ul{margin:0;padding:0;list-style:none}
   .wl-conn{padding:0 12px;height:34px}
   .wl-conn .lbltext{display:none}
   .avatar{width:34px;height:34px;margin-left:2px}
-  .view.chief{padding:0}
+  .view.proj{padding:0}
   .view.chief.idle{padding:0}
   .view.chief.idle>.scroll{border-radius:var(--r-l) var(--r-l) 0 0}
   .mtabs{padding:0 12px 10px}
   .stage{border-radius:var(--r-l) var(--r-l) 0 0}
   .journal{padding:0 12px}
   .jscroll{padding-top:12px}
-  .dock{padding:8px 12px 10px;background:var(--slab);border-top:1px solid var(--line)}
+  .dock{max-width:none;padding:8px 12px 10px;background:var(--slab);border-top:1px solid var(--line)}
+  .mt a{padding:0 14px;letter-spacing:.16em}
+  .csum,.needb{padding:18px 18px 20px}
+  .ev{column-gap:16px}
+  .hn{padding:12px 14px}
   .view.other{margin:0;border-radius:var(--r-l) var(--r-l) 0 0}
   .col{padding-inline:18px}
   .work{padding:24px 18px 36px}
