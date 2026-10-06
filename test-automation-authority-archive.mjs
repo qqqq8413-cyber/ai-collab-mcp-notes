@@ -546,10 +546,12 @@ check('C1-6/7/8. a valid archive opens normally; an absent root is created only 
   openAuthorityArchiveAppender(empty);
   assert.deepEqual(readdirSync(empty), ['records']);
 });
-check('the archive is wired into no runtime surface', () => {
+check('the archive is wired into no runtime surface; only the governed read model reads it (G1-R4A0)', () => {
   const sources = walk(join(ROOT, 'src')).filter((path) => path.endsWith('.ts') && !path.includes('/automation/authority/'));
   const users = sources.filter((path) => /from ['"][^'"]*authority\/(document|file-archive)\.js['"]/.test(readFileSync(path, 'utf8')));
-  assert.deepEqual(users, []);
+  assert.deepEqual(users.map((path) => relative(ROOT, path)), ['src/automation/read-model/governed-read-model.ts']);
+  // Reader only: the read model never names the append capability.
+  assert.doesNotMatch(readFileSync(users[0], 'utf8'), /openAuthorityArchiveAppender|AuthorityArchiveAppender|\.append\(/);
 });
 
 let passed = 0, failed = 0;

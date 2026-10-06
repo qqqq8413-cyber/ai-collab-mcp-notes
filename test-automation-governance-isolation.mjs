@@ -375,10 +375,18 @@ function sources(directoryPath) {
 const SRC = sources(join(ROOT, 'src'));
 const text = (path) => readFileSync(path, 'utf8');
 const rel = (path) => relative(ROOT, path);
-check('35. no production source outside the archive implementation obtains the appender or the reader', () => {
+// G1-R4A0 capability delta: the governed read model alone may hold AuthorityArchiveReader.
+// No production source outside the archive holds AuthorityArchiveAppender.
+const GOVERNED_READ_MODEL = join('src', 'automation', 'read-model', 'governed-read-model.ts');
+check('35. only the governed read model obtains the archive reader; nothing outside the archive obtains the appender', () => {
   const outside = SRC.filter((path) => !path.includes(`${join('src', 'automation', 'authority')}/`));
   const users = outside.filter((path) => /openAuthorityArchive(Appender|Reader)|authority\/file-archive(\.js)?['"]|authority\/document(\.js)?['"]/.test(text(path)));
-  assert.deepEqual(users.map(rel), []);
+  assert.deepEqual(users.map(rel), [GOVERNED_READ_MODEL]);
+  assert.deepEqual(outside.filter((path) => /openAuthorityArchiveAppender|AuthorityArchiveAppender/.test(text(path))).map(rel), []);
+  assert.match(text(join(ROOT, GOVERNED_READ_MODEL)), /import \{ openAuthorityArchiveReader \} from '\.\.\/authority\/file-archive\.js';/);
+  // Nothing imports the read model yet: no Workspace, runner, controller, model process, MCP or composition holds it.
+  assert.deepEqual(SRC.filter((path) => !path.includes(`${join('src', 'automation', 'read-model')}/`) &&
+    /read-model\//.test(text(path))).map(rel), []);
   for (const surface of ['src/workspace', 'src/automation/live/composition.ts', 'src/automation/runner.ts', 'src/automation/controller.ts',
     'src/automation/live/claude-code-implementation.ts', 'src/automation/live/codex-architect-review.ts', 'src/automation/live/seatbelt-model-process.ts',
     'src/automation/live/model-process-isolation.ts', 'src/index.ts']) {

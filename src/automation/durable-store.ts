@@ -18,6 +18,35 @@ const CLAIM_FILE = RUN_FILE;
 const REFUSAL_FILE = /^[0-9a-f-]{36}\.json$/;
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 
+/** The file name a run is stored under: the runId is never a path. */
+export function storedRunFileName(runId: string): string { return `${digest(runId)}.json`; }
+
+/**
+ * Opens one stored run envelope: the canonical read of a run file, shared by the store
+ * and the read-only governed read model (G1-R4A0) so both apply one definition. Checks
+ * the envelope, schema version, checksum, identity binding (`owns`) and every lifecycle
+ * invariant; anything else throws. Pure: it reads and writes nothing.
+ */
+export function openStoredRun(text: string, owns: (runId: unknown) => boolean): ControllerRun {
+  let envelope: unknown;
+  try { envelope = JSON.parse(text); }
+  catch { throw new Error('Corrupt controller storage JSON'); }
+  if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope) ||
+      Object.keys(envelope).sort().join(',') !== 'checksum,run,schemaVersion') {
+    throw new Error('Invalid controller storage envelope');
+  }
+  const stored = envelope as { schemaVersion: unknown; checksum: unknown; run: unknown };
+  if (stored.schemaVersion !== VERSION) throw new Error('Unsupported controller storage schema version');
+  if (typeof stored.checksum !== 'string' || stored.checksum !== digest(JSON.stringify(stored.run))) {
+    throw new Error('Controller storage checksum mismatch');
+  }
+  if (!stored.run || typeof stored.run !== 'object' || !owns((stored.run as ControllerRun).runId)) {
+    throw new Error('Controller storage identity mismatch');
+  }
+  assertRunInvariants(stored.run as ControllerRun);
+  return stored.run as ControllerRun;
+}
+
 // Admission (CHIEF-GOV/1, G1-R4L-1) lives beside the runs. changes/<changeKey>.json is
 // the write-once claim that makes one run the ROOT of its change; changes/refusals/
 // <changeKey>/ holds best-effort evidence of refused second runs. Both are operational
@@ -48,7 +77,7 @@ export class FileControllerStore implements ControllerStore {
   }
   #file(runId: string): string {
     if (typeof runId !== 'string' || !runId.trim()) throw new Error('Invalid runId');
-    return join(this.#directory, `${digest(runId)}.json`);
+    return join(this.#directory, storedRunFileName(runId));
   }
   #sync(directory: string): void {
     const fd = openSync(directory, 'r');
@@ -62,23 +91,10 @@ export class FileControllerStore implements ControllerStore {
     return run;
   }
   #read(file: string, owns: (runId: unknown) => boolean): ControllerRun {
-    let envelope: unknown;
-    try { envelope = JSON.parse(readFileSync(file, 'utf8')); }
+    let text: string;
+    try { text = readFileSync(file, 'utf8'); }
     catch { throw new Error('Corrupt controller storage JSON'); }
-    if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope) ||
-        Object.keys(envelope).sort().join(',') !== 'checksum,run,schemaVersion') {
-      throw new Error('Invalid controller storage envelope');
-    }
-    const stored = envelope as { schemaVersion: unknown; checksum: unknown; run: unknown };
-    if (stored.schemaVersion !== VERSION) throw new Error('Unsupported controller storage schema version');
-    if (typeof stored.checksum !== 'string' || stored.checksum !== digest(JSON.stringify(stored.run))) {
-      throw new Error('Controller storage checksum mismatch');
-    }
-    if (!stored.run || typeof stored.run !== 'object' || !owns((stored.run as ControllerRun).runId)) {
-      throw new Error('Controller storage identity mismatch');
-    }
-    assertRunInvariants(stored.run as ControllerRun);
-    return stored.run as ControllerRun;
+    return openStoredRun(text, owns);
   }
   // The store opens only when admissions and runs form one-to-one ROOT relations, checked
   // from both sides. Each admission's runId is the ROOT of that change alone, and a run

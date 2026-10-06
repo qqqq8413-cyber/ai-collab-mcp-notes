@@ -200,6 +200,38 @@ content, or a symlink) is refused without any change, and symlinked `records/`,
 key directories or record files are never followed or read as authority. This
 is storage separation, not R4T capability governance.
 
+### 6.2 Governed Read Model (G1-R4A0)
+
+A read-only projection (`GovernedReadModelV1`, ruleset CHIEF-GOV/1) of the
+Controller store and the authority archive. It never constructs the Controller
+store and never mutates either root (no directory, lock, temp, admission, run,
+repair or backfill); a missing root reads as empty. It reads one consistent
+snapshot: every relevant entry is fingerprinted (identity, size, times, byte
+hash) before and after the projection, and any difference fails closed.
+
+- Runs exist only as the Controller store holds them, after the store's own
+  envelope, checksum, identity-binding and lifecycle-invariant checks; a run file
+  that fails them fails the whole read closed.
+- A change is R4L's exact identity (`repository` + case-sensitive `sliceId`,
+  never normalised). A run without a canonical identity belongs to no change.
+- R4L admission is reported as an operational fact, never as authority or as the
+  source of what exists. `LEGACY_UNINDEXED_RUN`, `ADMISSION_REGISTRY_MISMATCH`
+  and `ADMISSION_RECORD_INVALID` are reported, not repaired. More than one valid
+  run of one exact change is `UNLINKED_SIBLING_RUN`; no lineage explains it.
+- Direct authority comes only from the archive reader. A run's packet,
+  correction, decision or grant is an operational copy, matched to the archived
+  version whose body hash it records, never to another or the latest version,
+  and checked against the run's repository and slice. Journals, run status, Git,
+  CI and model output are not read.
+- NextAction lists the lifecycle moves (Section 3) the recorded facts allow and
+  the role that may take each; it is INDETERMINATE when the store holds any
+  admission contradiction (such a store does not open, so no run in it can
+  move) or when an authority body the run retains does not resolve exactly. A
+  terminal run has none. `HUMAN_STOP` offers only the Human resume; change
+  abandonment and continuation are capability gaps.
+- CHIEF-GOV/1 has no continuation: run lineage is `UNAVAILABLE`, a change has no
+  head.
+
 ## 7. Git and Promotion
 
 Canonical branch is `main`; implementation branches are `work/**`. No direct
@@ -350,15 +382,16 @@ scope must equal.
    writable paths, runtime and search paths, executable, temporary directory)
    before any session, broker, profile probe or command exists; an overlap
    answers `UNAVAILABLE` and nothing runs.
-6. The authority appender has zero production runtime holders in R4T-1; the
-   archive reader is not exposed either.
+6. The authority appender has zero production runtime holders. Since G1-R4A0
+   the governed read model (Section 6.2) is the only holder of the archive
+   reader; it holds no appender and is wired into no runtime surface.
 7. Workspace receives no governance writer and no controller, runner, store
    or model capability.
 8. R4T is capability and storage isolation inside one trusted host account,
    not Human authentication, and it does not protect against the kernel, root,
    the host account, or code already inside the trusted host process.
 9. R4T does not make hashes authentic.
-10. R4A0 and D1 remain unimplemented.
+10. D1 remains unimplemented. R4A0 is the read-only projection of Section 6.2.
 
 ## 9. CHIEF Domain Boundary
 
