@@ -3,9 +3,10 @@ import { basename, dirname, isAbsolute, join, normalize, relative } from 'node:p
 
 // G1-R4T-1: raw governance storage is never agent, model or generated-code filesystem.
 //
-// The protected governance roots are the Controller store (runs and R4L admission) and
-// the Authority Archive (DIRECT_AUTHORITY). A checksum is no substitute for keeping them
-// out of reach: a process that can rewrite a record can rewrite its checksum too. So the
+// The protected governance roots are the Controller store (runs and R4L admission),
+// Authority Archive (DIRECT_AUTHORITY), and Change Registry (operational mints).
+// A checksum is no substitute for keeping them out of reach: a process that can
+// rewrite a record can rewrite its checksum too. So the
 // live composition refuses any configuration in which a path an agent, a model process or
 // generated code can see overlaps a protected root, and each sandbox boundary checks its
 // own effective paths again before anything runs.
@@ -21,7 +22,7 @@ import { basename, dirname, isAbsolute, join, normalize, relative } from 'node:p
 // against the kernel, root, the host account itself, or code already running inside the
 // trusted Chief host process.
 
-export type GovernanceRootKind = 'CONTROLLER_STORE' | 'AUTHORITY_ARCHIVE';
+export type GovernanceRootKind = 'CONTROLLER_STORE' | 'AUTHORITY_ARCHIVE' | 'CHANGE_REGISTRY';
 
 /** A configuration or invocation that would expose a protected governance root. Fails closed; nothing is repaired. */
 export class GovernanceStoreIsolationError extends Error {
@@ -109,8 +110,8 @@ function protectedRoot(kind: GovernanceRootKind, path: unknown): ProtectedRoot {
 }
 
 /**
- * The two protected governance roots and the overlap rule against them. Holds no
- * capability to either store: it can only say whether a path would expose one.
+ * The protected governance roots and the overlap rule against them. Holds no
+ * capability to any store: it can only say whether a path would expose one.
  */
 export class GovernanceStoreIsolation {
   readonly #roots: readonly ProtectedRoot[];
@@ -120,12 +121,17 @@ export class GovernanceStoreIsolation {
     Object.freeze(this);
   }
 
-  /** The protected roots of a LIVE composition: both must already be safe, and they must be mutually disjoint. */
-  static forLiveRoots(input: { controllerStoreDirectory: unknown; authorityArchiveDirectory: unknown }): GovernanceStoreIsolation {
+  /** All protected roots must already be safe and mutually disjoint. */
+  static forLiveRoots(input: { controllerStoreDirectory: unknown; authorityArchiveDirectory: unknown;
+    changeRegistryDirectory: unknown }): GovernanceStoreIsolation {
     const controller = protectedRoot('CONTROLLER_STORE', input?.controllerStoreDirectory);
     const authority = protectedRoot('AUTHORITY_ARCHIVE', input?.authorityArchiveDirectory);
-    if (overlapping(controller.identity, authority.identity)) throw fail('CONTROLLER_STORE and AUTHORITY_ARCHIVE roots overlap');
-    return new GovernanceStoreIsolation([controller, authority]);
+    const registry = protectedRoot('CHANGE_REGISTRY', input?.changeRegistryDirectory);
+    const roots = [controller, authority, registry];
+    for (let i = 0; i < roots.length; i++) for (let j = i + 1; j < roots.length; j++) {
+      if (overlapping(roots[i].identity, roots[j].identity)) throw fail(`${roots[i].kind} and ${roots[j].kind} roots overlap`);
+    }
+    return new GovernanceStoreIsolation(roots);
   }
 
   /**

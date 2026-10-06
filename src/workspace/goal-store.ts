@@ -4,6 +4,7 @@ import {
 } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { z } from 'zod';
+import { GOAL_ID } from '../identity/canonical.js';
 import { PROJECT_ID, humanPrincipalSchema, parseHumanPrincipalV1, type HumanPrincipalV1 } from './config.js';
 
 // The Workspace goal queue. A goal here is LOCAL OPERATOR INPUT submitted through
@@ -27,7 +28,7 @@ const MAX_HISTORY = 10_000;
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const instant = z.string().refine((value) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) &&
   new Date(value).toISOString() === value, 'must be a UTC ISO-8601 instant with milliseconds');
-const goalId = z.string().regex(/^goal-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+const goalId = z.string().regex(GOAL_ID);
 // Running text: newlines and tabs are kept, other control characters are refused.
 const goalText = z.string().refine((value) => value.trim().length > 0 && value.length <= MAX_GOAL_TEXT &&
   !/[\u0000-\u0008\u000b-\u001f\u007f]/.test(value), `goal text must be 1-${MAX_GOAL_TEXT} characters without control characters`);

@@ -1005,17 +1005,19 @@ check('every GitHub command is one read-only GET; bad names and other repositori
 
 // ---------------------------------------------------------------- composition
 /**
- * G1-R4T-1: LIVE composition requires both protected governance roots to exist already, safe and
+ * G1-R4T-1/CM1: LIVE composition requires all protected governance roots to exist already, safe and
  * apart from every agent-visible path, so they live beside the fixture directory, not inside it.
  */
 function governanceRoots(dir) {
-  const roots = { store: join(`${dir}.governance`, 'store'), authority: join(`${dir}.governance`, 'authority') };
+  const roots = { store: join(`${dir}.governance`, 'store'), authority: join(`${dir}.governance`, 'authority'),
+    registry: join(`${dir}.governance`, 'registry') };
   for (const root of Object.values(roots)) mkdirSync(root, { recursive: true, mode: 0o700 });
   return roots;
 }
 function config(dir, overrides = {}) {
   const roots = governanceRoots(dir);
-  return { repository: REPO, controllerStoreDirectory: roots.store, authorityArchiveDirectory: roots.authority, journalDirectory: join(dir, 'journal'),
+  return { repository: REPO, controllerStoreDirectory: roots.store, authorityArchiveDirectory: roots.authority,
+    changeRegistryDirectory: roots.registry, journalDirectory: join(dir, 'journal'),
     egressJournalDirectory: join(dir, 'egress'), environment: { allow: ['PATH', 'HOME'] }, claude: CLAUDE, codex: CODEX,
     git: { executable: 'git', remote: 'origin', repositoryPath: join(dir, 'repo'), worktreeRoot: join(dir, 'worktrees'), timeoutMs: 60_000,
       maxOutputBytes: 1_000_000, commitAuthor: { name: 'CHIEF automation', email: 'automation@example.invalid' }, validationTimeoutMs: 60_000,

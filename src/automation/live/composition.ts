@@ -32,11 +32,12 @@ import { SeatbeltOfflineValidationExecutor, assertFixedSeatbeltTreesIsolated, se
 // where either boundary is unavailable, nothing is composed. The broker's resolver is
 // the public-address resolver; nothing in this configuration can replace it.
 //
-// G1-R4T-1: the Controller store and the Authority Archive are protected governance roots.
-// Before anything is constructed, both must already exist as safe, mutually disjoint
-// directories, and neither may overlap any path an agent, a model process or generated
+// G1-R4T-1/CM1: the Controller store, Authority Archive, and Change Registry are protected governance roots.
+// Before anything is constructed, all must already exist as safe, mutually disjoint
+// directories, and none may overlap any path an agent, a model process or generated
 // code can see (see agentVisiblePaths). The archive root is named here only so it can be
-// protected: no archive reader or appender is opened. Both Seatbelt boundaries receive
+// protected: no archive reader or appender is opened. No Change Mint capability is opened.
+// Both Seatbelt boundaries receive
 // the roots and check every invocation's effective paths again.
 
 const exact = z.string().min(1).refine((value) => value.trim() === value && !value.includes('\0'));
@@ -52,6 +53,8 @@ const configSchema = z.strictObject({
   controllerStoreDirectory: absolute,
   /** Protected, never opened by the live composition (G1-R4T-1). */
   authorityArchiveDirectory: absolute,
+  /** Protected only. No registry reader or minter is opened by this composition. */
+  changeRegistryDirectory: absolute,
   journalDirectory: absolute,
   egressJournalDirectory: absolute,
   environment: z.strictObject({ allow: z.array(z.string()).max(64) }),

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 //
 // MACHINE-ENFORCED here:
 //   - module dependency isolation: the transitive import graph of src/workspace stays inside
-//     src/workspace, and every external import is an allowlisted capability (named imports only);
+//     src/workspace plus the pure canonical identity module, and every external import is an allowlisted capability;
 //   - no Controller / AutomationRunner / Claude / Codex / provider adapter dependency, by import
 //     graph, by API name, and by the modules Node actually loads at runtime;
 //   - no child process (no child_process capability, none loaded, none spawned from workspace code);
@@ -27,6 +27,7 @@ import { fileURLToPath } from 'node:url';
 
 const WHY = 'WS-L1 queue is non-authoritative and may not start execution';
 const ROOT = process.cwd();
+const CANONICAL_IDENTITY = 'src/identity/canonical.ts';
 
 // The capabilities src/workspace may import, by exact named import. A default or namespace
 // import of a built-in is refused because it would hand over the whole module (http.request,
@@ -129,25 +130,27 @@ function importGraph() {
       if (!specifier.startsWith('.')) continue;
       const target = resolve(dirname(file), specifier.replace(/\.js$/, '.ts'));
       if (!existsSync(target)) throw new Error(`${relative(ROOT, file)} imports missing ${specifier}`);
-      if (relative(ROOT, target).startsWith('src/workspace/')) queue.push(target); else seen.add(target);
+      if (relative(ROOT, target).startsWith('src/workspace/') || relative(ROOT, target) === CANONICAL_IDENTITY) queue.push(target);
+      else seen.add(target);
     }
   }
   return [...seen].map((file) => relative(ROOT, file));
 }
 const workspaceFiles = () => readdirSync('src/workspace').filter((name) => name.endsWith('.ts')).map((name) => join('src/workspace', name));
+const guardedFiles = () => [...workspaceFiles(), CANONICAL_IDENTITY];
 
 check('the static import graph of src/workspace stays inside src/workspace', () => {
   const files = importGraph();
   for (const file of files) {
     const hit = FORBIDDEN.find(([pattern]) => pattern.test(file));
     assert.ok(!hit, `${WHY}: src/workspace reaches ${file} (${hit?.[1]})`);
-    assert.ok(file.startsWith('src/workspace/'), `${WHY}: src/workspace reaches ${file}`);
+    assert.ok(file.startsWith('src/workspace/') || file === CANONICAL_IDENTITY, `${WHY}: src/workspace reaches ${file}`);
   }
   assert.ok(files.length >= 4);
 });
 
 check('every src/workspace module imports only allowlisted capabilities and has no outbound network path', () => {
-  for (const file of workspaceFiles()) {
+  for (const file of guardedFiles()) {
     const found = violations(readFileSync(file, 'utf8'));
     assert.deepEqual(found, [], `${WHY}: ${file} ${found.join('; ')}`);
   }
@@ -261,7 +264,8 @@ check('at runtime the server loads no automation, provider, or execution module 
   assert.equal(result.created, true, 'goal create still works');
   assert.equal(result.removed, 200, 'goal delete still works');
   const local = result.loaded.filter((url) => url.startsWith('file:')).map((url) => relative(ROOT, fileURLToPath(url)));
-  const bad = local.filter((file) => file.startsWith('dist/') && !file.startsWith('dist/workspace/'));
+  const bad = local.filter((file) => file.startsWith('dist/') && !file.startsWith('dist/workspace/') &&
+    file !== 'dist/identity/canonical.js');
   assert.deepEqual(bad, [], `${WHY}: the running server loaded ${bad.join(', ')}`);
   assert.ok(!result.loaded.some((url) => /@anthropic-ai|\/openai\/|@google\/generative-ai|@modelcontextprotocol/.test(url)),
     `${WHY}: the running server loaded a provider or MCP package`);

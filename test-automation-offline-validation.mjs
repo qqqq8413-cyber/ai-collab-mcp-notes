@@ -21,10 +21,10 @@ import { GovernanceStoreIsolation } from './dist/automation/governance-store-iso
 
 /** G1-R4T-1: the protected governance roots every Seatbelt boundary must know. Holds no store capability. */
 const GOVERNANCE_DIR = realpathSync(mkdtempSync(join(tmpdir(), 'chief-governance-')));
-for (const name of ['controller', 'authority']) mkdirSync(join(GOVERNANCE_DIR, name), { mode: 0o700 });
+for (const name of ['controller', 'authority', 'registry']) mkdirSync(join(GOVERNANCE_DIR, name), { mode: 0o700 });
 process.on('exit', () => rmSync(GOVERNANCE_DIR, { recursive: true, force: true }));
 const GOVERNANCE = GovernanceStoreIsolation.forLiveRoots({ controllerStoreDirectory: join(GOVERNANCE_DIR, 'controller'),
-  authorityArchiveDirectory: join(GOVERNANCE_DIR, 'authority') });
+  authorityArchiveDirectory: join(GOVERNANCE_DIR, 'authority'), changeRegistryDirectory: join(GOVERNANCE_DIR, 'registry') });
 const tests = [];
 const check = (name, fn, { requires } = {}) => tests.push([name, fn, requires]);
 const seatbelt = process.platform === 'darwin' && existsSync(SANDBOX_EXEC) &&

@@ -47,10 +47,12 @@ function refused(fn, pattern = /./) {
 }
 const directory = (path) => { mkdirSync(path, { recursive: true, mode: 0o700 }); chmodSync(path, 0o700); return path; };
 function roots(base) {
-  return { controller: directory(join(base, 'controller')), authority: directory(join(base, 'authority')) };
+  return { controller: directory(join(base, 'controller')), authority: directory(join(base, 'authority')),
+    registry: directory(join(base, 'registry')) };
 }
-const isolation = (controller, authority) => GovernanceStoreIsolation.forLiveRoots({ controllerStoreDirectory: controller,
-  authorityArchiveDirectory: authority });
+const isolation = (controller, authority, registry = directory(join(dirname(authority), 'registry'))) =>
+  GovernanceStoreIsolation.forLiveRoots({ controllerStoreDirectory: controller,
+    authorityArchiveDirectory: authority, changeRegistryDirectory: registry });
 
 // ---------------------------------------------------------------- root identity
 check('1. disjoint controller and authority roots are accepted', (dir) => {
@@ -108,6 +110,25 @@ check('a root swapped after composition fails closed at the next check', (dir) =
   renameSync(second.authority, join(dir, 'authority-moved'));
   refused(() => later.assertDisjoint('elsewhere', join(dir, 'elsewhere')), /AUTHORITY_ARCHIVE root does not exist/);
 });
+check('CM1. registry root is required, real, safe, and disjoint from both existing roots', (dir) => {
+  const { controller, authority, registry } = roots(dir);
+  refused(() => GovernanceStoreIsolation.forLiveRoots({ controllerStoreDirectory: controller,
+    authorityArchiveDirectory: authority }), /CHANGE_REGISTRY is not an absolute/);
+  refused(() => isolation(controller, authority, controller), /overlap/);
+  refused(() => isolation(controller, authority, authority), /overlap/);
+  refused(() => isolation(controller, authority, join(controller, 'registry')), /does not exist/);
+  const alias = join(dir, 'registry-alias'); symlinkSync(registry, alias);
+  refused(() => isolation(controller, authority, alias), /symlink/);
+  chmodSync(registry, 0o777);
+  refused(() => isolation(controller, authority, registry), /writable by group or others/);
+  chmodSync(registry, 0o700);
+  const governance = isolation(controller, authority, registry);
+  refused(() => governance.assertDisjoint('model workspace', registry), /CHANGE_REGISTRY/);
+  refused(() => governance.assertNotRoot('fixed literal', registry), /CHANGE_REGISTRY/);
+  renameSync(registry, join(dir, 'moved-registry'));
+  directory(registry);
+  refused(() => governance.assertDisjoint('elsewhere', join(dir, 'elsewhere')), /CHANGE_REGISTRY root changed/);
+});
 
 // ---------------------------------------------------------------- static composition (the real createLiveAutomation)
 const PINS = realpathSync(mkdtempSync(join(tmpdir(), 'chief-r4t-pins-')));
@@ -123,8 +144,9 @@ const CODEX = { ...pinned('codex'), provider: 'openai', model: 'gpt-5.5-codex', 
   maxStdoutBytes: 1_000_000, maxStderrBytes: 1_000_000, maxResultBytes: 100_000, disabledFeatures: [] };
 function liveConfig(dir, change = (config) => config) {
   for (const path of ['repo', 'worktrees', 'deps']) directory(join(dir, path));
-  const { controller, authority } = roots(join(dir, 'governance'));
+  const { controller, authority, registry } = roots(join(dir, 'governance'));
   return change({ repository: 'synthetic/example', controllerStoreDirectory: controller, authorityArchiveDirectory: authority,
+    changeRegistryDirectory: registry,
     journalDirectory: join(dir, 'journal'), egressJournalDirectory: join(dir, 'egress'), environment: { allow: ['PATH'] }, claude: CLAUDE, codex: CODEX,
     git: { executable: 'git', remote: 'origin', repositoryPath: join(dir, 'repo'), worktreeRoot: join(dir, 'worktrees'), timeoutMs: 60_000,
       maxOutputBytes: 1_000_000, commitAuthor: { name: 'CHIEF automation', email: 'automation@example.invalid' }, validationTimeoutMs: 60_000,
@@ -142,11 +164,12 @@ function compose(config, count = counted(), inject = false) {
 }
 /** A composition refusal: classified, before any process, and with nothing created anywhere. */
 function tree(path) {
-  return existsSync(path) ? readdirSync(path, { recursive: true }).map(String).sort() : null;
+  return typeof path === 'string' && existsSync(path) ? readdirSync(path, { recursive: true }).map(String).sort() : null;
 }
 function compositionRefused(dir, config, pattern) {
   const count = counted();
-  const watched = [config.controllerStoreDirectory, config.authorityArchiveDirectory, config.journalDirectory, config.egressJournalDirectory];
+  const watched = [config.controllerStoreDirectory, config.authorityArchiveDirectory, config.changeRegistryDirectory,
+    config.journalDirectory, config.egressJournalDirectory];
   const before = watched.map(tree);
   refused(() => compose(config, count), pattern);
   assert.equal(count.processes, 0);
@@ -184,6 +207,20 @@ check('16. an offline validation runtime read path inside a root is refused', (d
   const config = liveConfig(dir);
   compositionRefused(dir, { ...config, offlineValidation: { runtimeReadPaths: [join(config.controllerStoreDirectory, 'toolchain')],
     searchPath: '/usr/bin' } }, /offlineValidation\.runtimeReadPaths\[0\] overlaps the protected CONTROLLER_STORE root/);
+});
+check('CM1. live composition protects the registry without opening a mint capability', (dir) => {
+  const config = liveConfig(dir);
+  const before = tree(config.changeRegistryDirectory);
+  assert.throws(() => compose({ ...config, changeRegistryDirectory: undefined }), /changeRegistryDirectory/);
+  assert.deepEqual(tree(config.changeRegistryDirectory), before);
+  compositionRefused(dir, git(config, { repositoryPath: config.changeRegistryDirectory }), /CHANGE_REGISTRY/);
+  compositionRefused(dir, { ...config, modelProcess: { runtimeReadPaths: [config.changeRegistryDirectory], searchPath: '/usr/bin' } },
+    /CHANGE_REGISTRY/);
+  compositionRefused(dir, { ...config, offlineValidation: { runtimeReadPaths: [config.changeRegistryDirectory], searchPath: '/usr/bin' } },
+    /CHANGE_REGISTRY/);
+  const live = compose(config, counted(), true);
+  assert.deepEqual(Object.keys(live).sort(), ['controller', 'egressJournal', 'journal', 'reality', 'runner']);
+  assert.deepEqual(readdirSync(config.changeRegistryDirectory), [], 'composition opened or minted in the registry');
 });
 check('17-18. operational journals may not share a governance root', (dir) => {
   const config = liveConfig(dir);
@@ -305,6 +342,12 @@ check('27. a disjoint model request keeps the existing Seatbelt behavior', async
   assert.equal(outcome.egress.status, 'RECORDED');
   assert.equal(b.executor.runs, 2, 'the profile probe and the CLI');
 }, seatbeltOnly);
+check('CM1. a model process cannot read or write the Change Registry', async (dir) => {
+  const b = modelBoundary(dir);
+  const registry = join(dirname(b.controller), 'registry');
+  await b.noProcess({ readOnlyPaths: [registry] }, /CHANGE_REGISTRY/);
+  await b.noProcess({ writablePaths: [registry] }, /CHANGE_REGISTRY/);
+}, seatbeltOnly);
 
 // ---------------------------------------------------------------- offline validation (real Seatbelt executor)
 function validationBoundary(dir, { runtimeReadPaths = [] } = {}) {
@@ -363,6 +406,12 @@ check('34. a disjoint validation request keeps the existing behavior', async (di
   assert.equal(outcome.result.exitCode, 0);
   assert.equal(outcome.result.stdout.trim(), realpathSync(b.work));
   assert.equal(b.executor.runs, 2, 'the profile probe and the command');
+}, seatbeltOnly);
+check('CM1. offline validation cannot read or write the Change Registry', async (dir) => {
+  const b = validationBoundary(dir);
+  const registry = join(dirname(b.controller), 'registry');
+  await b.noProcess({ readOnlyPaths: [registry] }, /CHANGE_REGISTRY/);
+  await b.noProcess({ workspace: registry, cwd: registry }, /CHANGE_REGISTRY/);
 }, seatbeltOnly);
 
 // ---------------------------------------------------------------- capability topology (production source graph)
@@ -423,6 +472,14 @@ check('40. no run-creation path, endpoint or tool exists outside the controller'
   assert.deepEqual(callers.map(rel), []);
   assert.deepEqual(SRC.filter((path) => /['"`]\/(api\/[^'"`]*\/)?(run|start)['"`]/.test(text(path))).map(rel), []);
   assert.deepEqual(SRC.filter((path) => /createLiveAutomation\(/.test(text(path)) && !path.endsWith(join('live', 'composition.ts'))).map(rel), []);
+});
+check('CM1. no production runtime holds Change Minter or imports the registry', () => {
+  const implementation = join('src', 'automation', 'change-registry.ts');
+  const outside = SRC.filter((path) => rel(path) !== implementation);
+  assert.deepEqual(outside.filter((path) => /openChangeMinter|ChangeMinter|change-registry\.js/.test(text(path))).map(rel), []);
+  assert.deepEqual(SRC.filter((path) => rel(path).startsWith('src/workspace/') && /change-mint|change-registry/.test(text(path))).map(rel), []);
+  assert.deepEqual(SRC.filter((path) => rel(path).startsWith('src/automation/read-model/') &&
+    /change-mint|change-registry/.test(text(path))).map(rel), []);
 });
 
 let passed = 0, failed = 0, skipped = 0;

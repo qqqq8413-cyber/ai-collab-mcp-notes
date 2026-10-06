@@ -360,19 +360,20 @@ scope must equal.
 
 ### 8.2 Governance Store Isolation (G1-R4T-1)
 
-1. The Controller store (runs and R4L admission state) and the Authority
-   Archive (DIRECT_AUTHORITY) are the protected governance roots.
+1. The Controller store (runs and R4L admission state), Authority Archive
+   (DIRECT_AUTHORITY), and CM1 Change Registry (operational mint records) are
+   the protected governance roots.
 2. No agent, model process, model workspace, offline validation process or
-   model-generated code may read or write either root's raw files. A checksum
+   model-generated code may read or write any root's raw files. A checksum
    is no substitute: whoever can rewrite a record can rewrite its checksum.
-3. The two roots must be mutually disjoint and disjoint from every
+3. The three roots must be mutually disjoint and disjoint from every
    agent-visible filesystem tree: repository, worktree root, linked dependency
    sources, model and validation runtime paths and search paths, model
    executables, the operational journals, and the fixed Seatbelt trees. Overlap
    means equal, inside, containing, or the same tree through any alias; it is
    decided by filesystem identity and component-wise canonical paths, never by
    string prefixes. Unresolvable identity fails closed.
-4. LIVE composition requires both roots to exist already as real directories
+4. LIVE composition requires all three roots to exist already as real directories
    (not symlinks) owned by the host account and not writable by group or
    others. It refuses, before constructing anything, on any unsafe identity,
    alias, ownership or permission, and repairs nothing
@@ -391,7 +392,13 @@ scope must equal.
    not Human authentication, and it does not protect against the kernel, root,
    the host account, or code already inside the trusted host process.
 9. R4T does not make hashes authentic.
-10. D1 remains unimplemented. R4A0 is the read-only projection of Section 6.2.
+10. D1 binds a configured Human principal to a local Workspace session and
+    attributes new Goals; it is not Human authentication or authorization.
+    R4A0 is the read-only projection of Section 6.2.
+11. CM1's Change Registry has separate reader and minter capabilities, but no
+    production runtime holds the minter. LIVE composition protects its root
+    without opening either capability. Workspace does not mint Changes, and
+    R4A0 does not project freshly minted Changes.
 
 ## 9. CHIEF Domain Boundary
 

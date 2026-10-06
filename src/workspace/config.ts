@@ -1,24 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { z } from 'zod';
+import { PROJECT_ID, humanPrincipalSchema, parseHumanPrincipalV1, type HumanPrincipalV1 } from '../identity/canonical.js';
 
 // Local operator configuration for the Workspace: which projects exist and where their
 // non-authoritative goal queues are kept. CHIEF has no canonical Project entity yet, so
 // projects come only from this file. Nothing here is inferred from Controller storage,
 // and nothing here is an authority record.
 
-export const PROJECT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
+export { PROJECT_ID, humanPrincipalSchema, parseHumanPrincipalV1, type HumanPrincipalV1 } from '../identity/canonical.js';
 const MAX_PROJECTS = 50;
 
 const text = (max: number) => z.string().trim().min(1).max(max).refine((value) => !/[\u0000-\u001f\u007f]/.test(value), 'control characters are not allowed');
-const principalRef = z.string().min(1).max(256)
-  .refine((value) => value.trim() === value && !/\p{Cc}/u.test(value), 'principalRef must be exact and contain no control characters');
-export const humanPrincipalSchema = z.strictObject({ schemaVersion: z.literal(1), kind: z.literal('HUMAN'), principalRef });
-export type HumanPrincipalV1 = Readonly<z.infer<typeof humanPrincipalSchema>>;
-
-export function parseHumanPrincipalV1(input: unknown): HumanPrincipalV1 {
-  return Object.freeze(humanPrincipalSchema.parse(input));
-}
 
 const projectSchema = z.strictObject({
   projectId: z.string().regex(PROJECT_ID, 'projectId must be lower-case letters, digits, and hyphens (at most 63)'),
@@ -31,7 +24,7 @@ const configSchema = z.strictObject({
   schemaVersion: z.literal(1),
   /** Directory holding the goal queues. Relative paths resolve against the configuration file's directory. */
   dataDirectory: text(1024),
-  humanPrincipal: z.strictObject({ principalRef }),
+  humanPrincipal: z.strictObject({ principalRef: humanPrincipalSchema.shape.principalRef }),
   projects: z.array(projectSchema).min(1).max(MAX_PROJECTS),
 });
 
