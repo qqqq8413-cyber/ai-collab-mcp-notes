@@ -70,13 +70,17 @@ function resolveEntry(signals) {
 }
 // Routes: '', '#', '#/' and anything unknown are the root. Explicit destinations: '#/projects', '#/activity',
 // '#/advanced', and a project view '#/p/<id>/now' (此刻), '#/p/<id>/conversation' (往來) or
-// '#/p/<id>/collaboration' (協作室); '#/p/<id>' alone is 此刻.
+// '#/p/<id>/collaboration' (協作室, its 討論 area; '/collaboration/needs' is its 需要你 area); '#/p/<id>' alone is 此刻.
 const ROUTES = ['projects', 'activity', 'advanced'];
 const PANES = ['now', 'conversation', 'collaboration'];
+const AREAS = ['discussion', 'needs'];
 function parseRoute(hash) {
-  const m = /^#\/p\/([^/]+)(?:\/([a-z]+))?$/.exec(hash);
-  if (m && (m[2] === undefined || PANES.includes(m[2]))) {
-    try { return { view: 'project', projectId: decodeURIComponent(m[1]), pane: m[2] ?? 'now', root: false }; } catch { return { view: 'home', root: true }; }
+  const m = /^#\/p\/([^/]+)(?:\/([a-z]+)(?:\/([a-z]+))?)?$/.exec(hash);
+  if (m && (m[2] === undefined || PANES.includes(m[2])) && (m[3] === undefined || (m[2] === 'collaboration' && AREAS.includes(m[3])))) {
+    const pane = m[2] ?? 'now';
+    try {
+      return { view: 'project', projectId: decodeURIComponent(m[1]), pane, ...(pane === 'collaboration' ? { area: m[3] ?? 'discussion' } : {}), root: false };
+    } catch { return { view: 'home', root: true }; }
   }
   const v = /^#\/(\w+)$/.exec(hash)?.[1];
   if (ROUTES.includes(v)) return { view: v, root: false };
@@ -84,7 +88,7 @@ function parseRoute(hash) {
 }
 // Boot decision: only the root runs the attention resolver; an explicit destination is kept as it is.
 function entryFor(route, signals) {
-  if (!route.root) return { view: route.view, projectId: route.projectId, ...(route.pane ? { pane: route.pane } : {}) };
+  if (!route.root) return { view: route.view, projectId: route.projectId, ...(route.pane ? { pane: route.pane } : {}), ...(route.area ? { area: route.area } : {}) };
   const entry = resolveEntry(signals);
   return entry.kind === 'project' ? { view: 'project', projectId: entry.projectId, focal: entry.focal } : { view: 'home' };
 }
@@ -127,10 +131,11 @@ function homeSections(signals, lastViewed, recent) {
 // ---------- end entry resolver
 
 // ---------- state
-// view: home (belongs to no project) | project (one project's 此刻 / 往來 / 協作室, by pane) | projects | activity | advanced
+// view: home (belongs to no project) | project (one project's 此刻 / 往來 / 協作室, by pane; 協作室's 討論 / 需要你, by area)
+// | projects | activity | advanced
 const S = {
   view: 'home', pid: null, target: null, homeAck: null, projects: [], queues: {}, collab: {}, conn: 'connecting', pop: null, sheet: null,
-  decision: null, confirm: null, sending: false, loadError: null, pane: 'now',
+  decision: null, confirm: null, sending: false, loadError: null, pane: 'now', area: 'discussion',
 };
 const LAST = `chief.workspace.${source.mode}.project`; // last viewed project: a local, non-authoritative UI preference
 const RECENT = `chief.workspace.${source.mode}.recent`; // recently opened projects, newest first: the same kind of preference
@@ -151,7 +156,7 @@ const demoRoom = (projectId = S.pid) => DEMO || room(projectId).provenance === '
 const attentionOf = () => Object.fromEntries(Object.values(S.collab)
   .filter((item) => item.summary.needsHuman.length).map((item) => [item.projectId, item.summary.needsHuman[0].timestamp]));
 const signals = () => signalsOf(S.projects, attentionOf());
-const paneHref = (projectId, pane) => `#/p/${encodeURIComponent(projectId)}/${pane}`;
+const paneHref = (projectId, pane, area) => `#/p/${encodeURIComponent(projectId)}/${pane}${pane === 'collaboration' && area === 'needs' ? '/needs' : ''}`;
 
 // ---------- data
 async function loadProjects() {
@@ -286,10 +291,12 @@ function stageHTML() {
   const first = goals[0];
   const r = room();
   const needs = r.summary.needsHuman;
-  const toRoom = (label, cls) => `<a class="${cls}" href="${paneHref(p.projectId, 'collaboration')}" data-act="pane" data-v="collaboration">${label}</a>`;
+  const toRoom = (label, cls, area) => (area === 'needs'
+    ? `<a class="${cls}" href="${paneHref(p.projectId, 'collaboration', 'needs')}" data-act="room" data-v="${esc(p.projectId)}">${label}</a>`
+    : `<a class="${cls}" href="${paneHref(p.projectId, 'collaboration')}" data-act="pane" data-v="collaboration">${label}</a>`);
   const focal = needs.length
     ? `<section class="card focal need" aria-labelledby="focal-h"><header class="card-h"><span class="pulse idle need" aria-hidden="true"></span><h2 class="ch-t" id="focal-h">需要你</h2><span class="ch-s">${esc(needs[0].actor)} 在協作室提出${needs.length > 1 ? ` · 共 ${needs.length} 件` : ''}${demoRoom() ? ' · 示範資料' : ''}</span></header>
-        <div class="card-b"><p class="need-x">${esc(needs[0].body).replace(/\n/g, '<br>')}</p>${toRoom('查看協作室', 'btn gold')}</div></section>`
+        <div class="card-b"><p class="need-x">${esc(needs[0].body).replace(/\n/g, '<br>')}</p>${toRoom('查看協作室', 'btn gold', 'needs')}</div></section>`
     : first
       ? `<section class="card focal" aria-labelledby="focal-h"><header class="card-h"><span class="pulse idle" aria-hidden="true"></span><h2 class="ch-t" id="focal-h">已加入工作清單 · 排隊第 1 個</h2><span class="ch-s">尚未開始執行 · ${time(first.createdAt)} 加入</span></header>
         <div class="card-b">${NOTE}</div></section>`
@@ -303,7 +310,7 @@ function stageHTML() {
       <h1 class="goal" id="stage-h">${first ? esc(first.text) : '還沒有排隊的目標'}</h1>
       <dl class="now">
         <div class="nw"><dt>Chief 現在</dt><dd>${first ? '排隊中 · 尚未開始執行' : '沒有工作'}</dd></div>
-        <div class="nw"><dt>需要你嗎</dt><dd>${needs.length ? toRoom(`需要，${needs.length} 件事等你決定`, 'need-a') : '不需要'}</dd></div>
+        <div class="nw"><dt>需要你嗎</dt><dd>${needs.length ? toRoom(`需要，${needs.length} 件事等你決定`, 'need-a', 'needs') : '不需要'}</dd></div>
       </dl>
       <div class="focus">${focal}${records}</div>
       <div class="ledger">${queueHTML()}
@@ -324,7 +331,7 @@ function homeView() {
   const need = sections.attention.map((projectId) => {
     const item = byId(projectId);
     const needs = room(projectId).summary.needsHuman;
-    return `<li><a class="hn" href="${paneHref(projectId, 'collaboration')}" data-act="room" data-v="${esc(projectId)}"><span class="pulse idle need" aria-hidden="true"></span>
+    return `<li><a class="hn" href="${paneHref(projectId, 'collaboration', 'needs')}" data-act="room" data-v="${esc(projectId)}"><span class="pulse idle need" aria-hidden="true"></span>
       <span class="hn-b"><span class="hn-p">${esc(item.displayName)}${needs.length > 1 ? ` · ${needs.length} 件` : ''}${demoRoom(projectId) ? ' · 示範資料' : ''}</span><span class="hn-x">${esc(needs[0].body).replace(/\n/g, ' ')}</span></span>${ic('arrow', 16)}</a></li>`;
   }).join('');
   const row = (projectId) => {
@@ -376,8 +383,8 @@ function projectView() {
   } else if (S.pane === 'collaboration') {
     pane = `<section class="stage room" id="room" aria-label="協作室"><div class="scroll" id="room-scroll" tabindex="0" aria-label="協作室的內容"><div class="work">
         <div class="sn-meta"><span class="sn-k">協作室</span><span>${esc(p.displayName)}</span></div>
-        <p class="room-lede">參與工作的 AI 之間實際發生的提案、審查、交接與證據。這裡不包含 AI 的內部推理。</p>
-        ${roomHTML(r, { demo: demoRoom() })}</div></div></section>`;
+        <p class="room-lede">參與工作的 AI 明確送出的提案、審查意見、交接、證據與決策理由摘要。這是工作紀錄，不是 AI 的思考過程。</p>
+        ${roomHTML(r, { demo: demoRoom(), area: S.area, hrefs: { discussion: paneHref(p.projectId, 'collaboration'), needs: paneHref(p.projectId, 'collaboration', 'needs') } })}</div></div></section>`;
   } else {
     pane = `<section class="stage" id="stage" aria-label="此刻"><div class="scroll" id="stage-scroll">${stageHTML()}</div></section>`;
   }
@@ -519,16 +526,17 @@ async function remove(goalId) {
 }
 
 // ---------- navigation: explicit Human navigation is always respected; the entry resolver runs once, at root entry.
-const hashOf = () => (S.view === 'project' ? paneHref(S.pid, S.pane) : S.view === 'home' ? '#/' : `#/${S.view}`);
+const hashOf = () => (S.view === 'project' ? paneHref(S.pid, S.pane, S.area) : S.view === 'home' ? '#/' : `#/${S.view}`);
 let booted = false;
-// A project opens on 此刻 unless a view is named; switching projects closes a sheet that belonged to the old one.
-function go(view, projectId, { replace = false, pane } = {}) {
+// A project opens on 此刻 unless a view is named, and 協作室 on 討論 unless 需要你 is named; switching projects closes a
+// sheet that belonged to the old one.
+function go(view, projectId, { replace = false, pane, area } = {}) {
   S.pop = null; S.confirm = null; S.homeAck = null;
   if (view === 'project') {
     if (!byId(projectId)) view = 'home';
     else {
-      if (S.pid !== projectId) { S.pane = 'now'; S.sheet = null; S.decision = null; }
-      if (PANES.includes(pane)) S.pane = pane;
+      if (S.pid !== projectId) { S.pane = 'now'; S.area = 'discussion'; S.sheet = null; S.decision = null; }
+      if (PANES.includes(pane)) { S.pane = pane; if (pane === 'collaboration') S.area = AREAS.includes(area) ? area : 'discussion'; }
       S.pid = projectId; writeLastViewed(projectId);
     }
   }
@@ -537,7 +545,7 @@ function go(view, projectId, { replace = false, pane } = {}) {
   if (location.hash !== hashOf()) history[replace ? 'replaceState' : 'pushState'](null, '', `${location.search}${hashOf()}`);
   render();
 }
-addEventListener('popstate', () => { const route = parseRoute(location.hash); go(route.view, route.projectId, { pane: route.pane }); });
+addEventListener('popstate', () => { const route = parseRoute(location.hash); go(route.view, route.projectId, { pane: route.pane, area: route.area }); });
 
 document.addEventListener('change', (event) => {
   if (event.target.id === 'target') { S.target = event.target.value; render(); }
@@ -551,7 +559,8 @@ document.addEventListener('click', (event) => {
   switch (act) {
     case 'nav': go(v); break;
     case 'open': go('project', v); break;
-    case 'room': go('project', v, { pane: 'collaboration' }); break;
+    case 'room': go('project', v, { pane: 'collaboration', area: 'needs' }); $('#needs-h')?.focus(); break;
+    case 'room-tab': go('project', S.pid, { pane: 'collaboration', area: v }); document.getElementById(v === 'needs' ? 'needs-h' : 'disc-h')?.focus(); break;
     case 'pop': S.pop = S.pop === v ? null : v; render(); break;
     case 'fill': { const composer = $('#composer'); if (composer) { composer.value = v; composer.focus(); } break; }
     case 'up': void move(v, -1); break;
@@ -585,9 +594,9 @@ await reloadAll();
 // is kept. Back/forward and clicks go straight to their destination, and SSE updates never navigate.
 {
   const entry = entryFor(parseRoute(location.hash), signals());
-  go(entry.view, entry.projectId, { replace: true, pane: entry.pane });
+  go(entry.view, entry.projectId, { replace: true, pane: entry.pane, area: entry.area });
   booted = true;
 }
-window.__WORKSPACE = Object.freeze({ mode: source.mode, state: () => structuredClone({ view: S.view, pid: S.pid, pane: S.pane, target: S.target, conn: S.conn,
+window.__WORKSPACE = Object.freeze({ mode: source.mode, state: () => structuredClone({ view: S.view, pid: S.pid, pane: S.pane, area: S.area, target: S.target, conn: S.conn,
   projects: S.projects, queues: S.queues, collab: Object.fromEntries(Object.values(S.collab).map((item) => [item.projectId,
     { provenance: item.provenance, events: item.events.length, rejected: item.rejected, needsHuman: item.summary.needsHuman.length }])) }) });

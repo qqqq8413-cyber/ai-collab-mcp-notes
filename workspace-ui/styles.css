@@ -249,61 +249,107 @@ ol,ul{margin:0;padding:0;list-style:none}
 .btn.gold{background:none;color:var(--human);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 70%,transparent);text-decoration:none}
 .btn.gold:hover{background:var(--gold);color:var(--slab);box-shadow:none}
 
-/* 協作室: the AIs' work record. Summary first, then 需要你, then the record, oldest first, on one hairline thread */
-.room-lede{margin-top:12px;color:var(--muted);font-size:13.5px;max-width:40em}
+/* 協作室 (WS-P2): the summary across the top; below it AI 討論 and the 需要你 rail side by side when the room itself is
+   wide (a container query, so the project spines and the window both count), one at a time behind [ 討論 ] [ 需要你 ]
+   when it is narrow. The discussion reads as exchanges: the event that opened one leads, its replies follow on its
+   thread, and an outcome line closes it only when the record shows one. Evidence hangs off the event that attached
+   it, ruled in that event's colour. */
+.room .work{max-width:1180px}
+.room-lede{margin-top:12px;color:var(--muted);font-size:13.5px;max-width:44em}
 .demo-tag{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;margin-top:22px;padding:10px 16px;border-radius:var(--r-s);border:1px dashed var(--ctl);font-size:13px;color:var(--muted)}
 .demo-tag b{color:var(--fg);font-weight:600;letter-spacing:.06em}
-.c-empty{display:grid;gap:12px;padding:64px 0 32px;max-width:30em}
+.c-empty{display:grid;gap:12px;padding:20px 0 8px;max-width:30em}
 .ce-h{font:300 clamp(24px,2.4vw,30px)/1.4 var(--font-body);letter-spacing:.03em}
 .c-empty p{color:var(--muted);line-height:1.85}
 .c-left{margin-top:18px;font-size:13px;color:var(--muted)}
-.csum{margin-top:26px;display:grid;gap:18px;padding:22px 26px 24px;border-radius:var(--r);background:var(--card);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 8%,transparent),var(--shadow-1)}
-.csum-f{display:grid;gap:6px;font-size:16px}
-.csum-f li{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
-.cn{font:400 22px/1 var(--font-latin)}
-.csum-f li.need{color:var(--human)}
-.csum-who{flex-basis:100%;font-size:13px;color:var(--muted)}
-.csum-l{display:grid;gap:10px;padding-top:16px;border-top:1px solid var(--line)}
+/* summary: who took part, open disagreements, what needs you, what was agreed */
+.csum{margin-top:24px;display:grid;gap:18px;padding:20px 24px 22px;border-radius:var(--r);background:var(--card);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 8%,transparent),var(--shadow-1)}
+.cs-f{display:grid;grid-template-columns:repeat(auto-fit,minmax(9.5em,1fr));gap:14px 24px;margin:0}
+.cs-i{display:grid;gap:6px;align-content:start;min-width:0}
+.cs-i dt{font-size:12px;color:var(--muted);letter-spacing:.12em}
+.cs-i dd{margin:0;display:grid;gap:4px;min-width:0}
+.cn{font:400 28px/1 var(--font-latin)}
+.cs-i.need dt,.cs-i.need .cn{color:var(--human)}
+.cs-i.open .cn{color:var(--ev-challenge)}
+.cs-who{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.cs-l{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:16px 32px;padding-top:16px;border-top:1px solid var(--line)}
+.cs-l>div{display:grid;gap:10px;align-content:start;min-width:0}
 .bul{display:grid;gap:10px}
 .bul li{position:relative;padding-left:20px;font-size:15px;line-height:1.7;overflow-wrap:anywhere}
 .bul li::before{content:"";position:absolute;left:3px;top:.85em;width:7px;height:1px;background:var(--muted)}
 .bul-by{display:block;font-size:12px;color:var(--muted)}
-.needb{margin-top:18px;display:grid;justify-items:start;gap:12px;padding:20px 26px 22px;border-radius:var(--r);background:var(--human-bg);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 40%,transparent),var(--shadow-1)}
-.needb-h{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
-.needb-h h2{font-size:17px;font-weight:600;letter-spacing:.12em;color:var(--human)}
-.needb-m{font-size:12.5px;color:var(--muted)}
-.needb-x{font-size:16px;line-height:1.75;overflow-wrap:anywhere}
-.thread{margin-top:44px;display:grid;gap:12px}
-.thread h2.lbl{display:flex;align-items:baseline;gap:10px}
-.thread h2 .num{font:400 16px/1 var(--font-latin);color:var(--muted)}
-.evs{position:relative;display:grid;gap:28px;padding:8px 0 4px}
+/* the two areas */
+.room-body{margin-top:30px;container:room/inline-size}
+.rtabs{padding-bottom:18px}
+.rg{display:grid;gap:36px}
+.rg[data-area="discussion"] .nrail,.rg[data-area="needs"] .disc{display:none}
+@container room (min-width:760px){
+  .rtabs{display:none}
+  .rg{grid-template-columns:minmax(0,1fr) minmax(240px,300px);align-items:start}
+  .rg[data-area] .disc,.rg[data-area] .nrail{display:block}
+  .nrail{position:sticky;top:20px}
+}
+.disc,.nrail{min-width:0}
+.disc-h{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
+.disc-h .num{font:400 16px/1 var(--font-latin);color:var(--muted)}
+.who{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
+.who li{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;min-width:0;max-width:100%;padding:6px 14px;border-radius:999px;background:var(--tint);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 8%,transparent);font-size:13.5px}
+.who b{font-weight:600;letter-spacing:.04em;overflow-wrap:anywhere}
+.who-r,.who-c{color:var(--muted)}
+.who-c{font-size:12.5px}
+/* exchanges */
+.xgs{display:grid;gap:18px}
+.xg{display:grid;gap:14px;min-width:0;padding:18px 20px 16px;border-radius:var(--r);background:var(--tint);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 6%,transparent)}
+.xg-sys{padding:2px 4px}
+.xg-out{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin-left:29px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.xg-k{font-weight:600;letter-spacing:.1em}
+.o-agreed .xg-k{color:var(--ev-agree)}
+.o-open .xg-k{color:var(--ev-challenge)}
+.o-human .xg-k,.o-human a{color:var(--human)}
+.evs{position:relative;display:grid;gap:18px}
 .evs::before{content:"";position:absolute;left:5px;top:16px;bottom:16px;width:1px;background:var(--line)}
-.ev{position:relative;display:grid;grid-template-columns:11px minmax(0,1fr);column-gap:22px;min-width:0}
-.ev-n{position:relative;z-index:1;width:11px;height:11px;margin-top:8px;border-radius:50%;background:var(--slab);box-shadow:inset 0 0 0 1.5px var(--ctl)}
+.ev{position:relative;display:grid;grid-template-columns:11px minmax(0,1fr);column-gap:18px;min-width:0;--tone:var(--ctl)}
+.ev-n{position:relative;z-index:1;width:11px;height:11px;margin-top:7px;border-radius:50%;background:var(--tint);box-shadow:inset 0 0 0 1.5px var(--ctl)}
 .ev-b{min-width:0;max-width:44em;display:grid;gap:6px}
 .ev-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px}
-.ev-a{font-weight:600;letter-spacing:.04em}
+.ev-t{font-size:12px;font-weight:600;letter-spacing:.14em;color:var(--muted);white-space:nowrap}
+.ev-a{font-weight:600;letter-spacing:.04em;overflow-wrap:anywhere}
 .ev-m{font-size:12.5px;color:var(--muted)}
-.ev-t{margin-left:auto;font-size:12px;font-weight:500;letter-spacing:.14em;color:var(--muted);white-space:nowrap}
-.ev-x{font-size:15px;line-height:1.85;letter-spacing:.02em;overflow-wrap:anywhere;max-width:40em}
-/* each kind of event: the shape of its node and the colour of its word. Gold stays the Human's (需要你). */
+.ev-x{font-size:14.5px;line-height:1.8;letter-spacing:.02em;overflow-wrap:anywhere;max-width:40em;color:color-mix(in srgb,var(--fg) 88%,var(--muted))}
+.ev.lead .ev-x{font-size:16.5px;line-height:1.75;color:var(--fg)}
+/* each kind of event: the shape of its node, the colour of its word and of its evidence rule. Gold stays the Human's. */
 .t-proposal .ev-n{box-shadow:inset 0 0 0 1.5px var(--fg)}
+.t-proposal,.t-response,.t-handoff,.t-evidence{--tone:color-mix(in srgb,var(--fg) 55%,transparent)}
 .t-proposal .ev-t,.t-response .ev-t,.t-handoff .ev-t{color:var(--fg)}
 .t-question .ev-n{box-shadow:none;border:1.5px dashed var(--muted)}
+.t-challenge{--tone:var(--ev-challenge)}
 .t-challenge .ev-n{background:var(--ev-challenge);box-shadow:none}
 .t-challenge .ev-t{color:var(--ev-challenge)}
-.t-response .ev-n{background:var(--fg);box-shadow:0 0 0 3px var(--slab);transform:scale(.72)}
+.t-response .ev-n{background:var(--fg);box-shadow:0 0 0 3px var(--tint);transform:scale(.72)}
 .t-handoff .ev-n{border-radius:2px;transform:rotate(45deg) scale(.82);box-shadow:inset 0 0 0 1.5px var(--fg)}
-.t-evidence .ev-n{border-radius:2px;background:var(--muted);box-shadow:0 0 0 3px var(--slab);transform:scale(.78)}
+.t-evidence .ev-n{border-radius:2px;background:var(--muted);box-shadow:0 0 0 3px var(--tint);transform:scale(.78)}
+.t-agreement{--tone:var(--ev-agree)}
 .t-agreement .ev-n{background:var(--ev-agree);box-shadow:none}
 .t-agreement .ev-t{color:var(--ev-agree)}
-.t-escalation .ev-n{box-shadow:inset 0 0 0 1.5px var(--gold),0 0 0 3px color-mix(in srgb,var(--gold) 24%,transparent);background:radial-gradient(circle,var(--gold) 0 30%,var(--slab) 33%)}
+.t-escalation{--tone:var(--gold)}
+.t-escalation .ev-n{box-shadow:inset 0 0 0 1.5px var(--gold),0 0 0 3px color-mix(in srgb,var(--gold) 24%,transparent);background:radial-gradient(circle,var(--gold) 0 30%,var(--tint) 33%)}
 .t-escalation .ev-t{color:var(--human)}
-.ev.ev-sys{display:block;padding-left:33px}
+.ev.ev-sys{display:block}
 .ev-sl{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
-.ev-sys .ev-t{margin-left:0}
-/* evidence: display only */
-.evd{display:grid;gap:4px;margin:4px 0 0;padding:10px 14px;border-radius:var(--r-s);background:var(--tint);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 7%,transparent);max-width:40em;min-width:0;font-size:13.5px}
+/* 需要你: open escalations, shown and never answered */
+.nr-h{display:flex;align-items:baseline;gap:10px;margin-bottom:14px;font-size:12.5px;font-weight:500;letter-spacing:.08em;color:var(--muted)}
+.nrail.has-need .nr-h{color:var(--human)}
+.nr-h .num{font:400 16px/1 var(--font-latin)}
+.nr{display:grid;gap:12px}
+.nr-i{display:grid;justify-items:start;gap:10px;min-width:0;padding:18px;border-radius:var(--r);background:var(--human-bg);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 40%,transparent),var(--shadow-1)}
+.nr-q{font-size:15.5px;line-height:1.7;overflow-wrap:anywhere}
+.nr-m{font-size:12.5px;color:var(--muted)}
+.nr-i .evd{width:100%;--tone:var(--gold)}
+.nr-empty{display:grid;gap:6px;padding:18px;border-radius:var(--r);box-shadow:inset 0 0 0 1px var(--line);font-size:13.5px;line-height:1.7;color:var(--muted)}
+.nr-empty p:first-child{color:var(--fg)}
+/* evidence: display only, hanging off the event (or escalation) that attached it */
+.evd{display:grid;gap:4px;margin:6px 0 0;padding:10px 14px 10px 12px;border-left:2px solid var(--tone,var(--ctl));border-radius:0 var(--r-s) var(--r-s) 0;background:color-mix(in srgb,var(--slab) 70%,transparent);max-width:40em;min-width:0;font-size:13.5px}
+.evd::before{content:"附上的證據";font-size:11.5px;color:var(--muted);letter-spacing:.12em}
 .evd-r{display:grid;grid-template-columns:3.4em minmax(0,1fr);gap:10px;align-items:baseline}
 .evd dt{color:var(--muted);font-size:12px;letter-spacing:.1em}
 .evd dd{margin:0;min-width:0;overflow-wrap:anywhere}
@@ -415,7 +461,8 @@ ol,ul{margin:0;padding:0;list-style:none}
   .jscroll{padding-top:12px}
   .dock{max-width:none;padding:8px 12px 10px;background:var(--slab);border-top:1px solid var(--line)}
   .mt a{padding:0 14px;letter-spacing:.16em}
-  .csum,.needb{padding:18px 18px 20px}
+  .csum,.nr-i,.xg{padding:16px 16px 14px}
+  .xg-out{margin-left:0}
   .ev{column-gap:16px}
   .hn{padding:12px 14px}
   .view.other{margin:0;border-radius:var(--r-l) var(--r-l) 0 0}
