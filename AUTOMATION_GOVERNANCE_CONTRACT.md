@@ -123,6 +123,20 @@ change identities must come from a governed change-mint or adoption process,
 and who may request a run is decided at the governed authorization boundary. No
 caller may choose an arbitrary new sliceId to obtain a fresh change.
 
+G1-RA1 is the first production run-creation surface, and the only one. A trusted
+host turns an already governed Workspace Goal (its exact CM1/GC1 Change) into that
+Change's ROOT run through `AutomationController.createRun`, so this section's
+`ControllerStore.create` decides every admission; RA1 writes no claim or run
+itself. The ROOT runId is deterministic and caller-free: `"run-" + changeKey`
+(the exact 64-hex key, never truncated or normalised). Repeated, concurrent and
+post-crash (`ROOT_PENDING`) admissions of one Change therefore all name the same
+run and converge through R4L storage alone. A ROOT under any other runId is
+`RUN_IDENTITY_CONFLICT` and is never adopted, renamed or backfilled; a run lock
+left by an uncertain writer is `RUN_ADMISSION_UNCERTAIN` and is never removed.
+The run is created empty in `IDLE` and nothing follows: RA1 reaches no lifecycle
+method, packet, runner, model or authority. The Admission record and the run are
+operational records; the local Human's request is not an R4P authorization.
+
 The file store requires a local filesystem with atomic, exclusive link(2)
 publication and durable directory fsync. Network, sync and remote filesystems
 are unsupported for `controllerStoreDirectory`; where link publication is
@@ -388,7 +402,8 @@ scope must equal.
    reader; it holds no appender and is wired into no runtime surface.
 7. Workspace receives no raw governance writer and no controller, runner, store
    or model capability. GC1 permits the server to receive only a narrow injected
-   GoalGovernancePort from a trusted host outside `src/workspace`.
+   GoalGovernancePort, and RA1 only a narrow injected GoalRunAdmissionPort, from
+   a trusted host outside `src/workspace`.
 8. R4T is capability and storage isolation inside one trusted host account,
    not Human authentication, and it does not protect against the kernel, root,
    the host account, or code already inside the trusted host process.
@@ -410,6 +425,19 @@ scope must equal.
     authority and appends no authority document. R4A0 remains unchanged: it
     projects Controller/Authority evidence and therefore has no mint-only Change
     entry before a Run exists.
+13. RA1's trusted intake protects two roots, the Change Registry (read) and the
+    Controller store (run admission). Before the host listens, both must already
+    be safe protected roots (Section 8.2 item 4), mutually disjoint, and the Goal
+    Store, UI directory and every served asset must be alias-aware disjoint from
+    both; the host neither provisions nor repairs either root, and the store lays
+    out its own entries only after that preflight. The intake guard is narrow: it
+    is not a `GovernanceStoreIsolation`, so no model or validation boundary
+    accepts it. The root-run admitter (holding the Controller and its store
+    privately, exposing only lookup and admit) has one production holder, the
+    Goal run-admission bridge, which holds the registry reader and no minter.
+    Production run-creation paths: exactly one. The run projection is operational
+    (`CONTROLLER_STORE`, `IDLE`, execution `NOT_STARTED`); R4A0 is not wired into
+    Workspace and sees the admitted run only when explicitly read.
 
 ## 9. CHIEF Domain Boundary
 

@@ -6,14 +6,18 @@ import { PROJECT_ID } from '../identity/canonical.js';
 import { parseWorkspaceConfig, type WorkspaceConfig } from '../workspace/config.js';
 
 const bindingSchema = z.strictObject({ projectId: z.string().regex(PROJECT_ID), repository: z.string().regex(REPOSITORY_PATTERN) });
+// Exact, absolute, normalised server-side paths. Never inferred from cwd, Git, the environment or a request.
+const root = () => z.string().refine((path) => isAbsolute(path) && normalize(path) === path && !path.endsWith('/') &&
+  !/[\u0000-\u001f]/.test(path));
 const schema = z.strictObject({ schemaVersion: z.literal(1), workspace: z.unknown(),
-  governance: z.strictObject({ changeRegistryDirectory: z.string().refine((path) => isAbsolute(path) && normalize(path) === path &&
-    !path.endsWith('/') && !/[\u0000-\u001f]/.test(path)), repositories: z.array(bindingSchema).min(1).max(50) }) });
+  governance: z.strictObject({ changeRegistryDirectory: root(), controllerStoreDirectory: root(),
+    repositories: z.array(bindingSchema).min(1).max(50) }) });
 
 export type GovernedRepositoryBinding = Readonly<z.infer<typeof bindingSchema>>;
 export interface TrustedWorkspaceHostConfig {
   readonly workspace: WorkspaceConfig;
   readonly changeRegistryDirectory: string;
+  readonly controllerStoreDirectory: string;
   readonly governedRepositories: readonly GovernedRepositoryBinding[];
 }
 
@@ -33,6 +37,7 @@ export function parseTrustedWorkspaceHostConfig(input: unknown, baseDirectory: s
   const parsed = schema.parse(input);
   const workspace = parseWorkspaceConfig(parsed.workspace, baseDirectory);
   return Object.freeze({ workspace, changeRegistryDirectory: parsed.governance.changeRegistryDirectory,
+    controllerStoreDirectory: parsed.governance.controllerStoreDirectory,
     governedRepositories: parseGovernedRepositories(parsed.governance.repositories, workspace) });
 }
 

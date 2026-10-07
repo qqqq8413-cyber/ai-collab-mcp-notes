@@ -10,6 +10,7 @@
   },
   "governance": {
     "changeRegistryDirectory": "/absolute/operator-provisioned/chief-change-registry",
+    "controllerStoreDirectory": "/absolute/operator-provisioned/chief-controller-store",
     "repositories": [
       { "projectId": "chief", "repository": "qqqq8413-cyber/ai-collab-mcp-notes" }
     ]

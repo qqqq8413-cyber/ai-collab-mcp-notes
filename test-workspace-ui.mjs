@@ -102,11 +102,15 @@ await check('the UI calls only the WS-L1 routes and shows no execution it does n
   const live = read('live.js'), app = read('app.js');
   for (const route of ['/projects', '/goals', '/order', '/stream']) assert.match(live, new RegExp(route.replace('/', '\\/')));
   assert.doesNotMatch(live + app, /\/(start|run|execute|resume|promote|create-run)\b/);
-  assert.equal(API_ROUTES.length, 8);
+  assert.equal(API_ROUTES.length, 10);
   assert.deepEqual(API_ROUTES.filter((route) => /\/govern(ance)?$/.test(route)), [
     'POST /api/v0/projects/:projectId/goals/:goalId/govern',
     'GET /api/v0/projects/:projectId/goals/:goalId/governance',
   ], 'GC1 adds exactly its two operational routes');
+  assert.deepEqual(API_ROUTES.filter((route) => /\/run$/.test(route)), [
+    'POST /api/v0/projects/:projectId/goals/:goalId/run',
+    'GET /api/v0/projects/:projectId/goals/:goalId/run',
+  ], 'RA1 adds exactly its two Goal-scoped operational routes');
   assert.doesNotMatch(app, /Claude (正在|working)|Codex (正在|working)|Chief 正在檢查|測試執行中|tests running/);
   assert.match(app, /已收到這個目標。我已經把它加入/);
   assert.match(app, /排隊中/);
@@ -302,7 +306,7 @@ await check('WS-P1 signals: Human-required only from an escalation time; the LIV
   const html = roomHTML(r);
   assert.ok(html.includes(EMPTY_ROOM) && html.includes(NEEDS_EMPTY), 'LIVE shows both areas empty');
   assert.doesNotMatch(html, /示範資料|AI 協作摘要|class="ev /, 'no demo label, no summary, no event');
-  assert.equal(API_ROUTES.filter((route) => !/\/govern(ance)?$/.test(route)).length, 6, 'no collaboration API route was added');
+  assert.equal(API_ROUTES.filter((route) => !/\/(govern|governance|run)$/.test(route)).length, 6, 'no collaboration API route was added');
 });
 
 await check('WS-P1 CollaborationEventV1: nine runtime-neutral types; anything outside the model is refused, never shown', () => {

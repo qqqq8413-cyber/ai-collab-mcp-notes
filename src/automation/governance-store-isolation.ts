@@ -128,6 +128,20 @@ export class GovernanceStoreIsolation {
     return Object.freeze({ assertDisjoint: (label: string, path: unknown) => registryOnly.assertDisjoint(label, path) });
   }
 
+  /**
+   * RA1's trusted intake touches two already-provisioned roots: the Change Registry (read) and the
+   * Controller store (run admission). Both must be safe and mutually disjoint. Like the GC1 guard it
+   * is narrow: it is not a GovernanceStoreIsolation, so no model or validation boundary accepts it.
+   */
+  static forTrustedIntake(input: { changeRegistryDirectory: unknown; controllerStoreDirectory: unknown }):
+    { assertDisjoint(label: string, path: unknown): void } {
+    const registry = protectedRoot('CHANGE_REGISTRY', input?.changeRegistryDirectory);
+    const controller = protectedRoot('CONTROLLER_STORE', input?.controllerStoreDirectory);
+    if (overlapping(registry.identity, controller.identity)) throw fail('CHANGE_REGISTRY and CONTROLLER_STORE roots overlap');
+    const intake = new GovernanceStoreIsolation([registry, controller]);
+    return Object.freeze({ assertDisjoint: (label: string, path: unknown) => intake.assertDisjoint(label, path) });
+  }
+
   /** All protected roots must already be safe and mutually disjoint. */
   static forLiveRoots(input: { controllerStoreDirectory: unknown; authorityArchiveDirectory: unknown;
     changeRegistryDirectory: unknown }): GovernanceStoreIsolation {

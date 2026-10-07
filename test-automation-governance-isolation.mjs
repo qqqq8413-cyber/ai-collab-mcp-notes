@@ -10,6 +10,7 @@ import { AutomationController } from './dist/automation/controller.js';
 import { FileControllerStore } from './dist/automation/durable-store.js';
 import { FileEgressJournal } from './dist/automation/file-egress-journal.js';
 import { GovernanceStoreIsolation, GovernanceStoreIsolationError } from './dist/automation/governance-store-isolation.js';
+import { openRootRunAdmitter } from './dist/automation/root-run-admitter.js';
 import { NodeProcessExecutor } from './dist/automation/process-executor.js';
 import { createLiveAutomation } from './dist/automation/live/composition.js';
 import { SeatbeltModelProcessExecutor } from './dist/automation/live/seatbelt-model-process.js';
@@ -488,9 +489,14 @@ check('39. R4L admission at the store boundary is unchanged', (dir) => {
   controller.createRun('run-1', 'slice-1', 'synthetic/example');
   assert.throws(() => controller.createRun('run-2', 'slice-1', 'synthetic/example'), (error) => error.code === 'SECOND_RUN_FOR_CHANGE');
 });
-check('40. no run-creation path, endpoint or tool exists outside the controller', () => {
+// G1-RA1 capability delta: exactly one production run-creation path, the narrow root-run admitter,
+// reached only by the trusted Goal run-admission bridge, which the trusted host alone composes.
+const ROOT_RUN_ADMITTER = join('src', 'automation', 'root-run-admitter.ts');
+const RUN_ADMISSION_BRIDGE = join('src', 'intake', 'goal-run-admission-bridge.ts');
+check('40. exactly one production run-creation path exists outside the controller, and no generic endpoint or tool', () => {
   const callers = SRC.filter((path) => /\.createRun\(|\.create\(\s*(run|\{\s*runId)/.test(text(path)) && !path.endsWith(join('automation', 'controller.ts')));
-  assert.deepEqual(callers.map(rel), []);
+  assert.deepEqual(callers.map(rel), [ROOT_RUN_ADMITTER]);
+  assert.equal((text(join(ROOT, ROOT_RUN_ADMITTER)).match(/\.createRun\(/g) ?? []).length, 1);
   assert.deepEqual(SRC.filter((path) => /['"`]\/(api\/[^'"`]*\/)?(run|start)['"`]/.test(text(path))).map(rel), []);
   assert.deepEqual(SRC.filter((path) => /createLiveAutomation\(/.test(text(path)) && !path.endsWith(join('live', 'composition.ts'))).map(rel), []);
 });
@@ -498,11 +504,35 @@ check('GC1. exactly one trusted bridge path holds Change Minter; every other run
   const implementation = join('src', 'automation', 'change-registry.ts');
   const bridge = join('src', 'intake', 'goal-change-bridge.ts');
   const outside = SRC.filter((path) => rel(path) !== implementation);
-  assert.deepEqual(outside.filter((path) => /openChangeMinter|ChangeMinter|change-registry\.js/.test(text(path))).map(rel), [bridge]);
+  assert.deepEqual(outside.filter((path) => /openChangeMinter|ChangeMinter/.test(text(path))).map(rel), [bridge]);
   assert.equal((text(join(ROOT, bridge)).match(/openChangeMinter\(/g) ?? []).length, 1);
+  // G1-RA1: the run-admission bridge reads the registry; it holds no minter and mints nothing.
+  assert.deepEqual(outside.filter((path) => /change-registry\.js/.test(text(path))).map(rel).sort(), [bridge, RUN_ADMISSION_BRIDGE].sort());
+  assert.match(text(join(ROOT, RUN_ADMISSION_BRIDGE)), /import \{ openChangeRegistryReader \} from '\.\.\/automation\/change-registry\.js';/);
   assert.deepEqual(SRC.filter((path) => rel(path).startsWith('src/workspace/') && /change-mint|change-registry/.test(text(path))).map(rel), []);
   assert.deepEqual(SRC.filter((path) => rel(path).startsWith('src/automation/read-model/') &&
     /change-mint|change-registry/.test(text(path))).map(rel), []);
+});
+check('RA1. one trusted path reaches the root-run admitter; it exposes no lifecycle; Workspace holds no Controller', (dir) => {
+  const holders = SRC.filter((path) => rel(path) !== ROOT_RUN_ADMITTER && /openRootRunAdmitter|root-run-admitter(\.js)?['"]/.test(text(path)));
+  assert.deepEqual(holders.map(rel), [RUN_ADMISSION_BRIDGE]);
+  assert.equal((text(join(ROOT, RUN_ADMISSION_BRIDGE)).match(/openRootRunAdmitter\(/g) ?? []).length, 1);
+  assert.deepEqual(SRC.filter((path) => /createGoalRunAdmissionBridge\(/.test(text(path)) && rel(path) !== RUN_ADMISSION_BRIDGE).map(rel),
+    [join('src', 'intake', 'workspace-host.ts')]);
+  // Production holders of a Controller or its store: the live composition (unchanged) and the admitter.
+  assert.deepEqual(SRC.filter((path) => /new (AutomationController|FileControllerStore)\(/.test(text(path))).map(rel).sort(),
+    [join('src', 'automation', 'live', 'composition.ts'), ROOT_RUN_ADMITTER].sort());
+  // The admitter calls no lifecycle, runner, model or authority surface.
+  const admitter = text(join(ROOT, ROOT_RUN_ADMITTER));
+  assert.doesNotMatch(admitter.replace(/\/\/.*$/gm, ''), /enterArchitecture|issuePacket|beginImplementation|completeImplementation|beginAcceptanceReview|decideAcceptance|requestPromotion|beginPromotion|issueCorrection|resume|\.stop\(|failClosed|\.replace\(|bindController|runner|AutomationRunner|authority|live\//);
+  assert.doesNotMatch(text(join(ROOT, RUN_ADMISSION_BRIDGE)), /openChangeMinter|ChangeMinter|AutomationController|FileControllerStore|createRun|AuthorityArchive|runner/);
+  const opened = openRootRunAdmitter(directory(join(dir, 'controller')));
+  assert.deepEqual(Object.keys(opened).sort(), ['admit', 'lookup']);
+  // The server receives only narrow ports; no Workspace module names the admitter or a raw Controller capability.
+  const server = text(join(ROOT, 'src', 'workspace', 'server.ts'));
+  assert.match(server, /runAdmission\?: GoalRunAdmissionPort/);
+  assert.deepEqual(SRC.filter((path) => path.includes(`${join('src', 'workspace')}/`) &&
+    /openRootRunAdmitter|root-run-admitter|RootRunAdmitter|goal-run-admission-bridge/.test(text(path))).map(rel), []);
 });
 
 let passed = 0, failed = 0, skipped = 0;

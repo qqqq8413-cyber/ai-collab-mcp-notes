@@ -33,11 +33,14 @@ async function check(name, action) {
 
 function fixture(dir) {
   const registry = join(dir, 'registry'); mkdirSync(registry, { mode: 0o700 });
+  // G1-RA1: the trusted host also requires its pre-provisioned Controller store root.
+  const controller = join(dir, 'controller-store'); mkdirSync(controller, { mode: 0o700 });
   const raw = { schemaVersion: 1, workspace: { schemaVersion: 1, dataDirectory: join(dir, 'goals'),
     humanPrincipal: { principalRef: HUMAN.principalRef },
     projects: [{ projectId: 'cand', displayName: 'Synthetic project', repository: 'display-only/path' }] },
-  governance: { changeRegistryDirectory: registry, repositories: [{ projectId: 'cand', repository: 'synthetic/governed' }] } };
-  return { raw, registry, config: parseTrustedWorkspaceHostConfig(raw, dir) };
+  governance: { changeRegistryDirectory: registry, controllerStoreDirectory: controller,
+    repositories: [{ projectId: 'cand', repository: 'synthetic/governed' }] } };
+  return { raw, registry, controller, config: parseTrustedWorkspaceHostConfig(raw, dir) };
 }
 const bridge = (config, uiDirectory = UI) => createGoalChangeBridge({ config: config.workspace, uiDirectory,
   changeRegistryDirectory: config.changeRegistryDirectory, governedRepositories: config.governedRepositories });
@@ -442,7 +445,11 @@ await check('AE-AF. mint-only evidence remains separate from the unchanged R4A0 
   assert.deepEqual(read.runs, []); assert.deepEqual(read.changes, []); assert.deepEqual(read.authority, []);
   assert.equal(existsSync(roots.controllerStoreDirectory), false); assert.equal(existsSync(roots.authorityArchiveDirectory), false);
   assert.equal(API_ROUTES.filter((route) => route.startsWith('POST') && /govern/.test(route)).length, 1);
-  assert.ok(!API_ROUTES.some((route) => /\/run|\/start|\/execute|create-run|authoriz|packet/.test(route)));
+  // G1-RA1 adds exactly the Goal-scoped run admission pair; governance itself still creates no run.
+  assert.deepEqual(API_ROUTES.filter((route) => /\/run\b/.test(route)), ['POST /api/v0/projects/:projectId/goals/:goalId/run',
+    'GET /api/v0/projects/:projectId/goals/:goalId/run']);
+  assert.ok(!API_ROUTES.some((route) => /\/start|\/execute|create-run|authoriz|packet/.test(route)));
+  assert.deepEqual(readGovernedModel({ controllerStoreDirectory: f.controller, authorityArchiveDirectory: roots.authorityArchiveDirectory }).runs, []);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -230,6 +230,18 @@ check('GC1 permits only the narrow injected port and keeps raw governance out of
     /openChangeMinter|ChangeMinter|change-registry|change-mint|createGoalChangeBridge/);
 });
 
+check('RA1 permits only the narrow injected run-admission port; no Controller or admitter reaches Workspace', () => {
+  const server = code(readFileSync('src/workspace/server.ts', 'utf8'));
+  const port = code(readFileSync('src/workspace/goal-run-admission-port.ts', 'utf8'));
+  assert.match(server, /runAdmission\?: GoalRunAdmissionPort/);
+  assert.match(server, /runAdmission\.admit\(current\.projectId, rest\[3\], submittedBy\)/);
+  assert.match(server, /runAdmission\.lookup\(current\.projectId, rest\[3\], submittedBy\)/);
+  assert.match(server, /if \(!runAdmission\) throw new HttpError\(503, 'RUN_ADMISSION_UNAVAILABLE'/);
+  assert.deepEqual(importsOf(port).map((entry) => entry.specifier), ['../identity/canonical.js']);
+  for (const file of workspaceFiles()) assert.doesNotMatch(code(readFileSync(file, 'utf8')),
+    /openRootRunAdmitter|RootRunAdmitter|root-run-admitter|goal-run-admission-bridge|createGoalRunAdmissionBridge|storedRunFileName/);
+});
+
 check('at runtime the server loads no automation, provider, or execution module and opens no outbound connection', () => {
   // Every outbound primitive is wrapped before the server loads; a call is charged to the Workspace
   // when dist/workspace is on its stack. The harness itself talks to the server with fetch.

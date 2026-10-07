@@ -256,7 +256,10 @@ await check('no CORS: no allow-origin header and no preflight', async (ws) => {
 });
 
 await check('there is no route that could start, run, resume, or promote anything', async (ws) => {
-  assert.equal(API_ROUTES.some((route) => /start|run|execute|resume|promote|create-run|packet|authoriz/i.test(route)), false);
+  // G1-RA1's Goal-scoped admission pair is the only run route; it establishes an IDLE run and starts nothing.
+  const admission = ['POST /api/v0/projects/:projectId/goals/:goalId/run', 'GET /api/v0/projects/:projectId/goals/:goalId/run'];
+  assert.deepEqual(API_ROUTES.filter((route) => /run/i.test(route)), admission);
+  assert.equal(API_ROUTES.some((route) => !admission.includes(route) && /start|run|execute|resume|promote|create-run|packet|authoriz/i.test(route)), false);
   for (const path of ['/api/v0/projects/cand/goals/x/start', '/api/v0/projects/cand/start', '/api/v0/run', '/api/v0/execute',
     '/api/v0/projects/cand/goals/x/resume', '/api/v0/promote', '/api/v0/create-run']) {
     const res = await call(ws, 'POST', path, { headers: page(ws, { 'Content-Type': 'application/json' }), body: {} });

@@ -5,14 +5,16 @@ import { join } from 'node:path';
 import { parseHumanPrincipalV1, type HumanPrincipalV1, type WorkspaceConfig, type WorkspaceProject } from './config.js';
 import { FileGoalStore, GoalQueueRequestError, GoalStoreBusyError, GoalStoreIntegrityError, type GoalQueue, type QueueChange } from './goal-store.js';
 import { GoalGovernanceError, type GoalGovernancePort } from './goal-governance-port.js';
+import { GoalRunAdmissionError, type GoalRunAdmissionPort } from './goal-run-admission-port.js';
 
 // The local Workspace server (WS-L1). It serves the Workspace UI and a small API over
 // the non-authoritative goal queue, from one origin, on the IPv4 loopback address only.
 //
 // What it can do: list configured projects; read, add, reorder, and remove eligible goals;
-// stream queue changes; request a mint through GC1's injected operational port. It cannot create or step a run,
-// issue a packet, call a model, record an authorization, or read Controller state. There
-// is no route for any of that, and the module graph is guarded by test-workspace-boundary.
+// stream queue changes; request a mint through GC1's injected operational port; and ask RA1's injected
+// port to establish a governed goal's one ROOT run in IDLE (G1-RA1). It cannot step a run, enter
+// architecture, issue a packet, call a model or record an authorization, and it holds no Controller
+// capability: the trusted host does the admission. The module graph is guarded by test-workspace-boundary.
 //
 // Request isolation is not Human authentication. It only keeps other web pages and other
 // host names from driving these localhost endpoints: the Host header must name this
@@ -29,6 +31,8 @@ export const API_ROUTES = Object.freeze([
   'DELETE /api/v0/projects/:projectId/goals/:goalId',
   'POST /api/v0/projects/:projectId/goals/:goalId/govern',
   'GET /api/v0/projects/:projectId/goals/:goalId/governance',
+  'POST /api/v0/projects/:projectId/goals/:goalId/run',
+  'GET /api/v0/projects/:projectId/goals/:goalId/run',
   'GET /api/v0/stream',
 ] as const);
 const MAX_BODY_BYTES = 16 * 1024;
@@ -66,6 +70,8 @@ export interface WorkspaceServerOptions {
   store?: FileGoalStore;
   /** Injected by the trusted host. Workspace never opens governance storage. */
   governance?: GoalGovernancePort;
+  /** Injected by the trusted host (RA1). Workspace never holds the Controller or its store. */
+  runAdmission?: GoalRunAdmissionPort;
   clock?: { now(): string };
 }
 
@@ -177,12 +183,12 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
     if (request.headers['content-type'] !== undefined || request.headers['transfer-encoding'] !== undefined ||
         (request.headers['content-length'] !== undefined && request.headers['content-length'] !== '0')) {
       request.resume();
-      fail(new HttpError(400, 'UNEXPECTED_BODY', 'Goal governance accepts no request body or Content-Type.'));
+      fail(new HttpError(400, 'UNEXPECTED_BODY', 'This goal operation accepts no request body or Content-Type.'));
       return;
     }
     let body = false;
     request.on('data', () => { body = true; });
-    request.on('end', () => body ? fail(new HttpError(400, 'UNEXPECTED_BODY', 'Goal governance accepts no request body.')) : done());
+    request.on('end', () => body ? fail(new HttpError(400, 'UNEXPECTED_BODY', 'This goal operation accepts no request body.')) : done());
     request.on('error', () => fail(new HttpError(400, 'BAD_REQUEST', 'The request could not be read.')));
     request.resume();
   });
@@ -239,6 +245,17 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
         json(response, 200, result);
         return;
       }
+      // RA1: the browser names only the project and goal; the trusted host derives the Change and runId.
+      if (rest.length === 5 && rest[4] === 'run' && (method === 'POST' || method === 'GET')) {
+        if (new URL(request.url ?? '/', 'http://local').search) throw new HttpError(400, 'UNKNOWN_FIELD', 'Run admission accepts only the project and goal identifiers in its route.');
+        if (method === 'POST') await noBody(request);
+        const runAdmission = options.runAdmission;
+        if (!runAdmission) throw new HttpError(503, 'RUN_ADMISSION_UNAVAILABLE', 'This Workspace has no trusted run admission bridge.');
+        const result = method === 'POST' ? await runAdmission.admit(current.projectId, rest[3], submittedBy) :
+          runAdmission.lookup(current.projectId, rest[3], submittedBy);
+        json(response, 200, result);
+        return;
+      }
       if (rest.length === 3 && method === 'GET') { json(response, 200, queueView(current, store.read(current.projectId))); return; }
       if (rest.length === 3 && method === 'POST') {
         const body = await readJson(request);
@@ -288,6 +305,13 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
         const status = error.code === 'UNKNOWN_GOAL' || error.code === 'UNKNOWN_PROJECT' ? 404 :
           error.code === 'GOAL_PRINCIPAL_MISMATCH' ? 403 :
           ['UNATTRIBUTED_GOAL', 'GOAL_ALREADY_GOVERNED', 'CHANGE_SOURCE_BINDING_CONFLICT', 'GOAL_STORE_BUSY'].includes(error.code) ? 409 : 500;
+        json(response, status, { error: { code: error.code, message: error.message } });
+        return;
+      }
+      if (error instanceof GoalRunAdmissionError) {
+        const status = error.code === 'UNKNOWN_GOAL' || error.code === 'UNKNOWN_PROJECT' ? 404 :
+          error.code === 'GOAL_PRINCIPAL_MISMATCH' ? 403 :
+          ['REGISTRY_INTEGRITY', 'GOVERNANCE_STORE_ISOLATION', 'RUN_ADMISSION_INTEGRITY'].includes(error.code) ? 500 : 409;
         json(response, status, { error: { code: error.code, message: error.message } });
         return;
       }
