@@ -94,3 +94,19 @@ export function changeRefOf(record: ChangeMintRecordV1): ChangeRefV1 {
   const valid = parseChangeMintRecord(record);
   return { kind: 'SLICE', changeId: valid.sliceId };
 }
+
+/** Shared CM1 binding check, usable by read projections without obtaining a minter. */
+export function requireSameChangeBinding(record: ChangeMintRecordV1, input: ChangeMintRequestV1): ChangeMintRecordV1 {
+  const valid = parseChangeMintRecord(record);
+  const request = parseChangeMintRequest(input);
+  const source = request.source;
+  if (valid.repository !== request.repository || valid.source.kind !== source.kind ||
+      valid.source.projectId !== source.projectId || valid.source.goalId !== source.goalId ||
+      valid.source.createdAt !== source.createdAt || valid.source.submittedBy.schemaVersion !== source.submittedBy.schemaVersion ||
+      valid.source.submittedBy.kind !== source.submittedBy.kind ||
+      valid.source.submittedBy.principalRef !== source.submittedBy.principalRef ||
+      valid.source.objectiveHash !== objectiveHashOf(source.objective)) {
+    throw new ChangeMintError('CHANGE_SOURCE_BINDING_CONFLICT', 'This Workspace Goal already has a different governed Change binding');
+  }
+  return valid;
+}

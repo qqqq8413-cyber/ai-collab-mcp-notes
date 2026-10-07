@@ -71,6 +71,10 @@ export class GoalStoreIntegrityError extends Error {
   }
 }
 
+export class GoalStoreBusyError extends GoalStoreIntegrityError {
+  constructor() { super('goal queue is locked by another writer'); this.name = 'GoalStoreBusyError'; }
+}
+
 /** A request the queue refuses (unknown goal, wrong order, full queue). Nothing was written. */
 export class GoalQueueRequestError extends Error {
   constructor(readonly code: 'UNKNOWN_GOAL' | 'BAD_ORDER' | 'QUEUE_FULL' | 'STALE_REVISION' | 'BAD_TEXT', message: string) {
@@ -143,6 +147,8 @@ export interface QueueChange {
   event: QueueEvent;
 }
 
+interface QueueLock { fd: number; path: string; device: number; inode: number }
+
 export class FileGoalStore {
   readonly #directory: string;
   readonly #now: () => string;
@@ -181,19 +187,53 @@ export class FileGoalStore {
   }
 
   // A leftover lock is an uncertain writer: it is never removed by anyone but its creator.
-  #locked<T>(projectId: string, action: () => T): T {
+  #acquire(projectId: string): QueueLock {
     const lock = `${this.#file(projectId)}.lock`;
     let fd: number;
-    try { fd = openSync(lock, 'wx', 0o600); } catch { throw new GoalStoreIntegrityError('goal queue is locked by another writer'); }
+    try { fd = openSync(lock, 'wx', 0o600); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new GoalStoreBusyError();
+      throw new GoalStoreIntegrityError('goal queue lock could not be acquired');
+    }
     const identity = fstatSync(fd);
+    return { fd, path: lock, device: identity.dev, inode: identity.ino };
+  }
+
+  #release(lock: QueueLock): void {
+    closeSync(lock.fd);
+    const current = lstatSync(lock.path);
+    if (current.dev !== lock.device || current.ino !== lock.inode) throw new GoalStoreIntegrityError('goal queue lock ownership changed');
+    unlinkSync(lock.path);
+  }
+
+  #underLock<T>(lock: QueueLock, action: () => T): T {
     try {
       return action();
-    } finally {
-      closeSync(fd);
-      const current = lstatSync(lock);
-      if (current.dev !== identity.dev || current.ino !== identity.ino) throw new GoalStoreIntegrityError('goal queue lock ownership changed');
-      unlinkSync(lock);
+    } finally { this.#release(lock); }
+  }
+
+  #locked<T>(projectId: string, action: () => T): T {
+    return this.#underLock(this.#acquire(projectId), action);
+  }
+
+  /** A stable-source action under the same storage lock as every queue mutation.
+   * Contention waits are bounded; an abandoned lock is never removed or repaired. */
+  async withLockedGoal<T>(projectId: string, id: string, action: (goal: GoalRecord) => T): Promise<T> {
+    if (!GOAL_ID.test(id)) throw new GoalQueueRequestError('UNKNOWN_GOAL', 'unknown goal');
+    const deadline = Date.now() + 2000;
+    let lock: QueueLock;
+    for (;;) {
+      try { lock = this.#acquire(projectId); break; }
+      catch (error) {
+        if (!(error instanceof GoalStoreBusyError) || Date.now() >= deadline) throw error;
+        await new Promise<void>((done) => setTimeout(done, 10));
+      }
     }
+    try {
+      const goal = this.#load(projectId).goals.find((item) => item.goalId === id);
+      if (!goal) throw new GoalQueueRequestError('UNKNOWN_GOAL', 'unknown goal');
+      return await action(structuredClone(goal));
+    } finally { this.#release(lock); }
   }
 
   #write(projectId: string, queue: GoalQueue): void {
@@ -263,14 +303,15 @@ export class FileGoalStore {
     }, expectedRevision);
   }
 
-  /** Removes a goal that has never started. In WS-L1 no goal can start, so every queued goal qualifies. */
-  removeGoal(projectId: string, id: unknown): QueueChange {
+  /** The injected removal check runs on the canonical Goal while its mutation lock is held. */
+  removeGoal(projectId: string, id: unknown, beforeRemove?: (goal: GoalRecord) => void): QueueChange {
     const parsed = goalId.safeParse(id);
     if (!parsed.success) throw new GoalQueueRequestError('UNKNOWN_GOAL', 'unknown goal');
     return this.#append(projectId, (queue, at) => {
       const goal = queue.goals.find((item) => item.goalId === parsed.data);
       if (!goal) throw new GoalQueueRequestError('UNKNOWN_GOAL', 'unknown goal');
       if (goal.execution !== 'NOT_STARTED') throw new GoalQueueRequestError('UNKNOWN_GOAL', 'only a goal that never started can be removed');
+      beforeRemove?.(structuredClone(goal));
       return { sequence: queue.history.length + 1, at, kind: 'GOAL_REMOVED', goalId: parsed.data };
     });
   }

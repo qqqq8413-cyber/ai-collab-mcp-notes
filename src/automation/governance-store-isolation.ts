@@ -121,6 +121,13 @@ export class GovernanceStoreIsolation {
     Object.freeze(this);
   }
 
+  /** GC1 protects its already-provisioned registry without opening other governance stores. */
+  static forGoalChangeBridge(changeRegistryDirectory: unknown): { assertDisjoint(label: string, path: unknown): void } {
+    const registryOnly = new GovernanceStoreIsolation([protectedRoot('CHANGE_REGISTRY', changeRegistryDirectory)]);
+    // A narrow guard cannot pass the model/validation boundaries' instanceof check for the full root set.
+    return Object.freeze({ assertDisjoint: (label: string, path: unknown) => registryOnly.assertDisjoint(label, path) });
+  }
+
   /** All protected roots must already be safe and mutually disjoint. */
   static forLiveRoots(input: { controllerStoreDirectory: unknown; authorityArchiveDirectory: unknown;
     changeRegistryDirectory: unknown }): GovernanceStoreIsolation {

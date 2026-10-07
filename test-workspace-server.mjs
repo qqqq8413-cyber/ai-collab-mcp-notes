@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { request } from 'node:http';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseWorkspaceConfig } from './dist/workspace/config.js';
 import { API_ROUTES, HOST, startWorkspaceServer } from './dist/workspace/server.js';
+import { createGoalChangeBridge } from './dist/intake/goal-change-bridge.js';
 
 // WS-L1 local Workspace server: loopback only, same-origin mutations, SSE for queue changes.
 
@@ -19,7 +20,10 @@ async function check(name, fn) {
       humanPrincipal: { principalRef: HUMAN.principalRef }, projects: [
       { projectId: 'cand', displayName: '候選人平台', repository: 'example-org/candidate-platform' },
       { projectId: 'site', displayName: '嶼光官網', repository: 'example-org/site' }] }, dir);
-    const running = await startWorkspaceServer({ config, uiDirectory: UI, port: 0 });
+    const registry = join(dir, 'registry'); mkdirSync(registry, { mode: 0o700 });
+    const bridge = createGoalChangeBridge({ config, uiDirectory: UI, changeRegistryDirectory: registry,
+      governedRepositories: config.projects.map((project) => ({ projectId: project.projectId, repository: project.repository })) });
+    const running = await startWorkspaceServer({ config, uiDirectory: UI, port: 0, ...bridge });
     const bootstrap = await call(running, 'GET', '/');
     ws = { ...running, bootstrap, cookie: bootstrap.headers['set-cookie']?.[0]?.split(';')[0] };
     assert.ok(ws.cookie, 'the Workspace page establishes a local session');

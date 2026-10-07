@@ -218,6 +218,18 @@ check('the import graph check catches a forbidden import', () => {
   assert.ok(FORBIDDEN.some(([pattern]) => pattern.test(target)), 'the forbidden list must match automation/runner.ts');
 });
 
+check('GC1 permits only the narrow injected port and keeps raw governance out of Workspace', () => {
+  const server = code(readFileSync('src/workspace/server.ts', 'utf8'));
+  const port = code(readFileSync('src/workspace/goal-governance-port.ts', 'utf8'));
+  assert.match(server, /governance\?: GoalGovernancePort/);
+  assert.match(server, /governance\.govern\(current\.projectId, rest\[3\], submittedBy\)/);
+  assert.match(server, /store\.removeGoal\([\s\S]*?governance\.lookup/);
+  assert.match(server, /if \(!governance\) throw new HttpError\(503, 'GOVERNANCE_UNAVAILABLE', 'Goal removal requires/);
+  assert.deepEqual(importsOf(port).map((entry) => entry.specifier), ['../identity/canonical.js']);
+  for (const file of workspaceFiles()) assert.doesNotMatch(code(readFileSync(file, 'utf8')),
+    /openChangeMinter|ChangeMinter|change-registry|change-mint|createGoalChangeBridge/);
+});
+
 check('at runtime the server loads no automation, provider, or execution module and opens no outbound connection', () => {
   // Every outbound primitive is wrapped before the server loads; a call is charged to the Workspace
   // when dist/workspace is on its stack. The harness itself talks to the server with fetch.
@@ -262,7 +274,7 @@ check('at runtime the server loads no automation, provider, or execution module 
   assert.equal(run.status, 0, run.stderr);
   const result = JSON.parse(run.stdout.trim().split('\n').at(-1));
   assert.equal(result.created, true, 'goal create still works');
-  assert.equal(result.removed, 200, 'goal delete still works');
+  assert.equal(result.removed, 503, 'without a trusted governance port deletion fails closed');
   const local = result.loaded.filter((url) => url.startsWith('file:')).map((url) => relative(ROOT, fileURLToPath(url)));
   const bad = local.filter((file) => file.startsWith('dist/') && !file.startsWith('dist/workspace/') &&
     file !== 'dist/identity/canonical.js');

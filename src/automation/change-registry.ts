@@ -4,7 +4,7 @@ import { closeSync, constants, fstatSync, fsyncSync, linkSync, lstatSync, mkdirS
 import { dirname, isAbsolute, join, normalize } from 'node:path';
 import { SYSTEM_CLOCK } from './time.js';
 import type { Clock } from './types.js';
-import { ChangeMintError, changeMintRecordOf, objectiveHashOf, parseChangeMintRecord, parseChangeMintRequest,
+import { ChangeMintError, changeMintRecordOf, requireSameChangeBinding, parseChangeMintRecord, parseChangeMintRequest,
   sourceKeyOf, type ChangeMintRecordV1, type ChangeMintRequestV1, type ChangeSourceIdentityV1 } from './change-mint.js';
 
 const RECORD_FILE = /^([0-9a-f]{64})\.json$/;
@@ -131,7 +131,7 @@ class FileChangeRegistry {
     const key = sourceKeyOf({ kind: request.source.kind, projectId: request.source.projectId, goalId: request.source.goalId });
     this.#verify();
     const existing = this.#read(key);
-    if (existing) return this.#sameBinding(existing, request);
+    if (existing) return requireSameChangeBinding(existing, request);
     const record = changeMintRecordOf(request, this.#clock.now());
     const payload = JSON.stringify(record);
     const text = JSON.stringify({ checksum: sha256(payload), record: JSON.parse(payload) });
@@ -147,26 +147,13 @@ class FileChangeRegistry {
           `Exclusive Change Mint publication is unavailable (${code ?? 'unknown error'}); no fallback`);
         const winner = this.#read(key);
         if (!winner) throw integrity('A competing Change Mint publication is missing');
-        return this.#sameBinding(winner, request);
+        return requireSameChangeBinding(winner, request);
       }
       sync(this.#records);
       return structuredClone(record);
     } finally {
       try { unlinkSync(temp); } catch { /* a temp name is never a canonical mint */ }
     }
-  }
-
-  #sameBinding(record: ChangeMintRecordV1, request: ChangeMintRequestV1): ChangeMintRecordV1 {
-    const source = request.source;
-    if (record.repository !== request.repository || record.source.kind !== source.kind ||
-        record.source.projectId !== source.projectId || record.source.goalId !== source.goalId ||
-        record.source.createdAt !== source.createdAt || record.source.submittedBy.schemaVersion !== source.submittedBy.schemaVersion ||
-        record.source.submittedBy.kind !== source.submittedBy.kind ||
-        record.source.submittedBy.principalRef !== source.submittedBy.principalRef ||
-        record.source.objectiveHash !== objectiveHashOf(source.objective)) {
-      throw new ChangeMintError('CHANGE_SOURCE_BINDING_CONFLICT', 'This Workspace Goal already has a different governed Change binding');
-    }
-    return structuredClone(record);
   }
 }
 Object.freeze(FileChangeRegistry);
@@ -178,7 +165,7 @@ export function openChangeRegistryReader(root: string): ChangeRegistryReader {
   return Object.freeze({ getBySource: (source: ChangeSourceIdentityV1) => registry.getBySource(source) });
 }
 
-/** Protected write capability. No production runtime composes or receives it in CM1. */
+/** Protected write capability. GC1's trusted bridge is its only production holder. */
 export function openChangeMinter(root: string, clock: Clock = SYSTEM_CLOCK): ChangeMinter {
   const registry = new FileChangeRegistry(root, true, clock);
   return Object.freeze({ mint: (request: ChangeMintRequestV1) => registry.mint(request) });

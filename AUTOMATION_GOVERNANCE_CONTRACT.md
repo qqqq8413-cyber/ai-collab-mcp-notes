@@ -386,8 +386,9 @@ scope must equal.
 6. The authority appender has zero production runtime holders. Since G1-R4A0
    the governed read model (Section 6.2) is the only holder of the archive
    reader; it holds no appender and is wired into no runtime surface.
-7. Workspace receives no governance writer and no controller, runner, store
-   or model capability.
+7. Workspace receives no raw governance writer and no controller, runner, store
+   or model capability. GC1 permits the server to receive only a narrow injected
+   GoalGovernancePort from a trusted host outside `src/workspace`.
 8. R4T is capability and storage isolation inside one trusted host account,
    not Human authentication, and it does not protect against the kernel, root,
    the host account, or code already inside the trusted host process.
@@ -395,10 +396,20 @@ scope must equal.
 10. D1 binds a configured Human principal to a local Workspace session and
     attributes new Goals; it is not Human authentication or authorization.
     R4A0 is the read-only projection of Section 6.2.
-11. CM1's Change Registry has separate reader and minter capabilities, but no
-    production runtime holds the minter. LIVE composition protects its root
-    without opening either capability. Workspace does not mint Changes, and
-    R4A0 does not project freshly minted Changes.
+11. CM1's Change Registry has separate reader and minter capabilities. GC1's
+    trusted GoalChangeBridge is the single production mint path. The model/runner
+    LIVE composition still protects its root without opening either capability.
+    GC1 re-reads a durable Goal under the Goal Store's project lock, binds its
+    exact text, timestamp and recorded Human to an explicitly configured governed
+    repository, and mints only for the same server-derived local-session Human.
+    Registry/Goal Store/UI paths are alias-aware disjoint before listening.
+    The normal trusted-host DELETE checks the registry under the same project
+    lock and refuses an already governed Goal; a leftover lock is never repaired.
+12. GC1's governance HTTP projection is operational (`CHANGE_REGISTRY`), with
+    execution `NOT_STARTED` and no Run created by the operation. It grants no
+    authority and appends no authority document. R4A0 remains unchanged: it
+    projects Controller/Authority evidence and therefore has no mint-only Change
+    entry before a Run exists.
 
 ## 9. CHIEF Domain Boundary
 

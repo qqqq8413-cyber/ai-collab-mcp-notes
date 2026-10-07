@@ -3,20 +3,21 @@ import { readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import { parseHumanPrincipalV1, type HumanPrincipalV1, type WorkspaceConfig, type WorkspaceProject } from './config.js';
-import { FileGoalStore, GoalQueueRequestError, GoalStoreIntegrityError, type GoalQueue, type QueueChange } from './goal-store.js';
+import { FileGoalStore, GoalQueueRequestError, GoalStoreBusyError, GoalStoreIntegrityError, type GoalQueue, type QueueChange } from './goal-store.js';
+import { GoalGovernanceError, type GoalGovernancePort } from './goal-governance-port.js';
 
 // The local Workspace server (WS-L1). It serves the Workspace UI and a small API over
 // the non-authoritative goal queue, from one origin, on the IPv4 loopback address only.
 //
-// What it can do: list configured projects; read, add, reorder, and remove queued goals;
-// stream those changes over Server-Sent Events. What it cannot do: create or step a run,
+// What it can do: list configured projects; read, add, reorder, and remove eligible goals;
+// stream queue changes; request a mint through GC1's injected operational port. It cannot create or step a run,
 // issue a packet, call a model, record an authorization, or read Controller state. There
 // is no route for any of that, and the module graph is guarded by test-workspace-boundary.
 //
 // Request isolation is not Human authentication. It only keeps other web pages and other
 // host names from driving these localhost endpoints: the Host header must name this
-// loopback listener, a mutation must come from this exact origin with a JSON body and the
-// Workspace request header, and no CORS response header is ever sent.
+// loopback listener, a mutation must come from this exact origin with the Workspace
+// request header (governance accepts no body), and no CORS response header is ever sent.
 
 export const HOST = '127.0.0.1';
 export const READ_MODEL_VERSION = 'workspace.v0';
@@ -26,6 +27,8 @@ export const API_ROUTES = Object.freeze([
   'POST /api/v0/projects/:projectId/goals',
   'POST /api/v0/projects/:projectId/goals/order',
   'DELETE /api/v0/projects/:projectId/goals/:goalId',
+  'POST /api/v0/projects/:projectId/goals/:goalId/govern',
+  'GET /api/v0/projects/:projectId/goals/:goalId/governance',
   'GET /api/v0/stream',
 ] as const);
 const MAX_BODY_BYTES = 16 * 1024;
@@ -47,6 +50,7 @@ const STATIC: Readonly<Record<string, { file: string; type: string }>> = Object.
 });
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; " +
   "base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+export const WORKSPACE_UI_FILES: readonly string[] = Object.freeze([...new Set(Object.values(STATIC).map((asset) => asset.file))]);
 
 class HttpError extends Error {
   constructor(readonly status: number, readonly code: string, message: string) {
@@ -60,6 +64,8 @@ export interface WorkspaceServerOptions {
   /** 0 picks a free port (tests). */
   port: number;
   store?: FileGoalStore;
+  /** Injected by the trusted host. Workspace never opens governance storage. */
+  governance?: GoalGovernancePort;
   clock?: { now(): string };
 }
 
@@ -167,6 +173,19 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
     const extra = Object.keys(body).filter((key) => !keys.includes(key));
     if (extra.length) throw new HttpError(400, 'UNKNOWN_FIELD', `Unknown field: ${extra[0]}`);
   };
+  const noBody = (request: IncomingMessage): Promise<void> => new Promise((done, fail) => {
+    if (request.headers['content-type'] !== undefined || request.headers['transfer-encoding'] !== undefined ||
+        (request.headers['content-length'] !== undefined && request.headers['content-length'] !== '0')) {
+      request.resume();
+      fail(new HttpError(400, 'UNEXPECTED_BODY', 'Goal governance accepts no request body or Content-Type.'));
+      return;
+    }
+    let body = false;
+    request.on('data', () => { body = true; });
+    request.on('end', () => body ? fail(new HttpError(400, 'UNEXPECTED_BODY', 'Goal governance accepts no request body.')) : done());
+    request.on('error', () => fail(new HttpError(400, 'BAD_REQUEST', 'The request could not be read.')));
+    request.resume();
+  });
 
   const handle = async (request: IncomingMessage, response: ServerResponse) => {
     const method = request.method ?? 'GET';
@@ -210,6 +229,16 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
     }
     if (rest[0] === 'projects' && rest.length >= 3 && rest[2] === 'goals') {
       const current = project(rest[1]);
+      if (rest.length === 5 && ((rest[4] === 'govern' && method === 'POST') || (rest[4] === 'governance' && method === 'GET'))) {
+        if (new URL(request.url ?? '/', 'http://local').search) throw new HttpError(400, 'UNKNOWN_FIELD', 'Goal governance accepts only the project and goal identifiers in its route.');
+        if (method === 'POST') await noBody(request);
+        const governance = options.governance;
+        if (!governance) throw new HttpError(503, 'GOVERNANCE_UNAVAILABLE', 'This Workspace has no trusted Goal governance bridge.');
+        const result = method === 'POST' ? await governance.govern(current.projectId, rest[3], submittedBy) :
+          governance.lookup(current.projectId, rest[3], submittedBy);
+        json(response, 200, result);
+        return;
+      }
       if (rest.length === 3 && method === 'GET') { json(response, 200, queueView(current, store.read(current.projectId))); return; }
       if (rest.length === 3 && method === 'POST') {
         const body = await readJson(request);
@@ -235,7 +264,13 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
             (request.headers['content-length'] !== undefined && request.headers['content-length'] !== '0')) {
           throw new HttpError(400, 'UNEXPECTED_BODY', 'A goal removal does not accept request fields.');
         }
-        const change = store.removeGoal(current.projectId, rest[3]);
+        const governance = options.governance;
+        if (!governance) throw new HttpError(503, 'GOVERNANCE_UNAVAILABLE', 'Goal removal requires the trusted governance bridge.');
+        const change = store.removeGoal(current.projectId, rest[3], (goal) => {
+          if (governance.lookup(current.projectId, goal.goalId, submittedBy).state === 'GOVERNED') {
+            throw new GoalGovernanceError('GOAL_ALREADY_GOVERNED');
+          }
+        });
         const event = changeEvent(current.projectId, change);
         broadcast(event.name, event.data);
         json(response, 200, event.data);
@@ -249,6 +284,18 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
     handle(request, response).catch((error: unknown) => {
       if (response.headersSent) { response.end(); return; }
       if (error instanceof HttpError) { json(response, error.status, { error: { code: error.code, message: error.message } }); return; }
+      if (error instanceof GoalGovernanceError) {
+        const status = error.code === 'UNKNOWN_GOAL' || error.code === 'UNKNOWN_PROJECT' ? 404 :
+          error.code === 'GOAL_PRINCIPAL_MISMATCH' ? 403 :
+          ['UNATTRIBUTED_GOAL', 'GOAL_ALREADY_GOVERNED', 'CHANGE_SOURCE_BINDING_CONFLICT', 'GOAL_STORE_BUSY'].includes(error.code) ? 409 : 500;
+        json(response, status, { error: { code: error.code, message: error.message } });
+        return;
+      }
+      if (error instanceof GoalStoreBusyError) {
+        const busy = new GoalGovernanceError('GOAL_STORE_BUSY');
+        json(response, 409, { error: { code: busy.code, message: busy.message } });
+        return;
+      }
       if (error instanceof GoalQueueRequestError) {
         json(response, error.code === 'UNKNOWN_GOAL' ? 404 : error.code === 'STALE_REVISION' ? 409 : 400, { error: { code: error.code, message: error.message } });
         return;

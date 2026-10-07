@@ -129,6 +129,27 @@ check('CM1. registry root is required, real, safe, and disjoint from both existi
   directory(registry);
   refused(() => governance.assertDisjoint('elsewhere', join(dir, 'elsewhere')), /CHANGE_REGISTRY root changed/);
 });
+check('GC1. a registry-only bridge guard is not a full model/validation isolation capability', (dir) => {
+  const { registry } = roots(dir);
+  const guard = GovernanceStoreIsolation.forGoalChangeBridge(registry);
+  assert.equal(guard instanceof GovernanceStoreIsolation, false);
+  assert.deepEqual(Object.keys(guard), ['assertDisjoint']);
+  refused(() => guard.assertDisjoint('Goal Store', registry), /CHANGE_REGISTRY/);
+  assert.match(readFileSync(join(ROOT, 'src/automation/live/seatbelt-model-process.ts'), 'utf8'),
+    /governance instanceof GovernanceStoreIsolation/);
+  assert.match(readFileSync(join(ROOT, 'src/automation/live/seatbelt-validation.ts'), 'utf8'),
+    /governance instanceof GovernanceStoreIsolation/);
+});
+check('GC1. real model and validation boundaries reject a registry-only guard before any process', (dir) => {
+  const governance = GovernanceStoreIsolation.forGoalChangeBridge(roots(dir).registry);
+  let calls = 0;
+  const executor = { run() { calls++; throw new Error('must not run'); } };
+  const settings = { runtimeReadPaths: [], searchPath: '/usr/bin' };
+  assert.throws(() => new SeatbeltModelProcessExecutor(settings, { governance, executor,
+    egressJournal: { open() { calls++; } }, resolver: { resolve() { calls++; } } }), /requires the protected governance roots/);
+  assert.throws(() => new SeatbeltOfflineValidationExecutor(settings, { governance, executor }), /requires the protected governance roots/);
+  assert.equal(calls, 0);
+}, { requires: seatbelt ? undefined : 'macOS Seatbelt' });
 
 // ---------------------------------------------------------------- static composition (the real createLiveAutomation)
 const PINS = realpathSync(mkdtempSync(join(tmpdir(), 'chief-r4t-pins-')));
@@ -473,10 +494,12 @@ check('40. no run-creation path, endpoint or tool exists outside the controller'
   assert.deepEqual(SRC.filter((path) => /['"`]\/(api\/[^'"`]*\/)?(run|start)['"`]/.test(text(path))).map(rel), []);
   assert.deepEqual(SRC.filter((path) => /createLiveAutomation\(/.test(text(path)) && !path.endsWith(join('live', 'composition.ts'))).map(rel), []);
 });
-check('CM1. no production runtime holds Change Minter or imports the registry', () => {
+check('GC1. exactly one trusted bridge path holds Change Minter; every other runtime remains excluded', () => {
   const implementation = join('src', 'automation', 'change-registry.ts');
+  const bridge = join('src', 'intake', 'goal-change-bridge.ts');
   const outside = SRC.filter((path) => rel(path) !== implementation);
-  assert.deepEqual(outside.filter((path) => /openChangeMinter|ChangeMinter|change-registry\.js/.test(text(path))).map(rel), []);
+  assert.deepEqual(outside.filter((path) => /openChangeMinter|ChangeMinter|change-registry\.js/.test(text(path))).map(rel), [bridge]);
+  assert.equal((text(join(ROOT, bridge)).match(/openChangeMinter\(/g) ?? []).length, 1);
   assert.deepEqual(SRC.filter((path) => rel(path).startsWith('src/workspace/') && /change-mint|change-registry/.test(text(path))).map(rel), []);
   assert.deepEqual(SRC.filter((path) => rel(path).startsWith('src/automation/read-model/') &&
     /change-mint|change-registry/.test(text(path))).map(rel), []);

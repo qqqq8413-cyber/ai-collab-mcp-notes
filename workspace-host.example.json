@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "workspace": {
+    "schemaVersion": 1,
+    "dataDirectory": "./.chief-workspace",
+    "humanPrincipal": { "principalRef": "human:local-owner" },
+    "projects": [
+      { "projectId": "chief", "displayName": "CHIEF", "repository": "CHIEF source repository" }
+    ]
+  },
+  "governance": {
+    "changeRegistryDirectory": "/absolute/operator-provisioned/chief-change-registry",
+    "repositories": [
+      { "projectId": "chief", "repository": "qqqq8413-cyber/ai-collab-mcp-notes" }
+    ]
+  }
+}

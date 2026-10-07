@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseWorkspaceConfig } from './dist/workspace/config.js';
 import { API_ROUTES, HOST, startWorkspaceServer } from './dist/workspace/server.js';
+import { createGoalChangeBridge } from './dist/intake/goal-change-bridge.js';
 import { createDemoSource } from './workspace-ui/demo.js';
 import { createLiveSource } from './workspace-ui/live.js';
 import { EMPTY_ROOM, EVENT_TYPES, NEEDS_EMPTY, collaborationRoom, decisionHTML, discussionHTML, eventHTML, evidenceHTML, exchangesOf, needsHTML,
@@ -49,7 +50,10 @@ await check('demo values never reach the LIVE server or the LIVE source', async 
   const config = parseWorkspaceConfig({ schemaVersion: 1, dataDirectory: join(dir, 'q'),
     humanPrincipal: { principalRef: 'human:local-owner' },
     projects: [{ projectId: 'cand', displayName: '候選人平台', repository: 'org/cand' }] }, dir);
-  const ws = await startWorkspaceServer({ config, uiDirectory: 'workspace-ui', port: 0 });
+  const registry = join(dir, 'registry'); mkdirSync(registry, { mode: 0o700 });
+  const bridge = createGoalChangeBridge({ config, uiDirectory: 'workspace-ui', changeRegistryDirectory: registry,
+    governedRepositories: [{ projectId: 'cand', repository: 'org/cand' }] });
+  const ws = await startWorkspaceServer({ config, uiDirectory: 'workspace-ui', port: 0, ...bridge });
   try {
     const bootstrap = await fetch(ws.url);
     const cookie = bootstrap.headers.get('set-cookie').split(';')[0];
@@ -98,7 +102,11 @@ await check('the UI calls only the WS-L1 routes and shows no execution it does n
   const live = read('live.js'), app = read('app.js');
   for (const route of ['/projects', '/goals', '/order', '/stream']) assert.match(live, new RegExp(route.replace('/', '\\/')));
   assert.doesNotMatch(live + app, /\/(start|run|execute|resume|promote|create-run)\b/);
-  assert.equal(API_ROUTES.length, 6);
+  assert.equal(API_ROUTES.length, 8);
+  assert.deepEqual(API_ROUTES.filter((route) => /\/govern(ance)?$/.test(route)), [
+    'POST /api/v0/projects/:projectId/goals/:goalId/govern',
+    'GET /api/v0/projects/:projectId/goals/:goalId/governance',
+  ], 'GC1 adds exactly its two operational routes');
   assert.doesNotMatch(app, /Claude (正在|working)|Codex (正在|working)|Chief 正在檢查|測試執行中|tests running/);
   assert.match(app, /已收到這個目標。我已經把它加入/);
   assert.match(app, /排隊中/);
@@ -294,7 +302,7 @@ await check('WS-P1 signals: Human-required only from an escalation time; the LIV
   const html = roomHTML(r);
   assert.ok(html.includes(EMPTY_ROOM) && html.includes(NEEDS_EMPTY), 'LIVE shows both areas empty');
   assert.doesNotMatch(html, /示範資料|AI 協作摘要|class="ev /, 'no demo label, no summary, no event');
-  assert.equal(API_ROUTES.length, 6, 'no collaboration API route was added');
+  assert.equal(API_ROUTES.filter((route) => !/\/govern(ance)?$/.test(route)).length, 6, 'no collaboration API route was added');
 });
 
 await check('WS-P1 CollaborationEventV1: nine runtime-neutral types; anything outside the model is refused, never shown', () => {
