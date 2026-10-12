@@ -48,6 +48,12 @@ export interface RunnerResult {
   steps?: number;
 }
 
+/**
+ * The exact position a caller gated a step on: the run's state and its last audit entry.
+ * A step given one does nothing unless the run it reads is still exactly there.
+ */
+export interface RunnerPositionGuard { state: ControllerState; sequence: number; action: string; timestamp: string }
+
 export interface RunnerJournalOptions {
   journal: InvocationJournal;
   /** The exact scope each actor's adapter calls; each binds its own actor kind, never the other's. */
@@ -77,6 +83,7 @@ const LEFT_OCCURRENCE = 'the run left the occurrence this step was bound to; not
 const NOT_AUTHORIZED = 'live model call not authorized by an exact current human grant; not dispatched';
 const BUDGET_EXHAUSTED = 'live model call budget exhausted; not dispatched';
 const JOURNAL_CONFLICT = 'invocation journal and controller disagree about this occurrence; nothing was dispatched or applied';
+const NOT_AT_POSITION = 'the run is not at the position this step was gated on; nothing was done';
 
 interface Spec { entering: string; state: ControllerState; restart: string; noResult: string }
 const SPECS: Readonly<Record<ActorKind, Spec>> = Object.freeze({
@@ -162,6 +169,13 @@ function waitingOutcome(run: ControllerRun): RunnerOutcome | undefined {
   return undefined;
 }
 
+function snapshotPosition(value: unknown): RunnerPositionGuard {
+  const { state, sequence, action, timestamp } = (value ?? {}) as RunnerPositionGuard;
+  if (typeof state !== 'string' || !Number.isSafeInteger(sequence) || sequence < 0 || typeof action !== 'string' ||
+      typeof timestamp !== 'string') throw new TypeError('A step position needs a state and an exact audit entry');
+  return Object.freeze({ state, sequence, action, timestamp });
+}
+
 function snapshotJournalOptions(value: RunnerJournalOptions): RunnerJournalOptions {
   const journal = value?.journal;
   for (const method of ['prepare', 'get', 'find', 'list', 'start', 'complete', 'markUncertain', 'abandon', 'markApplied'] as const) {
@@ -213,12 +227,17 @@ export class AutomationRunner {
     Object.freeze(this);
   }
 
-  /** One bounded step. At most one controller transition, or one actor call and the transition it reports. */
-  async step(runId: string): Promise<RunnerResult> {
+  /**
+   * One bounded step. At most one controller transition, or one actor call and the transition it reports.
+   * With `expected`, the step acts only if the run it reads is still at that exact position;
+   * otherwise it reports STALE_OCCURRENCE and writes nothing, journal included.
+   */
+  async step(runId: string, expected?: RunnerPositionGuard): Promise<RunnerResult> {
+    const position = expected === undefined ? undefined : snapshotPosition(expected);
     if (this.#busy.has(runId)) throw new Error('A step is already in progress for this run');
     this.#busy.add(runId);
     try {
-      return await this.#step(runId);
+      return await this.#step(runId, position);
     } finally {
       this.#busy.delete(runId);
     }
@@ -235,8 +254,11 @@ export class AutomationRunner {
     return Object.freeze({ ...last!, outcome: 'STEP_LIMIT_REACHED', steps: maxSteps });
   }
 
-  async #step(runId: string): Promise<RunnerResult> {
+  async #step(runId: string, position?: RunnerPositionGuard): Promise<RunnerResult> {
     const run = this.#controller.get(runId);
+    if (position && (run.state !== position.state || !sameEntry(position, run.audit.at(-1)))) {
+      return this.#report(run, 'STALE_OCCURRENCE', NOT_AT_POSITION);
+    }
     if (this.#live) this.#settleJournal(run);
     const waiting = waitingOutcome(run);
     if (waiting) return this.#report(run, waiting);

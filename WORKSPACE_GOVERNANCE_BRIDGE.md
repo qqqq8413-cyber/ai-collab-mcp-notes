@@ -53,7 +53,10 @@ wins, DELETE cannot remove the source. Govern/govern contention waits briefly fo
 the storage lock; an abandoned lock produces a bounded refusal, never a repair.
 
 `runCreated: false` describes the governance operation: governing never creates a
-Run. Whether the Change has its Run is read from the RA1 route below.
+Run. Whether the Change has its Run is read from the RA1 route below. The field is
+kept for compatibility and is never read as current Run state: `/governance` does
+not query the Controller store, and the G1-LD1 execution driver derives everything
+from the Change Registry and R4A0, not from this projection.
 
 ## RA1 run admission
 
@@ -86,3 +89,9 @@ against the same Controller store shows that one IDLE ROOT run. GC1 does not cre
 admission records, Controller Runs, authority documents, or model/provider calls;
 RA1 creates only the admission record and the IDLE run. DEMO uses its
 existing in-memory behavior and has no governance API integration in this slice.
+
+## LD1 (not wired)
+
+G1-LD1 adds the governed one-step execution driver core. No Workspace route, UI
+control, SSE event, port or automatic call reaches it: RA1 still ends at the IDLE
+ROOT run, and `GoalRunAdmissionPort` is unchanged.

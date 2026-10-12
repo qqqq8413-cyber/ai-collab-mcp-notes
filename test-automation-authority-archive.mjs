@@ -546,12 +546,19 @@ check('C1-6/7/8. a valid archive opens normally; an absent root is created only 
   openAuthorityArchiveAppender(empty);
   assert.deepEqual(readdirSync(empty), ['records']);
 });
-check('the archive is wired into no runtime surface; only the governed read model reads it (G1-R4A0)', () => {
+check('the archive is wired into no runtime surface; only the governed read model reads it (G1-R4A0, G1-LD1)', () => {
   const sources = walk(join(ROOT, 'src')).filter((path) => path.endsWith('.ts') && !path.includes('/automation/authority/'));
-  const users = sources.filter((path) => /from ['"][^'"]*authority\/(document|file-archive)\.js['"]/.test(readFileSync(path, 'utf8')));
-  assert.deepEqual(users.map((path) => relative(ROOT, path)), ['src/automation/read-model/governed-read-model.ts']);
-  // Reader only: the read model never names the append capability.
-  assert.doesNotMatch(readFileSync(users[0], 'utf8'), /openAuthorityArchiveAppender|AuthorityArchiveAppender|\.append\(/);
+  const importers = (module) => sources.filter((path) => new RegExp(`from ['"][^'"]*authority\\/${module}\\.js['"]`).test(readFileSync(path, 'utf8')))
+    .map((path) => relative(ROOT, path)).sort();
+  assert.deepEqual(importers('file-archive'), ['src/automation/read-model/governed-read-model.ts']);
+  // G1-LD1: the execution driver takes only the existing body hash from the document module.
+  assert.deepEqual(importers('document'), ['src/automation/execution-driver.ts', 'src/automation/read-model/governed-read-model.ts']);
+  assert.match(readFileSync(join(ROOT, 'src/automation/execution-driver.ts'), 'utf8'),
+    /import \{ authorityBodyHash, type AuthorityRefV1, type JsonObject \} from '\.\/authority\/document\.js';/);
+  // Reader only: neither names the append capability.
+  for (const path of importers('document')) {
+    assert.doesNotMatch(readFileSync(join(ROOT, path), 'utf8'), /openAuthorityArchiveAppender|AuthorityArchiveAppender|\.append\(/, path);
+  }
 });
 
 let passed = 0, failed = 0;

@@ -36,6 +36,10 @@ export interface GovernedGoalView {
   sourceClassification: 'LOCAL_OPERATOR_INPUT';
   sourceNotice: 'Non-authoritative local operator input.';
   execution: 'NOT_STARTED';
+  /**
+   * About the governance operation only: governing never creates a Run. It is not the current
+   * Run state, which only the RA1 run projection reports; nothing reads it as such.
+   */
   runCreated: false;
 }
 export type GoalGovernanceView = GovernedGoalView | { provenance: 'CHANGE_REGISTRY'; state: 'NOT_GOVERNED' };

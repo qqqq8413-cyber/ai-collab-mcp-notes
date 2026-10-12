@@ -39,6 +39,9 @@ import { SeatbeltOfflineValidationExecutor, assertFixedSeatbeltTreesIsolated, se
 // protected: no archive reader or appender is opened. No Change Mint capability is opened.
 // Both Seatbelt boundaries receive
 // the roots and check every invocation's effective paths again.
+//
+// G1-LD1: the one production caller is the governed execution composition
+// (governed-execution.ts), which lets only the driver's inspect/step leave.
 
 const exact = z.string().min(1).refine((value) => value.trim() === value && !value.includes('\0'));
 const absolute = exact.refine(isAbsolute, 'must be an absolute path');

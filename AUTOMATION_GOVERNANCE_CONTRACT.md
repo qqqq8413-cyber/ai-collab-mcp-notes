@@ -246,6 +246,51 @@ hash) before and after the projection, and any difference fails closed.
 - CHIEF-GOV/1 has no continuation: run lineage is `UNAVAILABLE`, a change has no
   head.
 
+### 6.3 Governed Live Execution Driver (G1-LD1)
+
+One trusted capability decides whether an exact governed work item may take
+exactly one AutomationRunner step now, and takes at most that one step.
+
+- Target: a `WORKSPACE_GOAL` source (project, goal) and the expected runId.
+  Repository, slice and changeKey are never supplied; they come from the CM1
+  record for that source (`EXECUTION_CHANGE_NOT_FOUND` when none). The run must
+  exist once in R4A0 (`EXECUTION_RUN_NOT_FOUND`), carry that record's exact
+  identity (`EXECUTION_TARGET_MISMATCH`) and be its R4L ROOT
+  (`EXECUTION_ADMISSION_INVALID`).
+- Readiness is R4A0's, never re-derived: schema, version, ruleset and
+  `continuation` exact; no run, change or store anomaly and no non-authority
+  conflict (`EXECUTION_READ_MODEL_CONFLICT`); any required authority reference
+  not RESOLVED is `BLOCKED_AUTHORITY`; NextAction must be DETERMINATE. Controller
+  state alone, runner opinion, journals, CI and packet presence are not readiness.
+- The runner is called only where R4A0's exact moves are the runner protocol's:
+  `PACKET_READY`/`CORRECTION_REQUIRED` → `BEGIN_IMPLEMENTATION`, `IMPLEMENTING` →
+  `REPORT_IMPLEMENTATION_COMPLETE`, `IMPLEMENTATION_COMPLETE` →
+  `RECORD_REMOTE_SHA`, `REMOTE_SHA_READY` → `BEGIN_REMOTE_ACCEPTANCE`,
+  `ACCEPTANCE_REVIEW` → `ACCEPT_EXACT_SHA`/`REJECT_EXACT_SHA`. Any other move
+  (an Architect correction, a recheck, a budget halt, promotion, resume) is
+  reported as `WAITING_EXTERNAL_ACTOR` or, when every move is the Human's,
+  `WAITING_HUMAN`; terminal runs are `TERMINAL`.
+- A step that prepares or dispatches a model call (`IMPLEMENTATION` from
+  `PACKET_READY`, `CORRECTION_REQUIRED`, `IMPLEMENTING`; `ARCHITECT_REVIEW` from
+  `REMOTE_SHA_READY`, `ACCEPTANCE_REVIEW`) also needs the configured live-call
+  grant to bind, as the existing policy binding does, a HUMAN
+  `LIVE_PROVIDER_MODEL_CALL` for this run, active packet and the adapter's exact
+  actor, provider, model and egress set, and to be archived as exactly one R4P
+  `AUTHORIZATION` version with the same body hash, a HUMAN issuer and this
+  Change as subject. Otherwise `BLOCKED_AUTHORITY`. The runner's own dispatch
+  gate (time, packet entry, egress, call budget) still runs unchanged.
+- One `step()` takes R4A0 snapshot A, calls `AutomationRunner.step` once, bound
+  to the exact audit position A read (a run another writer moved is reported
+  `STALE_OCCURRENCE` by the runner and nothing is written), then takes snapshot
+  B and reports readiness from it. A stale, claimed or refused step is
+  `STALE_OR_ADVANCED`; nothing is retried, looped or continued. A review that
+  leaves `ACCEPTED` with an unarchived decision is a completed operational step
+  whose readiness is `BLOCKED_AUTHORITY`.
+- The driver mints nothing, creates no run, takes no Architect, Human or
+  Controller-only move, appends no authority, and is wired to no Workspace route,
+  UI, SSE event, CLI, MCP tool or scheduler. Results are operational records with
+  bounded codes: no path, body, grant, credential or journal payload.
+
 ## 7. Git and Promotion
 
 Canonical branch is `main`; implementation branches are `work/**`. No direct
@@ -438,6 +483,16 @@ scope must equal.
     Production run-creation paths: exactly one. The run projection is operational
     (`CONTROLLER_STORE`, `IDLE`, execution `NOT_STARTED`); R4A0 is not wired into
     Workspace and sees the admitted run only when explicitly read.
+14. LD1's governed execution composition is the one production caller of
+    `createLiveAutomation`, which runs first and unchanged, so the driver inherits
+    all three protected roots and every model and validation boundary. Only the
+    driver's `inspect`/`step` leave the composition; the Controller, runner,
+    journals, adapters and model process do not. The driver holds a Change
+    Registry reader (holders: GC1 bridge, RA1 bridge, LD1) and no minter; it is
+    `readGovernedModel`'s one production caller and takes only the existing body
+    hash from R4P, so the archive reader stays R4A0's and appender holders stay
+    zero. `AutomationRunner.step` accepts an optional exact position guard; without
+    one its behaviour is unchanged.
 
 ## 9. CHIEF Domain Boundary
 

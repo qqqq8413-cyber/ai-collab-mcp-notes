@@ -33,7 +33,8 @@ import { GovernedReadError, takeSourceSnapshot, type SourceSnapshot } from './so
 // - CHIEF-GOV/1 has no continuation: lineage is UNAVAILABLE, a change has no head, and
 //   a second run of one change is UNLINKED_SIBLING_RUN, never a successor.
 //
-// Wired into nothing: no Workspace, API, runner, controller or model process uses it.
+// Its one production caller is the G1-LD1 execution driver (execution-driver.ts), which uses
+// it as its readiness gate. No Workspace, API, runner, controller or model process uses it.
 
 export { GovernedReadError } from './source-snapshot.js';
 

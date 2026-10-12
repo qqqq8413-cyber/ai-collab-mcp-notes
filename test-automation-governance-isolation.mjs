@@ -448,16 +448,23 @@ const text = (path) => readFileSync(path, 'utf8');
 const rel = (path) => relative(ROOT, path);
 // G1-R4A0 capability delta: the governed read model alone may hold AuthorityArchiveReader.
 // No production source outside the archive holds AuthorityArchiveAppender.
+// G1-LD1 delta: the execution driver is the read model's one production caller, and it takes
+// only the existing body hash from R4P's document module; it opens neither archive capability.
 const GOVERNED_READ_MODEL = join('src', 'automation', 'read-model', 'governed-read-model.ts');
+const EXECUTION_DRIVER = join('src', 'automation', 'execution-driver.ts');
+const GOVERNED_EXECUTION = join('src', 'automation', 'live', 'governed-execution.ts');
 check('35. only the governed read model obtains the archive reader; nothing outside the archive obtains the appender', () => {
   const outside = SRC.filter((path) => !path.includes(`${join('src', 'automation', 'authority')}/`));
-  const users = outside.filter((path) => /openAuthorityArchive(Appender|Reader)|authority\/file-archive(\.js)?['"]|authority\/document(\.js)?['"]/.test(text(path)));
+  const users = outside.filter((path) => /openAuthorityArchive(Appender|Reader)|authority\/file-archive(\.js)?['"]/.test(text(path)));
   assert.deepEqual(users.map(rel), [GOVERNED_READ_MODEL]);
+  assert.deepEqual(outside.filter((path) => /authority\/document(\.js)?['"]/.test(text(path))).map(rel).sort(), [EXECUTION_DRIVER, GOVERNED_READ_MODEL].sort());
+  assert.match(text(join(ROOT, EXECUTION_DRIVER)), /import \{ authorityBodyHash, type AuthorityRefV1, type JsonObject \} from '\.\/authority\/document\.js';/);
   assert.deepEqual(outside.filter((path) => /openAuthorityArchiveAppender|AuthorityArchiveAppender/.test(text(path))).map(rel), []);
   assert.match(text(join(ROOT, GOVERNED_READ_MODEL)), /import \{ openAuthorityArchiveReader \} from '\.\.\/authority\/file-archive\.js';/);
-  // Nothing imports the read model yet: no Workspace, runner, controller, model process, MCP or composition holds it.
+  // Only the LD1 execution driver imports the read model: no Workspace, runner, controller, model process, MCP or live composition holds it.
   assert.deepEqual(SRC.filter((path) => !path.includes(`${join('src', 'automation', 'read-model')}/`) &&
-    /read-model\//.test(text(path))).map(rel), []);
+    /read-model\//.test(text(path))).map(rel), [EXECUTION_DRIVER]);
+  assert.deepEqual(SRC.filter((path) => rel(path) !== GOVERNED_READ_MODEL && /readGovernedModel\(/.test(text(path))).map(rel), [EXECUTION_DRIVER]);
   for (const surface of ['src/workspace', 'src/automation/live/composition.ts', 'src/automation/runner.ts', 'src/automation/controller.ts',
     'src/automation/live/claude-code-implementation.ts', 'src/automation/live/codex-architect-review.ts', 'src/automation/live/seatbelt-model-process.ts',
     'src/automation/live/model-process-isolation.ts', 'src/index.ts']) {
@@ -498,7 +505,9 @@ check('40. exactly one production run-creation path exists outside the controlle
   assert.deepEqual(callers.map(rel), [ROOT_RUN_ADMITTER]);
   assert.equal((text(join(ROOT, ROOT_RUN_ADMITTER)).match(/\.createRun\(/g) ?? []).length, 1);
   assert.deepEqual(SRC.filter((path) => /['"`]\/(api\/[^'"`]*\/)?(run|start)['"`]/.test(text(path))).map(rel), []);
-  assert.deepEqual(SRC.filter((path) => /createLiveAutomation\(/.test(text(path)) && !path.endsWith(join('live', 'composition.ts'))).map(rel), []);
+  // G1-LD1: the governed execution composition is the one production caller of createLiveAutomation, and nothing composes it yet.
+  assert.deepEqual(SRC.filter((path) => /createLiveAutomation\(/.test(text(path)) && !path.endsWith(join('live', 'composition.ts'))).map(rel), [GOVERNED_EXECUTION]);
+  assert.deepEqual(SRC.filter((path) => /createGovernedLiveExecutionDriver\(/.test(text(path)) && rel(path) !== GOVERNED_EXECUTION).map(rel), []);
 });
 check('GC1. exactly one trusted bridge path holds Change Minter; every other runtime remains excluded', () => {
   const implementation = join('src', 'automation', 'change-registry.ts');
@@ -506,8 +515,9 @@ check('GC1. exactly one trusted bridge path holds Change Minter; every other run
   const outside = SRC.filter((path) => rel(path) !== implementation);
   assert.deepEqual(outside.filter((path) => /openChangeMinter|ChangeMinter/.test(text(path))).map(rel), [bridge]);
   assert.equal((text(join(ROOT, bridge)).match(/openChangeMinter\(/g) ?? []).length, 1);
-  // G1-RA1: the run-admission bridge reads the registry; it holds no minter and mints nothing.
-  assert.deepEqual(outside.filter((path) => /change-registry\.js/.test(text(path))).map(rel).sort(), [bridge, RUN_ADMISSION_BRIDGE].sort());
+  // G1-RA1 / G1-LD1: the run-admission bridge and the execution driver read the registry; neither holds a minter.
+  assert.deepEqual(outside.filter((path) => /change-registry\.js/.test(text(path))).map(rel).sort(), [bridge, RUN_ADMISSION_BRIDGE, EXECUTION_DRIVER].sort());
+  assert.match(text(join(ROOT, EXECUTION_DRIVER)), /import \{ openChangeRegistryReader \} from '\.\/change-registry\.js';/);
   assert.match(text(join(ROOT, RUN_ADMISSION_BRIDGE)), /import \{ openChangeRegistryReader \} from '\.\.\/automation\/change-registry\.js';/);
   assert.deepEqual(SRC.filter((path) => rel(path).startsWith('src/workspace/') && /change-mint|change-registry/.test(text(path))).map(rel), []);
   assert.deepEqual(SRC.filter((path) => rel(path).startsWith('src/automation/read-model/') &&
