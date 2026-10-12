@@ -155,6 +155,15 @@ export interface ControllerOccurrenceGuard {
   timestamp: string;
 }
 
+/**
+ * G1-AP1: the exact activation intent a run's architecture entry is bound to. Written only by
+ * the Controller's enterArchitectureForActivation, in the same write as that ENTER_ARCHITECTURE
+ * (from the run's initial IDLE), and never changed afterwards. The ISSUE_PACKET directly after
+ * that entry must issue exactly this packet. An operational record: it grants nothing and is
+ * never direct authority.
+ */
+export interface ActivationBinding { packetId: string; packetHash: string }
+
 export interface AuditEntry {
   sequence: number;
   runId: string;
@@ -202,5 +211,7 @@ export interface ControllerRun {
   promotionAuthorization?: HumanAuthorization;
   promotionPreflight?: PromotionPreflightFacts;
   observedPromotedMainSha?: string;
+  /** Present only when the run entered architecture for a G1-AP1 activation. */
+  activationBinding?: ActivationBinding;
   audit: AuditEntry[];
 }

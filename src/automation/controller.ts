@@ -3,7 +3,7 @@ import { parseChangeIdentity } from './admission.js';
 import { InMemoryControllerStore, type ControllerStore } from './audit.js';
 import {
   acceptedAt, assertRunInvariants, assertTransition, isActiveState, isStopState, isTerminalState, parseAcceptanceDecision,
-  preflightPasses,
+  parseActivationBinding, preflightPasses,
 } from './lifecycle.js';
 import { packetHash, parseCorrection, parsePacket, validateCorrection } from './packet.js';
 import { evaluatePolicy, matchAuthorization, parseAuthorization } from './policy.js';
@@ -148,16 +148,44 @@ export class AutomationController {
     this.#require(run, 'IDLE', who, 'GPT_ARCHITECT');
     return this.#commit(run, 'ARCHITECTURE', who, 'ENTER_ARCHITECTURE', this.#now());
   }
+  /**
+   * G1-AP1 only: ENTER_ARCHITECTURE bound, in the same write, to the exact activation intent
+   * (packetId + packetHash) whose direct authority the caller has already preserved. Only from
+   * the run's initial IDLE. The binding never changes afterwards, and the ISSUE_PACKET directly
+   * after this entry must issue exactly that packet. enterArchitecture binds nothing.
+   */
+  enterArchitectureForActivation(runId: string, actor: Actor, binding: unknown): ControllerRun {
+    const who = this.#actor(actor);
+    const intent = parseActivationBinding(binding);
+    const run = this.get(runId);
+    this.#require(run, 'IDLE', who, 'GPT_ARCHITECT');
+    if (run.audit.length) throw new Error('An activation binds only a run that has not moved');
+    run.activationBinding = intent;
+    return this.#commit(run, 'ARCHITECTURE', who, 'ENTER_ARCHITECTURE', this.#now());
+  }
   issuePacket(runId: string, actor: Actor, input: unknown): ControllerRun {
+    return this.#issuePacket(runId, actor, input);
+  }
+  /** issuePacket, applied only while the run is still at the exact audit entry named. */
+  issuePacketForOccurrence(runId: string, actor: Actor, guard: ControllerOccurrenceGuard, input: unknown): ControllerRun {
+    return this.#issuePacket(runId, actor, input, this.#guard(guard, runId));
+  }
+  #issuePacket(runId: string, actor: Actor, input: unknown, occurrence?: ControllerOccurrenceGuard): ControllerRun {
     const who = this.#actor(actor);
     const run = this.get(runId);
+    this.#atOccurrence(run, occurrence);
     this.#require(run, 'ARCHITECTURE', who, 'GPT_ARCHITECT');
     const packet = parsePacket(input);
     if (packet.sliceId !== run.sliceId ||
         (run.activePacket && (packet.packetId === run.activePacket.packetId ||
           packet.packetVersion <= run.activePacket.packetVersion))) throw new Error('Packet identity/version mismatch');
+    const hash = packetHash(packet);
+    const bound = run.audit.length === 1 ? run.activationBinding : undefined;
+    if (bound && (packet.packetId !== bound.packetId || hash !== bound.packetHash)) {
+      throw new Error('Packet is not the activation this architecture entry is bound to');
+    }
     run.activePacket = packet;
-    run.activePacketHash = packetHash(packet);
+    run.activePacketHash = hash;
     run.correctionPacket = undefined;
     run.remoteSha = undefined;
     run.acceptance = undefined;

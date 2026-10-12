@@ -3,7 +3,7 @@ import { isPacketHash, isSha, packetHash, tryParsePacket, validateCorrection } f
 import { authorizationBinds, matchAuthorization, parseAuthorization } from './policy.js';
 import { isInstant, parseInstant } from './time.js';
 import {
-  STATES, STOP_CLASSES, type AcceptanceDecision, type AuditEntry, type ControllerRun, type ControllerState,
+  STATES, STOP_CLASSES, type AcceptanceDecision, type ActivationBinding, type AuditEntry, type ControllerRun, type ControllerState,
   type PostPromotionFacts, type PromotionPreflightFacts, type RemoteShaEvidence, type Role,
 } from './types.js';
 
@@ -31,11 +31,14 @@ const postSchema = z.strictObject({
   observedMainSha: sha, expectedAcceptedSha: sha,
   mainCiPassed: z.boolean(), requiredCheckPassed: z.boolean(), mainProtected: z.boolean(),
 });
+// Compared exactly, never trimmed.
+const bindingSchema = z.strictObject({ packetId: z.string().min(1), packetHash: z.string().refine(isPacketHash) });
 
 export function parseRemoteSha(input: unknown): RemoteShaEvidence { return remoteSchema.parse(input) as RemoteShaEvidence; }
 export function parseAcceptanceDecision(input: unknown): AcceptanceDecision { return decisionSchema.parse(input) as AcceptanceDecision; }
 export function parsePromotionPreflight(input: unknown): PromotionPreflightFacts { return preflightSchema.parse(input) as PromotionPreflightFacts; }
 export function parsePostPromotion(input: unknown): PostPromotionFacts { return postSchema.parse(input) as PostPromotionFacts; }
+export function parseActivationBinding(input: unknown): ActivationBinding { return bindingSchema.parse(input) as ActivationBinding; }
 
 const states = (...list: ControllerState[]) => new Set<ControllerState>(list);
 const STOPS = states(...STOP_CLASSES);
@@ -58,7 +61,7 @@ export function isTerminalState(state: unknown): boolean { return TERMINAL.has(s
 const FRAMED = ['activePacket', 'activePacketHash', 'correctionPacket', 'remoteSha', 'acceptance',
   'promotionAuthorization', 'promotionPreflight', 'observedPromotedMainSha', 'implementationIterations',
   'iterationStartedAt', 'acceptanceFailures', 'interruptedState', 'stopReason', 'stopId',
-  'externalRecheckRequired', 'humanResumeAuthorization'] as const;
+  'externalRecheckRequired', 'humanResumeAuthorization', 'activationBinding'] as const;
 type Framed = typeof FRAMED[number];
 const RUN_KEYS = new Set<string>(['runId', 'sliceId', 'repository', 'state', 'audit', ...FRAMED]);
 const ENTRY_KEYS = new Set<string>(['sequence', 'runId', 'sliceId', 'actor', 'role', 'action', 'timestamp',
@@ -74,7 +77,8 @@ const fromActive = (to: (state: ControllerState) => ControllerState[]) =>
   [...ACTIVE].flatMap((state) => to(state).map((next): [ControllerState, ControllerState] => [state, next]));
 
 const RULES: Readonly<Record<string, Rule>> = Object.freeze(Object.assign(Object.create(null), {
-  ENTER_ARCHITECTURE: rule(['GPT_ARCHITECT'], [['IDLE', 'ARCHITECTURE']]),
+  // The one move that may bind an activation intent (G1-AP1); no later move changes it.
+  ENTER_ARCHITECTURE: rule(['GPT_ARCHITECT'], [['IDLE', 'ARCHITECTURE']], ['activationBinding']),
   ISSUE_PACKET: rule(['GPT_ARCHITECT'], [['ARCHITECTURE', 'PACKET_READY']], ['activePacket', 'activePacketHash',
     'correctionPacket', 'remoteSha', 'acceptance', 'promotionAuthorization', 'promotionPreflight', 'observedPromotedMainSha']),
   BEGIN_IMPLEMENTATION: rule(['CODEX_IMPLEMENTER'], [['PACKET_READY', 'IMPLEMENTING'], ['CORRECTION_REQUIRED', 'IMPLEMENTING']],
@@ -186,6 +190,14 @@ export function assertRunInvariants(run: ControllerRun): void {
   if (run.promotionPreflight !== undefined && !preflightSchema.safeParse(run.promotionPreflight).success) fail('invalid promotion preflight');
   if (run.humanResumeAuthorization !== undefined && !parseAuthorization(run.humanResumeAuthorization)) fail('invalid resume authorization');
   if (run.promotionAuthorization !== undefined && !parseAuthorization(run.promotionAuthorization)) fail('invalid promotion authorization');
+  // G1-AP1: a binding belongs to the run's first entry, an ENTER_ARCHITECTURE from the initial
+  // IDLE, and the ISSUE_PACKET directly after that entry, if any, issued exactly its packet.
+  if (run.activationBinding !== undefined) {
+    const [entered, issued] = run.audit;
+    if (!bindingSchema.safeParse(run.activationBinding).success || entered?.action !== 'ENTER_ARCHITECTURE' ||
+        (issued?.action === 'ISSUE_PACKET' && (issued.packetId !== run.activationBinding.packetId ||
+          issued.packetHash !== run.activationBinding.packetHash))) fail('activation binding outside its architecture entry');
+  }
   if (run.correctionPacket !== undefined) {
     try { validateCorrection(run.correctionPacket, packet!, run.activePacketHash!, run.correctionPacket.rejectedSha,
       run.correctionPacket.reviewerFindings, run.correctionPacket.correctionIteration); }

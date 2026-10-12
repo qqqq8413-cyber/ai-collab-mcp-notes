@@ -303,7 +303,7 @@ export class FileControllerStore implements ControllerStore {
   }
   #replace(input: ControllerRun, privileged: boolean): void {
     const run = structuredClone(input);
-    if (!privileged && requiresControllerWriter(run.audit.at(-1)?.action)) throw new Error('Controller writer required');
+    if (!privileged && requiresControllerWriter(run.audit.at(-1)?.action, run.activationBinding)) throw new Error('Controller writer required');
     this.#locked(run.runId, () => {
       const current = this.#load(run.runId);
       if (!current) throw new Error('Unknown runId');

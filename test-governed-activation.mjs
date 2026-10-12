@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync,
   writeFileSync } from 'node:fs';
@@ -6,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as activationModule from './dist/automation/activation-core.js';
+import { InMemoryControllerStore } from './dist/automation/audit.js';
 import { architectReviewAuthority } from './dist/automation/authority/architect-review-authority.js';
 import { openAuthorityArchiveReader } from './dist/automation/authority/file-archive.js';
 import * as preserverModule from './dist/automation/authority/preserver.js';
@@ -13,6 +15,7 @@ import { openChangeMinter } from './dist/automation/change-registry.js';
 import { AutomationController } from './dist/automation/controller.js';
 import { FileControllerStore } from './dist/automation/durable-store.js';
 import { openGovernedExecutionDriver } from './dist/automation/execution-driver.js';
+import { packetHash } from './dist/automation/packet.js';
 import { FileInvocationJournal } from './dist/automation/file-invocation-journal.js';
 import { createGovernedLiveAutomation } from './dist/automation/live/governed-execution.js';
 import { readGovernedModel } from './dist/automation/read-model/governed-read-model.js';
@@ -385,6 +388,343 @@ check('AM-AN. a later version of the same packet document never stands in for th
   refusedUntouched(w, () => w.core.activate(w.target(), w.bundle({ packetOverrides: { objective: 'Revised wording' } })), 'ACTIVATION_CONFLICT');
 });
 
+// ---------------------------------------------------------------- G1-AP1-C1 activation intent binding
+const ARCH = { id: ARCHITECT, role: 'GPT_ARCHITECT' };
+const OTHER_ARCH = { id: 'architect:another-principal', role: 'GPT_ARCHITECT' };
+/** Packet n's complete bundle (packet-1 is the world's default bundle). */
+const bundleN = (w, n) => n === 1 ? w.bundle() : w.bundle({ packetOverrides: { packetId: `packet-${n}`, objective: `Packet ${n}` },
+  grants: [w.doc('AUTHORIZATION', grantOf(IMPL, w.runId, { packetId: `packet-${n}`, authorizationId: `auth-${n}i` })),
+    w.doc('AUTHORIZATION', grantOf(REVIEW, w.runId, { packetId: `packet-${n}`, authorizationId: `auth-${n}r` }))] });
+const intentOf = (bundle) => ({ packetId: bundle.implementationPacket.body.packetId, packetHash: packetHash(bundle.implementationPacket.body) });
+/** A second activation core over the same roots (another process's view), with its own Controller and preserver. */
+function coreOver(w, onWrite = () => {}, architectPrincipalRef = ARCHITECT) {
+  const controller = new AutomationController(clock, hookedStore(w.paths.controller, (run) => onWrite(run)), w.reality);
+  return { controller, core: openGovernedActivationCore({ controllerStoreDirectory: w.paths.controller, authorityArchiveDirectory: w.paths.authority,
+    changeRegistryDirectory: w.paths.registry, controller, preserver: openDirectAuthorityPreserver(w.paths.authority), architectPrincipalRef, clock }) };
+}
+/** A world whose first activation of `bundle` crashed after ENTER_ARCHITECTURE, before ISSUE_PACKET. */
+function enteredWorld(dir, n = 1) {
+  let writes = 0;
+  const w = world(dir, { onWrite: () => { writes += 1; if (writes === 2) throw new Error('crash during controller write'); } });
+  refused(() => w.core.activate(w.target(), bundleN(w, n)), 'ACTIVATION_INCOMPLETE');
+  return w;
+}
+const ACTIVATE_CHILD = `
+  import { readFileSync } from 'node:fs';
+  import { openGovernedActivationCore } from './dist/automation/activation-core.js';
+  import { openDirectAuthorityPreserver } from './dist/automation/authority/preserver.js';
+  import { AutomationController } from './dist/automation/controller.js';
+  import { FileControllerStore } from './dist/automation/durable-store.js';
+  const { paths, target, bundle, crashAfter, goAt, now, architect } = JSON.parse(readFileSync(process.argv[1], 'utf8'));
+  const clock = { now: () => now };
+  const inner = new FileControllerStore(paths.controller, clock);
+  // A real crash: the process dies right after the named Controller write is durable.
+  const store = { create: (run) => inner.create(run), get: (id) => inner.get(id), replace: (run) => inner.replace(run),
+    entries: (id) => inner.entries(id),
+    bindController() { const write = inner.bindController(); return (run) => { write(run); if (run.audit.at(-1).action === crashAfter) process.exit(0); }; } };
+  const core = openGovernedActivationCore({ controllerStoreDirectory: paths.controller, authorityArchiveDirectory: paths.authority,
+    changeRegistryDirectory: paths.registry, controller: new AutomationController(clock, store),
+    preserver: openDirectAuthorityPreserver(paths.authority), architectPrincipalRef: architect, clock });
+  const late = Date.now() > goAt;
+  while (Date.now() < goAt) { /* start together */ }
+  let outcome;
+  try { outcome = core.activate(target, bundle).status; } catch (error) { outcome = error.code ?? error.message; }
+  console.log(JSON.stringify({ outcome, late }));`;
+let jobs = 0;
+/** One activation of `bundle` in a separate process. Resolves { outcome, late } or { crashed: true }. */
+function activateInProcess(w, bundle, { crashAfter = '', goAt = 0 } = {}) {
+  const job = join(dirname(w.paths.controller), `job-${jobs++}.json`);
+  writeFileSync(job, JSON.stringify({ paths: w.paths, target: w.target(), bundle, crashAfter, goAt, now: T, architect: ARCHITECT }));
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ['--input-type=module', '-e', ACTIVATE_CHILD, job], { cwd: ROOT });
+    let out = '', err = '';
+    child.stdout.on('data', (chunk) => { out += chunk; });
+    child.stderr.on('data', (chunk) => { err += chunk; });
+    child.on('close', (status) => status !== 0 ? reject(new Error(err)) : resolve(out.trim() ? JSON.parse(out.trim().split('\n').at(-1)) : { crashed: true }));
+  });
+}
+const auditOf = (w) => w.controller.audit(w.runId).map((entry) => [entry.action, entry.actor, entry.role]);
+
+check('C1-A. packet A preserved, ENTER_ARCHITECTURE bound to A in the same write, a real crash before ISSUE_PACKET; the exact retry issues A', async (dir) => {
+  const w = world(dir);
+  const crashed = await activateInProcess(w, w.bundle(), { crashAfter: 'ENTER_ARCHITECTURE' });
+  assert.deepEqual(crashed, { crashed: true });
+  const run = w.controller.get(w.runId);
+  assert.deepEqual([run.state, run.activationBinding, run.activePacket], ['ARCHITECTURE', intentOf(w.bundle()), undefined]);
+  assert.deepEqual(auditOf(w), [['ENTER_ARCHITECTURE', ARCHITECT, 'GPT_ARCHITECT']]);
+  const view = w.core.inspect(w.target());
+  assert.deepEqual([view.position, view.activationBinding, view.recordClass], ['ARCHITECTURE_ENTERED', intentOf(w.bundle()), 'OPERATIONAL_RECORD']);
+  // The binding and the transition were one Controller write; authority was archived before it.
+  const writes = [];
+  const seen = world(join(dir, 'seen'), { onWrite: (written, paths) => writes.push([written.audit.at(-1).action, written.activationBinding ?? null,
+    openAuthorityArchiveReader(paths.authority).listVersions('IMPLEMENTATION_PACKET', 'packet-1').length]) });
+  seen.core.activate(seen.target(), seen.bundle());
+  assert.deepEqual(writes, [['ENTER_ARCHITECTURE', intentOf(seen.bundle()), 1], ['ISSUE_PACKET', intentOf(seen.bundle()), 1]]);
+  const result = w.core.activate(w.target(), w.bundle());
+  assert.deepEqual([result.status, result.preState, result.state, result.packet.packetId], ['ACTIVATED', 'ARCHITECTURE', 'PACKET_READY', 'packet-1']);
+  assert.deepEqual(auditOf(w), [['ENTER_ARCHITECTURE', ARCHITECT, 'GPT_ARCHITECT'], ['ISSUE_PACKET', ARCHITECT, 'GPT_ARCHITECT']]);
+  assert.deepEqual(w.controller.get(w.runId).activationBinding, intentOf(w.bundle()), 'the binding is retained unchanged');
+  assert.deepEqual([versions(w, 'IMPLEMENTATION_PACKET', 'packet-1'), versions(w, 'AUTHORIZATION', 'auth-implementation')], [1, 1]);
+});
+check('C1-B. after A entered and crashed, an activation with packet B is ACTIVATION_CONFLICT: nothing written, still ARCHITECTURE, B never active', (dir) => {
+  const w = enteredWorld(dir);
+  refusedUntouched(w, () => w.core.activate(w.target(), bundleN(w, 2)), 'ACTIVATION_CONFLICT');
+  const run = w.controller.get(w.runId);
+  assert.deepEqual([run.state, run.activePacket, run.activationBinding], ['ARCHITECTURE', undefined, intentOf(w.bundle())]);
+  assert.equal(versions(w, 'IMPLEMENTATION_PACKET', 'packet-2'), 0, 'packet B was archived');
+  // B through a fresh process's core as well; then A's exact retry still completes with A.
+  refusedUntouched(w, () => coreOver(w).core.activate(w.target(), bundleN(w, 2)), 'ACTIVATION_CONFLICT');
+  assert.equal(w.core.activate(w.target(), w.bundle()).packet.packetId, 'packet-1');
+  refusedUntouched(w, () => w.core.activate(w.target(), bundleN(w, 2)), 'ACTIVATION_CONFLICT');
+});
+check('C1-C. the same packetId with another body during ARCHITECTURE recovery is ACTIVATION_CONFLICT with no write', (dir) => {
+  const w = enteredWorld(dir);
+  for (const overrides of [{ objective: 'Same id, other body' }, { packetVersion: 2 }]) {
+    refusedUntouched(w, () => w.core.activate(w.target(), w.bundle({ packetOverrides: overrides })), 'ACTIVATION_CONFLICT');
+  }
+  // Same body, but not the archived document (a later version standing in for the bound one).
+  const v1 = w.archive().listVersions('IMPLEMENTATION_PACKET', 'packet-1')[0];
+  refusedUntouched(w, () => w.core.activate(w.target(), w.bundle({ packetDocument: w.doc('IMPLEMENTATION_PACKET', w.packet(), { version: 2, supersedes: v1 }) })),
+    'ACTIVATION_CONFLICT');
+  assert.equal(w.controller.get(w.runId).state, 'ARCHITECTURE');
+  assert.equal(w.core.activate(w.target(), w.bundle()).status, 'ACTIVATED');
+});
+check('C1-D. an ARCHITECTURE entered by any other path is never adopted: ACTIVATION_ALREADY_ADVANCED, no packet issued', (dir) => {
+  // Generic Controller.enterArchitecture by the configured Architect, before and after the documents were archived.
+  const w = world(dir);
+  w.controller.enterArchitecture(w.runId, ARCH);
+  refusedUntouched(w, () => w.core.activate(w.target(), w.bundle()), 'ACTIVATION_ALREADY_ADVANCED');
+  assert.equal(w.core.inspect(w.target()).position, 'ADVANCED');
+  let crash = true;
+  const d = world(join(dir, 'd'), { onWrite: () => { if (crash) throw new Error('crash during controller write'); } });
+  refused(() => d.core.activate(d.target(), d.bundle()), 'ACTIVATION_INCOMPLETE');
+  crash = false;
+  d.controller.enterArchitecture(d.runId, ARCH);
+  refusedUntouched(d, () => d.core.activate(d.target(), d.bundle()), 'ACTIVATION_ALREADY_ADVANCED');
+  // A generic entry landing between the activation's IDLE read and its own entry: the bound entry fails and nothing is issued.
+  const r = world(join(dir, 'race'));
+  const other = coreOver(r);
+  let once = true;
+  const racing = coreOver(r, () => { if (once) { once = false; other.controller.enterArchitecture(r.runId, ARCH); } });
+  refused(() => racing.core.activate(r.target(), r.bundle()), 'ACTIVATION_ALREADY_ADVANCED');
+  // A generic or direct-store entry, a stop and return, or a generic packet: none carries an activation binding.
+  for (const world_ of [w, d, r]) {
+    const run = world_.controller.get(world_.runId);
+    assert.deepEqual([run.state, run.activePacket, Object.hasOwn(run, 'activationBinding')], ['ARCHITECTURE', undefined, false]);
+  }
+  const s = world(join(dir, 'store'));
+  const fresh = s.controller.get(s.runId);
+  const entry = { sequence: 1, runId: s.runId, sliceId: s.sliceId, actor: ARCHITECT, role: 'GPT_ARCHITECT', action: 'ENTER_ARCHITECTURE',
+    timestamp: T, previousState: 'IDLE', nextState: 'ARCHITECTURE', repository: REPO };
+  const direct = new FileControllerStore(s.paths.controller, clock);
+  assert.throws(() => direct.replace({ ...fresh, state: 'ARCHITECTURE', audit: [entry], activationBinding: intentOf(s.bundle()) }), /Controller writer required/);
+  assert.equal(s.controller.get(s.runId).state, 'IDLE', 'a direct store write forged a bound entry');
+  direct.replace({ ...fresh, state: 'ARCHITECTURE', audit: [entry] });
+  refusedUntouched(s, () => s.core.activate(s.target(), s.bundle()), 'ACTIVATION_ALREADY_ADVANCED');
+  // Generic PACKET_READY of the very same packet, its documents archived, is not an activation either.
+  for (const document_ of [s.bundle().implementationPacket, ...s.bundle().liveCallAuthorizations]) s.realPreserver.preserve(document_);
+  s.controller.issuePacket(s.runId, ARCH, s.packet());
+  refusedUntouched(s, () => s.core.activate(s.target(), s.bundle()), 'ACTIVATION_ALREADY_ADVANCED');
+  assert.equal(s.controller.audit(s.runId).length, 2);
+});
+check('C1-E. an entry or packet issue by another GPT_ARCHITECT principal is never adopted', (dir) => {
+  const w = world(dir);
+  w.controller.enterArchitecture(w.runId, OTHER_ARCH);
+  refusedUntouched(w, () => w.core.activate(w.target(), w.bundle()), 'ACTIVATION_ALREADY_ADVANCED');
+  // The exact binding, the documents archived first, but the entry written under another principal.
+  const o = world(join(dir, 'other'));
+  for (const document_ of [o.bundle().implementationPacket, ...o.bundle().liveCallAuthorizations]) o.realPreserver.preserve(document_);
+  o.controller.enterArchitectureForActivation(o.runId, OTHER_ARCH, intentOf(o.bundle()));
+  refusedUntouched(o, () => o.core.activate(o.target(), o.bundle()), 'ACTIVATION_ALREADY_ADVANCED');
+  // The activation's own entry, then ISSUE_PACKET of the bound packet by another principal.
+  const i = enteredWorld(join(dir, 'issued'));
+  i.controller.issuePacket(i.runId, OTHER_ARCH, i.packet());
+  refusedUntouched(i, () => i.core.activate(i.target(), i.bundle()), 'ACTIVATION_ALREADY_ADVANCED');
+  // A core configured with another principal does not adopt this Architect's activation either.
+  const c = enteredWorld(join(dir, 'core'));
+  refusedUntouched(c, () => coreOver(c, () => {}, OTHER_ARCH.id).core.activate(c.target(), c.bundle()), 'ACTIVATION_ALREADY_ADVANCED');
+  assert.equal(c.controller.get(c.runId).state, 'ARCHITECTURE');
+});
+check('C1-F. concurrent activations with different packets: one binds IDLE → ARCHITECTURE; the loser neither replaces nor completes', async (dir) => {
+  // Deterministic interleavings. A wins the entry while B has already read IDLE.
+  const w = world(dir);
+  let once = true;
+  const b = coreOver(w, () => { if (once) { once = false; assert.equal(w.core.activate(w.target(), w.bundle()).status, 'ACTIVATED'); } });
+  refused(() => b.core.activate(w.target(), bundleN(w, 2)), 'ACTIVATION_CONFLICT');
+  const run = w.controller.get(w.runId);
+  assert.deepEqual([run.state, run.activePacket.packetId, run.activationBinding], ['PACKET_READY', 'packet-1', intentOf(w.bundle())]);
+  assert.deepEqual(auditOf(w).map(([action]) => action), ['ENTER_ARCHITECTURE', 'ISSUE_PACKET']);
+  // B's documents were archived (authority may be ahead of the Controller) but nothing uses them.
+  assert.equal(runOf(w).authority.some((reference) => reference.authorityId === 'packet-2'), false);
+  // A enters and crashes; B, which read IDLE, cannot complete with its packet; A's retry completes A.
+  const x = world(join(dir, 'crashed'));
+  let first = true, writes = 0;
+  const a = coreOver(x, () => { writes += 1; if (writes === 2) throw new Error('crash during controller write'); });
+  const loser = coreOver(x, () => { if (first) { first = false; refused(() => a.core.activate(x.target(), x.bundle()), 'ACTIVATION_INCOMPLETE'); } });
+  refused(() => loser.core.activate(x.target(), bundleN(x, 2)), 'ACTIVATION_CONFLICT');
+  assert.deepEqual([x.controller.get(x.runId).state, x.controller.get(x.runId).activationBinding], ['ARCHITECTURE', intentOf(x.bundle())]);
+  // The Controller itself refuses B under A's entry, guarded or not.
+  const entered = x.controller.audit(x.runId)[0];
+  const guard = { runId: x.runId, sequence: entered.sequence, action: entered.action, timestamp: entered.timestamp };
+  assert.throws(() => x.controller.issuePacketForOccurrence(x.runId, ARCH, guard, x.packet({ packetId: 'packet-2' })), /not the activation/);
+  assert.throws(() => x.controller.issuePacket(x.runId, ARCH, x.packet({ packetId: 'packet-2' })), /not the activation/);
+  assert.throws(() => x.controller.issuePacket(x.runId, ARCH, x.packet({ objective: 'Same id, other body' })), /not the activation/);
+  assert.equal(x.core.activate(x.target(), x.bundle()).status, 'ACTIVATED');
+  // Real processes started together, each with its own packet.
+  const outcomes = [];
+  for (let round = 0; round < 3; round++) {
+    const r = world(join(dir, `race-${round}`));
+    const bundles = [1, 2, 3, 4].map((n) => bundleN(r, n));
+    const goAt = Date.now() + 2000;
+    const results = await Promise.all(bundles.map((bundle) => activateInProcess(r, bundle, { goAt })));
+    outcomes.push(...results.map((result) => result.outcome));
+    const final = r.controller.get(r.runId);
+    assert.equal(final.state, 'PACKET_READY', JSON.stringify(results));
+    assert.deepEqual(auditOf(r), [['ENTER_ARCHITECTURE', ARCHITECT, 'GPT_ARCHITECT'], ['ISSUE_PACKET', ARCHITECT, 'GPT_ARCHITECT']]);
+    const winner = Number(final.activePacket.packetId.slice('packet-'.length));
+    assert.deepEqual(final.activationBinding, intentOf(bundles[winner - 1]));
+    results.forEach((result, index) => {
+      const allowed = index === winner - 1 ? ['ACTIVATED', 'ACTIVATION_INCOMPLETE'] : ['ACTIVATION_CONFLICT', 'ACTIVATION_INCOMPLETE', 'ACTIVATION_READ_MODEL_CONFLICT'];
+      assert.ok(allowed.includes(result.outcome), JSON.stringify(results));
+    });
+    assert.equal(r.core.activate(r.target(), bundles[winner - 1]).status, 'ALREADY_ACTIVATED');
+    for (const [index, bundle] of bundles.entries()) {
+      if (index !== winner - 1) refusedUntouched(r, () => r.core.activate(r.target(), bundle), 'ACTIVATION_CONFLICT');
+    }
+  }
+  assert.ok(outcomes.filter((outcome) => outcome === 'ACTIVATED').length === 3, JSON.stringify(outcomes));
+});
+check('C1-G. concurrent exact activations of one packet converge: one entry, one issue, one active packet', async (dir) => {
+  // P1 completes while P2, having read IDLE, is about to enter: P2 converges on P1's result.
+  const w = world(dir);
+  let once = true;
+  const p2 = coreOver(w, () => { if (once) { once = false; w.core.activate(w.target(), w.bundle()); } });
+  assert.equal(p2.core.activate(w.target(), w.bundle()).status, 'ACTIVATED');
+  assert.deepEqual(auditOf(w).map(([action]) => action), ['ENTER_ARCHITECTURE', 'ISSUE_PACKET']);
+  // P1 enters and crashes; P2's own entry loses to it, and P2 completes P1's exact intent instead of entering again.
+  const x = world(join(dir, 'joined'));
+  let first = true, writes = 0;
+  const p1 = coreOver(x, () => { writes += 1; if (writes === 2) throw new Error('crash during controller write'); });
+  const q2 = coreOver(x, () => { if (first) { first = false; refused(() => p1.core.activate(x.target(), x.bundle()), 'ACTIVATION_INCOMPLETE'); } });
+  assert.equal(q2.core.activate(x.target(), x.bundle()).status, 'ACTIVATED');
+  assert.deepEqual(auditOf(x).map(([action]) => action), ['ENTER_ARCHITECTURE', 'ISSUE_PACKET']);
+  // Both resume the same interrupted activation; the second issue loses to the first and changes nothing.
+  const y = enteredWorld(join(dir, 'both-resume'));
+  let before = true;
+  const r2 = coreOver(y, () => { if (before) { before = false; assert.equal(y.core.activate(y.target(), y.bundle()).status, 'ACTIVATED'); } });
+  assert.equal(r2.core.activate(y.target(), y.bundle()).status, 'ACTIVATED');
+  assert.deepEqual(auditOf(y).map(([action]) => action), ['ENTER_ARCHITECTURE', 'ISSUE_PACKET']);
+  // Real processes started together with the same packet.
+  for (let round = 0; round < 3; round++) {
+    const r = world(join(dir, `race-${round}`));
+    const goAt = Date.now() + 2000;
+    const results = await Promise.all([0, 1, 2, 3].map(() => activateInProcess(r, r.bundle(), { goAt })));
+    for (const result of results) {
+      assert.ok(['ACTIVATED', 'ALREADY_ACTIVATED', 'ACTIVATION_INCOMPLETE', 'ACTIVATION_READ_MODEL_CONFLICT'].includes(result.outcome), JSON.stringify(results));
+    }
+    assert.ok(results.some((result) => result.outcome === 'ACTIVATED'), JSON.stringify(results));
+    assert.deepEqual(auditOf(r), [['ENTER_ARCHITECTURE', ARCHITECT, 'GPT_ARCHITECT'], ['ISSUE_PACKET', ARCHITECT, 'GPT_ARCHITECT']]);
+    assert.equal(r.controller.get(r.runId).activePacket.packetId, 'packet-1');
+    assert.deepEqual([versions(r, 'IMPLEMENTATION_PACKET', 'packet-1'), versions(r, 'AUTHORIZATION', 'auth-implementation'),
+      versions(r, 'AUTHORIZATION', 'auth-architect-review')], [1, 1, 1]);
+    assert.equal(r.core.activate(r.target(), r.bundle()).status, 'ALREADY_ACTIVATED');
+  }
+});
+check('C1-H. a real crash right after ISSUE_PACKET: the exact retry is ALREADY_ACTIVATED; another packet is still ACTIVATION_CONFLICT', async (dir) => {
+  const w = world(dir);
+  assert.deepEqual(await activateInProcess(w, w.bundle(), { crashAfter: 'ISSUE_PACKET' }), { crashed: true });
+  assert.equal(w.controller.get(w.runId).state, 'PACKET_READY');
+  const result = w.core.activate(w.target(), w.bundle());
+  assert.deepEqual([result.status, result.preState, result.packet.packetId], ['ALREADY_ACTIVATED', 'PACKET_READY', 'packet-1']);
+  assert.equal(w.controller.audit(w.runId).length, 2);
+  refusedUntouched(w, () => w.core.activate(w.target(), bundleN(w, 2)), 'ACTIVATION_CONFLICT');
+  refusedUntouched(w, () => w.core.activate(w.target(), w.bundle({ packetOverrides: { objective: 'Same id, other body' } })), 'ACTIVATION_CONFLICT');
+});
+check('C1-I. the activation binding is an OPERATIONAL_RECORD: never an R4P document, an R4A0 authority reference or fact', (dir) => {
+  const w = enteredWorld(dir);
+  const archived = (model) => model.authority.map((fact) => `${fact.ref.kind}/${fact.ref.authorityId}/${fact.ref.version}`).sort();
+  const expected = ['AUTHORIZATION/auth-architect-review/1', 'AUTHORIZATION/auth-implementation/1', 'IMPLEMENTATION_PACKET/packet-1/1'];
+  let model = w.read();
+  assert.deepEqual(runOf(w, model).authority, [], 'the bound entry became an authority reference');
+  assert.deepEqual(archived(model), expected);
+  assert.equal(JSON.stringify(runOf(w, model)).includes('activationBinding'), false, 'R4A0 projects the binding');
+  assert.deepEqual(w.core.inspect(w.target()).recordClass, 'OPERATIONAL_RECORD');
+  w.core.activate(w.target(), w.bundle());
+  model = w.read();
+  assert.deepEqual(archived(model), expected, 'activation archived something beyond the supplied documents');
+  assert.deepEqual(runOf(w, model).authority.map((reference) => reference.locator), ['activePacket']);
+  assert.ok(model.authority.every((fact) => fact.recordClass === 'DIRECT_AUTHORITY' && !JSON.stringify(fact).includes('activationBinding')));
+  // A binding the run's history does not support is refused on every load.
+  const run = w.controller.get(w.runId);
+  plantRun(w, { ...run, activationBinding: intentOf(bundleN(w, 2)) });
+  assert.throws(() => w.controller.get(w.runId), /activation binding outside its architecture entry/);
+  refused(() => w.core.activate(w.target(), w.bundle()), 'ACTIVATION_READ_MODEL_CONFLICT');
+});
+check('C1-J. generic enterArchitecture is unchanged and binds nothing; the bound entry is IDLE-only, exact and Architect-only', (dir) => {
+  const c = new AutomationController(clock, new InMemoryControllerStore(clock));
+  c.createRun('run-1', 'slice-1', REPO);
+  const generic = c.enterArchitecture('run-1', ARCH);
+  assert.deepEqual([generic.state, Object.hasOwn(generic, 'activationBinding')], ['ARCHITECTURE', false]);
+  assert.deepEqual(JSON.parse(JSON.stringify(generic.audit)), [{ sequence: 1, runId: 'run-1', sliceId: 'slice-1', actor: ARCHITECT, role: 'GPT_ARCHITECT',
+    action: 'ENTER_ARCHITECTURE', timestamp: T, previousState: 'IDLE', nextState: 'ARCHITECTURE', repository: REPO }]);
+  assert.equal(c.issuePacket('run-1', ARCH, packetOf('slice-1', { packetId: 'any-packet' })).state, 'PACKET_READY');
+  // The bound entry: exact intent, GPT_ARCHITECT, initial IDLE only; a refusal writes nothing.
+  const memory = new InMemoryControllerStore(clock);
+  const b = new AutomationController(clock, memory);
+  b.createRun('run-2', 'slice-2', REPO);
+  const intent = { packetId: 'packet-1', packetHash: packetHash(packetOf('slice-2')) };
+  for (const bad of [{ packetId: 'packet-1' }, { ...intent, extra: 1 }, { ...intent, packetHash: 'x' }, { ...intent, packetId: '' }, null]) {
+    assert.throws(() => b.enterArchitectureForActivation('run-2', ARCH, bad));
+  }
+  assert.throws(() => b.enterArchitectureForActivation('run-2', { id: 'implementer', role: 'CODEX_IMPLEMENTER' }, intent));
+  assert.equal(b.get('run-2').audit.length, 0);
+  const entry = { sequence: 1, runId: 'run-2', sliceId: 'slice-2', actor: ARCHITECT, role: 'GPT_ARCHITECT', action: 'ENTER_ARCHITECTURE',
+    timestamp: T, previousState: 'IDLE', nextState: 'ARCHITECTURE', repository: REPO };
+  assert.throws(() => memory.replace({ ...b.get('run-2'), state: 'ARCHITECTURE', audit: [entry], activationBinding: intent }), /Controller writer required/);
+  const bound = b.enterArchitectureForActivation('run-2', ARCH, intent);
+  assert.deepEqual([bound.state, bound.activationBinding, bound.audit.length], ['ARCHITECTURE', intent, 1]);
+  assert.throws(() => b.enterArchitectureForActivation('run-2', ARCH, intent), /Illegal transition/);
+  // Not from an IDLE the run returned to.
+  const m = new AutomationController(clock, new InMemoryControllerStore(clock));
+  m.createRun('run-3', 'slice-3', REPO);
+  m.stop('run-3', { id: 'human', role: 'HUMAN' }, 'HUMAN_STOP', 'pause');
+  m.resumeHuman('run-3', { id: 'human', role: 'HUMAN' }, { authorizationId: 'resume-1', actorRole: 'HUMAN', operation: 'RESUME_HUMAN_STOP',
+    target: m.get('run-3').stopId, runId: 'run-3', issuedAt: EARLIER, reason: 'resume' });
+  assert.equal(m.get('run-3').state, 'IDLE');
+  assert.throws(() => m.enterArchitectureForActivation('run-3', ARCH, intent), /has not moved/);
+  // A stop and return leaves the binding as history; it no longer constrains the next packet, and AP1 sees ADVANCED.
+  const s = enteredWorld(join(dir, 'stopped'));
+  s.controller.stop(s.runId, ARCH, 'ARCHITECTURE_STOP', 'rethink');
+  s.controller.resumeArchitecture(s.runId, ARCH);
+  refusedUntouched(s, () => s.core.activate(s.target(), s.bundle()), 'ACTIVATION_ALREADY_ADVANCED');
+  const second = bundleN(s, 2);
+  for (const document_ of [second.implementationPacket, ...second.liveCallAuthorizations]) s.realPreserver.preserve(document_);
+  assert.equal(s.controller.issuePacket(s.runId, ARCH, second.implementationPacket.body).activationBinding.packetId, 'packet-1');
+  refusedUntouched(s, () => s.core.activate(s.target(), bundleN(s, 2)), 'ACTIVATION_ALREADY_ADVANCED');
+});
+check('C1-K. a bound entry without the packet archived before it (Controller intent first) is never completed', (dir) => {
+  const w = world(dir);
+  w.controller.enterArchitectureForActivation(w.runId, ARCH, intentOf(w.bundle()));
+  const error = refusedUntouched(w, () => w.core.activate(w.target(), w.bundle()), 'ACTIVATION_ALREADY_ADVANCED');
+  assert.equal(error.reason, 'INTENT_WITHOUT_AUTHORITY');
+  assert.equal(versions(w, 'IMPLEMENTATION_PACKET', 'packet-1'), 0);
+  assert.equal(w.controller.get(w.runId).state, 'ARCHITECTURE');
+});
+check('C1-L. a run that moves between the recovery read and the issue is never issued into: the issue is bound to the exact entry', (dir) => {
+  let writes = 0, move = false;
+  const w = world(dir, { onWrite: () => { writes += 1; if (writes === 2) throw new Error('crash during controller write'); },
+    preserver: (real) => ({ preserve(document_) {
+      const ref = real.preserve(document_);
+      if (move) { move = false; const other = coreOver(w).controller; other.stop(w.runId, ARCH, 'ARCHITECTURE_STOP', 'rethink'); other.resumeArchitecture(w.runId, ARCH); }
+      return ref;
+    } }) });
+  refused(() => w.core.activate(w.target(), w.bundle()), 'ACTIVATION_INCOMPLETE');
+  move = true;
+  refused(() => w.core.activate(w.target(), w.bundle()), 'ACTIVATION_ALREADY_ADVANCED');
+  assert.deepEqual(w.controller.audit(w.runId).map((entry) => entry.action), ['ENTER_ARCHITECTURE', 'STOP', 'RETURN_TO_ARCHITECTURE']);
+  assert.equal(w.controller.get(w.runId).activePacket, undefined);
+});
+
 // ---------------------------------------------------------------- architect review authority
 /** An activated world driven by the real runner, with the real sink over `preserver`, to ACCEPTANCE_REVIEW. */
 async function reviewWorld(dir, { preserver, review } = {}) {
@@ -639,8 +979,10 @@ check('AR-AS-AT-AU. one minter (GC1), one run creator (RA1), one archive reader 
   }
   // The core takes only the transitions activation and correction need.
   assert.doesNotMatch(code(join(ROOT, CORE)), /beginImplementation|completeImplementation|recordRemoteSha|beginAcceptanceReview|decideAcceptance|requestPromotion|beginPromotion|recordPromotedMain|resume|\.close\(|\.stop\(|failClosed|reconcile|runner|AutomationRunner|\.step\(|invocation-journal/);
-  assert.match(code(join(ROOT, CORE)), /controller\.enterArchitecture\(/);
-  assert.match(code(join(ROOT, CORE)), /controller\.issuePacket\(/);
+  // G1-AP1-C1: only the bound entry and the occurrence-guarded issue; never the generic transitions.
+  assert.match(code(join(ROOT, CORE)), /controller\.enterArchitectureForActivation\(/);
+  assert.match(code(join(ROOT, CORE)), /controller\.issuePacketForOccurrence\(/);
+  assert.doesNotMatch(code(join(ROOT, CORE)), /controller\.enterArchitecture\(|controller\.issuePacket\(/);
   assert.match(code(join(ROOT, CORE)), /controller\.issueCorrection\(/);
 });
 check('AV-AW-AX. no Workspace, model, validation or LD1 path reaches an authority writer; the runner holds only the sink', () => {

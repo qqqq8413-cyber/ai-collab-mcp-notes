@@ -322,6 +322,25 @@ output stay operational records; nothing converts one into authority (Q-R1).
   documents; `PACKET_READY` with the same packet and hash is already activated;
   another packet is `ACTIVATION_CONFLICT`; any later state is
   `ACTIVATION_ALREADY_ADVANCED`. Nothing is reset or rolled back.
+- Activation intent binding (G1-AP1-C1): activation enters architecture only
+  through `enterArchitectureForActivation`, which writes `ENTER_ARCHITECTURE` and
+  the run's `activationBinding` `{ packetId, packetHash }` in one Controller write,
+  only from the run's initial IDLE (empty audit), only as GPT_ARCHITECT. The
+  binding is never changed afterwards. The `ISSUE_PACKET` directly after that entry
+  must issue exactly the bound packet (Controller and lifecycle both refuse
+  another), and activation issues it only through `issuePacketForOccurrence`
+  guarded by that exact entry. A store write that is not the bound Controller's
+  cannot create a binding. Recovery continues from `ARCHITECTURE` only when the
+  binding is present, the entry is the configured Architect's, the binding equals
+  the supplied packet id and hash, and that exact packet document was archived
+  before the entry; `PACKET_READY` is already activated only when its two entries
+  are that bound entry and its issue by the same Architect. A different intent is
+  `ACTIVATION_CONFLICT`; a generic, foreign-principal or unbound entry, or a bound
+  entry without archived authority, is `ACTIVATION_ALREADY_ADVANCED`. The binding is
+  an OPERATIONAL_RECORD: R4A0 does not project it and it is never direct authority;
+  activation reads it from the Controller after R4A0's gate and requires both reads
+  to agree. Generic `enterArchitecture` and `issuePacket` are unchanged and bind
+  nothing.
 - Architect review: with the governed composition, the runner hands each review's
   AcceptanceDecision and, for a REJECT, its CorrectionPacket to an architect review
   authority sink, which forms both as version 1 GPT_ARCHITECT documents (configured

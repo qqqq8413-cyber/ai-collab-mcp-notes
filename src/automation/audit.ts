@@ -26,7 +26,11 @@ export interface ControllerStore {
 const CONTROLLER_ONLY = new Set(['RECORD_REMOTE_SHA', 'BEGIN_REMOTE_ACCEPTANCE', 'ACCEPT_EXACT_SHA',
   'REJECT_EXACT_SHA', 'AUTHORIZE_PROMOTION', 'MARK_PROMOTING', 'RECORD_PROMOTED_MAIN',
   'RECOVER_PROMOTED_MAIN', 'CLOSE_VERIFIED_RUN', 'RECOVER_CLOSE', 'RECONCILE_PENDING', 'RECHECK_EXTERNAL_REALITY']);
-export function requiresControllerWriter(action: unknown): boolean { return typeof action === 'string' && CONTROLLER_ONLY.has(action); }
+// So does an architecture entry bound to an activation intent (G1-AP1): only the Controller's
+// enterArchitectureForActivation writes one.
+export function requiresControllerWriter(action: unknown, activationBinding?: unknown): boolean {
+  return typeof action === 'string' && (CONTROLLER_ONLY.has(action) || (action === 'ENTER_ARCHITECTURE' && activationBinding !== undefined));
+}
 
 // The store is a public write path of its own, so it enforces the same lifecycle as
 // the controller rather than trusting its caller. Input is cloned first and only the
@@ -93,7 +97,7 @@ export class InMemoryControllerStore implements ControllerStore {
   }
   #replace(input: ControllerRun, privileged: boolean): void {
     const run = structuredClone(input);
-    if (!privileged && requiresControllerWriter(run.audit.at(-1)?.action)) throw new Error('Controller writer required');
+    if (!privileged && requiresControllerWriter(run.audit.at(-1)?.action, run.activationBinding)) throw new Error('Controller writer required');
     const current = this.#runs.get(run.runId);
     if (!current) throw new Error('Unknown runId');
     assertTransition(current, run);
