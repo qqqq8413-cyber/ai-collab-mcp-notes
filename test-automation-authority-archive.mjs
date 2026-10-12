@@ -551,8 +551,15 @@ check('the archive is wired into no runtime surface; only the governed read mode
   const importers = (module) => sources.filter((path) => new RegExp(`from ['"][^'"]*authority\\/${module}\\.js['"]`).test(readFileSync(path, 'utf8')))
     .map((path) => relative(ROOT, path)).sort();
   assert.deepEqual(importers('file-archive'), ['src/automation/read-model/governed-read-model.ts']);
-  // G1-LD1: the execution driver takes only the existing body hash from the document module.
-  assert.deepEqual(importers('document'), ['src/automation/execution-driver.ts', 'src/automation/read-model/governed-read-model.ts']);
+  // G1-AP1: inside R4P, only the direct authority preserver opens the appender.
+  const inside = walk(join(ROOT, 'src', 'automation', 'authority')).filter((path) => path.endsWith('.ts') && !path.endsWith('file-archive.ts'));
+  assert.deepEqual(inside.filter((path) => /openAuthorityArchive(Appender|Reader)|AuthorityArchiveAppender/.test(readFileSync(path, 'utf8')))
+    .map((path) => relative(ROOT, path)), ['src/automation/authority/preserver.ts']);
+  assert.doesNotMatch(readFileSync(join(ROOT, 'src/automation/authority/preserver.ts'), 'utf8'), /openAuthorityArchiveReader|\.latest\(|\.get\(|listVersions/);
+  // G1-LD1: the execution driver takes only the existing body hash; G1-AP1: the activation core and the
+  // governed composition parse documents and check principal references; none of them names the append capability.
+  assert.deepEqual(importers('document'), ['src/automation/activation-core.ts', 'src/automation/execution-driver.ts',
+    'src/automation/live/governed-execution.ts', 'src/automation/read-model/governed-read-model.ts']);
   assert.match(readFileSync(join(ROOT, 'src/automation/execution-driver.ts'), 'utf8'),
     /import \{ authorityBodyHash, type AuthorityRefV1, type JsonObject \} from '\.\/authority\/document\.js';/);
   // Reader only: neither names the append capability.

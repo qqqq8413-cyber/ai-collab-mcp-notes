@@ -291,6 +291,54 @@ exactly one AutomationRunner step now, and takes at most that one step.
   UI, SSE event, CLI, MCP tool or scheduler. Results are operational records with
   bounded codes: no path, body, grant, credential or journal payload.
 
+### 6.4 Direct Authority Preservation and Governed Activation (G1-AP1)
+
+DIRECT_AUTHORITY still comes only from the AUTHORITY_ARCHIVE. Invocation journal
+records (COMPLETED/APPLIED included), Controller audit, R4L admission and provider
+output stay operational records; nothing converts one into authority (Q-R1).
+
+- The direct authority preserver is the one production holder of the archive's
+  append capability. It preserves only a complete canonical `AuthorityDocumentV1`
+  (R4P's own parsing), through R4P's unchanged appender: an identical retry returns
+  the same reference; a different body at an archived version
+  (`AUTHORITY_VERSION_CONFLICT`), a gap or a broken supersession fails closed. It
+  exposes `preserve` only and returns after durable publication.
+- Ordering: authority may be ahead of the Controller, never behind it. Every
+  document a Controller transition will rely on is preserved first; a crash leaves
+  archived authority the Controller does not use yet, which is acceptable and never
+  deleted.
+- Governed activation takes an existing CM1 Change's admitted RA1 ROOT run from
+  IDLE to PACKET_READY and stops (no runner step). Target: the Workspace Goal source
+  and the runId only. The caller supplies the Architect's `IMPLEMENTATION_PACKET`
+  document (issuer GPT_ARCHITECT with the configured `architectPrincipalRef`,
+  subject the exact CM1 repository and slice) and one Human `AUTHORIZATION` per
+  packet call entry (issuer HUMAN whose principalRef is the CM1 record's
+  `submittedBy`, binding `LIVE_PROVIDER_MODEL_CALL`, the fixed target, this run,
+  this packet and that entry's exact actor, provider, model and egress set; none
+  when provider calls are disabled). All are checked before anything is written,
+  preserved, and only then does the Controller enter architecture and issue the
+  packet under the configured Architect principal. Retries: an interrupted IDLE or
+  `ARCHITECTURE` (entered, no packet) activation completes with the exact same
+  documents; `PACKET_READY` with the same packet and hash is already activated;
+  another packet is `ACTIVATION_CONFLICT`; any later state is
+  `ACTIVATION_ALREADY_ADVANCED`. Nothing is reset or rolled back.
+- Architect review: with the governed composition, the runner hands each review's
+  AcceptanceDecision and, for a REJECT, its CorrectionPacket to an architect review
+  authority sink, which forms both as version 1 GPT_ARCHITECT documents (configured
+  principal, the run's exact Change; the correction issued at the decision's time),
+  validates both, then preserves the decision and the correction, before
+  `decideAcceptance` and `issueCorrection`. A review the archive refuses is not
+  applied (`ARCHITECTURE_STOP`, settled). A review that could not be preserved is
+  not applied either: the run stays `ACCEPTANCE_REVIEW`, the invocation stays
+  COMPLETED, and a later step preserves and applies the stored result without
+  calling the reviewer again.
+- Correction recovery applies an Architect correction only where R4A0's exact next
+  move is `ISSUE_CORRECTION_PACKET`, after checking it binds the active packet,
+  hash and rejected SHA, preserving it first.
+- `architectPrincipalRef` is trusted server-side configuration, a stated
+  reference, not authentication. Nothing here is wired to Workspace, a route, UI,
+  SSE, CLI, MCP or a scheduler.
+
 ## 7. Git and Promotion
 
 Canonical branch is `main`; implementation branches are `work/**`. No direct
@@ -493,6 +541,15 @@ scope must equal.
     hash from R4P, so the archive reader stays R4A0's and appender holders stay
     zero. `AutomationRunner.step` accepts an optional exact position guard; without
     one its behaviour is unchanged.
+15. AP1: the direct authority preserver (`authority/preserver.ts`) is the one
+    production holder of `openAuthorityArchiveAppender`; the governed composition
+    opens it once, in the trusted process, and hands only `preserve` to the
+    activation core and the architect review authority sink. The runner receives
+    the sink, never the preserver or an appender; Workspace, model processes,
+    offline validation and the LD1 driver hold neither. The archive reader stays
+    R4A0's; R4A0's production callers are LD1 and the activation core; registry
+    reader holders are GC1, RA1, LD1 and the activation core; the minter stays GC1's
+    and run creation RA1's.
 
 ## 9. CHIEF Domain Boundary
 

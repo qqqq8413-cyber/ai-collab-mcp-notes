@@ -13,11 +13,17 @@ import * as driverModule from './dist/automation/execution-driver.js';
 import { FileInvocationJournal } from './dist/automation/file-invocation-journal.js';
 import { GovernanceStoreIsolationError } from './dist/automation/governance-store-isolation.js';
 import * as liveModule from './dist/automation/live/governed-execution.js';
+const ARCHITECT = 'architect:gpt-synthetic';
 import { openRootRunAdmitter } from './dist/automation/root-run-admitter.js';
 import { AutomationRunner } from './dist/automation/runner.js';
 
 const { openGovernedExecutionDriver } = driverModule;
-const { createGovernedLiveExecutionDriver } = liveModule;
+// G1-AP1: the governed live composition returns { execution, activation }; this suite drives execution only.
+const createGovernedLiveExecutionDriver = (config, dependencies) => {
+  const composed = liveModule.createGovernedLiveAutomation({ ...config, architectPrincipalRef: ARCHITECT }, dependencies);
+  assert.deepEqual(Object.keys(composed).sort(), ['activation', 'execution']);
+  return composed.execution;
+};
 
 // G1-LD1 governed live execution driver. Every store is real and local to a temporary
 // directory: the CM1 registry (minted by a test-held minter), the Controller store (the RA1
@@ -619,7 +625,7 @@ check('AC-AD-AE. the driver exposes inspect and step only: no Controller, runner
   for (const name of ['drive', 'runUntilDone', 'startAutonomous', 'loop', 'resumeAutomatically', 'controller', 'runner', 'journal', 'store',
     'registry', 'reality', 'admit', 'mint']) assert.equal(w.driver[name], undefined, name);
   assert.deepEqual(Object.keys(driverModule).sort(), ['EXECUTION_READINESS', 'openGovernedExecutionDriver']);
-  assert.deepEqual(Object.keys(liveModule), ['createGovernedLiveExecutionDriver']);
+  assert.deepEqual(Object.keys(liveModule), ['createGovernedLiveAutomation']);
   packetReady(w);
   archiveGrants(w);
   const result = await w.driver.step(w.target());
@@ -742,10 +748,13 @@ check('AF-AG-AH-AI. LD1 holds no appender; the archive reader stays in R4A0; R4A
   for (const file of [DRIVER, LIVE]) {
     assert.doesNotMatch(text(join(ROOT, file)), /AuthorityArchiveAppender|openAuthorityArchiveAppender|openAuthorityArchiveReader|file-archive/, file);
   }
-  assert.deepEqual(users(/openAuthorityArchiveAppender|AuthorityArchiveAppender/, ['src/automation/authority/file-archive.ts']), []);
+  // G1-AP1: the one appender holder is the direct authority preserver; R4A0 gains the activation core as its second caller.
+  assert.deepEqual(users(/openAuthorityArchiveAppender|AuthorityArchiveAppender/, ['src/automation/authority/file-archive.ts']),
+    ['src/automation/authority/preserver.ts']);
+  assert.doesNotMatch(text(join(ROOT, DRIVER)), /preserver|Preserver|ArchitectAuthoritySink|architect-review-authority/);
   assert.deepEqual(users(/openAuthorityArchiveReader/, ['src/automation/authority/file-archive.ts']), [READ_MODEL]);
-  assert.deepEqual(users(/read-model\/governed-read-model\.js/), [DRIVER]);
-  assert.deepEqual(users(/readGovernedModel\(/, [READ_MODEL]), [DRIVER]);
+  assert.deepEqual(users(/read-model\/governed-read-model\.js/), ['src/automation/activation-core.ts', DRIVER]);
+  assert.deepEqual(users(/readGovernedModel\(/, [READ_MODEL]), ['src/automation/activation-core.ts', DRIVER]);
   assert.equal((code(join(ROOT, DRIVER)).match(/readGovernedModel\(/g) ?? []).length, 1);
   // From R4P the driver takes only the existing body hash.
   assert.match(text(join(ROOT, DRIVER)), /import \{ authorityBodyHash, type AuthorityRefV1, type JsonObject \} from '\.\/authority\/document\.js';/);
@@ -754,7 +763,7 @@ check('AJ-AK-AL. Change Mint stays GC1\'s, run creation stays RA1\'s; LD1 holds 
   assert.deepEqual(users(/openChangeMinter|ChangeMinter/, ['src/automation/change-registry.ts']), ['src/intake/goal-change-bridge.ts']);
   assert.deepEqual(users(/\.createRun\(/, ['src/automation/controller.ts']), ['src/automation/root-run-admitter.ts']);
   assert.deepEqual(users(/openChangeRegistryReader\(/, ['src/automation/change-registry.ts']).sort(),
-    [DRIVER, 'src/intake/goal-change-bridge.ts', 'src/intake/goal-run-admission-bridge.ts'].sort());
+    ['src/automation/activation-core.ts', DRIVER, 'src/intake/goal-change-bridge.ts', 'src/intake/goal-run-admission-bridge.ts'].sort());
   const driver = code(join(ROOT, DRIVER)), live = code(join(ROOT, LIVE));
   for (const [file, source] of [[DRIVER, driver], [LIVE, live]]) {
     assert.doesNotMatch(source, /createRun|openRootRunAdmitter|root-run-admitter|\.mint\(|new AutomationController|new FileControllerStore|new AutomationRunner/, file);
@@ -767,7 +776,7 @@ check('AJ-AK-AL. Change Mint stays GC1\'s, run creation stays RA1\'s; LD1 holds 
   assert.deepEqual(users(/createLiveAutomation\(/, ['src/automation/live/composition.ts']), [LIVE]);
   assert.equal((code(join(ROOT, LIVE)).match(/createLiveAutomation\(/g) ?? []).length, 1);
   assert.deepEqual(users(/openGovernedExecutionDriver\(/, [DRIVER]), [LIVE]);
-  assert.deepEqual(users(/createGovernedLiveExecutionDriver|governed-execution\.js|execution-driver\.js/, [DRIVER, LIVE]), []);
+  assert.deepEqual(users(/createGovernedLiveAutomation|governed-execution\.js|execution-driver\.js/, [DRIVER, LIVE]), []);
 });
 check('AM-AN-AO-AP. Workspace imports, routes, UI and events are unchanged: no execution reaches the product', () => {
   const workspace = SRC.filter((path) => rel(path).startsWith('src/workspace/'));

@@ -9,7 +9,7 @@ import { GovernanceStoreIsolation } from '../governance-store-isolation.js';
 import {
   NodeProcessExecutor, SyncNodeProcessExecutor, environmentFromAllowlist, type ProcessExecutor, type SyncProcessExecutor,
 } from '../process-executor.js';
-import { AutomationRunner } from '../runner.js';
+import { AutomationRunner, type ArchitectAuthoritySink } from '../runner.js';
 import type { OfflineValidationExecutor } from '../offline-validation.js';
 import type { Clock } from '../types.js';
 import { ClaudeCodeImplementationAdapter } from './claude-code-implementation.js';
@@ -42,6 +42,8 @@ import { SeatbeltOfflineValidationExecutor, assertFixedSeatbeltTreesIsolated, se
 //
 // G1-LD1: the one production caller is the governed execution composition
 // (governed-execution.ts), which lets only the driver's inspect/step leave.
+// G1-AP1: that caller also supplies the architect review authority sink, so the runner
+// preserves each review's direct authority before the Controller applies it.
 
 const exact = z.string().min(1).refine((value) => value.trim() === value && !value.includes('\0'));
 const absolute = exact.refine(isAbsolute, 'must be an absolute path');
@@ -116,7 +118,7 @@ function agentVisiblePaths(config: LiveAutomationConfig): Array<[string, string]
 
 export function createLiveAutomation(input: unknown, dependencies: { clock?: Clock; environmentSource?: Readonly<Record<string, string | undefined>>;
   executor?: ProcessExecutor; syncExecutor?: SyncProcessExecutor; offlineValidation?: OfflineValidationExecutor;
-  modelProcess?: LiveModelProcessExecutor; platform?: string } = {}): Readonly<LiveAutomation> {
+  modelProcess?: LiveModelProcessExecutor; platform?: string; architectAuthority?: ArchitectAuthoritySink } = {}): Readonly<LiveAutomation> {
   const config = configSchema.parse(input);
   assertExactModel(config.claude.model);
   assertExactModel(config.codex.model);
@@ -152,6 +154,7 @@ export function createLiveAutomation(input: unknown, dependencies: { clock?: Clo
     // The controller refuses facts observed after its decision instant, so the one
     // fact the runner's controller calls read is observed immediately before them.
     observeRepository: (run) => reality.primeBranch(run.repository, run.activePacket!.targetBranch),
+    ...(dependencies.architectAuthority ? { architectAuthority: dependencies.architectAuthority } : {}),
   });
   return Object.freeze({ controller, runner, journal, egressJournal, reality });
 }

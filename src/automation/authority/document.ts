@@ -85,6 +85,10 @@ const version = z.number().int().positive().refine(Number.isSafeInteger);
 const principalRef = z.string().min(1).max(256)
   .refine((value) => value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value));
 const refSchema = z.strictObject({ kind, authorityId, version, recordHash: z.string().regex(HEX64) });
+/** Whether a value is a principal reference an authority document may state (exact text, never authentication). */
+export function isAuthorityPrincipalRef(value: unknown): value is string {
+  return principalRef.safeParse(value).success;
+}
 const documentShape = {
   schemaVersion: z.literal(1),
   recordClass: z.literal('DIRECT_AUTHORITY'),

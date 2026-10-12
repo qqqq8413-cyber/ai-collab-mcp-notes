@@ -12,7 +12,7 @@ import { isStopState, isTerminalState } from './lifecycle.js';
 import { parseEgressSet } from './egress-destination.js';
 import { authorizeLiveModelCall, parseAuthorization } from './policy.js';
 import type {
-  AuditEntry, Clock, ControllerOccurrenceGuard, ControllerRun, ControllerState, ProviderCallScope, StopClass,
+  Actor, AuditEntry, Clock, ControllerOccurrenceGuard, ControllerRun, ControllerState, ProviderCallScope, StopClass,
 } from './types.js';
 
 // Drives an existing AutomationController through implementation and independent
@@ -31,10 +31,19 @@ import type {
 // is applied, and marked APPLIED after. A new runner continues from what the journal
 // proves: it dispatches from PREPARED, applies a stored result without calling the
 // actor again, and stops for a human on STARTED. It never replays a call.
+//
+// G1-AP1: with an ArchitectAuthoritySink (the governed live composition), an architect
+// review's direct authority (its AcceptanceDecision and any CorrectionPacket) is durably
+// preserved in R4P before the Controller is allowed to rely on it. A review the archive
+// refuses is not applied (ARCHITECTURE_STOP); a review that could not be preserved is not
+// applied either and stays COMPLETED at its occurrence, so a later step preserves and
+// applies the stored result without calling the reviewer again. The invocation journal stays
+// an operational record; the sink is given the review bodies, never a journal record.
 
 export const RUNNER_OUTCOMES = Object.freeze([
   'ADVANCED', 'AWAITING_CORRECTION', 'EXTERNAL_RECHECK_REQUIRED', 'HUMAN_PROMOTION_REQUIRED', 'STOPPED',
   'TERMINAL', 'OUT_OF_SCOPE', 'ACTOR_RESULT_DISCARDED', 'STALE_OCCURRENCE', 'INVOCATION_CLAIMED', 'STEP_LIMIT_REACHED',
+  'AUTHORITY_NOT_PRESERVED',
 ] as const);
 export type RunnerOutcome = typeof RUNNER_OUTCOMES[number];
 
@@ -54,6 +63,20 @@ export interface RunnerResult {
  */
 export interface RunnerPositionGuard { state: ControllerState; sequence: number; action: string; timestamp: string }
 
+/** What preserving a review's direct authority came to. PRESERVED only once every document is durably in R4P. */
+export type ReviewAuthorityOutcome = 'PRESERVED' | 'REFUSED' | 'FAILED';
+/**
+ * Preserves an architect review's direct authority before the Controller relies on it.
+ * REFUSED: the bodies cannot be preserved as they are (not canonical, or a different body
+ * already holds that version); retrying cannot succeed. FAILED: they could not be preserved
+ * now. It holds no appender for the runner to reach and is given only the review bodies.
+ */
+export interface ArchitectAuthoritySink {
+  /** The configured GPT_ARCHITECT principal the review is recorded and issued under. */
+  readonly principalRef: string;
+  preserveReview(subject: { repository: string; sliceId: string }, decision: unknown, correction: unknown): ReviewAuthorityOutcome;
+}
+
 export interface RunnerJournalOptions {
   journal: InvocationJournal;
   /** The exact scope each actor's adapter calls; each binds its own actor kind, never the other's. */
@@ -63,6 +86,8 @@ export interface RunnerJournalOptions {
   clock: Clock;
   /** Called immediately before each controller operation that reads repository reality. */
   observeRepository?: (run: ControllerRun) => void;
+  /** G1-AP1: preserves each review's direct authority before the Controller applies it. */
+  architectAuthority?: ArchitectAuthoritySink;
 }
 
 /** The states this runner advances. Every other state is a wait point for someone else. */
@@ -84,6 +109,8 @@ const NOT_AUTHORIZED = 'live model call not authorized by an exact current human
 const BUDGET_EXHAUSTED = 'live model call budget exhausted; not dispatched';
 const JOURNAL_CONFLICT = 'invocation journal and controller disagree about this occurrence; nothing was dispatched or applied';
 const NOT_AT_POSITION = 'the run is not at the position this step was gated on; nothing was done';
+const REVIEW_AUTHORITY_REFUSED = 'direct authority preservation refused; review result not applied';
+const REVIEW_AUTHORITY_NOT_PRESERVED = 'direct authority preservation failed; review result not applied';
 
 interface Spec { entering: string; state: ControllerState; restart: string; noResult: string }
 const SPECS: Readonly<Record<ActorKind, Spec>> = Object.freeze({
@@ -103,24 +130,25 @@ const CONTROLLER_HALTS: Readonly<Record<ActorKind, readonly string[]>> = Object.
  * a result, or a controller halt inside the applying write. Anything else (another
  * writer's stop, a restart stop) means the result was never applied.
  */
-function appliesResult(kind: ActorKind, entry: AuditEntry): boolean {
+function appliesResult(kind: ActorKind, entry: AuditEntry, architectId: string): boolean {
   if (entry.previousState !== SPECS[kind].state) return false;
   if (kind === 'IMPLEMENTATION' && entry.action === 'REPORT_IMPLEMENTATION_COMPLETE') return entry.actor === IMPLEMENTATION_ACTOR.id;
   if (kind === 'ARCHITECT_REVIEW' && (entry.action === 'ACCEPT_EXACT_SHA' || entry.action === 'REJECT_EXACT_SHA')) {
-    return entry.actor === ARCHITECT_REVIEW_ACTOR.id;
+    return entry.actor === architectId;
   }
   if (entry.action !== 'STOP') return false;
   const reason = entry.stopReason ?? '';
   if (entry.actor === RUNNER_ACTOR.id) {
     return kind === 'IMPLEMENTATION'
       ? reason === UNUSABLE_IMPLEMENTATION || reason.startsWith('implementation agent reported ')
-      : reason === UNUSABLE_REVIEW || reason.startsWith('architect review reported ');
+      : reason === UNUSABLE_REVIEW || reason === REVIEW_AUTHORITY_REFUSED || reason.startsWith('architect review reported ');
   }
   return entry.actor === 'controller' && CONTROLLER_HALTS[kind].includes(reason);
 }
 
 type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
-interface Applied { result: RunnerResult; entry?: AuditEntry }
+/** `retained`: the result was neither applied nor discarded; it stays COMPLETED at its occurrence. */
+interface Applied { result: RunnerResult; entry?: AuditEntry; retained?: true }
 
 function occurrenceOf(runId: string, entry: AuditEntry): ControllerOccurrenceGuard {
   return Object.freeze({ runId, sequence: entry.sequence, action: entry.action, timestamp: entry.timestamp });
@@ -193,13 +221,27 @@ function snapshotJournalOptions(value: RunnerJournalOptions): RunnerJournalOptio
   };
   const observe = value.observeRepository;
   if (observe !== undefined && typeof observe !== 'function') throw new TypeError('observeRepository must be a function');
+  const sink = value.architectAuthority;
+  let architectAuthority: ArchitectAuthoritySink | undefined;
+  if (sink !== undefined) {
+    const preserve = sink?.preserveReview;
+    const principalRef = sink?.principalRef;
+    if (typeof preserve !== 'function' || typeof principalRef !== 'string' || !principalRef || principalRef.trim() !== principalRef ||
+        principalRef.length > 256 || /[\u0000-\u001f\u007f]/.test(principalRef)) {
+      throw new TypeError('architectAuthority must be an ArchitectAuthoritySink with an exact principal reference');
+    }
+    // Captured once: replacing the sink's method later does not change what this runner calls.
+    architectAuthority = Object.freeze({ principalRef,
+      preserveReview: (subject: { repository: string; sliceId: string }, decision: unknown, correction: unknown) =>
+        preserve.call(sink, subject, decision, correction) });
+  }
   return Object.freeze({ journal, clock: value.clock,
     scopes: Object.freeze({ IMPLEMENTATION: scope(value.scopes?.IMPLEMENTATION, 'IMPLEMENTATION'),
       ARCHITECT_REVIEW: scope(value.scopes?.ARCHITECT_REVIEW, 'ARCHITECT_REVIEW') }),
     // Snapshotted: a grant changed after composition is not the grant that was supplied.
     authorizations: Object.freeze(structuredClone({ IMPLEMENTATION: value.authorizations?.IMPLEMENTATION,
       ARCHITECT_REVIEW: value.authorizations?.ARCHITECT_REVIEW })),
-    ...(observe ? { observeRepository: observe } : {}) });
+    ...(observe ? { observeRepository: observe } : {}), ...(architectAuthority ? { architectAuthority } : {}) });
 }
 
 export class AutomationRunner {
@@ -207,6 +249,9 @@ export class AutomationRunner {
   readonly #execute: (input: unknown) => unknown;
   readonly #review: (input: unknown) => unknown;
   readonly #live: RunnerJournalOptions | undefined;
+  // The GPT_ARCHITECT actor reviews are recorded under: the configured principal when review
+  // authority is preserved (G1-AP1), the fixed review actor otherwise.
+  readonly #architect: Readonly<Actor>;
   // The IMPLEMENTING or ACCEPTANCE_REVIEW occurrences this instance created and has not
   // yet acted on. Memory only: a new instance owns nothing, so it never replays a call.
   readonly #owned = new Map<string, ControllerOccurrenceGuard>();
@@ -224,6 +269,8 @@ export class AutomationRunner {
     this.#execute = (input) => execute.call(implementation, input as never);
     this.#review = (input) => decide.call(review, input as never);
     this.#live = journal === undefined ? undefined : snapshotJournalOptions(journal);
+    const authority = this.#live?.architectAuthority;
+    this.#architect = authority ? Object.freeze({ id: authority.principalRef, role: 'GPT_ARCHITECT' }) : ARCHITECT_REVIEW_ACTOR;
     Object.freeze(this);
   }
 
@@ -274,7 +321,7 @@ export class AutomationRunner {
         return this.#report(this.#controller.recordRemoteSha(runId, IMPLEMENTATION_ACTOR));
       case 'REMOTE_SHA_READY':
         this.#observe(run);
-        return this.#enter(run, () => this.#controller.beginAcceptanceReview(runId, ARCHITECT_REVIEW_ACTOR), 'ARCHITECT_REVIEW');
+        return this.#enter(run, () => this.#controller.beginAcceptanceReview(runId, this.#architect), 'ARCHITECT_REVIEW');
       case 'ACCEPTANCE_REVIEW':
         return this.#actor(run, 'ARCHITECT_REVIEW');
       default:
@@ -422,6 +469,7 @@ export class AutomationRunner {
     const stored = readStoredOutcome(record);
     const parsed: Parsed<unknown> = stored.ok ? this.#parse(kind, stored.value) : { ok: false, error: stored.error };
     const applied = this.#apply(kind, observed, parsed);
+    if (applied.retained) return applied.result;
     if (applied.entry) this.#settleRecord(record, 'APPLIED', 'applied', { sequence: applied.entry.sequence, action: applied.entry.action });
     else this.#settleRecord(record, 'ABANDONED', 'occurrence left before the result was applied');
     return applied.result;
@@ -457,7 +505,7 @@ export class AutomationRunner {
       else if (record.state === 'COMPLETED') {
         const entry = run.audit[occurrence.sequence];
         const applied = entry !== undefined && sameEntry(occurrence, run.audit[occurrence.sequence - 1]) &&
-          appliesResult(record.identity.actorKind, entry);
+          appliesResult(record.identity.actorKind, entry, this.#architect.id);
         if (applied) this.#settleRecord(record, 'APPLIED', 'applied', { sequence: entry.sequence, action: entry.action });
         else this.#settleRecord(record, 'ABANDONED', 'occurrence left before the result was applied');
       }
@@ -485,9 +533,22 @@ export class AutomationRunner {
     const bundle = parsed.value;
     if ('stop' in bundle) return this.#haltAt(guard, bundle.stop, `architect review reported ${bundle.stop}: ${bundle.reason}`, discarded);
     const decision = bundle.decision;
+    // G1-AP1: the review's direct authority is in R4P before the Controller relies on any of it.
+    const sink = this.#live?.architectAuthority;
+    if (sink) {
+      const current = this.#controller.get(guard.runId);
+      if (!sameEntry(guard, current.audit.at(-1))) return { result: this.#left(guard.runId, discarded) };
+      let preserved: ReviewAuthorityOutcome;
+      try { preserved = sink.preserveReview({ repository: current.repository, sliceId: current.sliceId }, decision, bundle.correction); }
+      catch { preserved = 'FAILED'; }
+      if (preserved === 'REFUSED') return this.#haltAt(guard, 'ARCHITECTURE_STOP', REVIEW_AUTHORITY_REFUSED, discarded);
+      if (preserved !== 'PRESERVED') {
+        return { result: this.#report(current, 'AUTHORITY_NOT_PRESERVED', REVIEW_AUTHORITY_NOT_PRESERVED), retained: true };
+      }
+    }
     if (this.#live?.observeRepository) this.#observe(this.#controller.get(guard.runId));
     const decided = this.#attempt(guard,
-      () => this.#controller.decideAcceptanceForOccurrence(guard.runId, ARCHITECT_REVIEW_ACTOR, guard, decision));
+      () => this.#controller.decideAcceptanceForOccurrence(guard.runId, this.#architect, guard, decision));
     if ('moved' in decided) return { result: this.#left(guard.runId, discarded) };
     if ('error' in decided) return this.#haltAt(guard, 'ARCHITECTURE_STOP', UNUSABLE_REVIEW, discarded, decided.error);
     // The decision is the entry right after the review occurrence; a correction from the
@@ -499,7 +560,7 @@ export class AutomationRunner {
     }
     const rejection = occurrenceOf(guard.runId, entry);
     const issued = this.#attempt(rejection,
-      () => this.#controller.issueCorrectionForOccurrence(guard.runId, ARCHITECT_REVIEW_ACTOR, rejection, correction));
+      () => this.#controller.issueCorrectionForOccurrence(guard.runId, this.#architect, rejection, correction));
     if ('run' in issued) return { result: this.#report(issued.run), entry };
     if ('moved' in issued) return { result: this.#left(guard.runId, discarded), entry };
     return { result: this.#report(this.#controller.get(guard.runId), undefined, `correction refused by controller: ${describe(issued.error)}`), entry };
