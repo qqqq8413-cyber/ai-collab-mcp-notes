@@ -421,6 +421,70 @@ check('C1: the call budget stays packet-wide; switching actor kind does not rese
   assert.equal(records.filter((record) => record.history.some((entry) => entry.state === 'STARTED')).length, 2);
 }));
 
+// G1-RP1: a recoverable state is not proof of the operation that created it. A journal record
+// belongs to the exact occurrence it was made for, and an occurrence another writer entered has
+// no invocation of its own, however identical the run looks.
+const JOURNAL_CONFLICT = 'invocation journal and controller disagree about this occurrence; nothing was dispatched or applied';
+check('G1-RP1: a record for the same run, sequence and actor kind made for another occurrence is never dispatched or applied', withDir(async (dir) => {
+  // PREPARED by run-1 under packet P at sequence 3, time T.
+  const first = open(dir, { create: true });
+  await first.runner.step('run-1');
+  const prepared = first.journal.find('run-1', 3, 'IMPLEMENTATION');
+  assert.equal(prepared.state, 'PREPARED');
+  // Another store, the same runId and journal: BEGIN_IMPLEMENTATION at the identical sequence and time, under another packet.
+  const other = open(dir, { store: new FileControllerStore(join(dir, 'other-store')), create: true,
+    packetOverrides: { objective: 'Another packet with the same identifiers' } });
+  other.controller.beginImplementation('run-1', X);
+  const entry = other.controller.audit('run-1').at(-1);
+  assert.deepEqual([entry.sequence, entry.action, entry.timestamp], [3, 'BEGIN_IMPLEMENTATION', prepared.identity.occurrence.timestamp]);
+  const result = await other.runner.step('run-1');
+  assert.deepEqual([result.state, result.stopReason], ['ARCHITECTURE_STOP', JOURNAL_CONFLICT]);
+  // The same packet, entered one second later: another occurrence again.
+  const later = { now: () => '2026-09-28T00:00:01.000Z' };
+  const third = new AutomationController(later, new FileControllerStore(join(dir, 'third-store')), reality());
+  third.createRun('run-1', 'slice-1', REPO);
+  third.enterArchitecture('run-1', G);
+  third.issuePacket('run-1', G, packet());
+  third.beginImplementation('run-1', X);
+  assert.equal(third.get('run-1').activePacketHash, prepared.identity.packetHash);
+  const thirdPorts = ports(() => first.journal);
+  const thirdRunner = new AutomationRunner(third, thirdPorts.implementation, thirdPorts.review,
+    { journal: new FileInvocationJournal(join(dir, 'journal'), clock), clock, authorizations: grants(), scopes: { IMPLEMENTATION: IMPL, ARCHITECT_REVIEW: REVIEW } });
+  const stale = await thirdRunner.step('run-1');
+  assert.deepEqual([stale.state, stale.stopReason], ['ARCHITECTURE_STOP', JOURNAL_CONFLICT]);
+  assert.deepEqual([first.calls.implementation.length, other.calls.implementation.length, thirdPorts.calls.implementation.length], [0, 0, 0]);
+  assert.equal(first.journal.get(prepared.invocationId).state, 'PREPARED', 'another occurrence settled the record');
+
+  // A stored COMPLETED result is never applied to an identical-looking occurrence either.
+  const store = crashingStore(join(dir, 'completed'));
+  const done = open(join(dir, 'completed'), { create: true, store });
+  await done.runner.step('run-1');
+  store.armed = true;
+  await assert.rejects(done.runner.step('run-1'));
+  assert.equal(done.journal.find('run-1', 3, 'IMPLEMENTATION').state, 'COMPLETED');
+  const twin = open(join(dir, 'completed'), { store: new FileControllerStore(join(dir, 'completed', 'twin-store')), create: true,
+    packetOverrides: { objective: 'Another packet with the same identifiers' } });
+  twin.controller.beginImplementation('run-1', X);
+  const applied = await twin.runner.step('run-1');
+  assert.deepEqual([applied.state, applied.stopReason], ['ARCHITECTURE_STOP', JOURNAL_CONFLICT]);
+  assert.equal(count(twin.controller, 'REPORT_IMPLEMENTATION_COMPLETE'), 0);
+  assert.equal(twin.journal.find('run-1', 3, 'IMPLEMENTATION').state, 'COMPLETED');
+  assert.equal(done.calls.implementation.length + twin.calls.implementation.length, 1);
+}));
+check('G1-RP1: an actor occurrence another writer entered is never dispatched, for either actor', withDir(async (dir) => {
+  const live = open(dir, { create: true });
+  for (let i = 0; i < 3; i++) await live.runner.step('run-1');
+  assert.equal(live.controller.get('run-1').state, 'REMOTE_SHA_READY');
+  // The review occurrence is entered by a Controller caller that is not a runner: nobody prepared a call for it.
+  live.controller.beginAcceptanceReview('run-1', G);
+  // Even the runner that drove the run this far owns nothing at that occurrence.
+  const result = await live.runner.step('run-1');
+  assert.deepEqual([result.state, result.stopReason], ['HUMAN_STOP', 'uncertain architect-review side effect after runner restart; not replayed']);
+  assert.equal(live.calls.review.length, 0);
+  assert.equal(live.journal.find('run-1', 6, 'ARCHITECT_REVIEW'), undefined);
+  assert.equal(count(live.controller, 'ACCEPT_EXACT_SHA') + count(live.controller, 'REJECT_EXACT_SHA'), 0);
+}));
+
 let passed = 0, failed = 0;
 for (const [name, fn] of tests) {
   try { await fn(); console.log(`  PASS ${name}`); passed++; }

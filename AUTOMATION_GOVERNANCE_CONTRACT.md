@@ -358,6 +358,40 @@ output stay operational records; nothing converts one into authority (Q-R1).
   reference, not authentication. Nothing here is wired to Workspace, a route, UI,
   SSE, CLI, MCP or a scheduler.
 
+### 6.5 Provenance-Bound Recovery Invariant (G1-RP1)
+
+Architect decision G1-RP1, ACCEPTED, scope CHIEF-GOV/1, superseding nothing; it applies
+to every current and future recoverable operation.
+
+- A recoverable state is not, by itself, evidence that the current caller owns the
+  interrupted operation. A retry, recovery, continuation or application of a previously
+  initiated operation must prove its exact durable causal lineage: the canonical Change
+  and Run identity, the originating operation, the initiating Controller occurrence, the
+  exact operation input identity, the initiating actor/principal, the required direct
+  AuthorityRef, and the absence of conflicting intervening transitions, as applicable.
+  Current state is not provenance; the same packet is not necessarily the same
+  activation; the same run state is not necessarily the same invocation; the same
+  accepted SHA is not necessarily the same promotion authorization.
+- Evidence may come from existing durable records: Controller audit, `activationBinding`,
+  the invocation journal, the authority archive, R4L admission, GitHub reality evidence.
+  No redundant persisted field is added where existing evidence already proves the whole
+  lineage. Operational records stay OPERATIONAL_RECORD; direct authority stays R4P only;
+  hash integrity is not authentication.
+- When provenance cannot be established the operation fails closed: no adopting an
+  unrelated occurrence, no ownership inferred from current state, no substituting the
+  latest authority, no replay of an uncertain model call, no further ROOT run, no
+  fabricated lineage, no silent repair of history, no generic recovery fallback.
+- AP1: `ControllerRun.activationBinding` is retained permanently as immutable operational
+  lineage and is never cleared after `ISSUE_PACKET`. A generic `PACKET_READY` is never
+  adopted as an AP1 activation because its packet matches.
+- WE1 gate: before the first Workspace execution route, Activation, AutomationRunner,
+  Architect Review, Acceptance application, Correction recovery, Promotion authorization
+  and Crash recovery are audited for state-only adoption, without redesigning working
+  mechanisms. An operation with a material provenance gap is not exposed through
+  Workspace until the Architect has reviewed it. The 2026-10-13 audit (HANDOFF §G1-RP1)
+  found open gaps in governed execution (LD1 and the runner's review application) and in
+  correction recovery; those operations stay unexposed until the Architect decides.
+
 ## 7. Git and Promotion
 
 Canonical branch is `main`; implementation branches are `work/**`. No direct

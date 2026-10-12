@@ -871,6 +871,41 @@ check('a promotion grant issued before the acceptance it would promote is refuse
   const fresh = auth('HUMAN', 'FAST_FORWARD_MAIN', 'main', { authorizationId: 'fresh', issuedAt: '2026-09-26T08:10:00+08:00' });
   assert.equal(promote(c, preflight(), fresh).state, 'PROMOTION_READY');
 });
+// G1-RP1: the same accepted SHA is not necessarily the same promotion authorization.
+check('G1-RP1: an unused grant issued after one acceptance of a SHA cannot promote a later acceptance of the same SHA and packetId', () => {
+  const clock = movableClock(); const { c } = make(packet(), clock); ready(c);
+  c.decideAcceptance('run-1', G, decision(c));
+  clock.value = '2026-09-26T00:05:00.000Z';
+  const earlier = auth('HUMAN', 'FAST_FORWARD_MAIN', 'main', { authorizationId: 'earlier', issuedAt: '2026-09-26T00:05:00.000Z' });
+  // Back through architecture twice, so packet-1 is issued again (version 3), then the same SHA B is accepted again.
+  c.stop('run-1', G, 'ARCHITECTURE_STOP', 'redesign'); c.resumeArchitecture('run-1', G);
+  c.issuePacket('run-1', G, packet({ packetId: 'packet-2', packetVersion: 2 }));
+  c.stop('run-1', G, 'ARCHITECTURE_STOP', 'redesign again'); c.resumeArchitecture('run-1', G);
+  clock.value = '2026-09-26T00:10:00.000Z';
+  c.issuePacket('run-1', G, packet({ packetVersion: 3 }));
+  ready(c);
+  c.decideAcceptance('run-1', G, { ...decision(c), reviewId: 'review-2' });
+  const run = c.get('run-1');
+  assert.deepEqual([run.state, run.activePacket.packetId, run.acceptance.reviewedSha], ['ACCEPTED', 'packet-1', B]);
+  rejectedWithoutMutation(c, () => promote(c, preflight(), earlier));
+  const current = auth('HUMAN', 'FAST_FORWARD_MAIN', 'main', { authorizationId: 'current', issuedAt: '2026-09-26T00:10:00.000Z' });
+  assert.equal(promote(c, preflight(), current).state, 'PROMOTION_READY');
+});
+check('G1-RP1: main already at the accepted SHA through another operation is never adopted as this run\'s promotion', () => {
+  const { c } = make(); ready(c); c.decideAcceptance('run-1', G, decision(c));
+  promote(c, preflight(), auth('HUMAN', 'FAST_FORWARD_MAIN', 'main'));
+  // Someone else fast-forwards main to the accepted SHA before this run marks PROMOTING.
+  Object.assign(realityOf(c), { mainSha: B, aheadBy: 0 });
+  const stopped = c.reconcile('run-1', K);
+  assert.deepEqual([stopped.state, stopped.stopReason], ['ARCHITECTURE_STOP', 'promotion preflight changed on restart']);
+  const { c: other } = make(); ready(other); other.decideAcceptance('run-1', G, decision(other));
+  promote(other, preflight(), auth('HUMAN', 'FAST_FORWARD_MAIN', 'main'));
+  Object.assign(realityOf(other), { mainSha: B, aheadBy: 0 });
+  assert.equal(other.beginPromotion('run-1', K).state, 'ARCHITECTURE_STOP');
+  for (const controller of [c, other]) {
+    assert.equal(controller.audit('run-1').some((entry) => ['MARK_PROMOTING', 'RECORD_PROMOTED_MAIN', 'RECOVER_PROMOTED_MAIN'].includes(entry.action)), false);
+  }
+});
 check('a grant issued while a later-rejected SHA was under review cannot promote the SHA accepted after it', () => {
   const clock = movableClock(); const { c } = make(packet(), clock); ready(c, B);
   const early = auth('HUMAN', 'FAST_FORWARD_MAIN', 'main', { authorizationId: 'early' });
