@@ -433,7 +433,7 @@ function projectView() {
   } else if (S.pane === 'collaboration') {
     pane = `<section class="stage room" id="room" aria-label="協作室"><div class="scroll" id="room-scroll" tabindex="0" aria-label="協作室的內容"><div class="work">
         <div class="sn-meta"><span class="sn-k">協作室</span><span>${esc(p.displayName)}</span></div>
-        <p class="room-lede">參與工作的 AI 彼此明確送出的訊息，每個 AI 一個對話視窗：它送出的在右邊，傳給它的在左邊。這是它們送出的訊息，不是 AI 的思考過程。</p>
+        <p class="room-lede">參與工作的 AI 彼此明確送出的訊息，每個 AI 一個對話視窗：它送出的在右邊，寫給它的在左邊。「給」是紀錄寫的收件者；沒寫收件者的訊息會相容顯示在其他每個視窗。兩者都不代表訊息確實送達。這是它們送出的訊息，不是 AI 的思考過程。</p>
         ${roomHTML(r, { demo: demoRoom(), replay: DEMO })}</div></div></section>`;
   } else {
     pane = `<section class="stage" id="stage" aria-label="此刻"><div class="scroll" id="stage-scroll">${stageHTML()}</div></section>`;
@@ -658,4 +658,5 @@ await reloadAll();
 }
 window.__WORKSPACE = Object.freeze({ mode: source.mode, state: () => structuredClone({ view: S.view, pid: S.pid, pane: S.pane, area: S.area, target: S.target, conn: S.conn, railOff: S.railOff,
   projects: S.projects, queues: S.queues, collab: Object.fromEntries(Object.values(S.collab).map((item) => [item.projectId,
-    { provenance: item.provenance, events: item.events.length, rejected: item.rejected, needsHuman: item.summary.needsHuman.length }])) }) });
+    { provenance: item.provenance, identity: item.identity, events: item.events.length, rejected: item.rejected, unverified: item.unverified,
+      needsHuman: item.summary.needsHuman.length }])) }) });

@@ -9,27 +9,31 @@ const PROJECTS = [
 const SAMPLE = { 'demo-candidate': ['繼續做候選人平台，做到可以上線', '整理候選人資料欄位，列出缺少的部分'], 'demo-site': [] };
 // 協作室 fixture (WS-P1): a short AI collaboration record for one demo project, minutes after a start time; the other
 // project has none, so the room's empty state shows too. None of this happened. Every id starts with "demo-", and the
-// room labels it as demo data.
-const CHIEF = { actor: 'Chief', role: '統籌' };
-const IMPLEMENTER = { actor: 'Claude', role: '實作' };
-const REVIEWER = { actor: 'GPT', role: '審查' };
+// room labels it as demo data. UI-C1-C1: the participants have stable IDs, listed in the room's directory; `to` holds
+// IDs, and one message names no addressee (a compatibility broadcast).
+const CHIEF = { actor: 'Chief', actorId: 'demo-chief', role: '統籌' };
+const IMPLEMENTER = { actor: 'Claude', actorId: 'demo-claude', role: '實作' };
+const REVIEWER = { actor: 'GPT', actorId: 'demo-gpt', role: '審查' };
 const SYS = { actor: '系統' };
-// [minute, type, from, to, body, evidence] — `to` names who a message was sent to (UI-C1); an escalation goes to the Human.
+const PARTICIPANTS = [CHIEF, IMPLEMENTER, REVIEWER].map(({ actor, actorId }) => ({ id: actorId, name: actor }));
+const [C, I, R] = [CHIEF, IMPLEMENTER, REVIEWER].map((who) => who.actorId);
+// [minute, type, from, to, body, evidence] — `to` = the participant IDs a message was addressed to; null = none named
+// (an escalation goes to the Human by its type).
 const ROOM = [
   [0, 'SYSTEM', SYS, null, '示範工作「修正登入逾時」開始協作。'],
-  [1, 'HANDOFF', CHIEF, ['Claude', 'GPT'], '「修正登入逾時」交給 Claude 實作，GPT 負責審查。範圍只限登入流程。'],
-  [2, 'PROPOSAL', IMPLEMENTER, ['Chief', 'GPT'], '收到。我會先處理 auth middleware，不修改 database schema。'],
-  [3, 'QUESTION', REVIEWER, ['Claude'], 'refresh token 的現有行為要保留嗎？'],
-  [4, 'RESPONSE', IMPLEMENTER, ['GPT'], '保留。只調整 access token 過期時的判斷。'],
-  [5, 'AGREEMENT', REVIEWER, ['Claude'], '好，那就不動 database schema，保留 refresh token 行為。'],
-  [12, 'HANDOFF', IMPLEMENTER, ['GPT'], '第一版完成了，交給你審查。', [{ kind: 'COMMIT', sha: '3f9c2a1e5b7d' }]],
-  [15, 'CHALLENGE', REVIEWER, ['Claude'], '我發現一個問題：expired refresh token 會提前被拒絕。', [{ kind: 'FILE', path: 'src/auth/middleware.ts', lines: '84–112' }]],
-  [17, 'RESPONSE', IMPLEMENTER, ['GPT'], '你說得對。我改成在 authorization stage 才拒絕。'],
-  [19, 'EVIDENCE', IMPLEMENTER, ['GPT'], '改好了，auth 測試也重跑了。', [{ kind: 'COMMIT', sha: '8d04be97c1a2' }]],
-  [22, 'EVIDENCE', REVIEWER, ['Claude', 'Chief'], '我重新驗證過，全部通過。', [{ kind: 'TESTS', label: 'auth', passed: 18, failed: 0 }]],
-  [23, 'AGREEMENT', REVIEWER, ['Claude'], '同意：expired refresh token 改在 authorization stage 才拒絕。'],
-  [24, 'PROPOSAL', REVIEWER, ['Claude'], '要不要順便把 /session 的回傳格式改成新版？這會改到 public API contract。'],
-  [25, 'RESPONSE', IMPLEMENTER, ['GPT', 'Chief'], '這超出這次的範圍，我們不能自己決定。Chief，要請你問一下。'],
+  [1, 'HANDOFF', CHIEF, null, '「修正登入逾時」交給 Claude 實作，GPT 負責審查。範圍只限登入流程。'],
+  [2, 'PROPOSAL', IMPLEMENTER, [C, R], '收到。我會先處理 auth middleware，不修改 database schema。'],
+  [3, 'QUESTION', REVIEWER, [I], 'refresh token 的現有行為要保留嗎？'],
+  [4, 'RESPONSE', IMPLEMENTER, [R], '保留。只調整 access token 過期時的判斷。'],
+  [5, 'AGREEMENT', REVIEWER, [I], '好，那就不動 database schema，保留 refresh token 行為。'],
+  [12, 'HANDOFF', IMPLEMENTER, [R], '第一版完成了，交給你審查。', [{ kind: 'COMMIT', sha: '3f9c2a1e5b7d' }]],
+  [15, 'CHALLENGE', REVIEWER, [I], '我發現一個問題：expired refresh token 會提前被拒絕。', [{ kind: 'FILE', path: 'src/auth/middleware.ts', lines: '84–112' }]],
+  [17, 'RESPONSE', IMPLEMENTER, [R], '你說得對。我改成在 authorization stage 才拒絕。'],
+  [19, 'EVIDENCE', IMPLEMENTER, [R], '改好了，auth 測試也重跑了。', [{ kind: 'COMMIT', sha: '8d04be97c1a2' }]],
+  [22, 'EVIDENCE', REVIEWER, [I, C], '我重新驗證過，全部通過。', [{ kind: 'TESTS', label: 'auth', passed: 18, failed: 0 }]],
+  [23, 'AGREEMENT', REVIEWER, [I], '同意：expired refresh token 改在 authorization stage 才拒絕。'],
+  [24, 'PROPOSAL', REVIEWER, [I], '要不要順便把 /session 的回傳格式改成新版？這會改到 public API contract。'],
+  [25, 'RESPONSE', IMPLEMENTER, [R, C], '這超出這次的範圍，我們不能自己決定。Chief，要請你問一下。'],
   [26, 'ESCALATION', CHIEF, null, 'Claude 和 GPT 無法自行決定要不要修改 public API contract，需要你決定。'],
 ];
 function roomOf(projectId, start) {
@@ -112,7 +116,8 @@ export function createDemoSource({ now = () => new Date().toISOString() } = {}) 
     },
     async collaboration(projectId) {
       get(projectId);
-      return { projectId, provenance: 'DEMO_SAMPLE', events: structuredClone(rooms.get(projectId)) };
+      const events = structuredClone(rooms.get(projectId));
+      return { projectId, provenance: 'DEMO_SAMPLE', ...(events.length ? { participants: structuredClone(PARTICIPANTS) } : {}), events };
     },
     subscribe(onEvent, onState) {
       listeners.add(onEvent);

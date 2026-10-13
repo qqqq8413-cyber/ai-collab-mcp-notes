@@ -7,9 +7,10 @@ import { API_ROUTES, HOST, startWorkspaceServer } from './dist/workspace/server.
 import { createGoalChangeBridge } from './dist/intake/goal-change-bridge.js';
 import { createDemoSource } from './workspace-ui/demo.js';
 import { createLiveSource } from './workspace-ui/live.js';
-import { EMPTY_ROOM, EVENT_TYPES, NEEDS_EMPTY, attachmentsHTML, collaborationRoom, conversationHTML, conversationOf, decisionHTML, evidenceHTML,
+import { BROADCAST_SENT, BROADCAST_SHOWN, EMPTY_ROOM, EVENT_TYPES, IDENTITY_RULES, NEEDS_EMPTY, attachmentsHTML, collaborationRoom, conversationHTML, conversationOf, decisionHTML, evidenceHTML,
+  identityOf, labelsOf,
   messageHTML, needsHTML, parseCollaborationEvents, roomHTML, summarizeCollaboration } from './workspace-ui/collaboration.js';
-import { replayStart, revealed } from './workspace-ui/conversation.js';
+import { arrivals, opened, replayStart, revealed } from './workspace-ui/conversation.js';
 import { EXECUTION_LABELS, NOT_STARTED, PROVENANCE_EXPLAIN, executionNow, executionStatusHTML } from './workspace-ui/execution-status.js';
 
 // WS-L1 Workspace UI data layer: LIVE talks only to /api/v0 on its own origin; demo is
@@ -251,6 +252,8 @@ await check('C1-B: the Home target is recomputed on entry to Home and kept while
 const ev = (extra = {}) => ({ id: 'e1', projectId: 'p', goalId: 'g1', actor: 'Claude', role: 'Implementer', type: 'PROPOSAL',
   body: '我會先處理 auth middleware。', timestamp: '2026-10-06T04:41:00.000Z', ...extra });
 const slice = (from, to) => { const app = read('app.js'); return app.slice(app.indexOf(from), app.indexOf(to)); };
+// UI-C1-C1: a participant directory from [id, name] pairs (an identified room: every message carries actorId, `to` holds IDs).
+const dir = (...pairs) => pairs.map(([id, name]) => ({ id, name }));
 
 await check('WS-P1 routes: every project view has its own address; #/p/<id> is 此刻; anything else is the root', () => {
   const { parseRoute, entryFor } = resolver;
@@ -364,15 +367,17 @@ await check('WS-P1 CollaborationSummaryV1: derived from the events alone', () =>
 await check('WS-P1/UI-C1 message rendering: every type keeps its word; text is escaped; no raw log or input', () => {
   const words = { PROPOSAL: '提案', QUESTION: '提問', CHALLENGE: '質疑', RESPONSE: '回應', HANDOFF: '交接', EVIDENCE: '證據', AGREEMENT: '同意', ESCALATION: '需要你' };
   for (const type of EVENT_TYPES.filter((t) => t !== 'SYSTEM')) {
-    const [window] = conversationOf(parseCollaborationEvents('p', [ev({ type, ...(type === 'ESCALATION' ? {} : { to: ['Peer'] }) })]).events);
+    const room = collaborationRoom('p', { participants: dir(['claude', 'Claude'], ['peer', 'Peer']),
+      events: [ev({ type, actorId: 'claude', ...(type === 'ESCALATION' ? {} : { to: ['peer'] }) })] });
+    const [window] = conversationOf(room);
     const html = messageHTML(window.items[0], window);
-    assert.match(html, new RegExp(`^<li class="cm cm-out t-${type.toLowerCase()}" data-seq="1"><div class="bub">`), type);
+    assert.match(html, new RegExp(`^<li class="cm cm-out t-${type.toLowerCase()}" data-seq="1" data-id="e1"><div class="bub">`), type);
     assert.match(html, new RegExp(`<p class="cm-m"><span class="cm-t">${words[type]}</span> · `), type);
   }
   const system = parseCollaborationEvents('p', [ev({ type: 'SYSTEM', actor: '系統', role: undefined, body: '開始協作。' })]).events;
-  assert.deepEqual(conversationOf(system), [], 'a SYSTEM event alone opens no window');
-  const [hostile] = parseCollaborationEvents('p', [ev({ actor: '<img src=x onerror=alert(1)>', to: ['<b>x</b>'], body: '<script>x()</script>\n第二行' })]).events;
-  const html = conversationHTML(collaborationRoom('p', { events: [hostile] }));
+  assert.deepEqual(conversationOf(collaborationRoom('p', { events: system })), [], 'a SYSTEM event alone opens no window');
+  const hostile = ev({ actor: '<img src=x onerror=alert(1)>', actorId: 'h', to: ['x'], body: '<script>x()</script>\n第二行' });
+  const html = conversationHTML(collaborationRoom('p', { participants: dir(['h', '<img src=x onerror=alert(1)>'], ['x', '<b>x</b>']), events: [hostile] }));
   assert.doesNotMatch(html, /<script>|<img|<b>x/);
   assert.match(html, /<div class="bub">&lt;script&gt;x\(\)&lt;\/script&gt;<br>第二行<\/div>/);
   assert.match(html, /<b class="cw-n">&lt;img src=x onerror=alert\(1\)&gt;<\/b>/);
@@ -446,7 +451,11 @@ await check('WS-P1 fixture boundary: demo collaboration is labelled, in memory a
   assert.equal(r.rejected, 0, 'the fixture passes the same projection as any source');
   for (const type of ['PROPOSAL', 'CHALLENGE', 'RESPONSE', 'EVIDENCE', 'AGREEMENT', 'ESCALATION']) assert.ok(r.events.some((e) => e.type === type), `demo shows ${type}`);
   assert.match(roomHTML(r), /<p class="demo-tag" role="note"><b>示範資料<\/b><span>這些不是真的 AI 對話/);
-  assert.ok(r.events.every((e) => (e.type === 'SYSTEM' || e.type === 'ESCALATION' ? e.to === undefined : e.to?.length > 0)), 'UI-C1: every demo message names its addressees');
+  assert.equal(r.identity, 'IDENTIFIED', 'UI-C1-C1: the demo record carries stable participant IDs and a directory');
+  assert.equal(r.unverified, 0);
+  assert.deepEqual(r.participants.map((p) => p.id), ['demo-chief', 'demo-claude', 'demo-gpt']);
+  assert.ok(r.events.every((e) => (e.type === 'SYSTEM' ? e.actorId === undefined : r.participants.some((p) => p.id === e.actorId))));
+  assert.deepEqual(r.events.filter((e) => !['SYSTEM', 'ESCALATION'].includes(e.type) && !e.to).map((e) => e.id), ['demo-ev-02'], 'one compatibility broadcast');
   assert.deepEqual((await demo.collaboration('demo-site')).events, [], 'a demo project without a record shows the empty state');
   await assert.rejects(demo.collaboration('cand'), /示範資料裡沒有這個專案/);
   const app = read('app.js');
@@ -472,83 +481,209 @@ await check('WS-P1 responsive: the new blocks wrap inside their column instead o
   assert.doesNotMatch(css, /\.view\.chief\[data-pane|\.mt button/, 'the old two-pane toggle is gone');
 });
 
-// ---------- WS-P2 (still in force) and UI-C1: 協作室 as conversation windows
+// ---------- WS-P2 (still in force), UI-C1 and UI-C1-C1: 協作室 as conversation windows
+const RECORD_DIR = dir(['gem', 'Gemini'], ['tx', 'Tool-X']);
 const record = (extra = []) => parseCollaborationEvents('p', [
   ev({ id: 's0', type: 'SYSTEM', actor: '系統', role: undefined, body: '開始協作。', timestamp: '2026-10-06T04:40:00.000Z' }),
-  ev({ id: 'p1', type: 'PROPOSAL', actor: 'Gemini', role: 'Planner', to: ['Tool-X'], body: '先改 middleware。', timestamp: '2026-10-06T04:41:00.000Z' }),
-  ev({ id: 'q1', type: 'QUESTION', actor: 'Tool-X', role: 'Checker', to: ['Gemini'], body: '要保留舊行為嗎？', timestamp: '2026-10-06T04:42:00.000Z' }),
-  ev({ id: 'c1', type: 'CHALLENGE', actor: 'Tool-X', role: 'Checker', to: ['Gemini'], body: '過期 token 被提前拒絕。', timestamp: '2026-10-06T04:44:00.000Z',
+  ev({ id: 'p1', type: 'PROPOSAL', actor: 'Gemini', actorId: 'gem', role: 'Planner', to: ['tx'], body: '先改 middleware。', timestamp: '2026-10-06T04:41:00.000Z' }),
+  ev({ id: 'q1', type: 'QUESTION', actor: 'Tool-X', actorId: 'tx', role: 'Checker', to: ['gem'], body: '要保留舊行為嗎？', timestamp: '2026-10-06T04:42:00.000Z' }),
+  ev({ id: 'c1', type: 'CHALLENGE', actor: 'Tool-X', actorId: 'tx', role: 'Checker', to: ['gem'], body: '過期 token 被提前拒絕。', timestamp: '2026-10-06T04:44:00.000Z',
     evidence: [{ kind: 'FILE', path: 'src/auth.ts', lines: '84–112' }] }),
-  ev({ id: 'e1', type: 'EVIDENCE', actor: 'Tool-X', role: 'Checker', to: ['Gemini'], body: '重新驗證。', timestamp: '2026-10-06T04:46:00.000Z', evidence: [{ kind: 'TESTS', passed: 18, failed: 0 }] }),
-  ev({ id: 'x1', type: 'ESCALATION', actor: 'Tool-X', role: 'Checker', goalId: 'g2', body: '要不要改 public API？', timestamp: '2026-10-06T04:50:00.000Z',
+  ev({ id: 'e1', type: 'EVIDENCE', actor: 'Tool-X', actorId: 'tx', role: 'Checker', to: ['gem'], body: '重新驗證。', timestamp: '2026-10-06T04:46:00.000Z', evidence: [{ kind: 'TESTS', passed: 18, failed: 0 }] }),
+  ev({ id: 'x1', type: 'ESCALATION', actor: 'Tool-X', actorId: 'tx', role: 'Checker', goalId: 'g2', body: '要不要改 public API？', timestamp: '2026-10-06T04:50:00.000Z',
     evidence: [{ kind: 'FILE', path: 'api/contract.ts' }] }),
   ...extra,
 ]).events;
-// Four participants, one of whom never speaks; one message without addressees; one escalation.
+// Four participants, one of whom never speaks; one message without addressees (a compatibility broadcast); one escalation.
 const at = (minute) => `2026-10-06T04:${String(40 + minute).padStart(2, '0')}:00.000Z`;
-const talk = () => parseCollaborationEvents('p', [
+const TALK_DIR = dir(['lead', 'Lead'], ['maker', 'Maker'], ['checker', 'Checker'], ['watcher', 'Watcher']);
+const talkEvents = () => [
   ev({ id: 's0', type: 'SYSTEM', actor: '系統', role: undefined, body: '開始。', timestamp: at(0) }),
-  ev({ id: 'h1', type: 'HANDOFF', actor: 'Lead', role: '統籌', to: ['Maker', 'Checker'], body: '交給你們。', timestamp: at(1) }),
-  ev({ id: 'p1', type: 'PROPOSAL', actor: 'Maker', role: '實作', to: ['Checker'], body: '先改 middleware。', timestamp: at(2) }),
-  ev({ id: 'n1', type: 'RESPONSE', actor: 'Maker', role: '實作', body: '沒有寫收件者的訊息。', timestamp: at(3) }),
-  ev({ id: 'c1', type: 'CHALLENGE', actor: 'Checker', role: '審查', to: ['Maker'], body: '有問題。', timestamp: at(4), evidence: [{ kind: 'FILE', path: 'src/a.ts' }] }),
-  ev({ id: 'w1', type: 'QUESTION', actor: 'Maker', role: '實作', to: ['Watcher'], body: '你看一下？', timestamp: at(5) }),
-  ev({ id: 'x1', type: 'ESCALATION', actor: 'Lead', role: '統籌', body: '需要你決定。', timestamp: at(6) }),
-]).events;
-const shape = (windows) => windows.map((w) => `${w.actor}|${w.role ?? ''}|${w.partners.join(',')}|${w.items.map((i) => `${i.event.id}:${i.side}`).join(' ')}`);
+  ev({ id: 'h1', type: 'HANDOFF', actor: 'Lead', actorId: 'lead', role: '統籌', to: ['maker', 'checker'], body: '交給你們。', timestamp: at(1) }),
+  ev({ id: 'p1', type: 'PROPOSAL', actor: 'Maker', actorId: 'maker', role: '實作', to: ['checker'], body: '先改 middleware。', timestamp: at(2) }),
+  ev({ id: 'n1', type: 'RESPONSE', actor: 'Maker', actorId: 'maker', role: '實作', body: '沒有寫收件者的訊息。', timestamp: at(3) }),
+  ev({ id: 'c1', type: 'CHALLENGE', actor: 'Checker', actorId: 'checker', role: '審查', to: ['maker'], body: '有問題。', timestamp: at(4), evidence: [{ kind: 'FILE', path: 'src/a.ts' }] }),
+  ev({ id: 'w1', type: 'QUESTION', actor: 'Maker', actorId: 'maker', role: '實作', to: ['watcher'], body: '你看一下？', timestamp: at(5) }),
+  ev({ id: 'x1', type: 'ESCALATION', actor: 'Lead', actorId: 'lead', role: '統籌', body: '需要你決定。', timestamp: at(6) }),
+];
+const talkRoom = (extra = {}) => collaborationRoom('p', { participants: TALK_DIR, events: talkEvents(), ...extra });
+const shape = (windows) => windows.map((w) => `${w.actor}|${w.role ?? ''}|${w.partners.join(',')}|${w.items.map((i) => `${i.event.id}:${i.side}${i.broadcast ? '*' : ''}`).join(' ')}`);
+const ring = (actors) => actors.map((actor, index, all) => ev({ id: `m${index}`, actor, actorId: actor.toLowerCase(), to: [all[(index + 1) % all.length].toLowerCase()], timestamp: at(index) }));
+const ringDir = (actors) => dir(...actors.map((actor) => [actor.toLowerCase(), actor]));
 
-await check('UI-C1 CollaborationEventV1 recipients: optional and strict; a bad list refuses the event, never repairs it', () => {
+await check('UI-C1-C1 CollaborationEventV1 identity and recipients: optional and strict; a bad one refuses the event, never repairs it', () => {
   const [plain] = parseCollaborationEvents('p', [ev()]).events;
   assert.equal(plain.to, undefined, 'without `to` the event is unchanged');
-  const [sent] = parseCollaborationEvents('p', [ev({ to: [' GPT ', 'Chief'] })]).events;
-  assert.deepEqual(sent.to, ['GPT', 'Chief'], 'names are trimmed and kept in the order given');
+  assert.equal(plain.actorId, undefined, 'a historical event without actorId stays valid');
+  const [sent] = parseCollaborationEvents('p', [ev({ actorId: 'claude-1', to: ['gpt-1', 'chief'] })]).events;
+  assert.equal(sent.actorId, 'claude-1');
+  assert.deepEqual(sent.to, ['gpt-1', 'chief'], 'participant IDs, kept in the order given');
   assert.ok(Object.isFrozen(sent.to));
-  const bad = { 'not a list': 'GPT', 'an empty list': [], 'more than eight': ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'], 'a number': [7],
-    'a blank name': ['  '], 'a control character': ['G\u0007PT'], 'a name over 40': ['x'.repeat(41)], 'a repeated name': ['GPT', ' GPT'],
-    'its own sender': ['Claude'], 'an object': [{ name: 'GPT' }] };
-  for (const [why, to] of Object.entries(bad)) assert.equal(parseCollaborationEvents('p', [ev({ to })]).rejected, 1, `refused: ${why}`);
-  assert.equal(parseCollaborationEvents('p', [ev({ type: 'SYSTEM', to: ['GPT'] })]).rejected, 1, 'a SYSTEM line is addressed to no one');
-  assert.equal(parseCollaborationEvents('p', [ev({ type: 'ESCALATION', to: ['GPT'] })]).rejected, 1, 'an escalation goes to the Human by its type');
-  assert.equal(parseCollaborationEvents('p', [ev({ to: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] })]).events.length, 1, 'eight is allowed');
-  assert.equal(parseCollaborationEvents('p', [ev({ recipients: ['GPT'] })]).rejected, 1, 'only the named field: any other spelling is outside the model');
+  const bad = { 'not a list': 'gpt', 'an empty list': [], 'more than eight': ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'], 'a number': [7],
+    'a blank ID': ['  '], 'a padded ID': [' gpt '], 'a display name, not an ID': ['GPT 審查'], 'a control character': ['g\u0007pt'], 'an ID over 80': ['x'.repeat(81)],
+    'a repeated ID': ['gpt', 'gpt'], 'its own sender': ['claude-1'], 'an object': [{ id: 'gpt' }] };
+  for (const [why, to] of Object.entries(bad)) assert.equal(parseCollaborationEvents('p', [ev({ actorId: 'claude-1', to })]).rejected, 1, `refused: ${why}`);
+  assert.equal(parseCollaborationEvents('p', [ev({ to: ['gpt'] })]).rejected, 1, 'addressees need a sender identity: a historical record names none');
+  for (const actorId of ['', ' claude', 'cl aude', 7, 'x'.repeat(81)]) assert.equal(parseCollaborationEvents('p', [ev({ actorId })]).rejected, 1, `bad actorId ${actorId}`);
+  assert.equal(parseCollaborationEvents('p', [ev({ type: 'SYSTEM', actorId: 'sys' })]).rejected, 1, 'a SYSTEM line belongs to no participant');
+  assert.equal(parseCollaborationEvents('p', [ev({ type: 'SYSTEM', actorId: 'a', to: ['b'] })]).rejected, 1, 'a SYSTEM line is addressed to no one');
+  assert.equal(parseCollaborationEvents('p', [ev({ type: 'ESCALATION', actorId: 'a', to: ['b'] })]).rejected, 1, 'an escalation goes to the Human by its type');
+  assert.equal(parseCollaborationEvents('p', [ev({ actorId: 'z', to: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] })]).events.length, 1, 'eight is allowed');
+  for (const field of ['recipients', 'participantId', 'from', 'delivered']) {
+    assert.equal(parseCollaborationEvents('p', [ev({ actorId: 'a', [field]: ['b'] })]).rejected, 1, `strict: ${field} is outside the model`);
+  }
 });
 
-await check('UI-C1 projection: one window per participant, in order; a message reaches only the windows the record names', () => {
-  const events = talk();
-  assert.deepEqual(shape(conversationOf(events)), [
-    'Lead|統籌|Maker,Checker|s0:system h1:out x1:out',
-    'Maker|實作|Lead,Checker,Watcher|s0:system h1:in p1:out n1:out c1:in w1:out',
-    'Checker|審查|Lead,Maker|s0:system h1:in p1:in c1:out',
-    'Watcher||Maker|s0:system w1:in',
-  ], 'a recipient who never speaks still has a window; nothing else is invented');
-  const windows = conversationOf(events);
-  const received = windows.flatMap((w) => w.items.filter((i) => i.side === 'in'));
-  assert.equal(received.length, events.reduce((n, e) => n + (e.to?.length ?? 0), 0), 'exactly one delivery per named addressee');
-  assert.ok(received.every((i) => i.event.to.includes(windows.find((w) => w.items.includes(i)).actor)), 'every delivery is to a named addressee');
-  assert.deepEqual(windows.filter((w) => w.items.some((i) => i.event.id === 'n1')).map((w) => w.actor), ['Maker'], 'no `to`: it stays with its sender');
-  assert.deepEqual(windows.filter((w) => w.items.some((i) => i.event.id === 'x1')).map((w) => w.actor), ['Lead'], 'an escalation reaches no other window');
-  assert.ok(windows.every((w) => w.items[0].event.id === 's0' && w.items[0].seq === 1), 'SYSTEM lines in every window, numbered by place in the record');
-  const many = parseCollaborationEvents('p', ['A', 'B', 'C', 'D', 'E', 'F'].map((actor, index, all) =>
-    ev({ id: `m${index}`, actor, to: [all[(index + 1) % all.length]], timestamp: at(index) }))).events;
-  assert.deepEqual(conversationOf(many).map((w) => w.actor), ['A', 'B', 'C', 'D', 'E', 'F'], 'no participant is dropped');
+await check('UI-C1-C1 C1 omitted `to`: a compatibility broadcast to every other participant, from the one source event', () => {
+  const room = talkRoom();
+  assert.equal(room.identity, 'IDENTIFIED');
+  const windows = conversationOf(room);
+  assert.deepEqual(shape(windows), [
+    'Lead|統籌|maker,checker|s0:system h1:out n1:in* x1:out',
+    'Maker|實作|lead,checker,watcher|s0:system h1:in p1:out n1:out c1:in w1:out',
+    'Checker|審查|lead,maker|s0:system h1:in p1:in n1:in* c1:out',
+    'Watcher||maker|s0:system n1:in* w1:in',
+  ], 'n1 (no `to`) is shown to Lead, Checker and Watcher, once each, and to its sender only as sent');
+  const holding = (id) => windows.filter((w) => w.items.some((i) => i.event.id === id)).map((w) => w.key);
+  assert.deepEqual(holding('n1'), ['lead', 'maker', 'checker', 'watcher']);
+  assert.equal(windows.flatMap((w) => w.items).filter((i) => i.event.id === 'n1' && i.side === 'out').length, 1, 'the sender is excluded from its own broadcast');
+  // No source event is made or copied: the room holds the input events, and every window refers to those same objects.
+  assert.equal(room.events.length, talkEvents().length);
+  const referenced = new Set(windows.flatMap((w) => w.items.map((i) => i.event)));
+  assert.equal(referenced.size, room.events.length);
+  assert.ok([...referenced].every((event) => room.events.includes(event)), 'every window item is one of the room\'s own events');
+  assert.deepEqual(room.summary.needsHuman.map((e) => e.id), ['x1']);
+  // SYSTEM and ESCALATION keep their own semantics.
+  assert.ok(windows.every((w) => w.items[0].event.id === 's0' && w.items[0].side === 'system' && w.items[0].seq === 1), 'SYSTEM in every window, not as a message');
+  assert.deepEqual(holding('x1'), ['lead'], 'an escalation reaches no other window, broadcast or not');
+  const html = conversationHTML(room);
+  assert.equal((html.match(/data-id="n1"/g) ?? []).length, 4);
+  assert.match(html, /<li class="cm cm-out t-response" data-seq="4" data-id="n1"><div class="bub">沒有寫收件者的訊息。<\/div><p class="cm-m"><span class="cm-t">回應<\/span> · 未指定收件者 · 相容顯示給其他參與者 · <time/);
+  assert.equal((html.match(/<li class="cm cm-in cm-bc t-response" data-seq="4" data-id="n1"><p class="cm-from">Maker<\/p><div class="bub">沒有寫收件者的訊息。<\/div>\s*<p class="cm-m"><span class="cm-t">回應<\/span> · 未指定收件者 · 相容顯示，不代表已送達 · <time/g) ?? []).length, 3);
+  assert.equal(BROADCAST_SENT, '未指定收件者 · 相容顯示給其他參與者');
+  assert.equal(BROADCAST_SHOWN, '未指定收件者 · 相容顯示，不代表已送達');
+  assert.doesNotMatch((html + read('collaboration.js').replace(/\/\/.*$/gm, '')).replaceAll('不代表已送達', ''), /送達|delivered|已讀/, 'nothing claims a delivery');
+  assert.doesNotMatch(html, /沒有記錄收件者/, 'the UI-C1 "stays with its sender" wording is gone');
+});
+
+await check('UI-C1-C1 C2 explicit `to` reaches only the participant IDs it names', () => {
+  const room = talkRoom();
+  const windows = conversationOf(room);
+  const received = windows.flatMap((w) => w.items.filter((i) => i.side === 'in' && !i.broadcast).map((i) => [w.key, i.event]));
+  assert.equal(received.length, room.events.reduce((n, e) => n + (e.to?.length ?? 0), 0), 'exactly one delivery per named addressee');
+  assert.ok(received.every(([key, event]) => event.to.includes(key)), 'every addressed item is in a window the event names by ID');
+  assert.deepEqual(windows.filter((w) => w.items.some((i) => i.event.id === 'w1')).map((w) => w.key), ['maker', 'watcher']);
+  assert.deepEqual(conversationOf(collaborationRoom('p', { participants: ringDir(['A', 'B', 'C', 'D', 'E', 'F']), events: ring(['A', 'B', 'C', 'D', 'E', 'F']) })).map((w) => w.actor),
+    ['A', 'B', 'C', 'D', 'E', 'F'], 'no participant is dropped');
+  const extra = conversationOf(talkRoom({ participants: [...TALK_DIR, { id: 'auditor', name: 'Auditor' }] }));
+  assert.equal(shape(extra).at(-1), 'Auditor||maker|s0:system n1:in*', 'a directory participant who neither spoke nor was named still receives the broadcast, and nothing else');
+});
+
+await check('UI-C1-C1 C2 two participants with one display name stay two: separate windows, told apart in every label', () => {
+  const room = collaborationRoom('p', { participants: dir(['claude-a', 'Claude'], ['claude-b', 'Claude'], ['gpt', 'GPT']), events: [
+    ev({ id: 'a1', actor: 'Claude', actorId: 'claude-a', to: ['gpt'], body: '我是 A。', timestamp: at(1) }),
+    ev({ id: 'b1', actor: 'Claude', actorId: 'claude-b', to: ['gpt'], body: '我是 B。', timestamp: at(2) }),
+    ev({ id: 'g1', actor: 'GPT', actorId: 'gpt', to: ['claude-b'], body: '只給 B。', timestamp: at(3) }),
+  ] });
+  assert.equal(room.unverified, 0);
+  const windows = conversationOf(room);
+  assert.deepEqual(shape(windows), ['Claude|Implementer|gpt|a1:out', 'GPT|Implementer|claude-a,claude-b|a1:in b1:in g1:out', 'Claude|Implementer|gpt|b1:out g1:in']);
+  assert.deepEqual(windows.map((w) => w.actorId), ['claude-a', 'gpt', 'claude-b']);
+  const label = labelsOf(room);
+  assert.deepEqual(['claude-a', 'claude-b', 'gpt'].map(label), ['Claude · claude-a', 'Claude · claude-b', 'GPT'], 'only a shared name gets its ID beside it');
+  const html = conversationHTML(room);
+  assert.match(html, /<section class="cw" id="cw-1" data-w="1" data-p="claude-a" aria-label="Claude · claude-a 的對話">/);
+  assert.match(html, /<section class="cw" id="cw-3" data-w="3" data-p="claude-b" aria-label="Claude · claude-b 的對話">/);
+  assert.match(html, /data-cw="3" data-p="claude-b" aria-controls="cw-3" aria-selected="false">Claude · claude-b<span class="cw-dot"/);
+  assert.match(html, /<li class="cm cm-out t-proposal" data-seq="3" data-id="g1"><div class="bub">只給 B。<\/div><p class="cm-m"><span class="cm-t">提案<\/span> · 給 Claude · claude-b · <time/);
+  assert.match(html, /<p class="cm-from">Claude · claude-a<\/p><div class="bub">我是 A。/);
+  assert.match(html, /<span class="cw-r">Implementer · 和 Claude · claude-a、Claude · claude-b 對話<\/span>/);
+  assert.equal(summarizeCollaboration('p', room.events).activeParticipants.length, 3, 'the summary counts them apart too');
+  // The legacy rule is the opposite, and the room says so: one name is one participant.
+  const legacy = collaborationRoom('p', { events: [ev({ id: 'a1', actor: 'Claude', timestamp: at(1) }), ev({ id: 'b1', actor: 'Claude', timestamp: at(2) })] });
+  assert.equal(conversationOf(legacy).length, 1);
+});
+
+await check('UI-C1-C1 C2 unknown or conflicting identities fail closed', () => {
+  const base = (events, participants = TALK_DIR) => collaborationRoom('p', { participants, events: [talkEvents()[1], ...events] });
+  const cases = {
+    'an unknown recipient ID': ev({ id: 'u1', actor: 'Maker', actorId: 'maker', to: ['stranger'], timestamp: at(9) }),
+    'one unknown among known recipients': ev({ id: 'u1', actor: 'Maker', actorId: 'maker', to: ['checker', 'stranger'], timestamp: at(9) }),
+    'an unknown sender ID': ev({ id: 'u1', actor: 'Maker', actorId: 'maker-2', to: ['checker'], timestamp: at(9) }),
+    'a sender whose name conflicts with the directory': ev({ id: 'u1', actor: 'Checker', actorId: 'maker', to: ['lead'], timestamp: at(9) }),
+    'an escalation from an unknown sender': ev({ id: 'u1', type: 'ESCALATION', actor: 'Ghost', actorId: 'ghost', timestamp: at(9) }),
+  };
+  for (const [why, event] of Object.entries(cases)) {
+    const room = base([event]);
+    assert.equal(room.identity, 'IDENTIFIED', why);
+    assert.deepEqual([room.events.map((e) => e.id), room.unverified], [['h1'], 1], `refused: ${why}`);
+    assert.match(roomHTML(room), /有 <span class="num">1<\/span> 則事件的參與者身分無法確認，沒有顯示。/, why);
+    assert.doesNotMatch(conversationHTML(room), /stranger|maker-2|Ghost|data-id="u1"/, `nothing of it is shown: ${why}`);
+  }
+  assert.deepEqual(base([cases['an escalation from an unknown sender']]).summary.needsHuman, [], 'an unverified escalation never reaches 需要你');
+  // A directory that cannot be trusted is not used at all; it is never repaired.
+  const directories = { missing: undefined, 'not a list': { lead: 'Lead' }, empty: [], 'a repeated ID': [...TALK_DIR, { id: 'lead', name: 'Lead 2' }],
+    'an unknown field': [{ id: 'lead', name: 'Lead', role: '統籌' }, ...TALK_DIR.slice(1)], 'a bad ID': [{ id: 'le ad', name: 'Lead' }, ...TALK_DIR.slice(1)],
+    'a blank name': [{ id: 'lead', name: ' ' }, ...TALK_DIR.slice(1)], 'over 32 entries': [...TALK_DIR, ...Array.from({ length: 29 }, (_, i) => ({ id: `p${i}`, name: `P${i}` }))] };
+  for (const [why, participants] of Object.entries(directories)) {
+    const room = talkRoom({ participants });
+    assert.equal(room.identity, 'NO_DIRECTORY', why);
+    assert.equal(conversationOf(room), null, `no window is guessed: ${why}`);
+    assert.deepEqual(room.participants, []);
+  }
+});
+
+await check('UI-C1-C1 C2 one rule per room: legacy records by name, said so; mixed records shown in order with a warning, nothing guessed', () => {
+  // Legacy: historical events (no actorId, so no `to`) stay readable, told apart by name, and the room says so.
+  const legacyEvents = [
+    ev({ id: 's0', type: 'SYSTEM', actor: '系統', role: undefined, body: '開始。', timestamp: at(0) }),
+    ev({ id: 'l1', actor: 'Codex', role: 'Reviewer', body: '先看測試。', timestamp: at(1) }),
+    ev({ id: 'l2', actor: 'Claude', body: '好。', timestamp: at(2) }),
+    ev({ id: 'l3', type: 'ESCALATION', actor: 'Codex', role: 'Reviewer', body: '需要你。', timestamp: at(3) }),
+  ];
+  const legacy = collaborationRoom('p', { events: legacyEvents, participants: TALK_DIR });
+  assert.equal(legacy.identity, 'LEGACY', 'no message carries actorId: the directory is not used to match names');
+  assert.equal(legacy.unverified, 0);
+  assert.deepEqual(shape(conversationOf(legacy)), ['Codex|Reviewer|Claude|s0:system l1:out l2:in* l3:out', 'Claude|Implementer|Codex|s0:system l1:in* l2:out']);
+  const legacyHTML = roomHTML(legacy);
+  assert.match(legacyHTML, /<p class="c-note" role="note">這些是沒有參與者身分代號的舊紀錄：參與者以顯示名稱區分，同名的會被當成同一位。<\/p><div class="conv"/);
+  assert.match(legacyHTML, /data-p="Codex"/);
+  assert.doesNotMatch(roomHTML(talkRoom()), /c-note|c-warn/, 'an identified room needs no note');
+  // Mixed: some messages carry actorId and some do not. No window, no addressee, no replay, a warning, the record in order.
+  const mixed = collaborationRoom('p', { provenance: 'DEMO_SAMPLE', participants: TALK_DIR, events: [...talkEvents(), ev({ id: 'old', actor: 'Maker', body: '舊的。', timestamp: at(7) })] });
+  assert.equal(mixed.identity, 'MIXED');
+  assert.equal(conversationOf(mixed), null);
+  assert.deepEqual(mixed.events.map((e) => e.id), ['s0', 'h1', 'p1', 'n1', 'c1', 'w1', 'x1', 'old'], 'the record is kept whole, in order');
+  const html = roomHTML(mixed, { replay: true });
+  assert.match(html, /<p class="c-warn" role="note">這個協作室同時有附身分代號和沒有身分代號的紀錄，無法確定誰是誰。以下依時間列出原始紀錄：不分對話視窗，也不推算收件者。<\/p>/);
+  assert.equal((html.match(/<section class="cw"/g) ?? []).length, 1);
+  assert.match(html, /<section class="cw" id="cw-1" data-w="1" data-p="" aria-label="原始紀錄"><header class="cw-h"><b class="cw-n">原始紀錄<\/b><span class="cw-r">未分視窗 · 不推算收件者<\/span><\/header>/);
+  assert.match(html, /<p class="cm-from">Maker · maker<\/p>/);
+  assert.match(html, /<p class="cm-from">Maker · 沒有身分代號<\/p>/);
+  assert.doesNotMatch(html, /cw-tabs|data-replay|cv-bar|cm-typing|cm-out|cm-bc| 給 |也給|相容顯示|data-p="maker"/, 'nothing is routed, addressed or replayed');
+  assert.match(html, /<h2 class="nr-h" id="needs-h" tabindex="-1">需要你 <span class="num nr-c">1<\/span>/, 'an escalation still reaches 需要你');
+  const unlisted = roomHTML(talkRoom({ participants: undefined }));
+  assert.match(unlisted, /<p class="c-warn" role="note">這些紀錄附有身分代號，但沒有可用的參與者名冊，無法確認誰是誰。/);
+  assert.deepEqual(IDENTITY_RULES, ['IDENTIFIED', 'LEGACY', 'MIXED', 'NO_DIRECTORY']);
+  assert.equal(identityOf([], null), 'LEGACY');
+  assert.equal(identityOf(parseCollaborationEvents('p', [ev({ type: 'SYSTEM', actor: '系統' })]).events, null), 'LEGACY', 'SYSTEM lines never decide the rule');
 });
 
 await check('UI-C1 windows: sent on the right, received on the left under the sender\'s name; tabs for every window', () => {
-  const html = conversationHTML(collaborationRoom('p', { events: talk() }));
+  const html = conversationHTML(talkRoom());
   const win = (n) => html.slice(html.indexOf(`<section class="cw" id="cw-${n}"`), html.indexOf('</section>', html.indexOf(`<section class="cw" id="cw-${n}"`)));
-  assert.match(win(2), /^<section class="cw" id="cw-2" data-w="2" aria-label="Maker 的對話">\s*<header class="cw-h"><b class="cw-n">Maker<\/b><span class="cw-r">實作 · 和 Lead、Checker、Watcher 對話<\/span><\/header>/);
-  assert.match(win(2), /<li class="cm cm-in t-handoff" data-seq="2"><p class="cm-from">Lead<\/p><div class="bub">交給你們。<\/div>\s*<p class="cm-m"><span class="cm-t">交接<\/span> · 也給 Checker · <time/);
-  assert.match(win(2), /<li class="cm cm-out t-response" data-seq="4"><div class="bub">沒有寫收件者的訊息。<\/div><p class="cm-m"><span class="cm-t">回應<\/span> · 沒有記錄收件者 · <time/);
-  assert.match(win(2), /<li class="cm cm-in t-challenge" data-seq="5"><p class="cm-from">Checker<\/p><div class="bub">有問題。<p class="att" aria-label="附件"><span><b>檔案<\/b><code>src\/a\.ts<\/code><\/span><\/p><\/div>/);
-  assert.match(win(1), /<li class="cm cm-out t-escalation" data-seq="7"><div class="bub">需要你決定。<\/div><p class="cm-m"><span class="cm-t">需要你<\/span> · 給 你 · <time/);
+  assert.match(win(2), /^<section class="cw" id="cw-2" data-w="2" data-p="maker" aria-label="Maker 的對話">\s*<header class="cw-h"><b class="cw-n">Maker<\/b><span class="cw-r">實作 · 和 Lead、Checker、Watcher 對話<\/span><\/header>/);
+  assert.match(win(2), /<li class="cm cm-in t-handoff" data-seq="2" data-id="h1"><p class="cm-from">Lead<\/p><div class="bub">交給你們。<\/div>\s*<p class="cm-m"><span class="cm-t">交接<\/span> · 也給 Checker · <time/);
+  assert.match(win(2), /<li class="cm cm-out t-proposal" data-seq="3" data-id="p1"><div class="bub">先改 middleware。<\/div><p class="cm-m"><span class="cm-t">提案<\/span> · 給 Checker · <time/);
+  assert.match(win(2), /<li class="cm cm-in t-challenge" data-seq="5" data-id="c1"><p class="cm-from">Checker<\/p><div class="bub">有問題。<p class="att" aria-label="附件"><span><b>檔案<\/b><code>src\/a\.ts<\/code><\/span><\/p><\/div>/);
+  assert.match(win(1), /<li class="cm cm-out t-escalation" data-seq="7" data-id="x1"><div class="bub">需要你決定。<\/div><p class="cm-m"><span class="cm-t">需要你<\/span> · 給 你 · <time/);
   assert.match(win(4), /<span class="cw-r">和 Maker 對話<\/span>/, 'no role is invented for a participant who never spoke');
-  assert.equal((html.match(/<li class="cm-sys" data-seq="1">/g) ?? []).length, 4);
-  assert.equal((html.match(/class="cm cm-in /g) ?? []).length, 5);
-  assert.match(html, /<div class="cw-tabs" role="tablist" aria-label="切換對話視窗"><button type="button" role="tab" data-cw="1" aria-controls="cw-1" aria-selected="true">Lead<span class="cw-dot" aria-hidden="true"><\/span><\/button>/);
+  assert.equal((html.match(/<li class="cm-sys" data-seq="1" data-id="s0">/g) ?? []).length, 4);
+  assert.equal((html.match(/class="cm cm-in /g) ?? []).length, 5 + 3, 'five addressed deliveries and one broadcast shown to three');
+  assert.match(html, /<div class="cw-tabs" role="tablist" aria-label="切換對話視窗"><button type="button" role="tab" data-cw="1" data-p="lead" aria-controls="cw-1" aria-selected="true">Lead<span class="cw-dot" aria-hidden="true"><\/span><\/button>/);
   assert.equal((html.match(/role="tab"/g) ?? []).length, 4);
   assert.match(html, /<div class="chats" data-n="4" data-active="1">/);
-  const six = parseCollaborationEvents('p', ['A', 'B', 'C', 'D', 'E', 'F'].map((actor, index, all) => ev({ id: `m${index}`, actor, to: [all[(index + 1) % all.length]], timestamp: at(index) }))).events;
-  const wide = conversationHTML(collaborationRoom('p', { events: six }));
+  const wide = conversationHTML(collaborationRoom('p', { participants: ringDir(['A', 'B', 'C', 'D', 'E', 'F']), events: ring(['A', 'B', 'C', 'D', 'E', 'F']) }));
   assert.match(wide, /<div class="chats cw-many" data-n="4" data-active="1">/);
   assert.equal((wide.match(/<section class="cw"/g) ?? []).length, 6, 'more than four windows scroll sideways; none is dropped');
   assert.equal(attachmentsHTML(undefined), '');
@@ -556,12 +691,12 @@ await check('UI-C1 windows: sent on the right, received on the left under the se
 });
 
 await check('UI-C1 layout: the gold 需要你 strip, then the windows; side by side when wide, one at a time behind name tabs when narrow', () => {
-  const room = collaborationRoom('p', { events: record() });
+  const room = collaborationRoom('p', { participants: RECORD_DIR, events: record() });
   const html = roomHTML(room);
   assert.match(html, /<div class="room-body">\s*<section class="nstrip has-need" aria-labelledby="needs-h"><h2 class="nr-h" id="needs-h" tabindex="-1">需要你 <span class="num nr-c">1<\/span><\/h2>/);
   assert.match(html, /<section class="disc" aria-label="AI 之間的對話"><div class="conv" data-key="p" data-max="6">/);
   const shell = [...read('index.html').matchAll(/class="([\w-]+)/g)].map((m) => m[1]);
-  const demo = roomHTML(collaborationRoom('p', { provenance: 'DEMO_SAMPLE', events: record() }), { replay: true });
+  const demo = roomHTML(collaborationRoom('p', { provenance: 'DEMO_SAMPLE', participants: RECORD_DIR, events: record() }), { replay: true });
   const used = new Set([...(html + demo).matchAll(/class="([^"]+)"/g)].flatMap((m) => m[1].split(/\s+/)));
   assert.deepEqual(shell.filter((name) => used.has(name)), [], 'the room reuses no class of the page shell (a .rail once collided)');
   const css = read('styles.css');
@@ -595,20 +730,20 @@ await check('WS-P2 addresses still work: 需要你 links land on 協作室 /need
 });
 
 await check('WS-P2 需要你 keeps its place when empty, with a calm empty state', () => {
-  const quiet = collaborationRoom('p', { events: record().filter((e) => e.type !== 'ESCALATION') });
+  const quiet = collaborationRoom('p', { participants: RECORD_DIR, events: record().filter((e) => e.type !== 'ESCALATION') });
   const html = roomHTML(quiet);
   assert.match(html, /<section class="nstrip" aria-labelledby="needs-h"><h2 class="nr-h" id="needs-h" tabindex="-1">需要你 <span class="num nr-c">0<\/span><\/h2>\s*<ul class="nr"><\/ul><div class="nr-empty">/);
   assert.ok(html.includes(NEEDS_EMPTY));
   assert.match(NEEDS_EMPTY, /目前沒有需要你決定的事。[\s\S]*AI 之間無法自行決定的事，會出現在這裡。/);
-  assert.match(roomHTML(collaborationRoom('p', { events: record() })), /<div class="nr-empty" hidden>/, 'with an escalation the empty line is hidden, not removed');
+  assert.match(roomHTML(collaborationRoom('p', { participants: RECORD_DIR, events: record() })), /<div class="nr-empty" hidden>/, 'with an escalation the empty line is hidden, not removed');
   const css = read('styles.css');
   assert.match(css, /\.nstrip \[hidden\]\{display:none\}/);
   assert.doesNotMatch(css, /\.nstrip \.nr-empty\{[^}]*display:/, 'no rule may out-rank [hidden] on the empty line (it once showed beside a waiting escalation)');
 });
 
 await check('UI-C1 demo/LIVE separation: only demo data on the demo page replays; a record is never replayed', () => {
-  const live = collaborationRoom('p', { provenance: 'NONE', events: record() });
-  const demo = collaborationRoom('p', { provenance: 'DEMO_SAMPLE', events: record() });
+  const live = collaborationRoom('p', { provenance: 'NONE', participants: RECORD_DIR, events: record() });
+  const demo = collaborationRoom('p', { provenance: 'DEMO_SAMPLE', participants: RECORD_DIR, events: record() });
   for (const [html, why] of [[roomHTML(live), 'LIVE'], [roomHTML(live, { replay: true }), 'LIVE even when the page asks'], [roomHTML(demo), 'demo data when the page did not ask']]) {
     assert.doesNotMatch(html, /data-replay|cv-bar|示範重播|cm-typing|正在輸入/, `no replay: ${why}`);
   }
@@ -616,6 +751,8 @@ await check('UI-C1 demo/LIVE separation: only demo data on the demo page replays
   assert.match(replay, /<div class="conv" data-key="p" data-max="6" data-replay="1"><div class="cv-bar"><span class="cv-k">示範重播<\/span>/);
   assert.match(replay, /<p class="demo-tag" role="note"><b>示範資料<\/b>/, 'a replay is always labelled as demo data');
   assert.match(replay, /<li class="nr-i" data-seq="6">/, 'the strip knows each escalation\'s place, so the replay can reveal it in turn');
+  assert.doesNotMatch(roomHTML(collaborationRoom('p', { provenance: 'DEMO_SAMPLE', events: [...record(), ev({ id: 'old', timestamp: '2026-10-06T04:55:00.000Z' })] }), { replay: true }),
+    /data-replay|cv-bar|cm-typing/, 'a room whose participants cannot be told apart is never replayed, demo or not');
   assert.match(slice('function projectView', 'function projectsView'), /replay: DEMO \}/, 'the page asks for a replay only in demo mode');
   assert.deepEqual(replayStart({ replay: false, max: 9, reducedMotion: false }), { replaying: false, sent: 9, delivered: 9 }, 'a record shows everything');
   assert.deepEqual(replayStart({ replay: true, max: 9, reducedMotion: true }), { replaying: false, sent: 9, delivered: 9 }, 'reduced motion: no replay');
@@ -624,15 +761,60 @@ await check('UI-C1 demo/LIVE separation: only demo data on the demo page replays
   assert.equal(revealed(3, 'in', { sent: 3, delivered: 2 }), false, 'a receiver sees it a moment after it was sent');
   const module = read('conversation.js');
   assert.match(module, /const replay = root\.dataset\.replay === '1';/);
-  assert.match(module, /if \(!replay\) S\.sent = S\.delivered = max;/, 'a record keeps showing all of itself as it grows');
+  assert.match(module, /if \(!replay\) \{\n    S\.sent = S\.delivered = max;/, 'a record keeps showing all of itself as it grows');
   assert.match(module, /if \(!control \|\| !S\.replay\) return;/, 'the replay controls do nothing outside a replay room');
   assert.match(module, /if \(!S\.replay\) return;\n[\s\S]*querySelector\('\.nstrip'\)/, 'only a replay touches the 需要你 strip');
   assert.doesNotMatch(module, /\bimport\b|fetch|EventSource|XMLHttpRequest|localStorage|sessionStorage|source\./, 'no network, storage, imports or source');
   assert.doesNotMatch(read('collaboration.js'), /正在輸入/, 'the record markup never says anyone is typing');
 });
 
+await check('UI-C1-C1 C3 LIVE unread: a message arriving while a record room is open marks its window; history, replay and the window in front never do', () => {
+  const items = (events) => conversationOf(collaborationRoom('p', { provenance: 'NONE', participants: TALK_DIR, events }))
+    .flatMap((w) => w.items.map((i) => ({ w: w.key, id: i.event.id })));
+  const opening = items(talkEvents().slice(0, 4));
+  const first = arrivals(null, opening, { active: 'lead', wide: false });
+  assert.deepEqual([first.fresh, first.unread], [[], []], 'what the room held when it was opened is history: nothing in it is new');
+  assert.equal(first.seen.size, opening.length);
+  assert.deepEqual(arrivals(first.seen, opening, { active: 'lead', wide: false }).fresh, [], 'a re-render with nothing new marks nothing');
+  const grown = items(talkEvents().slice(0, 6)); // c1 (checker → maker) and w1 (maker → watcher) arrive while the room is open
+  const next = arrivals(first.seen, grown, { active: 'lead', wide: false });
+  assert.deepEqual(next.fresh.map((i) => `${i.w}:${i.id}`), ['maker:c1', 'maker:w1', 'checker:c1', 'watcher:w1']);
+  assert.deepEqual(next.unread, ['maker', 'checker', 'watcher'], 'every window that gained a message, except the one in front');
+  assert.deepEqual(arrivals(first.seen, grown, { active: 'maker', wide: false }).unread, ['checker', 'watcher'], 'the window in front is being read');
+  assert.deepEqual(arrivals(first.seen, grown, { active: 'lead', wide: true }).unread, [], 'side by side, every window is in view');
+  assert.deepEqual(arrivals(next.seen, grown, { active: 'lead', wide: false }).fresh, [], 'a message is new once');
+  const broadcast = ev({ id: 'n2', actor: 'Checker', actorId: 'checker', role: '審查', body: '大家注意。', timestamp: at(7) });
+  const heard = arrivals(next.seen, items([...talkEvents().slice(0, 6), broadcast]), { active: 'lead', wide: false });
+  assert.deepEqual(heard.fresh.map((i) => `${i.w}:${i.id}`), ['lead:n2', 'maker:n2', 'checker:n2', 'watcher:n2'], 'a new broadcast lands once in every window (its sender\'s as sent)');
+  assert.deepEqual(heard.unread, ['maker', 'checker', 'watcher'], 'every window but the one in front gets a dot');
+  assert.deepEqual([...opened(new Set(['maker', 'checker', 'watcher']), 'checker')], ['maker', 'watcher'], 'opening one window clears that window\'s dot only');
+  // Wiring: only a record room (never a replay) tracks arrivals; windows are followed by participant, not by position.
+  const module = read('conversation.js');
+  assert.match(module, /if \(!replay\) \{[\s\S]*const now = arrivals\(S\.seen, items, \{ active: front\(root\)\?\.dataset\.p \?\? null, wide: wideRoom\(root\) \}\);/);
+  assert.match(module, /Object\.assign\(S, \{ key, replay, max, active: null, seen: null \}/, 'a room opened again starts from its history');
+  assert.match(module, /if \(tab\) \{ S\.active = tab\.dataset\.p; S\.unread = opened\(S\.unread, S\.active\); apply\(\); return; \}/);
+  assert.match(module, /for \(const win of S\.replay \? root\.querySelectorAll\('\.cw'\) : \[\]\) \{/, 'the replay reveal, typing row and its dots run only in a replay room');
+  assert.match(module, /tab\.classList\.toggle\('cw-unread', S\.unread\.has\(tab\.dataset\.p\)\)/);
+  // LIVE never shows the demo typing effect, however the record grows and whatever the page asks for.
+  const live = (events) => roomHTML(collaborationRoom('p', { provenance: 'NONE', participants: TALK_DIR, events }), { replay: true });
+  for (const html of [live(talkEvents().slice(0, 4)), live(talkEvents())]) assert.doesNotMatch(html, /cm-typing|正在輸入|data-replay|cv-bar|示範/);
+  assert.doesNotMatch(read('collaboration.js') + read('app.js'), /正在輸入/);
+});
+
+await check('UI-C1-C1 adds no execution or authority capability', () => {
+  assert.equal(API_ROUTES.length, 11, 'no route');
+  const app = read('app.js');
+  assert.doesNotMatch(app, /source\.(send|post|deliver|ack|participants)\b/, 'the page asks the source for nothing new');
+  for (const file of ['collaboration.js', 'conversation.js']) {
+    assert.doesNotMatch(read(file), /\bimport\b|fetch\(|EventSource|XMLHttpRequest|localStorage|sessionStorage|\bsource\./, `${file}: no network, storage or source`);
+  }
+  assert.deepEqual(Object.keys(createLiveSource({ fetchImpl: async () => ({}), EventSourceImpl: class {} })).sort(),
+    ['addGoal', 'collaboration', 'executionStatus', 'mode', 'projects', 'queue', 'removeGoal', 'reorder', 'subscribe'], 'LIVE source unchanged');
+  assert.match(read('live.js'), /collaboration: async \(projectId\) => \(\{ projectId, provenance: 'NONE', events: \[\] \}\),/, 'LIVE still has no collaboration events and makes no request for them');
+});
+
 await check('UI-C1 identity is display metadata: windows and names come from the record; no code names an agent', () => {
-  const html = roomHTML(collaborationRoom('p', { events: record() }));
+  const html = roomHTML(collaborationRoom('p', { participants: RECORD_DIR, events: record() }));
   assert.match(html, /<b class="cw-n">Gemini<\/b><span class="cw-r">Planner · 和 Tool-X 對話<\/span>/);
   assert.doesNotMatch(html, /正在|working|online|上線|typing|輸入中/i, 'no live presence');
   const codeOnly = (file) => read(file).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1');
@@ -640,7 +822,7 @@ await check('UI-C1 identity is display metadata: windows and names come from the
 });
 
 await check('UI-C1 evidence: attachments inside the message that carried them; the 需要你 strip keeps the evidence block', () => {
-  const html = roomHTML(collaborationRoom('p', { events: record() }));
+  const html = roomHTML(collaborationRoom('p', { participants: RECORD_DIR, events: record() }));
   assert.match(html, /<div class="bub">過期 token 被提前拒絕。<p class="att" aria-label="附件"><span><b>檔案<\/b><code>src\/auth\.ts:84–112<\/code><\/span><\/p><\/div>/);
   assert.match(html, /<div class="bub">重新驗證。<p class="att" aria-label="附件"><span><b>測試<\/b><span class="num">18<\/span> 項通過 · <span class="num">0<\/span> 項失敗<\/span><\/p><\/div>/);
   assert.match(html, /<li class="nr-i" data-seq="6"><p class="nr-q">要不要改 public API？<\/p>[\s\S]*<dl class="evd" aria-label="證據">/);
@@ -675,7 +857,7 @@ await check('UI-C1 rail: folds on wide layouts by button or [ key, kept across r
 });
 
 await check('WS-P2 no per-agent control: 協作室 has no composer, input or "說給" anywhere', () => {
-  const html = roomHTML(collaborationRoom('p', { provenance: 'DEMO_SAMPLE', events: record() }), { replay: true });
+  const html = roomHTML(collaborationRoom('p', { provenance: 'DEMO_SAMPLE', participants: RECORD_DIR, events: record() }), { replay: true });
   assert.doesNotMatch(html, /<textarea|<input|<form|<select|說給|send to|contenteditable/i);
   assert.deepEqual([...new Set([...html.matchAll(/data-(act|cw|replay)="([\w-]+)"/g)].map((m) => `${m[1]}=${m[1] === 'cw' ? 'n' : m[2]}`))].sort(),
     ['act=decision', 'cw=n', 'replay=1', 'replay=all', 'replay=restart'], 'the room\'s only controls: open the read-only decision, switch window, replay demo');
@@ -692,7 +874,7 @@ await check('WS-P2 chain-of-thought boundary: the rule is stated as a source obl
   assert.match(module, /it cannot tell what text a source puts into `body`/, 'the code says what it cannot prove');
   assert.doesNotMatch(module, /no source can put chain-of-thought|cannot smuggle/, 'the WS-P1 overclaim is gone');
   const app = read('app.js');
-  assert.match(app, /參與工作的 AI 彼此明確送出的訊息，每個 AI 一個對話視窗：它送出的在右邊，傳給它的在左邊。這是它們送出的訊息，不是 AI 的思考過程。/);
+  assert.match(app, /參與工作的 AI 彼此明確送出的訊息，每個 AI 一個對話視窗：它送出的在右邊，寫給它的在左邊。「給」是紀錄寫的收件者；沒寫收件者的訊息會相容顯示在其他每個視窗。兩者都不代表訊息確實送達。這是它們送出的訊息，不是 AI 的思考過程。/);
   assert.doesNotMatch(app, /不包含 AI 的內部推理|真的送出/, 'the room promises nothing the projection cannot check');
 });
 

@@ -1,4 +1,4 @@
-// 協作室 (WS-P1, WS-P2, UI-C1): the projection of observable AI-to-AI collaboration events, and how the Workspace shows
+// 協作室 (WS-P1, WS-P2, UI-C1, UI-C1-C1): the projection of observable AI-to-AI collaboration events, and how the Workspace shows
 // them. Pure: no DOM, no storage, no network, no imports (tested directly in test-workspace-ui.mjs).
 //
 // What an event is (canonical rule). CollaborationEventV1 represents only collaboration artifacts a participant
@@ -8,7 +8,8 @@
 // What the code does and does not enforce. The projection refuses any event with a field outside the model, so a
 // source cannot add a reasoning-shaped field; it cannot tell what text a source puts into `body`. Keeping private
 // reasoning out of `body` is the source's obligation under the rule above, not something this module can prove.
-// Event types name what happened, never which runtime did it; actor, role and runtime are display metadata only.
+// Event types name what happened, never which runtime did it; actor, role and runtime are display metadata only. Who a
+// participant is comes from its stable participant ID (actorId) and the room's participant directory, never from a name.
 //
 // The summary and the conversation windows are derived here, deterministically, from the events alone. No model
 // writes them, and nothing here names a particular agent: every name shown comes from the record.
@@ -25,15 +26,20 @@ export const TYPE_LABEL = Object.freeze({
 });
 
 // ---------- CollaborationEventV1
-// { id, projectId, goalId?, actor, role?, runtime?, to?, type, body, timestamp, evidence? }
-// to (UI-C1, optional): the participants a message was sent to, by the name they act under. Strict: 1–8 distinct
-// names, never the sender itself, and never on SYSTEM (an operational line, not a message) or ESCALATION (addressed to
-// the Human by its type). An event that breaks any of these is refused, never repaired.
+// { id, projectId, goalId?, actor, actorId?, role?, runtime?, to?, type, body, timestamp, evidence? }
+// actor: the name the sender acts under (display metadata only).
+// actorId (UI-C1-C1, optional): the sender's stable participant ID. Never on SYSTEM (an operational line, not a
+// participant). An event without it is a historical record.
+// to (UI-C1-C1, optional): the stable participant IDs a message was addressed to. Only beside actorId (a historical
+// record names no addressee); 1–8 distinct IDs, never the sender's own, never on SYSTEM or ESCALATION (addressed to the
+// Human by its type). Without `to`, an AI message is addressed to no one in particular (see conversationOf).
+// An event that breaks any of these is refused, never repaired.
 // evidence: [{ kind: 'FILE', path, lines? } | { kind: 'TESTS', passed, failed?, label? } | { kind: 'COMMIT', sha }]
-const EVENT_KEYS = ['id', 'projectId', 'goalId', 'actor', 'role', 'runtime', 'to', 'type', 'body', 'timestamp', 'evidence'];
+const EVENT_KEYS = ['id', 'projectId', 'goalId', 'actor', 'actorId', 'role', 'runtime', 'to', 'type', 'body', 'timestamp', 'evidence'];
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/;
 const MAX_EVIDENCE = 8;
 const MAX_TO = 8;
+const MAX_PARTICIPANTS = 32;
 
 class InvalidEvent extends Error {}
 const refuse = (why) => { throw new InvalidEvent(why); };
@@ -74,13 +80,14 @@ function evidenceOf(item) {
   return refuse('unknown evidence kind');
 }
 
-function addresseesOf(value, actor, type) {
+function addresseesOf(value, actorId, type) {
   if (type === 'SYSTEM' || type === 'ESCALATION') refuse(`${type} has no addressees`);
+  if (actorId === undefined) refuse('addressees without a sender identity');
   if (!Array.isArray(value) || !value.length || value.length > MAX_TO) refuse('bad addressees');
-  const names = value.map((name) => text(name, 40));
-  if (new Set(names).size !== names.length) refuse('repeated addressee');
-  if (names.includes(actor)) refuse('addressed to its own sender');
-  return Object.freeze(names);
+  const ids = value.map(id);
+  if (new Set(ids).size !== ids.length) refuse('repeated addressee');
+  if (ids.includes(actorId)) refuse('addressed to its own sender');
+  return Object.freeze(ids);
 }
 
 function eventOf(projectId, raw) {
@@ -91,12 +98,14 @@ function eventOf(projectId, raw) {
   if (typeof raw.timestamp !== 'string' || !Number.isFinite(Date.parse(raw.timestamp))) refuse('bad timestamp');
   if (raw.evidence !== undefined && (!Array.isArray(raw.evidence) || raw.evidence.length > MAX_EVIDENCE)) refuse('bad evidence list');
   const actor = text(raw.actor, 40);
+  if (raw.actorId !== undefined && raw.type === 'SYSTEM') refuse('a SYSTEM line has no sender identity');
+  const actorId = raw.actorId === undefined ? undefined : id(raw.actorId);
   const role = optional(raw.role, 40);
   const runtime = optional(raw.runtime, 40);
-  const to = raw.to === undefined ? undefined : addresseesOf(raw.to, actor, raw.type);
+  const to = raw.to === undefined ? undefined : addresseesOf(raw.to, actorId, raw.type);
   return Object.freeze({
     id: id(raw.id), projectId, ...(raw.goalId === undefined ? {} : { goalId: id(raw.goalId) }),
-    actor, ...(role === undefined ? {} : { role }), ...(runtime === undefined ? {} : { runtime }), ...(to === undefined ? {} : { to }),
+    actor, ...(actorId === undefined ? {} : { actorId }), ...(role === undefined ? {} : { role }), ...(runtime === undefined ? {} : { runtime }), ...(to === undefined ? {} : { to }),
     type: raw.type, body: text(raw.body, 4000, { lines: true }), timestamp: raw.timestamp,
     ...(raw.evidence === undefined ? {} : { evidence: Object.freeze(raw.evidence.map(evidenceOf)) }),
   });
@@ -124,19 +133,21 @@ export function parseCollaborationEvents(projectId, raw) {
 
 // ---------- CollaborationSummaryV1
 // { projectId, activeParticipants, consensus, disagreements, needsHuman }
-//   activeParticipants: each actor who said something (system events excluded), in order of first appearance;
+//   activeParticipants: each sender (system events excluded), in order of first appearance, told apart by actorId when
+//     the event has one and by name when it has none;
 //   consensus: the AGREEMENT events, verbatim;
 //   disagreements: CHALLENGE events their own author has not later agreed to within the same goal;
 //   needsHuman: every ESCALATION, oldest first. There is no Human decision backend, so none is ever resolved here.
+const senderOf = (event) => (event.actorId === undefined ? `name:${event.actor}` : `id:${event.actorId}`);
 export function summarizeCollaboration(projectId, events) {
   const participants = new Map();
   for (const event of events) {
-    if (event.type !== 'SYSTEM' && !participants.has(event.actor)) {
-      participants.set(event.actor, Object.freeze({ actor: event.actor, ...(event.role ? { role: event.role } : {}) }));
+    if (event.type !== 'SYSTEM' && !participants.has(senderOf(event))) {
+      participants.set(senderOf(event), Object.freeze({ actor: event.actor, ...(event.actorId ? { actorId: event.actorId } : {}), ...(event.role ? { role: event.role } : {}) }));
     }
   }
   const settled = (challenge, index) => events.slice(index + 1)
-    .some((later) => later.type === 'AGREEMENT' && later.actor === challenge.actor && later.goalId === challenge.goalId);
+    .some((later) => later.type === 'AGREEMENT' && senderOf(later) === senderOf(challenge) && later.goalId === challenge.goalId);
   return Object.freeze({
     projectId,
     activeParticipants: Object.freeze([...participants.values()]),
@@ -146,38 +157,99 @@ export function summarizeCollaboration(projectId, events) {
   });
 }
 
-/** One project's room: validated events, how many were left out, and the derived summary. */
-export function collaborationRoom(projectId, data) {
-  const { events, rejected } = parseCollaborationEvents(projectId, data?.events);
-  return Object.freeze({ projectId, provenance: data?.provenance ?? 'NONE', events, rejected, summary: summarizeCollaboration(projectId, events) });
+// ---------- the participant directory and how a room tells participants apart (UI-C1-C1)
+// participants: [{ id, name }] — who takes part in a room, by stable participant ID, with the name each acts under;
+// supplied by the source beside its events. Strict: 1–32 entries, distinct IDs, no other field. One bad entry makes the
+// whole directory unusable; it is never repaired. Two participants may share a name: they remain two participants.
+function directoryOf(raw) {
+  if (!Array.isArray(raw) || !raw.length || raw.length > MAX_PARTICIPANTS) return null;
+  try {
+    const entries = raw.map((item) => {
+      if (!isObject(item)) refuse('participant is not an object');
+      only(item, ['id', 'name']);
+      return Object.freeze({ id: id(item.id), name: text(item.name, 40) });
+    });
+    if (new Set(entries.map((entry) => entry.id)).size !== entries.length) refuse('repeated participant');
+    return Object.freeze(entries);
+  } catch (error) {
+    if (!(error instanceof InvalidEvent)) throw error;
+    return null;
+  }
 }
 
-// ---------- the conversation windows (UI-C1; derived, deterministic, strict about recipients)
-// One window per participant: every actor who sent something (SYSTEM excluded) and every name a message was addressed
-// to, in order of first appearance. None is dropped, none is invented, none is named in this code. A window holds
-// what its participant sent ('out') and what was addressed to it by name ('in'). A message reaches a window only when
-// the record names that window's participant in `to`: a message without `to` stays in its sender's window, shown as
-// having no recorded addressee, and an ESCALATION goes to the Human (the 需要你 strip), never into another window;
-// SYSTEM lines appear in all windows. `seq` is the event's place in the record (1-based).
-export function conversationOf(events) {
+// One rule per room, never two at once (SYSTEM lines belong to no participant and never decide it):
+//   IDENTIFIED    every message carries actorId and the room has a valid directory. Participants are directory IDs. A
+//                 message whose sender or addressee is not in the directory, or whose actor is not the directory's name
+//                 for its actorId, is refused (fail closed) and counted.
+//   LEGACY        no message carries actorId (historical records). Participants are told apart by name, and the room
+//                 says so; one name is one participant.
+//   MIXED         some messages carry actorId and some do not.
+//   NO_DIRECTORY  every message carries actorId, but there is no valid directory.
+// In MIXED and NO_DIRECTORY nobody can be told apart safely, so nothing is guessed: the room shows the record in order
+// with a warning, and opens no conversation windows at all.
+export const IDENTITY_RULES = Object.freeze(['IDENTIFIED', 'LEGACY', 'MIXED', 'NO_DIRECTORY']);
+export function identityOf(events, participants) {
+  const messages = events.filter((event) => event.type !== 'SYSTEM');
+  const withId = messages.filter((event) => event.actorId !== undefined).length;
+  if (!withId) return 'LEGACY';
+  if (withId < messages.length) return 'MIXED';
+  return participants ? 'IDENTIFIED' : 'NO_DIRECTORY';
+}
+
+/** One project's room: validated events, how many were left out (and why), the participant rule, and the summary. */
+export function collaborationRoom(projectId, data) {
+  const parsed = parseCollaborationEvents(projectId, data?.events);
+  const directory = directoryOf(data?.participants);
+  const identity = identityOf(parsed.events, directory);
+  const named = new Map((identity === 'IDENTIFIED' ? directory : []).map((entry) => [entry.id, entry.name]));
+  const known = (event) => event.type === 'SYSTEM' || (named.get(event.actorId) === event.actor && (event.to ?? []).every((to) => named.has(to)));
+  const events = identity === 'IDENTIFIED' ? Object.freeze(parsed.events.filter(known)) : parsed.events;
+  return Object.freeze({
+    projectId, provenance: data?.provenance ?? 'NONE', identity, participants: identity === 'IDENTIFIED' ? directory : Object.freeze([]),
+    events, rejected: parsed.rejected, unverified: parsed.events.length - events.length, summary: summarizeCollaboration(projectId, events),
+  });
+}
+
+// ---------- the conversation windows (UI-C1, corrected by UI-C1-C1; derived, deterministic)
+// Only for a room whose rule is IDENTIFIED or LEGACY (anything else: null, no windows). A window's participant is a
+// directory ID (IDENTIFIED) or a name (LEGACY); its `key` says which. Windows: every sender (SYSTEM excluded) and every
+// addressee in order of first appearance, then (IDENTIFIED) any other directory participant. None is dropped, none is
+// invented, none is named in this code. A window holds what its participant sent ('out') and what reached it ('in'):
+//   - `to` given: the message reaches exactly the participants it names.
+//   - no `to` (an AI message): a compatibility broadcast. It is shown in every other participant's window, never the
+//     sender's twice, as the same event (no record is made or copied), marked `broadcast`. This is a way of showing
+//     the record, not evidence that anything was delivered.
+//   - ESCALATION goes to the Human (the 需要你 strip): only its sender's window shows it, never into any other.
+//   - SYSTEM lines appear in all windows alike.
+// `seq` is the event's place in the record (1-based).
+export function conversationOf(room) {
+  const { events, identity } = room;
+  if (identity !== 'IDENTIFIED' && identity !== 'LEGACY') return null;
+  const byId = identity === 'IDENTIFIED';
+  const keyOf = (event) => (byId ? event.actorId : event.actor);
   const order = [];
-  for (const event of events) {
-    if (event.type === 'SYSTEM') continue;
-    for (const name of [event.actor, ...(event.to ?? [])]) if (!order.includes(name)) order.push(name);
-  }
+  const add = (key) => { if (!order.includes(key)) order.push(key); };
+  for (const event of events) if (event.type !== 'SYSTEM') [keyOf(event), ...(event.to ?? [])].forEach(add);
+  if (byId) room.participants.forEach((entry) => add(entry.id));
+  const nameOf = new Map(byId ? room.participants.map((entry) => [entry.id, entry.name]) : order.map((name) => [name, name]));
   const seq = new Map(events.map((event, index) => [event.id, index + 1]));
-  return Object.freeze(order.map((actor) => {
-    const role = events.find((event) => event.type !== 'SYSTEM' && event.actor === actor)?.role;
+  return Object.freeze(order.map((key) => {
+    const role = events.find((event) => event.type !== 'SYSTEM' && keyOf(event) === key)?.role;
     const partners = [];
     const items = [];
-    const meet = (name) => { if (!partners.includes(name)) partners.push(name); };
+    const meet = (other) => { if (other !== key && !partners.includes(other)) partners.push(other); };
     for (const event of events) {
       const at = seq.get(event.id);
       if (event.type === 'SYSTEM') items.push(Object.freeze({ seq: at, side: 'system', event }));
-      else if (event.actor === actor) { items.push(Object.freeze({ seq: at, side: 'out', event })); (event.to ?? []).forEach(meet); }
-      else if (event.to?.includes(actor)) { items.push(Object.freeze({ seq: at, side: 'in', event })); meet(event.actor); }
+      else if (keyOf(event) === key) {
+        items.push(Object.freeze({ seq: at, side: 'out', event }));
+        (event.to ?? (event.type === 'ESCALATION' ? [] : order)).forEach(meet);
+      } else if (event.type === 'ESCALATION') continue;
+      else if (!event.to) { items.push(Object.freeze({ seq: at, side: 'in', broadcast: true, event })); meet(keyOf(event)); }
+      else if (event.to.includes(key)) { items.push(Object.freeze({ seq: at, side: 'in', event })); meet(keyOf(event)); }
     }
-    return Object.freeze({ actor, ...(role ? { role } : {}), partners: Object.freeze(partners), items: Object.freeze(items) });
+    return Object.freeze({ key, actor: nameOf.get(key), ...(byId ? { actorId: key } : {}), ...(role ? { role } : {}),
+      partners: Object.freeze(partners), items: Object.freeze(items) });
   }));
 }
 
@@ -217,37 +289,83 @@ export function attachmentsHTML(evidence) {
 }
 
 const tag = (event) => `<span class="cm-t">${TYPE_LABEL[event.type]}</span>`;
-const sentTo = (event) => (event.type === 'ESCALATION' ? '給 你' : event.to ? `給 ${names(event.to)}` : '沒有記錄收件者');
+// Compatibility broadcast wording (UI-C1-C1): it says the record named no addressee and that the window shows the
+// message anyway; it never says the message was delivered. `給` names who the record says a message was addressed to.
+export const BROADCAST_SENT = '未指定收件者 · 相容顯示給其他參與者';
+export const BROADCAST_SHOWN = '未指定收件者 · 相容顯示，不代表已送達';
+const sentTo = (event, label) => (event.type === 'ESCALATION' ? '給 你' : event.to ? `給 ${names(event.to.map(label))}` : BROADCAST_SENT);
 const TYPING = '<li class="cm-typing" aria-hidden="true"><span class="ty-n"></span><span class="ty-d"><i></i><i></i><i></i></span></li>';
+const plain = (key) => key;
+
+/**
+ * How a participant is written: its name, plus its ID when another directory participant has the same name, so two
+ * participants are never shown as one. In a LEGACY room the key is the name.
+ */
+export function labelsOf(room) {
+  if (room.identity !== 'IDENTIFIED') return plain;
+  const count = new Map();
+  for (const entry of room.participants) count.set(entry.name, (count.get(entry.name) ?? 0) + 1);
+  const label = new Map(room.participants.map((entry) => [entry.id, count.get(entry.name) > 1 ? `${entry.name} · ${entry.id}` : entry.name]));
+  return (key) => label.get(key) ?? key;
+}
 
 /** One message as its window shows it: sent (right) or received (left, under the sender's name). */
-export function messageHTML(item, chat) {
+export function messageHTML(item, chat, label = plain) {
   const { event, seq, side } = item;
-  if (side === 'system') return `<li class="cm-sys" data-seq="${seq}">${para(event.body)} · ${when(event.timestamp)}</li>`;
+  const at = `data-seq="${seq}" data-id="${esc(event.id)}"`;
+  if (side === 'system') return `<li class="cm-sys" ${at}>${para(event.body)} · ${when(event.timestamp)}</li>`;
   const kind = `t-${event.type.toLowerCase()}`;
   const body = `<div class="bub">${para(event.body)}${attachmentsHTML(event.evidence)}</div>`;
-  if (side === 'out') return `<li class="cm cm-out ${kind}" data-seq="${seq}">${body}<p class="cm-m">${tag(event)} · ${sentTo(event)} · ${when(event.timestamp)}</p></li>`;
-  const also = event.to.filter((name) => name !== chat.actor);
-  return `<li class="cm cm-in ${kind}" data-seq="${seq}"><p class="cm-from">${esc(event.actor)}</p>${body}
+  if (side === 'out') return `<li class="cm cm-out ${kind}" ${at}>${body}<p class="cm-m">${tag(event)} · ${sentTo(event, label)} · ${when(event.timestamp)}</p></li>`;
+  const from = esc(label(event.actorId ?? event.actor));
+  if (item.broadcast) {
+    return `<li class="cm cm-in cm-bc ${kind}" ${at}><p class="cm-from">${from}</p>${body}
+    <p class="cm-m">${tag(event)} · ${BROADCAST_SHOWN} · ${when(event.timestamp)}</p></li>`;
+  }
+  const also = event.to.filter((key) => key !== chat.key).map(label);
+  return `<li class="cm cm-in ${kind}" ${at}><p class="cm-from">${from}</p>${body}
     <p class="cm-m">${tag(event)}${also.length ? ` · 也給 ${names(also)}` : ''} · ${when(event.timestamp)}</p></li>`;
 }
 
+// MIXED / NO_DIRECTORY: the record in order, each message under the name and ID (if any) it carries, with no window,
+// no addressee and no guess about who is who. Read-only like the rest of the room.
+const UNSORTED = Object.freeze({
+  MIXED: '這個協作室同時有附身分代號和沒有身分代號的紀錄，無法確定誰是誰。',
+  NO_DIRECTORY: '這些紀錄附有身分代號，但沒有可用的參與者名冊，無法確認誰是誰。',
+});
+function recordHTML(room) {
+  const items = room.events.map((event, index) => {
+    const at = `data-seq="${index + 1}" data-id="${esc(event.id)}"`;
+    if (event.type === 'SYSTEM') return `<li class="cm-sys" ${at}>${para(event.body)} · ${when(event.timestamp)}</li>`;
+    return `<li class="cm cm-in t-${event.type.toLowerCase()}" ${at}><p class="cm-from">${esc(event.actor)} · ${event.actorId ? esc(event.actorId) : '沒有身分代號'}</p>
+      <div class="bub">${para(event.body)}${attachmentsHTML(event.evidence)}</div><p class="cm-m">${tag(event)} · ${when(event.timestamp)}</p></li>`;
+  }).join('');
+  return `<p class="c-warn" role="note">${UNSORTED[room.identity]}以下依時間列出原始紀錄：不分對話視窗，也不推算收件者。</p>
+    <div class="conv" data-key="${esc(room.projectId)}" data-max="${room.events.length}"><div class="chats" data-n="1" data-active="1">
+      <section class="cw" id="cw-1" data-w="1" data-p="" aria-label="原始紀錄"><header class="cw-h"><b class="cw-n">原始紀錄</b><span class="cw-r">未分視窗 · 不推算收件者</span></header>
+      <ol class="cw-log">${items}</ol></section></div></div>`;
+}
+const LEGACY_NOTE = '<p class="c-note" role="note">這些是沒有參與者身分代號的舊紀錄：參與者以顯示名稱區分，同名的會被當成同一位。</p>';
+
 /**
  * 協作室 as conversations (UI-C1): one chat window per participant, side by side when the room is wide, one at a time
- * behind name tabs when it is narrow. Every message carries data-seq so a demo replay can reveal them in order; the
- * markup itself always holds the whole record. Only a replay room (`replay`) carries the replay bar, the typing row
- * and data-replay="1"; any other room is a plain record and claims nothing about what is happening now.
+ * behind name tabs when it is narrow. Every message carries data-seq (its place in the record, for a demo replay) and
+ * data-id (its event, for new-message dots); the markup itself always holds the whole record. Only a replay room
+ * (`replay`) carries the replay bar, the typing row and data-replay="1"; any other room is a plain record and claims
+ * nothing about what is happening now. A room whose participants cannot be told apart shows the record instead.
  */
 export function conversationHTML(room, { replay = false } = {}) {
   if (!room.events.length) return EMPTY_ROOM;
-  const chats = conversationOf(room.events);
-  const windows = chats.map((chat, index) => `<section class="cw" id="cw-${index + 1}" data-w="${index + 1}" aria-label="${esc(chat.actor)} 的對話">
-      <header class="cw-h"><b class="cw-n">${esc(chat.actor)}</b><span class="cw-r">${chat.role ? `${esc(chat.role)} · ` : ''}${chat.partners.length ? `和 ${names(chat.partners)} 對話` : '還沒有對話對象'}</span></header>
-      <ol class="cw-log">${chat.items.map((item) => messageHTML(item, chat)).join('')}${replay ? TYPING : ''}</ol></section>`).join('');
-  const tabs = chats.map((chat, index) => `<button type="button" role="tab" data-cw="${index + 1}" aria-controls="cw-${index + 1}" aria-selected="${index === 0}">${esc(chat.actor)}<span class="cw-dot" aria-hidden="true"></span></button>`).join('');
+  const chats = conversationOf(room);
+  if (!chats) return recordHTML(room);
+  const label = labelsOf(room);
+  const windows = chats.map((chat, index) => `<section class="cw" id="cw-${index + 1}" data-w="${index + 1}" data-p="${esc(chat.key)}" aria-label="${esc(label(chat.key))} 的對話">
+      <header class="cw-h"><b class="cw-n">${esc(label(chat.key))}</b><span class="cw-r">${chat.role ? `${esc(chat.role)} · ` : ''}${chat.partners.length ? `和 ${names(chat.partners.map(label))} 對話` : '還沒有對話對象'}</span></header>
+      <ol class="cw-log">${chat.items.map((item) => messageHTML(item, chat, label)).join('')}${replay ? TYPING : ''}</ol></section>`).join('');
+  const tabs = chats.map((chat, index) => `<button type="button" role="tab" data-cw="${index + 1}" data-p="${esc(chat.key)}" aria-controls="cw-${index + 1}" aria-selected="${index === 0}">${esc(label(chat.key))}<span class="cw-dot" aria-hidden="true"></span></button>`).join('');
   const bar = replay ? `<div class="cv-bar"><span class="cv-k">示範重播</span><span class="cv-p num"></span>
       <button class="btn quiet" type="button" data-replay="restart">從頭播放</button><button class="btn quiet" type="button" data-replay="all">全部顯示</button></div>` : '';
-  return `<div class="conv" data-key="${esc(room.projectId)}" data-max="${room.events.length}"${replay ? ' data-replay="1"' : ''}>${bar}
+  return `${room.identity === 'LEGACY' ? LEGACY_NOTE : ''}<div class="conv" data-key="${esc(room.projectId)}" data-max="${room.events.length}"${replay ? ' data-replay="1"' : ''}>${bar}
     <div class="cw-tabs" role="tablist" aria-label="切換對話視窗">${tabs}</div>
     <div class="chats${chats.length > 4 ? ' cw-many' : ''}" data-n="${Math.min(chats.length, 4)}" data-active="1">${windows}</div></div>`;
 }
@@ -268,11 +386,12 @@ const DEMO_TAG = '<p class="demo-tag" role="note"><b>示範資料</b><span>這�
 /**
  * The room body: demo label, the 需要你 strip (gold while something waits for the Human), then the conversation
  * windows. `replay` is the page's request to replay; it is honoured only for a room labelled as demo data, so a record
- * from any other source is never replayed.
+ * from any other source is never replayed (nor is a room whose participants cannot be told apart: it has no windows).
  */
 export function roomHTML(room, { demo = false, replay = false } = {}) {
   const isDemo = demo || room.provenance === 'DEMO_SAMPLE';
-  const left = room.rejected ? `<p class="c-left">有 <span class="num">${room.rejected}</span> 則事件格式不正確，沒有顯示。</p>` : '';
+  const left = `${room.rejected ? `<p class="c-left">有 <span class="num">${room.rejected}</span> 則事件格式不正確，沒有顯示。</p>` : ''}${
+    room.unverified ? `<p class="c-left">有 <span class="num">${room.unverified}</span> 則事件的參與者身分無法確認，沒有顯示。</p>` : ''}`;
   const need = room.summary.needsHuman.length;
   const seqOf = new Map(room.events.map((event, index) => [event.id, index + 1]));
   return `${isDemo ? DEMO_TAG : ''}
