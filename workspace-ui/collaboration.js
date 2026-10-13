@@ -1,5 +1,5 @@
-// 協作室 (WS-P1, WS-P2): the projection of observable AI-to-AI collaboration events, and how the Workspace shows them.
-// Pure: no DOM, no storage, no network, no imports (tested directly in test-workspace-ui.mjs).
+// 協作室 (WS-P1, WS-P2, UI-C1): the projection of observable AI-to-AI collaboration events, and how the Workspace shows
+// them. Pure: no DOM, no storage, no network, no imports (tested directly in test-workspace-ui.mjs).
 //
 // What an event is (canonical rule). CollaborationEventV1 represents only collaboration artifacts a participant
 // explicitly emitted: an agent message, a review comment, a hand-off, evidence, an operational event, or a summary of
@@ -10,8 +10,8 @@
 // reasoning out of `body` is the source's obligation under the rule above, not something this module can prove.
 // Event types name what happened, never which runtime did it; actor, role and runtime are display metadata only.
 //
-// The summary and the discussion's structure are derived here, deterministically, from the events alone. No model
-// writes them.
+// The summary and the conversation windows are derived here, deterministically, from the events alone. No model
+// writes them, and nothing here names a particular agent: every name shown comes from the record.
 //
 // There is no execution, so LIVE has no source of these events: live.js returns none and the room shows its empty
 // state. Demo fixtures (demo.js, ?demo=1 only) are labelled as demo data wherever they appear. A Human decision
@@ -25,11 +25,15 @@ export const TYPE_LABEL = Object.freeze({
 });
 
 // ---------- CollaborationEventV1
-// { id, projectId, goalId?, actor, role?, runtime?, type, body, timestamp, evidence? }
+// { id, projectId, goalId?, actor, role?, runtime?, to?, type, body, timestamp, evidence? }
+// to (UI-C1, optional): the participants a message was sent to, by the name they act under. Strict: 1–8 distinct
+// names, never the sender itself, and never on SYSTEM (an operational line, not a message) or ESCALATION (addressed to
+// the Human by its type). An event that breaks any of these is refused, never repaired.
 // evidence: [{ kind: 'FILE', path, lines? } | { kind: 'TESTS', passed, failed?, label? } | { kind: 'COMMIT', sha }]
-const EVENT_KEYS = ['id', 'projectId', 'goalId', 'actor', 'role', 'runtime', 'type', 'body', 'timestamp', 'evidence'];
+const EVENT_KEYS = ['id', 'projectId', 'goalId', 'actor', 'role', 'runtime', 'to', 'type', 'body', 'timestamp', 'evidence'];
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/;
 const MAX_EVIDENCE = 8;
+const MAX_TO = 8;
 
 class InvalidEvent extends Error {}
 const refuse = (why) => { throw new InvalidEvent(why); };
@@ -70,6 +74,15 @@ function evidenceOf(item) {
   return refuse('unknown evidence kind');
 }
 
+function addresseesOf(value, actor, type) {
+  if (type === 'SYSTEM' || type === 'ESCALATION') refuse(`${type} has no addressees`);
+  if (!Array.isArray(value) || !value.length || value.length > MAX_TO) refuse('bad addressees');
+  const names = value.map((name) => text(name, 40));
+  if (new Set(names).size !== names.length) refuse('repeated addressee');
+  if (names.includes(actor)) refuse('addressed to its own sender');
+  return Object.freeze(names);
+}
+
 function eventOf(projectId, raw) {
   if (!isObject(raw)) refuse('event is not an object');
   only(raw, EVENT_KEYS);
@@ -77,11 +90,13 @@ function eventOf(projectId, raw) {
   if (!EVENT_TYPES.includes(raw.type)) refuse('unknown type');
   if (typeof raw.timestamp !== 'string' || !Number.isFinite(Date.parse(raw.timestamp))) refuse('bad timestamp');
   if (raw.evidence !== undefined && (!Array.isArray(raw.evidence) || raw.evidence.length > MAX_EVIDENCE)) refuse('bad evidence list');
+  const actor = text(raw.actor, 40);
   const role = optional(raw.role, 40);
   const runtime = optional(raw.runtime, 40);
+  const to = raw.to === undefined ? undefined : addresseesOf(raw.to, actor, raw.type);
   return Object.freeze({
     id: id(raw.id), projectId, ...(raw.goalId === undefined ? {} : { goalId: id(raw.goalId) }),
-    actor: text(raw.actor, 40), ...(role === undefined ? {} : { role }), ...(runtime === undefined ? {} : { runtime }),
+    actor, ...(role === undefined ? {} : { role }), ...(runtime === undefined ? {} : { runtime }), ...(to === undefined ? {} : { to }),
     type: raw.type, body: text(raw.body, 4000, { lines: true }), timestamp: raw.timestamp,
     ...(raw.evidence === undefined ? {} : { evidence: Object.freeze(raw.evidence.map(evidenceOf)) }),
   });
@@ -112,7 +127,7 @@ export function parseCollaborationEvents(projectId, raw) {
 //   activeParticipants: each actor who said something (system events excluded), in order of first appearance;
 //   consensus: the AGREEMENT events, verbatim;
 //   disagreements: CHALLENGE events their own author has not later agreed to within the same goal;
-//   needsHuman: every ESCALATION, oldest first. WS-P1 has no Human decision backend, so none is ever resolved here.
+//   needsHuman: every ESCALATION, oldest first. There is no Human decision backend, so none is ever resolved here.
 export function summarizeCollaboration(projectId, events) {
   const participants = new Map();
   for (const event of events) {
@@ -137,56 +152,33 @@ export function collaborationRoom(projectId, data) {
   return Object.freeze({ projectId, provenance: data?.provenance ?? 'NONE', events, rejected, summary: summarizeCollaboration(projectId, events) });
 }
 
-// ---------- the discussion read as exchanges (derived, deterministic)
-// A PROPOSAL, HANDOFF, CHALLENGE or ESCALATION opens an exchange, and so does a change of goal; the events after it
-// (questions, responses, evidence, agreements) belong to it until the next opener. A SYSTEM event stands alone. The
-// grouping follows order and type only; it does not claim that a reply answers its opener. An outcome is stated only
-// when the record shows it:
-//   CHALLENGE  → settled when its author later agrees within the same goal (the summary's rule), else still open;
-//   ESCALATION → waits for the Human (no decision backend exists, so it never closes here);
-//   otherwise  → agreed when someone other than the opener agrees inside the exchange, else no outcome at all.
-const OPENERS = new Set(['PROPOSAL', 'HANDOFF', 'CHALLENGE', 'ESCALATION']);
-export function exchangesOf(events, summary) {
-  const items = [];
-  let current = null;
-  for (const event of events) {
-    if (event.type === 'SYSTEM') { items.push({ kind: 'system', event }); current = null; continue; }
-    if (!current || OPENERS.has(event.type) || event.goalId !== current.opener.goalId) {
-      current = { kind: 'exchange', opener: event, replies: [] };
-      items.push(current);
-    } else {
-      current.replies.push(event);
-    }
-  }
-  const open = new Set(summary.disagreements.map((event) => event.id));
-  return Object.freeze(items.map((item) => {
-    if (item.kind === 'system') return Object.freeze(item);
-    const { opener, replies } = item;
-    let outcome = null;
-    if (opener.type === 'ESCALATION') outcome = { kind: 'human' };
-    else if (opener.type === 'CHALLENGE') {
-      const after = events.slice(events.indexOf(opener) + 1);
-      const settledBy = after.find((later) => later.type === 'AGREEMENT' && later.actor === opener.actor && later.goalId === opener.goalId);
-      outcome = open.has(opener.id) || !settledBy ? { kind: 'open' } : { kind: 'agreed', by: settledBy };
-    } else {
-      const agreed = replies.filter((reply) => reply.type === 'AGREEMENT' && reply.actor !== opener.actor).at(-1);
-      if (agreed) outcome = { kind: 'agreed', by: agreed };
-    }
-    return Object.freeze({ kind: 'exchange', opener, replies: Object.freeze(replies), outcome: outcome && Object.freeze(outcome) });
-  }));
-}
-
-/** Who took part, from the record: role, how many things they said or did, and when last. Not a live state. */
-export function participantsOf(events) {
-  const people = new Map();
+// ---------- the conversation windows (UI-C1; derived, deterministic, strict about recipients)
+// One window per participant: every actor who sent something (SYSTEM excluded) and every name a message was addressed
+// to, in order of first appearance. None is dropped, none is invented, none is named in this code. A window holds
+// what its participant sent ('out') and what was addressed to it by name ('in'). A message reaches a window only when
+// the record names that window's participant in `to`: a message without `to` stays in its sender's window, shown as
+// having no recorded addressee, and an ESCALATION goes to the Human (the 需要你 strip), never into another window;
+// SYSTEM lines appear in all windows. `seq` is the event's place in the record (1-based).
+export function conversationOf(events) {
+  const order = [];
   for (const event of events) {
     if (event.type === 'SYSTEM') continue;
-    const known = people.get(event.actor) ?? { actor: event.actor, role: event.role, count: 0, last: event.timestamp };
-    known.count += 1;
-    known.last = event.timestamp;
-    people.set(event.actor, known);
+    for (const name of [event.actor, ...(event.to ?? [])]) if (!order.includes(name)) order.push(name);
   }
-  return Object.freeze([...people.values()].map((person) => Object.freeze(person)));
+  const seq = new Map(events.map((event, index) => [event.id, index + 1]));
+  return Object.freeze(order.map((actor) => {
+    const role = events.find((event) => event.type !== 'SYSTEM' && event.actor === actor)?.role;
+    const partners = [];
+    const items = [];
+    const meet = (name) => { if (!partners.includes(name)) partners.push(name); };
+    for (const event of events) {
+      const at = seq.get(event.id);
+      if (event.type === 'SYSTEM') items.push(Object.freeze({ seq: at, side: 'system', event }));
+      else if (event.actor === actor) { items.push(Object.freeze({ seq: at, side: 'out', event })); (event.to ?? []).forEach(meet); }
+      else if (event.to?.includes(actor)) { items.push(Object.freeze({ seq: at, side: 'in', event })); meet(event.actor); }
+    }
+    return Object.freeze({ actor, ...(role ? { role } : {}), partners: Object.freeze(partners), items: Object.freeze(items) });
+  }));
 }
 
 // ---------- presentation (HTML strings; the page's strict content security policy allows no inline style)
@@ -197,8 +189,9 @@ const clock = (iso) => (valid(iso) ? new Date(iso).toLocaleTimeString('zh-TW', {
 const stamp = (iso) => (valid(iso) ? new Date(iso).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '');
 const when = (iso) => `<time class="num" datetime="${esc(iso)}" title="${esc(stamp(iso))}">${clock(iso)}</time>`;
 const who = (event) => `${esc(event.actor)}${event.role ? ` · ${esc(event.role)}` : ''}`;
+const names = (list) => list.map(esc).join('、');
 
-/** The reusable evidence block: file, tests, commit. Display only; it hangs off the event that attached it. */
+/** The reusable evidence block: file, tests, commit. Display only; it hangs off the escalation that attached it. */
 export function evidenceHTML(evidence) {
   if (!evidence?.length) return '';
   const rows = evidence.map((item) => {
@@ -211,84 +204,82 @@ export function evidenceHTML(evidence) {
   return `<dl class="evd" aria-label="證據">${rows}</dl>`;
 }
 
-const systemLine = (event) => `<span class="ev-sl"><span class="ev-t">${TYPE_LABEL.SYSTEM}</span>${para(event.body)} · ${when(event.timestamp)}</span>`;
-
-/** One event. `lead` marks the event that opens an exchange. */
-export function eventHTML(event, { lead = false } = {}) {
-  if (event.type === 'SYSTEM') return `<li class="ev ev-sys" data-type="SYSTEM">${systemLine(event)}</li>`;
-  return `<li class="ev t-${event.type.toLowerCase()}${lead ? ' lead' : ''}" data-type="${event.type}"><span class="ev-n" aria-hidden="true"></span>
-    <article class="ev-b" aria-label="${esc(event.actor)}，${TYPE_LABEL[event.type]}">
-      <header class="ev-h"><span class="ev-t">${TYPE_LABEL[event.type]}</span><b class="ev-a">${esc(event.actor)}</b><span class="ev-m">${event.role ? `${esc(event.role)} · ` : ''}${when(event.timestamp)}</span></header>
-      <p class="ev-x">${para(event.body)}</p>${evidenceHTML(event.evidence)}</article></li>`;
+/** Evidence inside a message: the same three kinds, as small attachments under the text. Display only. */
+export function attachmentsHTML(evidence) {
+  if (!evidence?.length) return '';
+  return `<p class="att" aria-label="附件">${evidence.map((item) => {
+    if (item.kind === 'FILE') return `<span><b>檔案</b><code>${esc(item.path)}${item.lines ? `:${esc(item.lines)}` : ''}</code></span>`;
+    if (item.kind === 'TESTS') {
+      return `<span><b>測試</b>${item.label ? `${esc(item.label)} ` : ''}<span class="num">${item.passed}</span> 項通過${item.failed === undefined ? '' : ` · <span class="num">${item.failed}</span> 項失敗`}</span>`;
+    }
+    return `<span><b>提交</b><code title="${esc(item.sha)}">${esc(item.sha.slice(0, 7))}</code></span>`;
+  }).join('')}</p>`;
 }
 
-function outcomeHTML(outcome, hrefs) {
-  if (!outcome) return '';
-  if (outcome.kind === 'human') {
-    return `<p class="xg-out o-human"><span class="xg-k">需要你決定</span><a href="${esc(hrefs.needs)}" data-act="room-tab" data-v="needs">在「需要你」查看</a></p>`;
-  }
-  if (outcome.kind === 'open') return '<p class="xg-out o-open"><span class="xg-k">仍有分歧</span><span>提出質疑的一方還沒有同意</span></p>';
-  return `<p class="xg-out o-agreed"><span class="xg-k">已同意</span><span>${who(outcome.by)} · ${when(outcome.by.timestamp)}</span></p>`;
+const tag = (event) => `<span class="cm-t">${TYPE_LABEL[event.type]}</span>`;
+const sentTo = (event) => (event.type === 'ESCALATION' ? '給 你' : event.to ? `給 ${names(event.to)}` : '沒有記錄收件者');
+const TYPING = '<li class="cm-typing" aria-hidden="true"><span class="ty-n"></span><span class="ty-d"><i></i><i></i><i></i></span></li>';
+
+/** One message as its window shows it: sent (right) or received (left, under the sender's name). */
+export function messageHTML(item, chat) {
+  const { event, seq, side } = item;
+  if (side === 'system') return `<li class="cm-sys" data-seq="${seq}">${para(event.body)} · ${when(event.timestamp)}</li>`;
+  const kind = `t-${event.type.toLowerCase()}`;
+  const body = `<div class="bub">${para(event.body)}${attachmentsHTML(event.evidence)}</div>`;
+  if (side === 'out') return `<li class="cm cm-out ${kind}" data-seq="${seq}">${body}<p class="cm-m">${tag(event)} · ${sentTo(event)} · ${when(event.timestamp)}</p></li>`;
+  const also = event.to.filter((name) => name !== chat.actor);
+  return `<li class="cm cm-in ${kind}" data-seq="${seq}"><p class="cm-from">${esc(event.actor)}</p>${body}
+    <p class="cm-m">${tag(event)}${also.length ? ` · 也給 ${names(also)}` : ''} · ${when(event.timestamp)}</p></li>`;
 }
 
-/** AI 討論: who took part, then the exchanges, oldest first. */
-export function discussionHTML(room, { hrefs }) {
+/**
+ * 協作室 as conversations (UI-C1): one chat window per participant, side by side when the room is wide, one at a time
+ * behind name tabs when it is narrow. Every message carries data-seq so a demo replay can reveal them in order; the
+ * markup itself always holds the whole record. Only a replay room (`replay`) carries the replay bar, the typing row
+ * and data-replay="1"; any other room is a plain record and claims nothing about what is happening now.
+ */
+export function conversationHTML(room, { replay = false } = {}) {
   if (!room.events.length) return EMPTY_ROOM;
-  const people = participantsOf(room.events);
-  const items = exchangesOf(room.events, room.summary).map((item) => {
-    if (item.kind === 'system') return `<li class="xg-sys" data-type="SYSTEM">${systemLine(item.event)}</li>`;
-    const events = [eventHTML(item.opener, { lead: true }), ...item.replies.map((reply) => eventHTML(reply))].join('');
-    return `<li class="xg x-${item.opener.type.toLowerCase()}${item.outcome ? ` o-${item.outcome.kind}` : ''}"><ol class="evs">${events}</ol>${outcomeHTML(item.outcome, hrefs)}</li>`;
-  }).join('');
-  return `<ul class="who" aria-label="參與的 AI">${people.map((person) => `<li><b>${esc(person.actor)}</b>${person.role ? `<span class="who-r">${esc(person.role)}</span>` : ''}<span class="who-c"><span class="num">${person.count}</span> 則 · 最後 ${when(person.last)}</span></li>`).join('')}</ul>
-    <ol class="xgs">${items}</ol>`;
-}
-
-export function summaryHTML(summary) {
-  const people = summary.activeParticipants;
-  const need = summary.needsHuman.length;
-  const fact = (label, count, extra = '', cls = '') => `<div class="cs-i${cls}"><dt>${label}</dt><dd><span class="cn num">${count}</span>${extra}</dd></div>`;
-  const list = (events) => `<ul class="bul">${events.map((event) => `<li>${para(event.body)}<span class="bul-by">${who(event)}</span></li>`).join('')}</ul>`;
-  return `<section class="csum" aria-labelledby="csum-h"><h2 class="lbl" id="csum-h">AI 協作摘要</h2>
-    <dl class="cs-f">
-      ${fact('參與的 AI', people.length, people.length ? `<span class="cs-who">${people.map((p) => `${esc(p.actor)}${p.role ? `（${esc(p.role)}）` : ''}`).join('、')}</span>` : '')}
-      ${fact('尚未解決的分歧', summary.disagreements.length, '', summary.disagreements.length ? ' open' : '')}
-      ${fact('需要你決定', need, '', need ? ' need' : '')}
-      ${fact('已記錄的共識', summary.consensus.length)}
-    </dl>
-    ${summary.consensus.length || summary.disagreements.length ? `<div class="cs-l">
-      ${summary.consensus.length ? `<div><h3 class="lbl">已記錄的共識</h3>${list(summary.consensus)}</div>` : ''}
-      ${summary.disagreements.length ? `<div><h3 class="lbl">尚未解決的分歧</h3>${list(summary.disagreements)}</div>` : ''}</div>` : ''}</section>`;
+  const chats = conversationOf(room.events);
+  const windows = chats.map((chat, index) => `<section class="cw" id="cw-${index + 1}" data-w="${index + 1}" aria-label="${esc(chat.actor)} 的對話">
+      <header class="cw-h"><b class="cw-n">${esc(chat.actor)}</b><span class="cw-r">${chat.role ? `${esc(chat.role)} · ` : ''}${chat.partners.length ? `和 ${names(chat.partners)} 對話` : '還沒有對話對象'}</span></header>
+      <ol class="cw-log">${chat.items.map((item) => messageHTML(item, chat)).join('')}${replay ? TYPING : ''}</ol></section>`).join('');
+  const tabs = chats.map((chat, index) => `<button type="button" role="tab" data-cw="${index + 1}" aria-controls="cw-${index + 1}" aria-selected="${index === 0}">${esc(chat.actor)}<span class="cw-dot" aria-hidden="true"></span></button>`).join('');
+  const bar = replay ? `<div class="cv-bar"><span class="cv-k">示範重播</span><span class="cv-p num"></span>
+      <button class="btn quiet" type="button" data-replay="restart">從頭播放</button><button class="btn quiet" type="button" data-replay="all">全部顯示</button></div>` : '';
+  return `<div class="conv" data-key="${esc(room.projectId)}" data-max="${room.events.length}"${replay ? ' data-replay="1"' : ''}>${bar}
+    <div class="cw-tabs" role="tablist" aria-label="切換對話視窗">${tabs}</div>
+    <div class="chats${chats.length > 4 ? ' cw-many' : ''}" data-n="${Math.min(chats.length, 4)}" data-active="1">${windows}</div></div>`;
 }
 
 /** 需要你: each open escalation shown, never answered; the only action opens a read-only explanation. */
-export function needsHTML(summary) {
-  const items = summary.needsHuman.map((event) => `<li class="nr-i"><p class="nr-q">${para(event.body)}</p>
+export function needsHTML(summary, { seqOf } = {}) {
+  const items = summary.needsHuman.map((event) => `<li class="nr-i"${seqOf?.has(event.id) ? ` data-seq="${seqOf.get(event.id)}"` : ''}><p class="nr-q">${para(event.body)}</p>
       <p class="nr-m">${who(event)} · ${when(event.timestamp)} 提出</p>${evidenceHTML(event.evidence)}
       <button class="btn gold" type="button" data-act="decision" data-v="${esc(event.id)}">查看決策</button></li>`).join('');
-  return `<h2 class="nr-h" id="needs-h" tabindex="-1">需要你 <span class="num">${summary.needsHuman.length}</span></h2>
-    ${items ? `<ul class="nr">${items}</ul>` : NEEDS_EMPTY}`;
+  return `<h2 class="nr-h" id="needs-h" tabindex="-1">需要你 <span class="num nr-c">${summary.needsHuman.length}</span></h2>
+    <ul class="nr">${items}</ul>${items ? NEEDS_EMPTY.replace('class="nr-empty"', 'class="nr-empty" hidden') : NEEDS_EMPTY}`;
 }
 
 export const EMPTY_ROOM = `<div class="c-empty"><h3 class="ce-h">目前沒有 AI 協作紀錄</h3><p>這個專案尚未開始執行，<br>或目前沒有可顯示的協作事件。</p></div>`;
 export const NEEDS_EMPTY = '<div class="nr-empty"><p>目前沒有需要你決定的事。</p><p>AI 之間無法自行決定的事，會出現在這裡。</p></div>';
-const DEMO_TAG = '<p class="demo-tag" role="note"><b>示範資料</b><span>這些不是真的 AI 協作紀錄，只用來展示協作室的樣子。</span></p>';
+const DEMO_TAG = '<p class="demo-tag" role="note"><b>示範資料</b><span>這些不是真的 AI 對話，只用來展示協作室的樣子。</span></p>';
 
 /**
- * The room body: demo label, the summary (when there is a record), then two areas, AI 討論 and 需要你. Wide: side by
- * side. Narrow: one at a time behind [ 討論 ] [ 需要你 ], each its own address (`hrefs`), chosen by `area`.
+ * The room body: demo label, the 需要你 strip (gold while something waits for the Human), then the conversation
+ * windows. `replay` is the page's request to replay; it is honoured only for a room labelled as demo data, so a record
+ * from any other source is never replayed.
  */
-export function roomHTML(room, { demo = false, area = 'discussion', hrefs = { discussion: '', needs: '' } } = {}) {
-  const tag = demo || room.provenance === 'DEMO_SAMPLE' ? DEMO_TAG : '';
+export function roomHTML(room, { demo = false, replay = false } = {}) {
+  const isDemo = demo || room.provenance === 'DEMO_SAMPLE';
   const left = room.rejected ? `<p class="c-left">有 <span class="num">${room.rejected}</span> 則事件格式不正確，沒有顯示。</p>` : '';
   const need = room.summary.needsHuman.length;
-  const tab = (id, label, extra) => `<a href="${esc(hrefs[id])}" data-act="room-tab" data-v="${id}" ${area === id ? 'aria-current="page"' : ''}>${label}${extra}</a>`;
-  return `${tag}${room.events.length ? summaryHTML(room.summary) : ''}
-    <div class="room-body"><nav class="rtabs" aria-label="協作室的區塊"><div class="mt">${tab('discussion', '討論', ` <span class="tn num">${room.events.length}</span>`)}${tab('needs', '需要你', ` <span class="tn num">${need}</span>${need ? '<span class="tneed" aria-hidden="true"></span>' : ''}`)}</div></nav>
-      <div class="rg" data-area="${area === 'needs' ? 'needs' : 'discussion'}">
-        <section class="disc" aria-labelledby="disc-h"><h2 class="lbl disc-h" id="disc-h" tabindex="-1">AI 討論 <span class="num">${room.events.length}</span></h2>${discussionHTML(room, { hrefs })}</section>
-        <aside class="nrail${need ? ' has-need' : ''}" aria-labelledby="needs-h">${needsHTML(room.summary)}</aside>
-      </div></div>${left}`;
+  const seqOf = new Map(room.events.map((event, index) => [event.id, index + 1]));
+  return `${isDemo ? DEMO_TAG : ''}
+    <div class="room-body">
+      <section class="nstrip${need ? ' has-need' : ''}" aria-labelledby="needs-h">${needsHTML(room.summary, { seqOf })}</section>
+      <section class="disc" aria-label="AI 之間的對話">${conversationHTML(room, { replay: replay && isDemo })}</section>
+    </div>${left}`;
 }
 
 /** The read-only 查看決策 sheet body. There is no option, answer, approval or record: the backend does not exist. */

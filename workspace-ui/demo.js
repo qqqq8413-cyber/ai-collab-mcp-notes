@@ -10,26 +10,32 @@ const SAMPLE = { 'demo-candidate': ['繼續做候選人平台，做到可以上�
 // 協作室 fixture (WS-P1): a short AI collaboration record for one demo project, minutes after a start time; the other
 // project has none, so the room's empty state shows too. None of this happened. Every id starts with "demo-", and the
 // room labels it as demo data.
-const IMPLEMENTER = { actor: 'Claude', role: 'Implementer' };
-const REVIEWER = { actor: 'Codex', role: 'Reviewer' };
+const CHIEF = { actor: 'Chief', role: '統籌' };
+const IMPLEMENTER = { actor: 'Claude', role: '實作' };
+const REVIEWER = { actor: 'GPT', role: '審查' };
+const SYS = { actor: '系統' };
+// [minute, type, from, to, body, evidence] — `to` names who a message was sent to (UI-C1); an escalation goes to the Human.
 const ROOM = [
-  [0, 'SYSTEM', { actor: '系統' }, '示範工作「修正登入逾時」開始協作。'],
-  [1, 'PROPOSAL', IMPLEMENTER, '我會先處理 auth middleware，\n不修改 database schema。'],
-  [3, 'QUESTION', REVIEWER, 'refresh token 的現有行為要保留嗎？'],
-  [4, 'RESPONSE', IMPLEMENTER, '保留。只調整 access token 過期時的判斷。'],
-  [5, 'AGREEMENT', REVIEWER, '不修改 database schema，保留 refresh token 行為。'],
-  [12, 'HANDOFF', IMPLEMENTER, '第一版完成，交給 Codex 審查。', [{ kind: 'COMMIT', sha: '3f9c2a1e5b7d' }]],
-  [15, 'CHALLENGE', REVIEWER, '目前發現一個問題：\nexpired refresh token 會提前被拒絕。', [{ kind: 'FILE', path: 'src/auth/middleware.ts', lines: '84–112' }]],
-  [17, 'RESPONSE', IMPLEMENTER, '同意。改成 authorization stage 才拒絕。'],
-  [19, 'EVIDENCE', IMPLEMENTER, '已修改，並重新執行 auth 測試。', [{ kind: 'FILE', path: 'src/auth/middleware.ts', lines: '84–112' }, { kind: 'COMMIT', sha: '8d04be97c1a2' }]],
-  [22, 'EVIDENCE', REVIEWER, '重新驗證完成。', [{ kind: 'TESTS', label: 'auth', passed: 18, failed: 0 }]],
-  [23, 'AGREEMENT', REVIEWER, 'expired refresh token 改在 authorization stage 才拒絕。'],
-  [26, 'ESCALATION', REVIEWER, 'Claude 與 Codex 無法自行決定\n是否修改 public API contract。'],
+  [0, 'SYSTEM', SYS, null, '示範工作「修正登入逾時」開始協作。'],
+  [1, 'HANDOFF', CHIEF, ['Claude', 'GPT'], '「修正登入逾時」交給 Claude 實作，GPT 負責審查。範圍只限登入流程。'],
+  [2, 'PROPOSAL', IMPLEMENTER, ['Chief', 'GPT'], '收到。我會先處理 auth middleware，不修改 database schema。'],
+  [3, 'QUESTION', REVIEWER, ['Claude'], 'refresh token 的現有行為要保留嗎？'],
+  [4, 'RESPONSE', IMPLEMENTER, ['GPT'], '保留。只調整 access token 過期時的判斷。'],
+  [5, 'AGREEMENT', REVIEWER, ['Claude'], '好，那就不動 database schema，保留 refresh token 行為。'],
+  [12, 'HANDOFF', IMPLEMENTER, ['GPT'], '第一版完成了，交給你審查。', [{ kind: 'COMMIT', sha: '3f9c2a1e5b7d' }]],
+  [15, 'CHALLENGE', REVIEWER, ['Claude'], '我發現一個問題：expired refresh token 會提前被拒絕。', [{ kind: 'FILE', path: 'src/auth/middleware.ts', lines: '84–112' }]],
+  [17, 'RESPONSE', IMPLEMENTER, ['GPT'], '你說得對。我改成在 authorization stage 才拒絕。'],
+  [19, 'EVIDENCE', IMPLEMENTER, ['GPT'], '改好了，auth 測試也重跑了。', [{ kind: 'COMMIT', sha: '8d04be97c1a2' }]],
+  [22, 'EVIDENCE', REVIEWER, ['Claude', 'Chief'], '我重新驗證過，全部通過。', [{ kind: 'TESTS', label: 'auth', passed: 18, failed: 0 }]],
+  [23, 'AGREEMENT', REVIEWER, ['Claude'], '同意：expired refresh token 改在 authorization stage 才拒絕。'],
+  [24, 'PROPOSAL', REVIEWER, ['Claude'], '要不要順便把 /session 的回傳格式改成新版？這會改到 public API contract。'],
+  [25, 'RESPONSE', IMPLEMENTER, ['GPT', 'Chief'], '這超出這次的範圍，我們不能自己決定。Chief，要請你問一下。'],
+  [26, 'ESCALATION', CHIEF, null, 'Claude 和 GPT 無法自行決定要不要修改 public API contract，需要你決定。'],
 ];
 function roomOf(projectId, start) {
   if (projectId !== 'demo-candidate') return [];
-  return ROOM.map(([minute, type, who, body, evidence], index) => ({
-    id: `demo-ev-${String(index + 1).padStart(2, '0')}`, projectId, goalId: 'demo-goal-auth', ...who, type, body,
+  return ROOM.map(([minute, type, who, to, body, evidence], index) => ({
+    id: `demo-ev-${String(index + 1).padStart(2, '0')}`, projectId, goalId: 'demo-goal-auth', ...who, ...(to ? { to } : {}), type, body,
     timestamp: new Date(start + minute * 60_000).toISOString(), ...(evidence ? { evidence } : {}),
   }));
 }

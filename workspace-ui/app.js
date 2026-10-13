@@ -6,6 +6,7 @@
 
 import { collaborationRoom, decisionHTML, roomHTML } from './collaboration.js';
 import { executionNow, executionStatusHTML } from './execution-status.js';
+import { attachConversation } from './conversation.js';
 
 const DEMO = new URLSearchParams(location.search).get('demo') === '1';
 const source = DEMO ? (await import('./demo.js')).createDemoSource() : (await import('./live.js')).createLiveSource();
@@ -19,6 +20,7 @@ const ICON = {
   pulse: '<path d="M3 12h4l3-7 4 14 3-7h4"/>',
   scope: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3M8.5 11h5M11 8.5v5"/>',
   chev: '<path d="M6 9l6 6 6-6"/>',
+  side: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   ext: '<path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/>',
@@ -132,7 +134,7 @@ function homeSections(signals, lastViewed, recent) {
 // ---------- end entry resolver
 
 // ---------- state
-// view: home (belongs to no project) | project (one project's 此刻 / 往來 / 協作室, by pane; 協作室's 討論 / 需要你, by area)
+// view: home (belongs to no project) | project (one project's 此刻 / 往來 / 協作室, by pane; area: 協作室's address, /needs or not)
 // | projects | activity | advanced
 const S = {
   view: 'home', pid: null, target: null, homeAck: null, projects: [], queues: {}, collab: {}, conn: 'connecting', pop: null, sheet: null,
@@ -140,6 +142,30 @@ const S = {
 };
 const LAST = `chief.workspace.${source.mode}.project`; // last viewed project: a local, non-authoritative UI preference
 const RECENT = `chief.workspace.${source.mode}.recent`; // recently opened projects, newest first: the same kind of preference
+// UI-C1: the project rail can be folded away on wide layouts (a local, non-authoritative UI preference, kept across
+// renders, navigation and reloads); the top bar's project switcher stands in for it while it is folded.
+const RAIL = 'chief.workspace.rail';
+S.railOff = (() => { try { return localStorage.getItem(RAIL) === 'off'; } catch { return false; } })();
+const railLabel = () => (S.railOff ? '展開專案列' : '收起專案列');
+function toggleRail() {
+  S.railOff = !S.railOff; S.pop = null;
+  try { localStorage.setItem(RAIL, S.railOff ? 'off' : 'on'); } catch { /* the preference simply is not kept */ }
+  // Only the frame changes, so the page is not re-rendered (that would replay the view's entrance).
+  const leaving = S.railOff && $('#rail').contains(document.activeElement);
+  $('#app').classList.toggle('rail-off', S.railOff);
+  const button = $('.rbtn');
+  button?.setAttribute('aria-expanded', String(!S.railOff));
+  button?.setAttribute('aria-label', railLabel());
+  button?.setAttribute('title', `${railLabel()}（[ 鍵）`);
+  if (leaving) button?.focus();
+  $('#pop').innerHTML = popHTML();
+}
+// The [ key folds the rail only where its button is shown (wide layouts), never while typing.
+function railKey(event) {
+  const button = $('.rbtn');
+  return event.key === '[' && !event.metaKey && !event.ctrlKey && !event.altKey && !event.isComposing && Boolean(button)
+    && getComputedStyle(button).display !== 'none' && !event.target.closest('input,textarea,select,[contenteditable]');
+}
 const readLastViewed = () => { try { return localStorage.getItem(LAST); } catch { return null; } };
 const readRecent = () => { try { const list = JSON.parse(localStorage.getItem(RECENT) ?? '[]'); return Array.isArray(list) ? list : []; } catch { return []; } };
 const writeLastViewed = (projectId) => {
@@ -248,7 +274,7 @@ const VIEWS = [['home', 'chat', 'Chief'], ['projects', 'folder', '專案'], ['ac
 
 function topHTML() {
   const p = project();
-  return `<a class="brand" href="${DEMO ? '?demo=1#/' : '#/'}" data-act="nav" data-v="home" aria-label="CHIEF，回到首頁"><span class="mark" aria-hidden="true"></span><span class="word" aria-hidden="true">CHIEF</span></a>
+  return `<button class="rbtn" type="button" data-act="rail" aria-controls="rail" aria-expanded="${!S.railOff}" aria-label="${railLabel()}" title="${railLabel()}（[ 鍵）">${ic('side', 18)}</button><a class="brand" href="${DEMO ? '?demo=1#/' : '#/'}" data-act="nav" data-v="home" aria-label="CHIEF，回到首頁"><span class="mark" aria-hidden="true"></span><span class="word" aria-hidden="true">CHIEF</span></a>
     <nav class="tnav" aria-label="主要選單">${VIEWS.map(([v, , label]) => `<button class="tn-i" data-act="nav" data-v="${v}" ${S.view === v ? 'aria-current="page"' : ''}>${label}</button>`).join('')}</nav>
     ${S.projects.length ? `<button class="tbtn" data-act="pop" data-v="proj" aria-haspopup="true" aria-expanded="${S.pop === 'proj'}">${S.view === 'project' && p ? `<span class="sr">切換專案，目前是</span><span class="pname">${esc(p.displayName)}</span>` : '<span class="pname">選擇專案</span>'}${ic('chev', 14)}</button>` : ''}
     <span class="sp"></span>${DEMO ? '<span class="proto" title="示範模式：資料只存在這個頁面">示範資料</span>' : ''}${connChip()}<span class="avatar" aria-hidden="true">你</span>`;
@@ -407,8 +433,8 @@ function projectView() {
   } else if (S.pane === 'collaboration') {
     pane = `<section class="stage room" id="room" aria-label="協作室"><div class="scroll" id="room-scroll" tabindex="0" aria-label="協作室的內容"><div class="work">
         <div class="sn-meta"><span class="sn-k">協作室</span><span>${esc(p.displayName)}</span></div>
-        <p class="room-lede">參與工作的 AI 明確送出的提案、審查意見、交接、證據與決策理由摘要。這是工作紀錄，不是 AI 的思考過程。</p>
-        ${roomHTML(r, { demo: demoRoom(), area: S.area, hrefs: { discussion: paneHref(p.projectId, 'collaboration'), needs: paneHref(p.projectId, 'collaboration', 'needs') } })}</div></div></section>`;
+        <p class="room-lede">參與工作的 AI 彼此明確送出的訊息，每個 AI 一個對話視窗：它送出的在右邊，傳給它的在左邊。這是它們送出的訊息，不是 AI 的思考過程。</p>
+        ${roomHTML(r, { demo: demoRoom(), replay: DEMO })}</div></div></section>`;
   } else {
     pane = `<section class="stage" id="stage" aria-label="此刻"><div class="scroll" id="stage-scroll">${stageHTML()}</div></section>`;
   }
@@ -476,6 +502,7 @@ function render() {
   const keep = same ? { stage: $('#stage-scroll')?.scrollTop, journal: $('#scroller')?.scrollTop, room: $('#room-scroll')?.scrollTop, other: $('#other-scroll')?.scrollTop } : {};
   $('#banner').innerHTML = DEMO ? `<div class="wl-demo" role="note"><b>示範模式</b><span>以下都是示範資料，只存在這個頁面，不會儲存，也不會送到 Workspace 伺服器。</span><a href="/">回到正式模式</a></div>` : '';
   $('#top').innerHTML = topHTML();
+  $('#app').classList.toggle('rail-off', S.railOff);
   $('#rail').innerHTML = railHTML();
   $('#tabs').innerHTML = tabsHTML();
   $('#main').innerHTML = S.view === 'home' ? homeView() : S.view === 'project' ? projectView()
@@ -495,6 +522,7 @@ function render() {
   if ($('#room-scroll') && keep.room !== undefined) $('#room-scroll').scrollTop = keep.room;
   if ($('#other-scroll') && keep.other !== undefined) $('#other-scroll').scrollTop = keep.other;
   ensureExecution();
+  attachConversation();
 }
 
 // ---------- actions
@@ -585,8 +613,8 @@ document.addEventListener('click', (event) => {
     case 'nav': go(v); break;
     case 'open': go('project', v); break;
     case 'room': go('project', v, { pane: 'collaboration', area: 'needs' }); $('#needs-h')?.focus(); break;
-    case 'room-tab': go('project', S.pid, { pane: 'collaboration', area: v }); document.getElementById(v === 'needs' ? 'needs-h' : 'disc-h')?.focus(); break;
     case 'pop': S.pop = S.pop === v ? null : v; render(); break;
+    case 'rail': toggleRail(); break;
     case 'fill': { const composer = $('#composer'); if (composer) { composer.value = v; composer.focus(); } break; }
     case 'up': void move(v, -1); break;
     case 'down': void move(v, 1); break;
@@ -611,6 +639,7 @@ document.addEventListener('submit', (event) => {
   void submitGoal();
 });
 document.addEventListener('keydown', (event) => {
+  if (railKey(event)) { event.preventDefault(); toggleRail(); return; }
   if (event.key === 'Escape' && (S.pop || S.sheet)) { S.pop = null; S.sheet = null; S.decision = null; render(); return; }
   if (event.target.id === 'composer' && event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
     event.preventDefault();
@@ -627,6 +656,6 @@ await reloadAll();
   go(entry.view, entry.projectId, { replace: true, pane: entry.pane, area: entry.area });
   booted = true;
 }
-window.__WORKSPACE = Object.freeze({ mode: source.mode, state: () => structuredClone({ view: S.view, pid: S.pid, pane: S.pane, area: S.area, target: S.target, conn: S.conn,
+window.__WORKSPACE = Object.freeze({ mode: source.mode, state: () => structuredClone({ view: S.view, pid: S.pid, pane: S.pane, area: S.area, target: S.target, conn: S.conn, railOff: S.railOff,
   projects: S.projects, queues: S.queues, collab: Object.fromEntries(Object.values(S.collab).map((item) => [item.projectId,
     { provenance: item.provenance, events: item.events.length, rejected: item.rejected, needsHuman: item.summary.needsHuman.length }])) }) });

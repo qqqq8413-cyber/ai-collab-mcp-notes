@@ -249,11 +249,8 @@ ol,ul{margin:0;padding:0;list-style:none}
 .btn.gold{background:none;color:var(--human);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 70%,transparent);text-decoration:none}
 .btn.gold:hover{background:var(--gold);color:var(--slab);box-shadow:none}
 
-/* 協作室 (WS-P2): the summary across the top; below it AI 討論 and the 需要你 rail side by side when the room itself is
-   wide (a container query, so the project spines and the window both count), one at a time behind [ 討論 ] [ 需要你 ]
-   when it is narrow. The discussion reads as exchanges: the event that opened one leads, its replies follow on its
-   thread, and an outcome line closes it only when the record shows one. Evidence hangs off the event that attached
-   it, ruled in that event's colour. */
+/* 協作室 (UI-C1): the 需要你 strip across the top (gold only while something waits for the Human), then one chat window
+   per participant (the conversation block further down). */
 .room .work{max-width:1180px}
 .room-lede{margin-top:12px;color:var(--muted);font-size:13.5px;max-width:44em}
 .demo-tag{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;margin-top:22px;padding:10px 16px;border-radius:var(--r-s);border:1px dashed var(--ctl);font-size:13px;color:var(--muted)}
@@ -262,83 +259,8 @@ ol,ul{margin:0;padding:0;list-style:none}
 .ce-h{font:300 clamp(24px,2.4vw,30px)/1.4 var(--font-body);letter-spacing:.03em}
 .c-empty p{color:var(--muted);line-height:1.85}
 .c-left{margin-top:18px;font-size:13px;color:var(--muted)}
-/* summary: who took part, open disagreements, what needs you, what was agreed */
-.csum{margin-top:24px;display:grid;gap:18px;padding:20px 24px 22px;border-radius:var(--r);background:var(--card);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 8%,transparent),var(--shadow-1)}
-.cs-f{display:grid;grid-template-columns:repeat(auto-fit,minmax(9.5em,1fr));gap:14px 24px;margin:0}
-.cs-i{display:grid;gap:6px;align-content:start;min-width:0}
-.cs-i dt{font-size:12px;color:var(--muted);letter-spacing:.12em}
-.cs-i dd{margin:0;display:grid;gap:4px;min-width:0}
-.cn{font:400 28px/1 var(--font-latin)}
-.cs-i.need dt,.cs-i.need .cn{color:var(--human)}
-.cs-i.open .cn{color:var(--ev-challenge)}
-.cs-who{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
-.cs-l{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:16px 32px;padding-top:16px;border-top:1px solid var(--line)}
-.cs-l>div{display:grid;gap:10px;align-content:start;min-width:0}
-.bul{display:grid;gap:10px}
-.bul li{position:relative;padding-left:20px;font-size:15px;line-height:1.7;overflow-wrap:anywhere}
-.bul li::before{content:"";position:absolute;left:3px;top:.85em;width:7px;height:1px;background:var(--muted)}
-.bul-by{display:block;font-size:12px;color:var(--muted)}
-/* the two areas */
-.room-body{margin-top:30px;container:room/inline-size}
-.rtabs{padding-bottom:18px}
-.rg{display:grid;gap:36px}
-.rg[data-area="discussion"] .nrail,.rg[data-area="needs"] .disc{display:none}
-@container room (min-width:760px){
-  .rtabs{display:none}
-  .rg{grid-template-columns:minmax(0,1fr) minmax(240px,300px);align-items:start}
-  .rg[data-area] .disc,.rg[data-area] .nrail{display:block}
-  .nrail{position:sticky;top:20px}
-}
-.disc,.nrail{min-width:0}
-.disc-h{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
-.disc-h .num{font:400 16px/1 var(--font-latin);color:var(--muted)}
-.who{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
-.who li{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;min-width:0;max-width:100%;padding:6px 14px;border-radius:999px;background:var(--tint);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 8%,transparent);font-size:13.5px}
-.who b{font-weight:600;letter-spacing:.04em;overflow-wrap:anywhere}
-.who-r,.who-c{color:var(--muted)}
-.who-c{font-size:12.5px}
-/* exchanges */
-.xgs{display:grid;gap:18px}
-.xg{display:grid;gap:14px;min-width:0;padding:18px 20px 16px;border-radius:var(--r);background:var(--tint);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 6%,transparent)}
-.xg-sys{padding:2px 4px}
-.xg-out{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin-left:29px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
-.xg-k{font-weight:600;letter-spacing:.1em}
-.o-agreed .xg-k{color:var(--ev-agree)}
-.o-open .xg-k{color:var(--ev-challenge)}
-.o-human .xg-k,.o-human a{color:var(--human)}
-.evs{position:relative;display:grid;gap:18px}
-.evs::before{content:"";position:absolute;left:5px;top:16px;bottom:16px;width:1px;background:var(--line)}
-.ev{position:relative;display:grid;grid-template-columns:11px minmax(0,1fr);column-gap:18px;min-width:0;--tone:var(--ctl)}
-.ev-n{position:relative;z-index:1;width:11px;height:11px;margin-top:7px;border-radius:50%;background:var(--tint);box-shadow:inset 0 0 0 1.5px var(--ctl)}
-.ev-b{min-width:0;max-width:44em;display:grid;gap:6px}
-.ev-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px}
-.ev-t{font-size:12px;font-weight:600;letter-spacing:.14em;color:var(--muted);white-space:nowrap}
-.ev-a{font-weight:600;letter-spacing:.04em;overflow-wrap:anywhere}
-.ev-m{font-size:12.5px;color:var(--muted)}
-.ev-x{font-size:14.5px;line-height:1.8;letter-spacing:.02em;overflow-wrap:anywhere;max-width:40em;color:color-mix(in srgb,var(--fg) 88%,var(--muted))}
-.ev.lead .ev-x{font-size:16.5px;line-height:1.75;color:var(--fg)}
-/* each kind of event: the shape of its node, the colour of its word and of its evidence rule. Gold stays the Human's. */
-.t-proposal .ev-n{box-shadow:inset 0 0 0 1.5px var(--fg)}
-.t-proposal,.t-response,.t-handoff,.t-evidence{--tone:color-mix(in srgb,var(--fg) 55%,transparent)}
-.t-proposal .ev-t,.t-response .ev-t,.t-handoff .ev-t{color:var(--fg)}
-.t-question .ev-n{box-shadow:none;border:1.5px dashed var(--muted)}
-.t-challenge{--tone:var(--ev-challenge)}
-.t-challenge .ev-n{background:var(--ev-challenge);box-shadow:none}
-.t-challenge .ev-t{color:var(--ev-challenge)}
-.t-response .ev-n{background:var(--fg);box-shadow:0 0 0 3px var(--tint);transform:scale(.72)}
-.t-handoff .ev-n{border-radius:2px;transform:rotate(45deg) scale(.82);box-shadow:inset 0 0 0 1.5px var(--fg)}
-.t-evidence .ev-n{border-radius:2px;background:var(--muted);box-shadow:0 0 0 3px var(--tint);transform:scale(.78)}
-.t-agreement{--tone:var(--ev-agree)}
-.t-agreement .ev-n{background:var(--ev-agree);box-shadow:none}
-.t-agreement .ev-t{color:var(--ev-agree)}
-.t-escalation{--tone:var(--gold)}
-.t-escalation .ev-n{box-shadow:inset 0 0 0 1.5px var(--gold),0 0 0 3px color-mix(in srgb,var(--gold) 24%,transparent);background:radial-gradient(circle,var(--gold) 0 30%,var(--tint) 33%)}
-.t-escalation .ev-t{color:var(--human)}
-.ev.ev-sys{display:block}
-.ev-sl{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
 /* 需要你: open escalations, shown and never answered */
 .nr-h{display:flex;align-items:baseline;gap:10px;margin-bottom:14px;font-size:12.5px;font-weight:500;letter-spacing:.08em;color:var(--muted)}
-.nrail.has-need .nr-h{color:var(--human)}
 .nr-h .num{font:400 16px/1 var(--font-latin)}
 .nr{display:grid;gap:12px}
 .nr-i{display:grid;justify-items:start;gap:10px;min-width:0;padding:18px;border-radius:var(--r);background:var(--human-bg);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 40%,transparent),var(--shadow-1)}
@@ -347,7 +269,7 @@ ol,ul{margin:0;padding:0;list-style:none}
 .nr-i .evd{width:100%;--tone:var(--gold)}
 .nr-empty{display:grid;gap:6px;padding:18px;border-radius:var(--r);box-shadow:inset 0 0 0 1px var(--line);font-size:13.5px;line-height:1.7;color:var(--muted)}
 .nr-empty p:first-child{color:var(--fg)}
-/* evidence: display only, hanging off the event (or escalation) that attached it */
+/* evidence: display only, hanging off the escalation that attached it (and the read-only decision sheet) */
 .evd{display:grid;gap:4px;margin:6px 0 0;padding:10px 14px 10px 12px;border-left:2px solid var(--tone,var(--ctl));border-radius:0 var(--r-s) var(--r-s) 0;background:color-mix(in srgb,var(--slab) 70%,transparent);max-width:40em;min-width:0;font-size:13.5px}
 .evd::before{content:"附上的證據";font-size:11.5px;color:var(--muted);letter-spacing:.12em}
 .evd-r{display:grid;grid-template-columns:3.4em minmax(0,1fr);gap:10px;align-items:baseline}
@@ -461,9 +383,7 @@ ol,ul{margin:0;padding:0;list-style:none}
   .jscroll{padding-top:12px}
   .dock{max-width:none;padding:8px 12px 10px;background:var(--slab);border-top:1px solid var(--line)}
   .mt a{padding:0 14px;letter-spacing:.16em}
-  .csum,.nr-i,.xg{padding:16px 16px 14px}
-  .xg-out{margin-left:0}
-  .ev{column-gap:16px}
+  .nr-i{padding:16px 16px 14px}
   .hn{padding:12px 14px}
   .view.other{margin:0;border-radius:var(--r-l) var(--r-l) 0 0}
   .col{padding-inline:18px}
@@ -504,3 +424,90 @@ ol,ul{margin:0;padding:0;list-style:none}
 .exec-d{margin-top:12px}
 .exec-d code{font-size:12.5px;overflow-wrap:anywhere}
 .exec-n{font-size:12px;color:var(--muted);margin-top:12px}
+
+/* 協作室 as conversations (UI-C1): one chat window per participant, side by side when the room is wide, like apps
+   open at once; one at a time behind name tabs when it is narrow (a dot marks a window with new demo messages). What a
+   window's participant sent sits on the right; what was sent to it sits on the left under the sender's name. Same black
+   material; gold only for what needs the Human (the strip while something waits, an escalation's own bubble). */
+.room-body{margin-top:22px;display:grid;gap:22px;container:room/inline-size}
+.nstrip{min-width:0}
+.nstrip [hidden]{display:none}
+.nstrip .nr-h{margin-bottom:10px}
+.nstrip.has-need .nr-h{color:var(--human)}
+.nstrip .nr-i{grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:28px;row-gap:6px;padding:16px 20px}
+.nstrip .nr-i>*{grid-column:1}
+.nstrip .nr-i>.btn{grid-column:2;grid-row:1/span 2}
+.nstrip .nr-empty:not([hidden]){display:flex;flex-wrap:wrap;gap:2px 14px;padding:12px 18px}
+.disc{min-width:0}
+.conv{display:grid;gap:14px;min-width:0;container:conv/inline-size}
+.cv-bar{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:13px;color:var(--muted)}
+.cv-k{font-weight:600;letter-spacing:.1em;color:var(--fg)}
+.cv-bar .btn{height:32px;padding:0 12px;font-size:13px}
+.cv-bar .cv-p{margin-right:auto}
+.cw-tabs{display:flex;gap:6px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.cw-tabs button{position:relative;flex:none;height:36px;padding:0 16px;border-radius:999px;font-size:14px;font-weight:600;color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+.cw-tabs button[aria-selected="true"]{color:var(--fg);background:var(--card);box-shadow:inset 0 0 0 1px var(--ctl)}
+.cw-dot{position:absolute;top:7px;right:7px;width:6px;height:6px;border-radius:50%;background:var(--chief);opacity:0;transition:opacity var(--dur-1)}
+.cw-unread .cw-dot{opacity:1}
+.chats{display:grid;gap:14px;min-width:0}
+.cw{display:none;flex-direction:column;min-width:0;height:clamp(420px,calc(100vh - 290px),720px);border-radius:var(--r);background:var(--tint);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 8%,transparent),var(--shadow-1);overflow:hidden}
+.chats[data-active="1"] .cw[data-w="1"],.chats[data-active="2"] .cw[data-w="2"],.chats[data-active="3"] .cw[data-w="3"],.chats[data-active="4"] .cw[data-w="4"],
+.chats[data-active="5"] .cw[data-w="5"],.chats[data-active="6"] .cw[data-w="6"],.chats[data-active="7"] .cw[data-w="7"],.chats[data-active="8"] .cw[data-w="8"]{display:flex}
+@container conv (min-width:720px){
+  .cw-tabs{display:none}
+  .chats{grid-template-columns:repeat(var(--n,1),minmax(0,1fr))}
+  .chats[data-n="2"]{--n:2}.chats[data-n="3"]{--n:3}.chats[data-n="4"]{--n:4}
+  .chats.cw-many{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(260px,1fr);overflow-x:auto;padding-bottom:6px}
+  .chats .cw{display:flex}
+}
+.cw-h{display:grid;gap:2px;padding:14px 18px 12px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--card) 60%,var(--tint))}
+.cw-n{font:400 23px/1.2 var(--font-latin);letter-spacing:.01em;overflow-wrap:anywhere}
+.cw-r{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.cw-log{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:14px;padding:18px 14px 20px}
+.cm{display:grid;gap:4px;max-width:90%;min-width:0}
+.cm-out{align-self:flex-end;justify-items:end}
+.cm-in{align-self:flex-start;justify-items:start}
+.cm-from{font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--muted);padding-left:4px;overflow-wrap:anywhere}
+.bub{padding:10px 14px;border-radius:18px;font-size:14.5px;line-height:1.7;letter-spacing:.02em;overflow-wrap:anywhere;min-width:0;max-width:100%}
+.cm-out .bub{background:color-mix(in srgb,var(--fg) 14%,var(--card));color:var(--fg);border-bottom-right-radius:6px}
+.cm-in .bub{background:var(--card);box-shadow:inset 0 0 0 1px var(--line);color:color-mix(in srgb,var(--fg) 92%,var(--muted));border-bottom-left-radius:6px}
+.cm.t-escalation .bub{background:var(--human-bg);color:var(--fg);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 55%,transparent)}
+.cm-m{font-size:11.5px;color:var(--muted);padding-inline:4px;overflow-wrap:anywhere}
+.cm-t{font-weight:600;letter-spacing:.08em}
+.cm.t-challenge .cm-t{color:var(--ev-challenge)}
+.cm.t-agreement .cm-t{color:var(--ev-agree)}
+.cm.t-escalation .cm-t{color:var(--human)}
+.att{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.att>span{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:6px;max-width:100%;padding:3px 10px;border-radius:999px;font-size:12px;background:color-mix(in srgb,var(--slab) 70%,transparent);box-shadow:inset 0 0 0 1px var(--line)}
+.att b{font-weight:500;color:var(--muted)}
+.att code{font:12px/1.5 ui-monospace,"SF Mono",Menlo,Consolas,monospace;overflow-wrap:anywhere}
+.cm-sys{align-self:center;max-width:90%;text-align:center;font-size:12px;color:var(--muted);padding:2px 12px;overflow-wrap:anywhere}
+.cw-log .cm-off{display:none}
+.cm-typing{display:none;align-self:flex-start;align-items:center;gap:10px;font-size:12px;color:var(--muted);padding-left:4px}
+.cm-typing.ty-on{display:flex}
+.ty-d{display:inline-flex;gap:4px;padding:10px 12px;border-radius:14px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line)}
+.ty-d i{width:5px;height:5px;border-radius:50%;background:var(--muted);animation:cm-ty 1.1s infinite ease-in-out}
+.ty-d i:nth-child(2){animation-delay:.15s}.ty-d i:nth-child(3){animation-delay:.3s}
+@keyframes cm-ty{0%,60%,100%{opacity:.3;transform:none}30%{opacity:1;transform:translateY(-3px)}}
+.cm.cm-new{animation:cm-land .5s var(--spring) both}
+.cm-out.cm-new{transform-origin:100% 100%}
+.cm-in.cm-new{transform-origin:0 100%}
+.cm-sys.cm-new{animation:cm-fade .4s var(--ease) both}
+@keyframes cm-land{from{opacity:0;transform:translateY(10px) scale(.94)}}
+@keyframes cm-fade{from{opacity:0}}
+
+/* the project rail folds away on wide layouts only (UI-C1): the main area takes its width and the top bar's project
+   switcher appears. Narrow layouts have no rail and no fold button, whatever the saved preference says. */
+.rbtn{display:none}
+@media (min-width:760px){
+  .app{transition:grid-template-columns var(--dur-2) var(--ease)}
+  .rail{transition:opacity var(--dur-1) var(--ease),visibility 0s}
+  .app.rail-off{grid-template-columns:0 minmax(0,1fr)}
+  .app.rail-off .rail{opacity:0;visibility:hidden;pointer-events:none;transition:opacity var(--dur-1) var(--ease),visibility 0s linear var(--dur-1)}
+  .app.rail-off .main{padding-left:20px}
+  .app.rail-off .tbtn{display:inline-flex}
+  .top{padding-left:14px}
+  .rbtn{display:grid;place-items:center;flex:none;width:36px;height:36px;margin-right:2px;border-radius:var(--r-s);color:var(--muted);transition:color var(--dur-1),background var(--dur-1)}
+  .rbtn:hover{color:var(--fg);background:color-mix(in srgb,var(--card) 60%,transparent)}
+  .rbtn[aria-expanded="false"]{color:var(--fg)}
+}

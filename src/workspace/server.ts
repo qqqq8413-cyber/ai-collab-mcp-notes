@@ -53,6 +53,7 @@ const STATIC: Readonly<Record<string, { file: string; type: string }>> = Object.
   '/live.js': { file: 'live.js', type: 'text/javascript; charset=utf-8' },
   '/demo.js': { file: 'demo.js', type: 'text/javascript; charset=utf-8' },
   '/collaboration.js': { file: 'collaboration.js', type: 'text/javascript; charset=utf-8' },
+  '/conversation.js': { file: 'conversation.js', type: 'text/javascript; charset=utf-8' },
   '/execution-status.js': { file: 'execution-status.js', type: 'text/javascript; charset=utf-8' },
   '/styles.css': { file: 'styles.css', type: 'text/css; charset=utf-8' },
 });
