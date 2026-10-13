@@ -3,10 +3,8 @@ import { ChangeMintError, parseChangeSourceIdentity, type ChangeMintRecordV1, ty
 import { openChangeRegistryReader } from './change-registry.js';
 import { parseEgressSet } from './egress-destination.js';
 import { LIVE_PROVIDER_MODEL_CALL_TARGET, authorizationBinds, parseAuthorization } from './policy.js';
-import {
-  GOVERNED_READ_MODEL_SCHEMA, GovernedReadError, readGovernedModel, type GovernedReadModelV1, type GovernedRunV1,
-  type NextActionConflictV1,
-} from './read-model/governed-read-model.js';
+import { assessGovernedRun, type GovernedRunOutcome } from './execution-readiness.js';
+import { GovernedReadError, readGovernedModel, type GovernedReadModelV1, type NextActionConflictV1 } from './read-model/governed-read-model.js';
 import { RUNNER_OUTCOMES, type RunnerOutcome, type RunnerPositionGuard, type RunnerResult } from './runner.js';
 import { SYSTEM_CLOCK } from './time.js';
 import { ACTOR_KINDS, type ActorKind, type Clock, type ControllerState, type ProviderCallScope, type Role } from './types.js';
@@ -112,44 +110,14 @@ export interface GovernedExecutionDriverOptions {
   clock?: Clock;
 }
 
-// The runner protocol: the exact R4A0 moves under which a runner step is the governed next
-// move, and the actor whose model call that step prepares or dispatches.
-interface Protocol { moves: string[]; actor: ActorKind | null }
-const PROTOCOL: Readonly<Partial<Record<ControllerState, Protocol>>> = Object.freeze({
-  PACKET_READY: { moves: ['BEGIN_IMPLEMENTATION/CODEX_IMPLEMENTER/IMPLEMENTING'], actor: 'IMPLEMENTATION' },
-  CORRECTION_REQUIRED: { moves: ['BEGIN_IMPLEMENTATION/CODEX_IMPLEMENTER/IMPLEMENTING'], actor: 'IMPLEMENTATION' },
-  IMPLEMENTING: { moves: ['REPORT_IMPLEMENTATION_COMPLETE/CODEX_IMPLEMENTER/IMPLEMENTATION_COMPLETE'], actor: 'IMPLEMENTATION' },
-  IMPLEMENTATION_COMPLETE: { moves: ['RECORD_REMOTE_SHA/CODEX_IMPLEMENTER/REMOTE_SHA_READY'], actor: null },
-  REMOTE_SHA_READY: { moves: ['BEGIN_REMOTE_ACCEPTANCE/GPT_ARCHITECT/ACCEPTANCE_REVIEW'], actor: 'ARCHITECT_REVIEW' },
-  ACCEPTANCE_REVIEW: { moves: ['ACCEPT_EXACT_SHA/GPT_ARCHITECT/ACCEPTED', 'REJECT_EXACT_SHA/GPT_ARCHITECT/CORRECTION_REQUIRED'],
-    actor: 'ARCHITECT_REVIEW' },
-});
 // Runner outcomes that mean the run left the gated position or another writer holds the work.
 const RACE_OUTCOMES: ReadonlySet<string> = new Set(['STALE_OCCURRENCE', 'INVOCATION_CLAIMED', 'ACTOR_RESULT_DISCARDED',
   'PROVENANCE_MISMATCH']);
 const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$/;
-const REISSUES: ReadonlySet<string> = new Set(['ENTER_ARCHITECTURE', 'ISSUE_PACKET', 'RETURN_TO_ARCHITECTURE']);
-const DECISIONS: ReadonlySet<string> = new Set(['BEGIN_REMOTE_ACCEPTANCE', 'ACCEPT_EXACT_SHA', 'REJECT_EXACT_SHA', 'ISSUE_CORRECTION_PACKET']);
-
-/** Why the run's recorded provenance is not the governed lineage a runner step may execute on; null when it is. */
-function lineageRefusal(run: GovernedRunV1, principalRef: string): string | null {
-  const { activationBinding: binding, architectEntries: entries } = run.provenance;
-  const [entered, issued] = entries;
-  if (!binding || entered?.sequence !== 1 || entered.action !== 'ENTER_ARCHITECTURE' || issued?.sequence !== 2 ||
-      issued.action !== 'ISSUE_PACKET') return 'ACTIVATION_LINEAGE_MISSING';
-  if (entered.actor !== principalRef || issued.actor !== principalRef) return 'ACTIVATION_LINEAGE_FOREIGN';
-  for (const entry of entries.slice(2)) {
-    if (REISSUES.has(entry.action)) return 'PACKET_REISSUED';
-    if (!DECISIONS.has(entry.action)) continue;
-    if (entry.actor !== principalRef) return entry.action === 'ISSUE_CORRECTION_PACKET' ? 'CORRECTION_LINEAGE_FOREIGN' : 'REVIEW_LINEAGE_FOREIGN';
-    if (entry.action === 'ISSUE_CORRECTION_PACKET' &&
-        entries.find((prior) => prior.sequence === entry.sequence - 1)?.action !== 'REJECT_EXACT_SHA') return 'CORRECTION_LINEAGE_UNBOUND';
-  }
-  if (issued.packetId !== binding.packetId || issued.packetHash !== binding.packetHash || run.packet?.packetId !== binding.packetId ||
-      run.packet.packetHash !== binding.packetHash) return 'ACTIVATION_PACKET_MISMATCH';
-  return null;
-}
-
+const READINESS_OF: Readonly<Record<Exclude<GovernedRunOutcome, 'RUNNER_MOVE'>, ExecutionReadiness>> = Object.freeze({
+  BLOCKED_AUTHORITY: 'BLOCKED_AUTHORITY', BLOCKED_PROVENANCE: 'BLOCKED_PROVENANCE', WAITING_EXTERNAL_ACTOR: 'WAITING_EXTERNAL_ACTOR',
+  WAITING_HUMAN: 'WAITING_HUMAN', TERMINAL: 'TERMINAL', RUN_NOT_FOUND: 'EXECUTION_RUN_NOT_FOUND', TARGET_MISMATCH: 'EXECUTION_TARGET_MISMATCH',
+  ADMISSION_INVALID: 'EXECUTION_ADMISSION_INVALID', READ_MODEL_CONFLICT: 'EXECUTION_READ_MODEL_CONFLICT' });
 function deepFreeze<T>(value: T): T {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     Object.freeze(value);
@@ -179,8 +147,6 @@ function snapshotScopes(input: GovernedExecutionDriverOptions['scopes']): Readon
   };
   return Object.freeze(Object.fromEntries(ACTOR_KINDS.map((kind) => [kind, scope(kind)])) as Record<ActorKind, ProviderCallScope>);
 }
-
-const moveKey = ({ action, role, toState }: { action: string; role: Role; toState: ControllerState }) => `${action}/${role}/${toState}`;
 
 /** Opens the driver over the three protected roots. Nothing is created or written by opening it. */
 export function openGovernedExecutionDriver(options: GovernedExecutionDriverOptions): GovernedExecutionDriver {
@@ -226,48 +192,14 @@ export function openGovernedExecutionDriver(options: GovernedExecutionDriverOpti
     catch (error) {
       return answer('EXECUTION_READ_MODEL_CONFLICT', error instanceof GovernedReadError ? `READ_MODEL_${error.code}` : 'READ_MODEL_FAILED');
     }
-    if (model.schema !== GOVERNED_READ_MODEL_SCHEMA || model.schemaVersion !== 1 || model.rulesetRef !== 'CHIEF-GOV/1' ||
-        model.continuation !== 'NOT_IMPLEMENTED') return answer('EXECUTION_READ_MODEL_CONFLICT', 'READ_MODEL_CONTRACT');
-    facts.snapshotId = model.snapshot.id;
-
-    // 3. The run, exactly once, belonging to exactly this Change, as its admitted ROOT.
-    const runs = model.runs.filter((run) => run.runId === target.runId);
-    if (!runs.length) return answer('EXECUTION_RUN_NOT_FOUND', 'RUN_NOT_IN_STORE');
-    if (runs.length > 1) return answer('EXECUTION_READ_MODEL_CONFLICT', 'RUN_DUPLICATED');
-    const [run] = runs as [GovernedRunV1];
-    if (run.repository !== record.repository || run.sliceId !== record.sliceId || run.changeKey !== record.changeKey) {
-      return answer('EXECUTION_TARGET_MISMATCH', 'RUN_OF_ANOTHER_CHANGE');
-    }
-    facts.state = run.state;
-    if (run.admission.status !== 'ROOT' || run.admission.rootRunId !== run.runId) {
-      return answer('EXECUTION_ADMISSION_INVALID', `ADMISSION_${run.admission.status}`);
-    }
-    const views = model.changes.filter((view) => view.changeKey === record.changeKey);
-    if (views.length !== 1 || views[0].repository !== record.repository || views[0].change.changeId !== record.sliceId ||
-        !views[0].runs.some((member) => member.runId === run.runId)) return answer('EXECUTION_READ_MODEL_CONFLICT', 'CHANGE_VIEW_INVALID');
-    const { nextAction, anomalies } = views[0];
-    facts.nextMoves = nextAction.moves.map(({ action, role }) => ({ action, role }));
-    facts.conflicts = [...nextAction.conflicts];
-
-    // 4. Governed readiness, exactly as R4A0 states it.
-    if (run.anomalies.length || anomalies.length || nextAction.conflicts.some((conflict) => conflict.scope !== 'AUTHORITY')) {
-      return answer('EXECUTION_READ_MODEL_CONFLICT', 'GOVERNANCE_ANOMALY');
-    }
-    if (nextAction.conflicts.length) return answer('BLOCKED_AUTHORITY', 'AUTHORITY_UNRESOLVED');
-    if (nextAction.determinacy !== 'DETERMINATE') return answer('EXECUTION_READ_MODEL_CONFLICT', 'INDETERMINATE');
-    if (run.terminal) return answer('TERMINAL', 'TERMINAL_STATE');
-
-    // 5. Only the runner protocol's own move is taken; every other move belongs to someone else.
-    const protocol = PROTOCOL[run.state];
-    const moves = nextAction.moves.map(moveKey);
-    if (!protocol || moves.length !== protocol.moves.length || moves.some((move, index) => move !== protocol.moves[index])) {
-      const human = nextAction.moves.length > 0 && nextAction.moves.every((move) => move.role === 'HUMAN');
-      return answer(human ? 'WAITING_HUMAN' : 'WAITING_EXTERNAL_ACTOR', 'NOT_A_RUNNER_MOVE');
-    }
-
-    // 5b. G1-RP1-C1: what the step executes on must carry the governed lineage, not merely look valid.
-    const refusal = lineageRefusal(run, principalRef);
-    if (refusal) return answer('BLOCKED_PROVENANCE', refusal);
+    // 3-5. The run as this Change's admitted ROOT, R4A0's readiness, the runner protocol's move and the
+    // governed lineage (G1-RP1-C1): the one shared interpretation (execution-readiness.ts).
+    const assessed = assessGovernedRun(model, record, target.runId, principalRef);
+    Object.assign(facts, { snapshotId: assessed.snapshotId, state: assessed.state, nextMoves: assessed.nextMoves,
+      conflicts: assessed.conflicts });
+    if (assessed.outcome !== 'RUNNER_MOVE') return answer(READINESS_OF[assessed.outcome], assessed.reason);
+    const run = assessed.run!;
+    const protocol = assessed.protocol!;
 
     // 6. A model-call step also rests on the exact archived Human grant for this actor.
     let liveCall: LiveCallGrantProofV1 | null = null;

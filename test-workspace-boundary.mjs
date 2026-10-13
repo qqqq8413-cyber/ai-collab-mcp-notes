@@ -242,6 +242,20 @@ check('RA1 permits only the narrow injected run-admission port; no Controller or
     /openRootRunAdmitter|RootRunAdmitter|root-run-admitter|goal-run-admission-bridge|createGoalRunAdmissionBridge|storedRunFileName/);
 });
 
+check('WE1-R0 permits only the narrow read-only execution status port; nothing that reads governance storage or executes reaches Workspace', () => {
+  const server = code(readFileSync('src/workspace/server.ts', 'utf8'));
+  const port = code(readFileSync('src/workspace/goal-execution-status-port.ts', 'utf8'));
+  assert.match(server, /executionStatus\?: GoalExecutionStatusPort/);
+  assert.match(server, /json\(response, 200, executionStatus\.inspect\(current\.projectId, rest\[3\], submittedBy\)\)/);
+  assert.match(server, /if \(!executionStatus\) throw new HttpError\(503, 'EXECUTION_STATUS_UNAVAILABLE'/);
+  assert.deepEqual([...server.matchAll(/executionStatus\.(\w+)\(/g)].map((m) => m[1]), ['inspect']);
+  assert.match(server, /rest\[4\] === 'execution' && method === 'GET'/, 'GET only');
+  assert.deepEqual(importsOf(port).map((entry) => entry.specifier), ['../identity/canonical.js']);
+  assert.doesNotMatch(port, /\b(step|execute|activate|resume|recover|correct|authorize|promote|drive)\s*\(/);
+  for (const file of workspaceFiles()) assert.doesNotMatch(code(readFileSync(file, 'utf8')),
+    /goal-execution-status-bridge|createGoalExecutionStatusBridge|trustedObservationPreflight|readGovernedModel|assessGovernedRun|execution-readiness|openChangeRegistryReader/);
+});
+
 check('at runtime the server loads no automation, provider, or execution module and opens no outbound connection', () => {
   // Every outbound primitive is wrapped before the server loads; a call is charged to the Workspace
   // when dist/workspace is on its stack. The harness itself talks to the server with fetch.

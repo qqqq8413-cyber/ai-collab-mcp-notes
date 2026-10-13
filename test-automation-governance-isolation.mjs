@@ -459,12 +459,17 @@ const GOVERNED_EXECUTION = join('src', 'automation', 'live', 'governed-execution
 const ACTIVATION_CORE = join('src', 'automation', 'activation-core.ts');
 const PRESERVER = join('src', 'automation', 'authority', 'preserver.ts');
 const REVIEW_AUTHORITY = join('src', 'automation', 'authority', 'architect-review-authority.ts');
+// G1-WE1-R0 delta: the shared readiness assessment (LD1 and the status bridge) and the read-only execution status
+// bridge read R4A0; the bridge also reads the registry, validates the principal with R4P's rule and names the ROOT runId.
+const EXECUTION_READINESS = join('src', 'automation', 'execution-readiness.ts');
+const STATUS_BRIDGE = join('src', 'intake', 'goal-execution-status-bridge.ts');
 check('35. only the governed read model obtains the archive reader; nothing outside the archive obtains the appender', () => {
   const outside = SRC.filter((path) => !path.includes(`${join('src', 'automation', 'authority')}/`));
   const users = outside.filter((path) => /openAuthorityArchive(Appender|Reader)|authority\/file-archive(\.js)?['"]/.test(text(path)));
   assert.deepEqual(users.map(rel), [GOVERNED_READ_MODEL]);
   assert.deepEqual(outside.filter((path) => /authority\/document(\.js)?['"]/.test(text(path))).map(rel).sort(),
-    [ACTIVATION_CORE, EXECUTION_DRIVER, GOVERNED_EXECUTION, GOVERNED_READ_MODEL].sort());
+    [ACTIVATION_CORE, EXECUTION_DRIVER, GOVERNED_EXECUTION, GOVERNED_READ_MODEL, STATUS_BRIDGE].sort());
+  assert.match(text(join(ROOT, STATUS_BRIDGE)), /import \{ isAuthorityPrincipalRef \} from '\.\.\/automation\/authority\/document\.js';/);
   // Inside R4P: the appender is opened by the preserver alone; the preserver is opened by the governed composition alone.
   assert.deepEqual(SRC.filter((path) => rel(path) !== join('src', 'automation', 'authority', 'file-archive.ts') &&
     /openAuthorityArchiveAppender|AuthorityArchiveAppender/.test(text(path))).map(rel), [PRESERVER]);
@@ -475,11 +480,13 @@ check('35. only the governed read model obtains the archive reader; nothing outs
   assert.match(text(join(ROOT, EXECUTION_DRIVER)), /import \{ authorityBodyHash, type AuthorityRefV1, type JsonObject \} from '\.\/authority\/document\.js';/);
   assert.deepEqual(outside.filter((path) => /openAuthorityArchiveAppender|AuthorityArchiveAppender/.test(text(path))).map(rel), []);
   assert.match(text(join(ROOT, GOVERNED_READ_MODEL)), /import \{ openAuthorityArchiveReader \} from '\.\.\/authority\/file-archive\.js';/);
-  // Only the LD1 execution driver imports the read model: no Workspace, runner, controller, model process, MCP or live composition holds it.
+  // R4A0 readers: LD1, the activation core, the shared readiness assessment (types and schema only) and the read-only
+  // status bridge. No Workspace, runner, controller, model process, MCP or live composition holds it.
   assert.deepEqual(SRC.filter((path) => !path.includes(`${join('src', 'automation', 'read-model')}/`) &&
-    /read-model\//.test(text(path))).map(rel).sort(), [ACTIVATION_CORE, EXECUTION_DRIVER].sort());
+    /read-model\//.test(text(path))).map(rel).sort(), [ACTIVATION_CORE, EXECUTION_DRIVER, EXECUTION_READINESS, STATUS_BRIDGE].sort());
   assert.deepEqual(SRC.filter((path) => rel(path) !== GOVERNED_READ_MODEL && /readGovernedModel\(/.test(text(path))).map(rel).sort(),
-    [ACTIVATION_CORE, EXECUTION_DRIVER].sort());
+    [ACTIVATION_CORE, EXECUTION_DRIVER, STATUS_BRIDGE].sort());
+  assert.doesNotMatch(text(join(ROOT, EXECUTION_READINESS)), /readGovernedModel\(|from '\.\/(runner|controller|durable-store|live\/)/);
   for (const surface of ['src/workspace', 'src/automation/live/composition.ts', 'src/automation/runner.ts', 'src/automation/controller.ts',
     'src/automation/live/claude-code-implementation.ts', 'src/automation/live/codex-architect-review.ts', 'src/automation/live/seatbelt-model-process.ts',
     'src/automation/live/model-process-isolation.ts', 'src/index.ts']) {
@@ -532,7 +539,7 @@ check('GC1. exactly one trusted bridge path holds Change Minter; every other run
   assert.equal((text(join(ROOT, bridge)).match(/openChangeMinter\(/g) ?? []).length, 1);
   // G1-RA1 / G1-LD1: the run-admission bridge and the execution driver read the registry; neither holds a minter.
   assert.deepEqual(outside.filter((path) => /change-registry\.js/.test(text(path))).map(rel).sort(),
-    [bridge, RUN_ADMISSION_BRIDGE, EXECUTION_DRIVER, ACTIVATION_CORE].sort());
+    [bridge, RUN_ADMISSION_BRIDGE, EXECUTION_DRIVER, ACTIVATION_CORE, STATUS_BRIDGE].sort());
   assert.match(text(join(ROOT, ACTIVATION_CORE)), /import \{ openChangeRegistryReader \} from '\.\/change-registry\.js';/);
   assert.match(text(join(ROOT, EXECUTION_DRIVER)), /import \{ openChangeRegistryReader \} from '\.\/change-registry\.js';/);
   assert.match(text(join(ROOT, RUN_ADMISSION_BRIDGE)), /import \{ openChangeRegistryReader \} from '\.\.\/automation\/change-registry\.js';/);
@@ -541,8 +548,12 @@ check('GC1. exactly one trusted bridge path holds Change Minter; every other run
     /change-mint|change-registry/.test(text(path))).map(rel), []);
 });
 check('RA1. one trusted path reaches the root-run admitter; it exposes no lifecycle; Workspace holds no Controller', (dir) => {
-  const holders = SRC.filter((path) => rel(path) !== ROOT_RUN_ADMITTER && /openRootRunAdmitter|root-run-admitter(\.js)?['"]/.test(text(path)));
+  const holders = SRC.filter((path) => rel(path) !== ROOT_RUN_ADMITTER && /openRootRunAdmitter/.test(text(path)));
   assert.deepEqual(holders.map(rel), [RUN_ADMISSION_BRIDGE]);
+  // G1-WE1-R0: the read-only status bridge takes only the pure ROOT runId definition from the admitter's module.
+  assert.deepEqual(SRC.filter((path) => rel(path) !== ROOT_RUN_ADMITTER && /root-run-admitter(\.js)?['"]/.test(text(path))).map(rel).sort(),
+    [RUN_ADMISSION_BRIDGE, STATUS_BRIDGE].sort());
+  assert.match(text(join(ROOT, STATUS_BRIDGE)), /import \{ rootRunIdOf \} from '\.\.\/automation\/root-run-admitter\.js';/);
   assert.equal((text(join(ROOT, RUN_ADMISSION_BRIDGE)).match(/openRootRunAdmitter\(/g) ?? []).length, 1);
   assert.deepEqual(SRC.filter((path) => /createGoalRunAdmissionBridge\(/.test(text(path)) && rel(path) !== RUN_ADMISSION_BRIDGE).map(rel),
     [join('src', 'intake', 'workspace-host.ts')]);

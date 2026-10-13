@@ -153,6 +153,21 @@ export interface ChangeViewV1 {
   anomalies: AnomalyV1[];
   nextAction: NextActionV1;
 }
+/**
+ * G1-WE1-R0: one R4L admission record as filed under its own changeKey, read-only. An OPERATIONAL_RECORD, never
+ * authority. `rootRun` says whether the ROOT run it names is in the store: ABSENT is a claim an interrupted
+ * admission left (ROOT_PENDING), which only R4L's own admission may complete. Invalid or misfiled records are
+ * anomalies and are not listed here.
+ */
+export interface AdmissionClaimV1 {
+  recordClass: 'OPERATIONAL_RECORD';
+  changeKey: string;
+  repository: string;
+  sliceId: string;
+  rootRunId: string;
+  admittedAt: string;
+  rootRun: 'PRESENT' | 'ABSENT';
+}
 export interface GovernedReadModelV1 {
   schema: typeof GOVERNED_READ_MODEL_SCHEMA;
   schemaVersion: 1;
@@ -164,6 +179,8 @@ export interface GovernedReadModelV1 {
   changes: ChangeViewV1[];
   /** Every direct-authority document version in the archive. */
   authority: AuthorityFactV1[];
+  /** Every valid R4L admission record, by changeKey. */
+  admissions: AdmissionClaimV1[];
   anomalies: AnomalyV1[];
 }
 export interface GovernedReadRoots { controllerStoreDirectory: string; authorityArchiveDirectory: string }
@@ -526,7 +543,13 @@ function project(roots: GovernedReadRoots, snapshot: SourceSnapshot, observedAt:
     snapshot: { id: snapshot.id, controllerStore: snapshot.present.CONTROLLER_STORE ? 'PRESENT' : 'ABSENT',
       authorityArchive: snapshot.present.AUTHORITY_ARCHIVE ? 'PRESENT' : 'ABSENT' },
     continuation: 'NOT_IMPLEMENTED',
-    runs: projectedRuns, changes, authority: facts, anomalies,
+    runs: projectedRuns, changes, authority: facts,
+    admissions: [...claims].filter((entry): entry is [string, AdmissionRecord] => entry[1] !== null && entry[1].changeKey === entry[0])
+      .map(([changeKey, record]) => ({ recordClass: 'OPERATIONAL_RECORD' as const, changeKey, repository: record.repository,
+        sliceId: record.sliceId, rootRunId: record.rootRunId, admittedAt: record.admittedAt,
+        rootRun: byId.has(record.rootRunId) ? 'PRESENT' as const : 'ABSENT' as const }))
+      .sort((a, b) => compare(a.changeKey, b.changeKey)),
+    anomalies,
   };
 }
 

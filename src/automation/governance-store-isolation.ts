@@ -142,6 +142,22 @@ export class GovernanceStoreIsolation {
     return Object.freeze({ assertDisjoint: (label: string, path: unknown) => intake.assertDisjoint(label, path) });
   }
 
+  /**
+   * G1-WE1-R0's read-only execution status reads all three already-provisioned roots (Change Registry,
+   * Controller store, Authority Archive). All must be safe and mutually disjoint. Narrow like the intake
+   * guard: not a GovernanceStoreIsolation, so no model or validation boundary accepts it.
+   */
+  static forTrustedObservation(input: { changeRegistryDirectory: unknown; controllerStoreDirectory: unknown;
+    authorityArchiveDirectory: unknown }): { assertDisjoint(label: string, path: unknown): void } {
+    const roots = [protectedRoot('CHANGE_REGISTRY', input?.changeRegistryDirectory),
+      protectedRoot('CONTROLLER_STORE', input?.controllerStoreDirectory), protectedRoot('AUTHORITY_ARCHIVE', input?.authorityArchiveDirectory)];
+    for (let i = 0; i < roots.length; i++) for (let j = i + 1; j < roots.length; j++) {
+      if (overlapping(roots[i].identity, roots[j].identity)) throw fail(`${roots[i].kind} and ${roots[j].kind} roots overlap`);
+    }
+    const observation = new GovernanceStoreIsolation(roots);
+    return Object.freeze({ assertDisjoint: (label: string, path: unknown) => observation.assertDisjoint(label, path) });
+  }
+
   /** All protected roots must already be safe and mutually disjoint. */
   static forLiveRoots(input: { controllerStoreDirectory: unknown; authorityArchiveDirectory: unknown;
     changeRegistryDirectory: unknown }): GovernanceStoreIsolation {

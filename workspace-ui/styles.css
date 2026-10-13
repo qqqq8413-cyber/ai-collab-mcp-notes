@@ -493,3 +493,14 @@ ol,ul{margin:0;padding:0;list-style:none}
   .now{grid-template-columns:minmax(0,1fr)}
 }
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* G1-WE1-R0: the read-only execution status of the goal on the stage. Compact, calm, no progress, no motion. */
+.exec{margin-top:28px;padding:16px 18px;border-radius:var(--r-s);background:var(--tint);box-shadow:inset 0 0 0 1px var(--line);min-width:0}
+.exec-h{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.exec-h .lbl{margin:0}
+.exec-r{margin-left:auto;height:30px;padding:0 12px;font-size:13px}
+.exec-s{font-size:15.5px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.exec-x{font-size:13.5px;line-height:1.6;color:var(--muted);margin-top:4px;overflow-wrap:anywhere}
+.exec-d{margin-top:12px}
+.exec-d code{font-size:12.5px;overflow-wrap:anywhere}
+.exec-n{font-size:12px;color:var(--muted);margin-top:12px}

@@ -33,6 +33,8 @@ export function createLiveSource({ fetchImpl = globalThis.fetch.bind(globalThis)
     // WS-P1 has no execution, so nothing produces AI collaboration events: LIVE answers with none, without a request,
     // and 協作室 shows its empty state. Only a future, Architect-approved read model may supply events here.
     collaboration: async (projectId) => ({ projectId, provenance: 'NONE', events: [] }),
+    // G1-WE1-R0: read-only governed execution status of one goal. GET only; the server derives everything else.
+    executionStatus: (projectId, goalId) => call('GET', `/projects/${enc(projectId)}/goals/${enc(goalId)}/execution`),
     /** onEvent(name, data) for hello / goal.created / queue.reordered / goal.removed; onState('connecting' | 'open' | 'retrying'). */
     subscribe(onEvent, onState) {
       const stream = new EventSourceImpl(`${API}/stream`);

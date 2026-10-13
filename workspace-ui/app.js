@@ -5,6 +5,7 @@
 // WS-P1: a project has three views, 此刻 / 往來 / 協作室, each with its own address.
 
 import { collaborationRoom, decisionHTML, roomHTML } from './collaboration.js';
+import { executionNow, executionStatusHTML } from './execution-status.js';
 
 const DEMO = new URLSearchParams(location.search).get('demo') === '1';
 const source = DEMO ? (await import('./demo.js')).createDemoSource() : (await import('./live.js')).createLiveSource();
@@ -135,7 +136,7 @@ function homeSections(signals, lastViewed, recent) {
 // | projects | activity | advanced
 const S = {
   view: 'home', pid: null, target: null, homeAck: null, projects: [], queues: {}, collab: {}, conn: 'connecting', pop: null, sheet: null,
-  decision: null, confirm: null, sending: false, loadError: null, pane: 'now', area: 'discussion',
+  decision: null, confirm: null, sending: false, loadError: null, pane: 'now', area: 'discussion', exec: {},
 };
 const LAST = `chief.workspace.${source.mode}.project`; // last viewed project: a local, non-authoritative UI preference
 const RECENT = `chief.workspace.${source.mode}.recent`; // recently opened projects, newest first: the same kind of preference
@@ -177,6 +178,26 @@ async function loadQueue(projectId) {
 // 協作室: whatever the source returns goes through the CollaborationEventV1 projection; LIVE returns no events.
 async function loadRoom(projectId) {
   S.collab[projectId] = collaborationRoom(projectId, await source.collaboration(projectId));
+}
+// G1-WE1-R0: the goal on the stage gets its read-only governed execution status: read when it first appears there and
+// again only on 重新讀取. Never polled; a failed or disabled read leaves every other part of the page working.
+const execKey = (projectId, goalId) => `${projectId}/${goalId}`;
+async function loadExecution(projectId, goalId) {
+  const key = execKey(projectId, goalId);
+  try {
+    const data = await source.executionStatus(projectId, goalId);
+    S.exec[key] = data?.demo ? { state: 'demo' } : { state: 'ready', view: data };
+  } catch (error) {
+    S.exec[key] = error.status === 503 && error.code === 'EXECUTION_STATUS_UNAVAILABLE' ? { state: 'disabled' } : { state: 'error', message: error.message };
+  }
+  render();
+}
+function ensureExecution() {
+  const first = S.view === 'project' && S.pane === 'now' ? queue().goals[0] : undefined;
+  if (!first || S.exec[execKey(S.pid, first.goalId)]) return;
+  S.exec[execKey(S.pid, first.goalId)] = { state: 'loading' };
+  const projectId = S.pid;
+  queueMicrotask(() => { void loadExecution(projectId, first.goalId); });
 }
 async function reloadAll() {
   try {
@@ -302,6 +323,8 @@ function stageHTML() {
         <div class="card-b">${NOTE}</div></section>`
       : `<section class="card focal" aria-labelledby="focal-h"><header class="card-h"><span class="pulse idle" aria-hidden="true"></span><h2 class="ch-t" id="focal-h">工作清單是空的</h2><span class="ch-s">目前沒有排隊的目標</span></header>
         <div class="card-b">${NOTE}</div></section>`;
+  const exec = first ? S.exec[execKey(p.projectId, first.goalId)] : undefined;
+  const now = first ? executionNow(exec) : '沒有工作';
   const records = r.events.length && !needs.length
     ? `<p class="to-room"><span>這個專案有 <span class="num">${r.events.length}</span> 則 AI 協作紀錄${demoRoom() ? '（示範資料）' : ''}</span>${toRoom(`查看協作室 ${ic('arrow', 13)}`, 'adv')}</p>` : '';
   return `<div class="work">
@@ -309,12 +332,13 @@ function stageHTML() {
       <p class="lbl asked">你交辦的</p>
       <h1 class="goal" id="stage-h">${first ? esc(first.text) : '還沒有排隊的目標'}</h1>
       <dl class="now">
-        <div class="nw"><dt>Chief 現在</dt><dd>${first ? '排隊中 · 尚未開始執行' : '沒有工作'}</dd></div>
+        <div class="nw"><dt>Chief 現在</dt><dd>${esc(now)}</dd></div>
         <div class="nw"><dt>需要你嗎</dt><dd>${needs.length ? toRoom(`需要，${needs.length} 件事等你決定`, 'need-a', 'needs') : '不需要'}</dd></div>
       </dl>
       <div class="focus">${focal}${records}</div>
+      ${first ? executionStatusHTML(exec) : ''}
       <div class="ledger">${queueHTML()}
-        <section aria-labelledby="ctx-h"><h2 class="lbl" id="ctx-h">專案</h2><dl class="ctx"><dt>專案</dt><dd>${esc(p.displayName)}</dd><dt>位置</dt><dd>${esc(p.repository)}</dd><dt>狀態</dt><dd><span class="stat"><span class="dot" aria-hidden="true"></span>尚未開始執行</span></dd></dl></section>
+        <section aria-labelledby="ctx-h"><h2 class="lbl" id="ctx-h">專案</h2><dl class="ctx"><dt>專案</dt><dd>${esc(p.displayName)}</dd><dt>位置</dt><dd>${esc(p.repository)}</dd><dt>狀態</dt><dd><span class="stat"><span class="dot" aria-hidden="true"></span>${first && now !== '排隊中 · 尚未開始執行' ? esc(now) : '尚未開始執行'}</span></dd></dl></section>
       </div>
     </div>`;
 }
@@ -470,6 +494,7 @@ function render() {
   if ($('#stage-scroll') && keep.stage !== undefined) $('#stage-scroll').scrollTop = keep.stage;
   if ($('#room-scroll') && keep.room !== undefined) $('#room-scroll').scrollTop = keep.room;
   if ($('#other-scroll') && keep.other !== undefined) $('#other-scroll').scrollTop = keep.other;
+  ensureExecution();
 }
 
 // ---------- actions
@@ -572,6 +597,11 @@ document.addEventListener('click', (event) => {
     case 'decision': S.sheet = 'decision'; S.decision = v; render(); $('#sheet .xbtn')?.focus(); break;
     case 'close-sheet': S.sheet = null; S.decision = null; render(); break;
     case 'pane': go('project', S.pid, { pane: v }); break;
+    case 'exec-refresh': {
+      const first = queue().goals[0];
+      if (first) { S.exec[execKey(S.pid, first.goalId)] = { state: 'loading' }; render(); void loadExecution(S.pid, first.goalId); }
+      break;
+    }
     default: break;
   }
 });

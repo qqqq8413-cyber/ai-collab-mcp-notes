@@ -99,6 +99,11 @@ export function createDemoSource({ now = () => new Date().toISOString() } = {}) 
       emit('goal.removed', data);
       return data;
     },
+    // G1-WE1-R0: demo never reads production governance; there is no execution status here and no request is made.
+    async executionStatus(projectId) {
+      get(projectId);
+      return { provenance: 'DEMO_SAMPLE', demo: true };
+    },
     async collaboration(projectId) {
       get(projectId);
       return { projectId, provenance: 'DEMO_SAMPLE', events: structuredClone(rooms.get(projectId)) };

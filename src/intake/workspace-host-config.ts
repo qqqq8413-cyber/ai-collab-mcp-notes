@@ -9,9 +9,11 @@ const bindingSchema = z.strictObject({ projectId: z.string().regex(PROJECT_ID), 
 // Exact, absolute, normalised server-side paths. Never inferred from cwd, Git, the environment or a request.
 const root = () => z.string().refine((path) => isAbsolute(path) && normalize(path) === path && !path.endsWith('/') &&
   !/[\u0000-\u001f]/.test(path));
+// G1-WE1-R0: read-only execution status, off unless configured. Its principal is checked by the status preflight.
+const executionStatusSchema = z.strictObject({ authorityArchiveDirectory: root(), architectPrincipalRef: z.string().min(1).max(256) });
 const schema = z.strictObject({ schemaVersion: z.literal(1), workspace: z.unknown(),
   governance: z.strictObject({ changeRegistryDirectory: root(), controllerStoreDirectory: root(),
-    repositories: z.array(bindingSchema).min(1).max(50) }) });
+    repositories: z.array(bindingSchema).min(1).max(50), executionStatus: executionStatusSchema.optional() }) });
 
 export type GovernedRepositoryBinding = Readonly<z.infer<typeof bindingSchema>>;
 export interface TrustedWorkspaceHostConfig {
@@ -19,6 +21,8 @@ export interface TrustedWorkspaceHostConfig {
   readonly changeRegistryDirectory: string;
   readonly controllerStoreDirectory: string;
   readonly governedRepositories: readonly GovernedRepositoryBinding[];
+  /** G1-WE1-R0 read-only execution status: null (disabled) unless explicitly configured. */
+  readonly executionStatus: Readonly<{ authorityArchiveDirectory: string; architectPrincipalRef: string }> | null;
 }
 
 export function parseGovernedRepositories(input: unknown, workspace: WorkspaceConfig): readonly GovernedRepositoryBinding[] {
@@ -38,7 +42,8 @@ export function parseTrustedWorkspaceHostConfig(input: unknown, baseDirectory: s
   const workspace = parseWorkspaceConfig(parsed.workspace, baseDirectory);
   return Object.freeze({ workspace, changeRegistryDirectory: parsed.governance.changeRegistryDirectory,
     controllerStoreDirectory: parsed.governance.controllerStoreDirectory,
-    governedRepositories: parseGovernedRepositories(parsed.governance.repositories, workspace) });
+    governedRepositories: parseGovernedRepositories(parsed.governance.repositories, workspace),
+    executionStatus: parsed.governance.executionStatus ? Object.freeze({ ...parsed.governance.executionStatus }) : null });
 }
 
 export function loadTrustedWorkspaceHostConfig(file: string): TrustedWorkspaceHostConfig {

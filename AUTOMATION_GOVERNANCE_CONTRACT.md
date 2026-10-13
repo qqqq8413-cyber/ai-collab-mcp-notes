@@ -261,6 +261,10 @@ hash) before and after the projection, and any difference fails closed.
   action, actor, time, packet id and hash). It proves which operation and
   principal wrote what; it is never direct authority, an authority reference or
   an authority fact.
+- Admission claims (G1-WE1-R0): the model also lists every valid R4L admission
+  record (`admissions`: changeKey, identity, ROOT runId, admittedAt, and whether
+  that run is in the store), as an OPERATIONAL_RECORD. A claim whose run is ABSENT
+  is an interrupted admission; only R4L's own admission completes it.
 
 ### 6.3 Governed Live Execution Driver (G1-LD1)
 
@@ -309,6 +313,11 @@ exactly one AutomationRunner step now, and takes at most that one step.
   `PACKET_REISSUED`, `REVIEW_LINEAGE_FOREIGN`, `CORRECTION_LINEAGE_FOREIGN |
   _UNBOUND`). `inspect` and `step` share this gate; the packet's direct authority
   must still resolve exactly.
+- The R4A0 readiness and RP1 lineage decision is one pure function,
+  `assessGovernedRun` (`execution-readiness.ts`), over one R4A0 snapshot. LD1 adds
+  only the live-call grant check and the runner call; the read-only Workspace
+  execution status (G1-WE1-R0) reports the same assessment and never evaluates a
+  grant (`EXECUTION_ELIGIBILITY_NOT_EVALUATED`).
 - One `step()` takes R4A0 snapshot A, calls `AutomationRunner.step` once, bound
   to the exact audit position A read (a run another writer moved is reported
   `STALE_OCCURRENCE` by the runner and nothing is written), then takes snapshot
@@ -449,6 +458,12 @@ to every current and future recoverable operation.
   grant and the runtime policy, an invocation keeps the grant it was prepared under, and
   an activation retry cannot rewrite a grant (AUTHORITY_VERSION_CONFLICT). Exposing any
   of these operations through Workspace is still a separate Architect decision.
+- G1-WE1-R0 exposes observation only: one read-only, optional, off-by-default
+  `GET .../goals/:goalId/execution` (WORKSPACE_GOVERNANCE_BRIDGE.md). It reads the Goal
+  Store, CM1, R4L and R4A0 and applies the same assessment; it writes nothing, holds no
+  minter, admitter, Controller, runner, preserver, appender, model process or provider,
+  and offers no execution, recovery or authorization. Provenance blockers are shown with
+  their bounded reasons and are never forced past.
 
 ## 7. Git and Promotion
 

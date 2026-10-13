@@ -1199,7 +1199,10 @@ check('AV-AW-AX. no Workspace, model, validation or LD1 path reaches an authorit
   // No route, UI control or event activates anything.
   assert.deepEqual(SRC.filter((path) => /['"`]\/[^'"`\s]*\/(activate|packet|authority|execute|step)['"`]/.test(text(path))).map(rel), []);
   const ui = readdirSync(join(ROOT, 'workspace-ui')).filter((name) => /\.(js|html)$/.test(name)).map((name) => readFileSync(join(ROOT, 'workspace-ui', name), 'utf8')).join('\n');
-  assert.doesNotMatch(ui, /\/activate|\/authority|activation/i);
+  // G1-WE1-R0: the read-only status displays RP1's bounded provenance reason codes and the read-only activationBound
+  // fact; nothing else may name activation.
+  assert.doesNotMatch(ui.replace(/\bACTIVATION_(LINEAGE_MISSING|LINEAGE_FOREIGN|PACKET_MISMATCH)\b|\boperationalProvenance\.activationBound\b/g, ''),
+    /\/activate|\/authority|activation/i);
 });
 
 let passed = 0, failed = 0;

@@ -9,6 +9,7 @@ import { createDemoSource } from './workspace-ui/demo.js';
 import { createLiveSource } from './workspace-ui/live.js';
 import { EMPTY_ROOM, EVENT_TYPES, NEEDS_EMPTY, collaborationRoom, decisionHTML, discussionHTML, eventHTML, evidenceHTML, exchangesOf, needsHTML,
   parseCollaborationEvents, participantsOf, roomHTML, summarizeCollaboration } from './workspace-ui/collaboration.js';
+import { EXECUTION_LABELS, NOT_STARTED, PROVENANCE_EXPLAIN, executionNow, executionStatusHTML } from './workspace-ui/execution-status.js';
 
 // WS-L1 Workspace UI data layer: LIVE talks only to /api/v0 on its own origin; demo is
 // in-memory, labelled, and never reaches the server.
@@ -86,7 +87,7 @@ await check('the LIVE module never loads demo data, and demo loads only on expli
   assert.doesNotMatch(live, /\bimport\b/, 'the LIVE source imports nothing, demo data included');
   assert.doesNotMatch(demo, /fetch|EventSource|XMLHttpRequest|\/api\//);
   const imports = [...app.matchAll(/import\((['"])(.+?)\1\)|from\s+(['"])(.+?)\3/g)].map((m) => m[2] ?? m[4]);
-  assert.deepEqual(imports.sort(), ['./collaboration.js', './demo.js', './live.js']);
+  assert.deepEqual(imports.sort(), ['./collaboration.js', './demo.js', './execution-status.js', './live.js']);
   assert.match(app, /const DEMO = new URLSearchParams\(location\.search\)\.get\('demo'\) === '1';/);
   assert.match(app, /const source = DEMO \? \(await import\('\.\/demo\.js'\)\)\.createDemoSource\(\) : \(await import\('\.\/live\.js'\)\)\.createLiveSource\(\);/);
   assert.match(app, /示範模式/, 'demo mode is labelled on screen');
@@ -102,7 +103,12 @@ await check('the UI calls only the WS-L1 routes and shows no execution it does n
   const live = read('live.js'), app = read('app.js');
   for (const route of ['/projects', '/goals', '/order', '/stream']) assert.match(live, new RegExp(route.replace('/', '\\/')));
   assert.doesNotMatch(live + app, /\/(start|run|execute|resume|promote|create-run)\b/);
-  assert.equal(API_ROUTES.length, 10);
+  assert.equal(API_ROUTES.length, 11);
+  // G1-WE1-R0: exactly one read-only execution status route, GET only; the UI reads it and nothing else new.
+  assert.deepEqual(API_ROUTES.filter((route) => /\/execution$/.test(route)), ['GET /api/v0/projects/:projectId/goals/:goalId/execution']);
+  assert.match(live, /executionStatus: \(projectId, goalId\) => call\('GET', `\/projects\/\$\{enc\(projectId\)\}\/goals\/\$\{enc\(goalId\)\}\/execution`\)/);
+  assert.equal((live.match(/\/execution/g) ?? []).length, 1);
+  assert.doesNotMatch(app + live, /call\('(POST|DELETE)',[^)]*execution/);
   assert.deepEqual(API_ROUTES.filter((route) => /\/govern(ance)?$/.test(route)), [
     'POST /api/v0/projects/:projectId/goals/:goalId/govern',
     'GET /api/v0/projects/:projectId/goals/:goalId/governance',
@@ -306,7 +312,7 @@ await check('WS-P1 signals: Human-required only from an escalation time; the LIV
   const html = roomHTML(r);
   assert.ok(html.includes(EMPTY_ROOM) && html.includes(NEEDS_EMPTY), 'LIVE shows both areas empty');
   assert.doesNotMatch(html, /示範資料|AI 協作摘要|class="ev /, 'no demo label, no summary, no event');
-  assert.equal(API_ROUTES.filter((route) => !/\/(govern|governance|run)$/.test(route)).length, 6, 'no collaboration API route was added');
+  assert.equal(API_ROUTES.filter((route) => !/\/(govern|governance|run|execution)$/.test(route)).length, 6, 'no collaboration API route was added');
 });
 
 await check('WS-P1 CollaborationEventV1: nine runtime-neutral types; anything outside the model is refused, never shown', () => {
@@ -419,7 +425,9 @@ await check('WS-P1 協作室 empty state, and 此刻 never shows execution that 
   assert.match(EMPTY_ROOM, /<h3 class="ce-h">目前沒有 AI 協作紀錄<\/h3><p>這個專案尚未開始執行，<br>或目前沒有可顯示的協作事件。<\/p>/);
   assert.doesNotMatch(empty, /class="ev|AI 協作摘要/, 'no placeholder messages');
   const stage = slice('function stageHTML', 'function homeView');
-  assert.match(stage, /<dt>Chief 現在<\/dt><dd>\$\{first \? '排隊中 · 尚未開始執行' : '沒有工作'\}<\/dd>/, 'the canonical queued wording');
+  // G1-WE1-R0: the queued wording stays until the governed status shows recorded execution (execution-status.js decides the words).
+  assert.match(stage, /const now = first \? executionNow\(exec\) : '沒有工作';/);
+  assert.match(stage, /<dt>Chief 現在<\/dt><dd>\$\{esc\(now\)\}<\/dd>/, 'the canonical queued wording');
   assert.doesNotMatch(stage, /正在處理|等待 AI 驗證|完成|失敗|elapsed|分鐘|進度|%/, 'no active, verifying, done, failed, elapsed time or progress');
   assert.match(stage, /r\.events\.length && !needs\.length[\s\S]*查看協作室/, '查看協作室 appears when the room has records');
 });
@@ -579,6 +587,79 @@ await check('WS-P2 chain-of-thought boundary: the rule is stated as a source obl
   const app = read('app.js');
   assert.match(app, /參與工作的 AI 明確送出的提案、審查意見、交接、證據與決策理由摘要。這是工作紀錄，不是 AI 的思考過程。/);
   assert.doesNotMatch(app, /不包含 AI 的內部推理/, 'the room no longer promises what the projection cannot check');
+});
+
+// ---------------------------------------------------------------- G1-WE1-R0 read-only execution status
+const statusView = (status, extra = {}) => ({ readModelVersion: 'goal-execution-status.v0', recordClass: 'OPERATIONAL_RECORD',
+  authority: 'NOT_EXECUTION_AUTHORITY', status, reason: null, executionEligibility: 'EXECUTION_ELIGIBILITY_NOT_EVALUATED', attention: 'NONE',
+  change: null, run: null, nextMoves: [], directAuthority: [], unresolvedAuthority: [], operationalProvenance: null, snapshotId: null,
+  notice: 'n', ...extra });
+await check('WE1-R0 UI: every status has its truthful Traditional Chinese label and offers no execution, recovery or authorization control', () => {
+  assert.deepEqual(Object.keys(EXECUTION_LABELS).sort(), ['BLOCKED_AUTHORITY', 'BLOCKED_PROVENANCE', 'GOAL_NOT_GOVERNED', 'GOVERNANCE_CONFLICT',
+    'IN_PROGRESS', 'ROOT_PENDING', 'RUN_IDLE', 'RUN_NOT_ADMITTED', 'TERMINAL', 'WAITING_EXTERNAL_ACTOR', 'WAITING_HUMAN', 'WAITING_PACKET']);
+  assert.deepEqual([EXECUTION_LABELS.RUN_IDLE, EXECUTION_LABELS.WAITING_PACKET, EXECUTION_LABELS.BLOCKED_AUTHORITY, EXECUTION_LABELS.BLOCKED_PROVENANCE,
+    EXECUTION_LABELS.WAITING_HUMAN, EXECUTION_LABELS.IN_PROGRESS, EXECUTION_LABELS.TERMINAL],
+  ['執行任務已建立，尚未開始', '等待正式工作文件', '缺少必要授權', '工作來源無法確認，已停止執行', '需要人工處理', '工作已有執行紀錄', '工作流程已結束']);
+  const module = read('execution-status.js');
+  assert.doesNotMatch(module, /fetch|EventSource|XMLHttpRequest|\/api\/|localStorage|document\.|import /, 'pure: no network, storage or DOM');
+  for (const status of Object.keys(EXECUTION_LABELS)) {
+    const html = executionStatusHTML({ state: 'ready', view: statusView(status, { attention: 'HUMAN', nextMoves: [{ action: 'ISSUE_PACKET', role: 'GPT_ARCHITECT' }],
+      run: { runId: 'run-x', state: 'PACKET_READY', terminal: status === 'TERMINAL', admission: 'ROOT' } }) });
+    assert.ok(html.includes(EXECUTION_LABELS[status]), status);
+    const buttons = [...html.matchAll(/<button\b[^>]*>/g)].map((m) => m[0]);
+    assert.deepEqual(buttons.map((b) => /data-act="exec-refresh"/.test(b)), [true], `${status}: only the read-only refresh`);
+    assert.doesNotMatch(html, /執行此任務|開始執行|強制|繼續執行|恢復執行|授權此|批准|核准此|force|bypass|resume|start/i, status);
+    // The one disclaimer that names activity says it is not happening.
+    assert.doesNotMatch(html.replace('這不代表 AI 此刻正在運作。', ''), /正在(執行|處理|運作)|AI 正在|Claude|Codex|\d+\s*%|進度/,
+      `${status}: no fabricated activity, agent or progress`);
+    assert.match(html, /未評估：這裡沒有載入即時呼叫設定，不會宣稱可以執行/, `${status}: model eligibility is never claimed`);
+    assert.match(html, /唯讀狀態，不是執行授權/);
+  }
+  assert.match(executionStatusHTML({ state: 'ready', view: statusView('TERMINAL', { run: { runId: 'r', state: 'CLOSED', terminal: true, admission: 'ROOT' } }) }),
+    /流程結束不等於成果已交付或已驗收/, 'lifecycle completion is not deliverable completion');
+  assert.match(executionStatusHTML({ state: 'ready', view: statusView('IN_PROGRESS') }), /這不代表 AI 此刻正在運作/);
+});
+await check('WE1-R0 UI: provenance blockers show bounded reasons and the recovery dead end, never a way past them', () => {
+  assert.deepEqual(Object.keys(PROVENANCE_EXPLAIN).sort(), ['ACTIVATION_LINEAGE_FOREIGN', 'ACTIVATION_LINEAGE_MISSING', 'ACTIVATION_PACKET_MISMATCH',
+    'CORRECTION_LINEAGE_FOREIGN', 'CORRECTION_LINEAGE_UNBOUND', 'PACKET_REISSUED', 'REVIEW_LINEAGE_FOREIGN']);
+  for (const reason of Object.keys(PROVENANCE_EXPLAIN)) {
+    const html = executionStatusHTML({ state: 'ready', view: statusView('BLOCKED_PROVENANCE', { reason, attention: 'ARCHITECT' }) });
+    assert.ok(html.includes(PROVENANCE_EXPLAIN[reason]) && html.includes(`<code>${reason}</code>`), reason);
+    assert.match(html, /這不是要自動修復的錯誤。要繼續，需要 Architect 另行決定一個能證明來源的恢復方式；這裡不提供強制繼續。/);
+  }
+  // Bounded and escaped: whatever the server says is text, never markup.
+  const hostile = executionStatusHTML({ state: 'ready', view: statusView('GOVERNANCE_CONFLICT', { reason: '<img src=x onerror=alert(1)>',
+    nextMoves: [{ action: '<b>x</b>', role: '<i>' }], unresolvedAuthority: [{ kind: 'AUTHORIZATION', authorityId: '<x>', resolution: 'NOT_ARCHIVED' }] }) });
+  assert.doesNotMatch(hostile, /<img|<b>|<i>|<x>/);
+  // Archived direct authority and operational provenance are told apart.
+  const both = executionStatusHTML({ state: 'ready', view: statusView('IN_PROGRESS', { directAuthority: [{ recordClass: 'DIRECT_AUTHORITY',
+    kind: 'IMPLEMENTATION_PACKET', authorityId: 'packet-1', version: 1 }], operationalProvenance: { recordClass: 'OPERATIONAL_RECORD', activationBound: true } }) });
+  assert.match(both, /已封存的正式授權<\/dt><dd>正式工作文件 packet-1 第 1 版/);
+  assert.match(both, /營運紀錄（不是授權）<\/dt><dd>有正式啟動綁定/);
+});
+await check('WE1-R0 UI: useful when disabled, unavailable or in demo; the stage keeps the queue wording until execution is recorded', async () => {
+  assert.match(executionStatusHTML({ state: 'disabled' }), /沒有啟用執行狀態檢視。工作清單照常可用。/);
+  assert.match(executionStatusHTML({ state: 'demo' }), /示範模式不讀取正式執行狀態/);
+  assert.match(executionStatusHTML({ state: 'error', message: '<b>down</b>' }), /目前無法讀取執行狀態：&lt;b&gt;down&lt;\/b&gt;/);
+  assert.match(executionStatusHTML(undefined), /讀取中…/);
+  for (const status of NOT_STARTED) assert.equal(executionNow({ state: 'ready', view: statusView(status) }), '排隊中 · 尚未開始執行', status);
+  assert.equal(executionNow({ state: 'ready', view: statusView('IN_PROGRESS') }), '工作已有執行紀錄');
+  assert.equal(executionNow({ state: 'disabled' }), '排隊中 · 尚未開始執行');
+  assert.equal(executionNow({ state: 'ready', view: statusView('MADE_UP') }), '排隊中 · 尚未開始執行', 'an unknown status is never shown as one');
+  // Demo answers locally, labelled, and never reaches the server.
+  const demo = createDemoSource();
+  const [first] = (await demo.projects()).projects;
+  const queue = await demo.queue(first.projectId);
+  if (queue.goals[0]) assert.deepEqual(await demo.executionStatus(first.projectId, queue.goals[0].goalId), { provenance: 'DEMO_SAMPLE', demo: true });
+  // LIVE asks with GET and no body.
+  const requested = [];
+  const live = createLiveSource({ fetchImpl: async (...args) => { requested.push(args); return { ok: true, json: async () => statusView('RUN_IDLE') }; },
+    EventSourceImpl: class {} });
+  assert.equal((await live.executionStatus('cand', 'goal-1')).status, 'RUN_IDLE');
+  assert.deepEqual([requested[0][0], requested[0][1].method, requested[0][1].body], ['/api/v0/projects/cand/goals/goal-1/execution', 'GET', undefined]);
+  const app = read('app.js');
+  assert.match(app, /error\.status === 503 && error\.code === 'EXECUTION_STATUS_UNAVAILABLE' \? \{ state: 'disabled' \}/);
+  assert.doesNotMatch(app, /setInterval\([^)]*loadExecution|setTimeout\([^)]*loadExecution/, 'never polled');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

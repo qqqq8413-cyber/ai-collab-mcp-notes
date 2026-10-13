@@ -95,3 +95,39 @@ existing in-memory behavior and has no governance API integration in this slice.
 G1-LD1 adds the governed one-step execution driver core. No Workspace route, UI
 control, SSE event, port or automatic call reaches it: RA1 still ends at the IDLE
 ROOT run, and `GoalRunAdmissionPort` is unchanged.
+
+## WE1-R0 read-only execution status (optional, off by default)
+
+G1-WE1-R0 adds one read-only route, with the same D1 session and Host/Fetch-Site/header restrictions:
+
+- `GET /api/v0/projects/:projectId/goals/:goalId/execution`: no body, Content-Type, transfer body or query. There is no
+  POST or any other execution route.
+
+It is composed only when the trusted host configuration sets
+`governance.executionStatus: { authorityArchiveDirectory, architectPrincipalRef }`. Without it the route answers
+503 `EXECUTION_STATUS_UNAVAILABLE`, the host loads no status, read-model, runner or authority module, and everything
+else works as before. When set, the host requires the Change Registry, Controller store and Authority Archive roots
+to be pre-provisioned (real directories, owned by the host account, not group/other writable), mutually disjoint and
+disjoint from the Goal Store, the UI directory and every served asset, and `architectPrincipalRef` to be an exact R4P
+principal reference; any failure refuses before listen and creates nothing. No live model composition, provider
+credential, runner or journal is involved.
+
+The trusted bridge (`src/intake/goal-execution-status-bridge.ts`) derives everything from durable evidence: the
+durable Goal and its recorded Human (equal to the session Human), the Goal's exact GC1 Change (registry reader, never
+a mint), the Change's one ROOT runId (`"run-" + changeKey`), R4L admission and the R4A0 governed read. Lifecycle
+readiness and RP1 provenance come from `src/automation/execution-readiness.ts`, the same assessment LD1 uses. The
+Workspace receives only `GoalExecutionStatusPort.inspect`.
+
+Statuses (operational projections, never execution authority): `GOAL_NOT_GOVERNED`, `RUN_NOT_ADMITTED`,
+`ROOT_PENDING` (an interrupted admission's R4L claim; never completed by the read), `RUN_IDLE`, `WAITING_PACKET`,
+`BLOCKED_AUTHORITY`, `BLOCKED_PROVENANCE` (RP1-C1 reason codes), `WAITING_EXTERNAL_ACTOR`, `WAITING_HUMAN`,
+`IN_PROGRESS` (the runner protocol owns the next move; nothing is running because of this), `TERMINAL` and
+`GOVERNANCE_CONFLICT` (binding, registry, read-model or ROOT-identity contradictions; never repaired). Eligibility for
+a model call is always `EXECUTION_ELIGIBILITY_NOT_EVALUATED`: the live-call grants are not held here. The answer
+lists required direct authority that resolves (identifiers and version only) separately from operational provenance
+(whether the run carries the AP1 binding); it never contains a document body, hash, path, journal payload or secret.
+
+The UI shows a compact 執行狀態 section for the goal on 此刻, read when the goal first appears there and on 重新讀取
+only (never polled), with no execution, recovery or authorization control. Demo mode answers locally and never
+requests it. RP1-C1 dead ends (a re-issued packet, a correction after an unsupported stop/resume, a review under
+another Architect principal) are explained, not repaired; recovery needs a separate Architect decision.

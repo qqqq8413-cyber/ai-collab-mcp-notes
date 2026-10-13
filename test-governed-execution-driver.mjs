@@ -864,8 +864,11 @@ check('AF-AG-AH-AI. LD1 holds no appender; the archive reader stays in R4A0; R4A
     ['src/automation/authority/preserver.ts']);
   assert.doesNotMatch(text(join(ROOT, DRIVER)), /preserver|Preserver|ArchitectAuthoritySink|architect-review-authority/);
   assert.deepEqual(users(/openAuthorityArchiveReader/, ['src/automation/authority/file-archive.ts']), [READ_MODEL]);
-  assert.deepEqual(users(/read-model\/governed-read-model\.js/), ['src/automation/activation-core.ts', DRIVER]);
-  assert.deepEqual(users(/readGovernedModel\(/, [READ_MODEL]), ['src/automation/activation-core.ts', DRIVER]);
+  // G1-WE1-R0: the shared readiness assessment takes R4A0's types and schema; the read-only status bridge also reads R4A0.
+  assert.deepEqual(users(/read-model\/governed-read-model\.js/), ['src/automation/activation-core.ts', DRIVER,
+    'src/automation/execution-readiness.ts', 'src/intake/goal-execution-status-bridge.ts'].sort());
+  assert.deepEqual(users(/readGovernedModel\(/, [READ_MODEL]), ['src/automation/activation-core.ts', DRIVER,
+    'src/intake/goal-execution-status-bridge.ts'].sort());
   assert.equal((code(join(ROOT, DRIVER)).match(/readGovernedModel\(/g) ?? []).length, 1);
   // From R4P the driver takes only the existing body hash.
   assert.match(text(join(ROOT, DRIVER)), /import \{ authorityBodyHash, type AuthorityRefV1, type JsonObject \} from '\.\/authority\/document\.js';/);
@@ -874,7 +877,8 @@ check('AJ-AK-AL. Change Mint stays GC1\'s, run creation stays RA1\'s; LD1 holds 
   assert.deepEqual(users(/openChangeMinter|ChangeMinter/, ['src/automation/change-registry.ts']), ['src/intake/goal-change-bridge.ts']);
   assert.deepEqual(users(/\.createRun\(/, ['src/automation/controller.ts']), ['src/automation/root-run-admitter.ts']);
   assert.deepEqual(users(/openChangeRegistryReader\(/, ['src/automation/change-registry.ts']).sort(),
-    ['src/automation/activation-core.ts', DRIVER, 'src/intake/goal-change-bridge.ts', 'src/intake/goal-run-admission-bridge.ts'].sort());
+    ['src/automation/activation-core.ts', DRIVER, 'src/intake/goal-change-bridge.ts', 'src/intake/goal-execution-status-bridge.ts',
+      'src/intake/goal-run-admission-bridge.ts'].sort());
   const driver = code(join(ROOT, DRIVER)), live = code(join(ROOT, LIVE));
   for (const [file, source] of [[DRIVER, driver], [LIVE, live]]) {
     assert.doesNotMatch(source, /createRun|openRootRunAdmitter|root-run-admitter|\.mint\(|new AutomationController|new FileControllerStore|new AutomationRunner/, file);

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { parseHumanPrincipalV1, type HumanPrincipalV1, type WorkspaceConfig, type WorkspaceProject } from './config.js';
 import { FileGoalStore, GoalQueueRequestError, GoalStoreBusyError, GoalStoreIntegrityError, type GoalQueue, type QueueChange } from './goal-store.js';
 import { GoalGovernanceError, type GoalGovernancePort } from './goal-governance-port.js';
+import { GoalExecutionStatusError, type GoalExecutionStatusPort } from './goal-execution-status-port.js';
 import { GoalRunAdmissionError, type GoalRunAdmissionPort } from './goal-run-admission-port.js';
 
 // The local Workspace server (WS-L1). It serves the Workspace UI and a small API over
@@ -12,7 +13,8 @@ import { GoalRunAdmissionError, type GoalRunAdmissionPort } from './goal-run-adm
 //
 // What it can do: list configured projects; read, add, reorder, and remove eligible goals;
 // stream queue changes; request a mint through GC1's injected operational port; and ask RA1's injected
-// port to establish a governed goal's one ROOT run in IDLE (G1-RA1). It cannot step a run, enter
+// port to establish a governed goal's one ROOT run in IDLE (G1-RA1); and, when the trusted host configures it,
+// read a goal's governed execution status through G1-WE1-R0's read-only port. It cannot step a run, enter
 // architecture, issue a packet, call a model or record an authorization, and it holds no Controller
 // capability: the trusted host does the admission. The module graph is guarded by test-workspace-boundary.
 //
@@ -33,6 +35,7 @@ export const API_ROUTES = Object.freeze([
   'GET /api/v0/projects/:projectId/goals/:goalId/governance',
   'POST /api/v0/projects/:projectId/goals/:goalId/run',
   'GET /api/v0/projects/:projectId/goals/:goalId/run',
+  'GET /api/v0/projects/:projectId/goals/:goalId/execution',
   'GET /api/v0/stream',
 ] as const);
 const MAX_BODY_BYTES = 16 * 1024;
@@ -50,6 +53,7 @@ const STATIC: Readonly<Record<string, { file: string; type: string }>> = Object.
   '/live.js': { file: 'live.js', type: 'text/javascript; charset=utf-8' },
   '/demo.js': { file: 'demo.js', type: 'text/javascript; charset=utf-8' },
   '/collaboration.js': { file: 'collaboration.js', type: 'text/javascript; charset=utf-8' },
+  '/execution-status.js': { file: 'execution-status.js', type: 'text/javascript; charset=utf-8' },
   '/styles.css': { file: 'styles.css', type: 'text/css; charset=utf-8' },
 });
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; " +
@@ -72,6 +76,8 @@ export interface WorkspaceServerOptions {
   governance?: GoalGovernancePort;
   /** Injected by the trusted host (RA1). Workspace never holds the Controller or its store. */
   runAdmission?: GoalRunAdmissionPort;
+  /** Injected by the trusted host only when configured (G1-WE1-R0). Read-only: it can inspect, nothing else. */
+  executionStatus?: GoalExecutionStatusPort;
   clock?: { now(): string };
 }
 
@@ -256,6 +262,15 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
         json(response, 200, result);
         return;
       }
+      // G1-WE1-R0: read-only execution status. GET only; the browser names only the project and goal, with no body or query.
+      if (rest.length === 5 && rest[4] === 'execution' && method === 'GET') {
+        if (new URL(request.url ?? '/', 'http://local').search) throw new HttpError(400, 'UNKNOWN_FIELD', 'Execution status accepts only the project and goal identifiers in its route.');
+        await noBody(request);
+        const executionStatus = options.executionStatus;
+        if (!executionStatus) throw new HttpError(503, 'EXECUTION_STATUS_UNAVAILABLE', 'This Workspace has no read-only execution status bridge.');
+        json(response, 200, executionStatus.inspect(current.projectId, rest[3], submittedBy));
+        return;
+      }
       if (rest.length === 3 && method === 'GET') { json(response, 200, queueView(current, store.read(current.projectId))); return; }
       if (rest.length === 3 && method === 'POST') {
         const body = await readJson(request);
@@ -312,6 +327,12 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
         const status = error.code === 'UNKNOWN_GOAL' || error.code === 'UNKNOWN_PROJECT' ? 404 :
           error.code === 'GOAL_PRINCIPAL_MISMATCH' ? 403 :
           ['REGISTRY_INTEGRITY', 'GOVERNANCE_STORE_ISOLATION', 'RUN_ADMISSION_INTEGRITY'].includes(error.code) ? 500 : 409;
+        json(response, status, { error: { code: error.code, message: error.message } });
+        return;
+      }
+      if (error instanceof GoalExecutionStatusError) {
+        const status = error.code === 'UNKNOWN_GOAL' || error.code === 'UNKNOWN_PROJECT' ? 404 :
+          error.code === 'GOAL_PRINCIPAL_MISMATCH' ? 403 : error.code === 'UNATTRIBUTED_GOAL' ? 409 : 500;
         json(response, status, { error: { code: error.code, message: error.message } });
         return;
       }
