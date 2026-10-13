@@ -8,7 +8,7 @@ import type { HumanPrincipalV1 } from '../identity/canonical.js';
 // governed evidence, never execution authority.
 
 export const GOAL_EXECUTION_STATUSES = Object.freeze(['GOAL_NOT_GOVERNED', 'RUN_NOT_ADMITTED', 'ROOT_PENDING', 'RUN_IDLE',
-  'WAITING_PACKET', 'BLOCKED_AUTHORITY', 'BLOCKED_PROVENANCE', 'WAITING_EXTERNAL_ACTOR', 'WAITING_HUMAN', 'IN_PROGRESS', 'TERMINAL',
+  'WAITING_PACKET', 'WAITING_TO_START', 'BLOCKED_AUTHORITY', 'BLOCKED_PROVENANCE', 'WAITING_EXTERNAL_ACTOR', 'WAITING_HUMAN', 'IN_PROGRESS', 'TERMINAL',
   'GOVERNANCE_CONFLICT'] as const);
 export type GoalExecutionStatus = typeof GOAL_EXECUTION_STATUSES[number];
 

@@ -12,6 +12,7 @@ export const EXECUTION_LABELS = Object.freeze({
   ROOT_PENDING: '執行任務建立中斷，等待人工重新建立',
   RUN_IDLE: '執行任務已建立，尚未開始',
   WAITING_PACKET: '等待正式工作文件',
+  WAITING_TO_START: '工作文件已備妥，等待開始實作',
   BLOCKED_AUTHORITY: '缺少必要授權',
   BLOCKED_PROVENANCE: '工作來源無法確認，已停止執行',
   WAITING_EXTERNAL_ACTOR: '等待其他角色處理',
@@ -26,6 +27,7 @@ const EXPLAIN = Object.freeze({
   ROOT_PENDING: '上次建立執行任務時中斷，留下了待完成的登記。這裡不會自動補完。',
   RUN_IDLE: '執行任務存在，但還沒有進入架構階段，也沒有正式工作文件。',
   WAITING_PACKET: '已進入架構階段，還沒有發出正式工作文件。',
+  WAITING_TO_START: '正式工作文件已備妥，但實作尚未開始：沒有任何 AI 模型已被啟動，這裡沒有執行按鈕，系統也尚未評估是否具備執行資格。',
   BLOCKED_AUTHORITY: '這個任務依據的正式文件或授權，在授權封存裡找不到完全相符的版本。',
   WAITING_EXTERNAL_ACTOR: '下一步屬於 Architect、控制器或其他角色，不是這個畫面能代為處理的。',
   WAITING_HUMAN: '下一步只能由人工決定，例如恢復、授權或其他人工處理。',
@@ -64,7 +66,7 @@ const ACTION = Object.freeze({
 const KIND = Object.freeze({ IMPLEMENTATION_PACKET: '正式工作文件', CORRECTION_PACKET: '修正文件', ACCEPTANCE_DECISION: '驗收決定',
   AUTHORIZATION: '人工授權' });
 /** Statuses with no governed execution record yet: the queue's own wording stays true for them. */
-export const NOT_STARTED = Object.freeze(['GOAL_NOT_GOVERNED', 'RUN_NOT_ADMITTED', 'ROOT_PENDING', 'RUN_IDLE', 'WAITING_PACKET']);
+export const NOT_STARTED = Object.freeze(['GOAL_NOT_GOVERNED', 'RUN_NOT_ADMITTED', 'ROOT_PENDING', 'RUN_IDLE', 'WAITING_PACKET', 'WAITING_TO_START']);
 
 /** The goal's current wording on the stage: the queue wording until the governed status shows recorded execution. */
 export function executionNow(entry) {

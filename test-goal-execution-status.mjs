@@ -360,7 +360,7 @@ await check('W/V. no POST, DELETE or other execution route exists; GETs never st
   assert.deepEqual(API_ROUTES.filter((item) => /execution/.test(item)), ['GET /api/v0/projects/:projectId/goals/:goalId/execution']);
   assert.ok(!API_ROUTES.some((item) => /\/(step|execute|activate|resume|recover|correct|authoriz|promote|drive|start)\b/.test(item)));
   const audit = controller.audit(runId).length;
-  for (let i = 0; i < 5; i++) S(await status(ws, f), 'IN_PROGRESS');
+  for (let i = 0; i < 5; i++) S(await status(ws, f), 'WAITING_TO_START');
   assert.equal(controller.audit(runId).length, audit, 'a GET moved the run');
   assert.equal(controller.get(runId).state, 'PACKET_READY');
 });
@@ -406,12 +406,16 @@ await check('M/N/S. no packet is never model READY; unarchived authority is BLOC
   assert.deepEqual([blocked.attention, blocked.unresolvedAuthority, blocked.directAuthority],
     ['ARCHITECT', [{ kind: 'IMPLEMENTATION_PACKET', authorityId: 'packet-1', resolution: 'NOT_ARCHIVED' }], []]);
   archive('IMPLEMENTATION_PACKET', body);
-  const progress = S(await status(ws, f), 'IN_PROGRESS');
+  const progress = S(await status(ws, f), 'WAITING_TO_START');
   assert.deepEqual([progress.reason, progress.attention, progress.run.state, progress.nextMoves],
     [null, 'AUTOMATED_ACTOR', 'PACKET_READY', [{ action: 'BEGIN_IMPLEMENTATION', role: 'CODEX_IMPLEMENTER' }]]);
   assert.deepEqual(progress.directAuthority, [{ recordClass: 'DIRECT_AUTHORITY', kind: 'IMPLEMENTATION_PACKET', authorityId: 'packet-1', version: 1 }]);
   assert.deepEqual(progress.operationalProvenance, { recordClass: 'OPERATIONAL_RECORD', activationBound: true });
   const text = JSON.stringify(progress);
+  await controller.beginImplementation(runId, X);
+  const begun = S(await status(ws, f), 'IN_PROGRESS');
+  assert.equal(begun.run.state, 'IMPLEMENTING');
+  assert.equal(begun.executionEligibility, 'EXECUTION_ELIGIBILITY_NOT_EVALUATED');
   for (const secret of ['activationBinding', 'packetHash', 'recordHash', 'bodyHash', body.objective, f.authority, f.controller, f.registry, ARCHITECT,
     'checksum', 'validationEvidence']) assert.equal(text.includes(secret), false, `the status exposed ${secret}`);
 });

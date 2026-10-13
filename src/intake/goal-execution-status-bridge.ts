@@ -112,7 +112,8 @@ export function createGoalExecutionStatusBridge(options: GoalExecutionStatusBrid
       operationalProvenance: { recordClass: 'OPERATIONAL_RECORD', activationBound: run.provenance.activationBinding !== null } };
     const roles = assessed.nextMoves.map((move) => move.role);
     switch (assessed.outcome) {
-      case 'RUNNER_MOVE': return view('IN_PROGRESS', 'AUTOMATED_ACTOR', { ...facts, reason: null });
+      case 'RUNNER_MOVE':
+        return view(run.state === 'PACKET_READY' ? 'WAITING_TO_START' : 'IN_PROGRESS', 'AUTOMATED_ACTOR', { ...facts, reason: null });
       case 'BLOCKED_AUTHORITY':
         return view('BLOCKED_AUTHORITY', attentionOf(facts.unresolvedAuthority!.map((item) => item.kind === 'AUTHORIZATION' ? 'HUMAN' : 'GPT_ARCHITECT')), facts);
       case 'BLOCKED_PROVENANCE': return view('BLOCKED_PROVENANCE', 'ARCHITECT', facts);

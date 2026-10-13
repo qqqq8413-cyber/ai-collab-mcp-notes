@@ -21,6 +21,20 @@ async function check(name, fn) {
 }
 const read = (file) => readFileSync(join('workspace-ui', file), 'utf8');
 
+await check('CHIEF-LITE-P1 WAITING_TO_START: packet ready but not started, read-only with no action or input control', () => {
+  assert.equal(EXECUTION_LABELS.WAITING_TO_START, '工作文件已備妥，等待開始實作');
+  assert.ok(NOT_STARTED.includes('WAITING_TO_START'));
+  assert.equal(executionNow({ state: 'ready', view: { status: 'WAITING_TO_START' } }), '排隊中 · 尚未開始執行');
+  const html = executionStatusHTML({ state: 'ready', view: { status: 'WAITING_TO_START', attention: 'AUTOMATED_ACTOR',
+    run: { state: 'PACKET_READY', terminal: false }, nextMoves: [], directAuthority: [], unresolvedAuthority: [],
+    operationalProvenance: null, executionEligibility: 'EXECUTION_ELIGIBILITY_NOT_EVALUATED', reason: null } });
+  assert.ok(html.includes('工作文件已備妥，等待開始實作'), 'label rendered');
+  assert.ok(html.includes('未評估'), 'eligibility not evaluated');
+  const buttons = [...html.matchAll(/<button\b[^>]*>/g)].map((m) => m[0]);
+  assert.equal(buttons.length, 1, 'exactly one button');
+  assert.ok(buttons[0].includes('data-act="exec-refresh"'), 'only the read-only refresh');
+  assert.doesNotMatch(html, /<(form|input|select)\b/, 'no form, input or select');
+});
 await check('demo mode runs entirely in memory and never touches the network', async () => {
   const touched = [];
   const saved = { fetch: globalThis.fetch, EventSource: globalThis.EventSource };
@@ -596,10 +610,11 @@ const statusView = (status, extra = {}) => ({ readModelVersion: 'goal-execution-
   notice: 'n', ...extra });
 await check('WE1-R0 UI: every status has its truthful Traditional Chinese label and offers no execution, recovery or authorization control', () => {
   assert.deepEqual(Object.keys(EXECUTION_LABELS).sort(), ['BLOCKED_AUTHORITY', 'BLOCKED_PROVENANCE', 'GOAL_NOT_GOVERNED', 'GOVERNANCE_CONFLICT',
-    'IN_PROGRESS', 'ROOT_PENDING', 'RUN_IDLE', 'RUN_NOT_ADMITTED', 'TERMINAL', 'WAITING_EXTERNAL_ACTOR', 'WAITING_HUMAN', 'WAITING_PACKET']);
-  assert.deepEqual([EXECUTION_LABELS.RUN_IDLE, EXECUTION_LABELS.WAITING_PACKET, EXECUTION_LABELS.BLOCKED_AUTHORITY, EXECUTION_LABELS.BLOCKED_PROVENANCE,
+    'IN_PROGRESS', 'ROOT_PENDING', 'RUN_IDLE', 'RUN_NOT_ADMITTED', 'TERMINAL', 'WAITING_EXTERNAL_ACTOR', 'WAITING_HUMAN', 'WAITING_PACKET',
+    'WAITING_TO_START']);
+  assert.deepEqual([EXECUTION_LABELS.RUN_IDLE, EXECUTION_LABELS.WAITING_PACKET, EXECUTION_LABELS.WAITING_TO_START, EXECUTION_LABELS.BLOCKED_AUTHORITY, EXECUTION_LABELS.BLOCKED_PROVENANCE,
     EXECUTION_LABELS.WAITING_HUMAN, EXECUTION_LABELS.IN_PROGRESS, EXECUTION_LABELS.TERMINAL],
-  ['執行任務已建立，尚未開始', '等待正式工作文件', '缺少必要授權', '工作來源無法確認，已停止執行', '需要人工處理', '工作已有執行紀錄', '工作流程已結束']);
+  ['執行任務已建立，尚未開始', '等待正式工作文件', '工作文件已備妥，等待開始實作', '缺少必要授權', '工作來源無法確認，已停止執行', '需要人工處理', '工作已有執行紀錄', '工作流程已結束']);
   const module = read('execution-status.js');
   assert.doesNotMatch(module, /fetch|EventSource|XMLHttpRequest|\/api\/|localStorage|document\.|import /, 'pure: no network, storage or DOM');
   for (const status of Object.keys(EXECUTION_LABELS)) {
@@ -608,7 +623,8 @@ await check('WE1-R0 UI: every status has its truthful Traditional Chinese label 
     assert.ok(html.includes(EXECUTION_LABELS[status]), status);
     const buttons = [...html.matchAll(/<button\b[^>]*>/g)].map((m) => m[0]);
     assert.deepEqual(buttons.map((b) => /data-act="exec-refresh"/.test(b)), [true], `${status}: only the read-only refresh`);
-    assert.doesNotMatch(html, /執行此任務|開始執行|強制|繼續執行|恢復執行|授權此|批准|核准此|force|bypass|resume|start/i, status);
+    // The trusted display-only status class 'exec-waiting-to-start' is not an action; strip only that exact string so "start" in it is not a false positive.
+    assert.doesNotMatch(html.replaceAll('exec-waiting-to-start', ''), /執行此任務|開始執行|強制|繼續執行|恢復執行|授權此|批准|核准此|force|bypass|resume|start/i, status);
     // The one disclaimer that names activity says it is not happening.
     assert.doesNotMatch(html.replace('這不代表 AI 此刻正在運作。', ''), /正在(執行|處理|運作)|AI 正在|Claude|Codex|\d+\s*%|進度/,
       `${status}: no fabricated activity, agent or progress`);
