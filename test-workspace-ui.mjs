@@ -10,7 +10,7 @@ import { createLiveSource } from './workspace-ui/live.js';
 import { BROADCAST_SENT, BROADCAST_SHOWN, EMPTY_ROOM, EVENT_TYPES, IDENTITY_RULES, NEEDS_EMPTY, attachmentsHTML, collaborationRoom, conversationHTML, conversationOf, decisionHTML, evidenceHTML,
   identityOf, labelsOf,
   messageHTML, needsHTML, parseCollaborationEvents, roomHTML, summarizeCollaboration } from './workspace-ui/collaboration.js';
-import { arrivals, opened, replayStart, revealed } from './workspace-ui/conversation.js';
+import { activeWindowId, arrivals, opened, replayStart, revealed } from './workspace-ui/conversation.js';
 import { EXECUTION_LABELS, NOT_STARTED, PROVENANCE_EXPLAIN, executionNow, executionStatusHTML } from './workspace-ui/execution-status.js';
 
 // WS-L1 Workspace UI data layer: LIVE talks only to /api/v0 on its own origin; demo is
@@ -704,7 +704,9 @@ await check('UI-C1 layout: the gold 需要你 strip, then the windows; side by s
   assert.match(block, /\.room-body\{[^}]*container:room\/inline-size/);
   assert.match(block, /\.conv\{[^}]*container:conv\/inline-size/);
   assert.match(block, /\.cw\{display:none;/, 'narrow: one window at a time');
-  assert.match(block, /\.chats\[data-active="1"\] \.cw\[data-w="1"\][\s\S]*\.chats\[data-active="8"\] \.cw\[data-w="8"\]\{display:flex\}/);
+  assert.match(block, /\.chats \.cw\.cw-active[^{}]*\{display:flex\}/, 'the current participant, not a hardcoded position, is visible');
+  assert.doesNotMatch(block, /\.chats\[data-active=/, 'no positional cap for participants');
+  assert.match(read('conversation.js'), /classList\.toggle\('cw-active', win === active\)/, 'one active window is selected dynamically');
   const wide = block.slice(block.indexOf('@container conv (min-width:720px){'), block.indexOf('.cw-h{'));
   assert.match(wide, /\.cw-tabs\{display:none\}/);
   assert.match(wide, /\.chats\{grid-template-columns:repeat\(var\(--n,1\),minmax\(0,1fr\)\)\}/);
@@ -714,6 +716,30 @@ await check('UI-C1 layout: the gold 需要你 strip, then the windows; side by s
   const gold = block.match(/[^{}]+\{[^}]*(--gold|--human)[^}]*\}/g).map((rule) => rule.trim().split('{')[0]);
   assert.deepEqual(gold, ['.nstrip.has-need .nr-h', '.cm.t-escalation .bub', '.cm.t-escalation .cm-t'], 'gold only for what needs the Human');
   assert.doesNotMatch(css, /\.rg\b|\.rtabs|\.xg|\.ev-n|\.csum/, 'the replaced two-area, exchange and summary styles are gone');
+});
+
+await check('UI-C1-C2 mobile selects every valid participant, including the 9th through 32nd, by stable ID', () => {
+  const participants = Array.from({ length: 32 }, (_, i) => ({ id: `p${i}`, name: `Person ${i}` }));
+  const events = [ev({ id: 'ui-c1-c2-msg', actor: 'Person 0', actorId: 'p0', to: ['p1'], timestamp: at(0) })];
+  const room = collaborationRoom('p', { participants, events });
+  assert.equal(room.identity, 'IDENTIFIED');
+  assert.equal(room.unverified, 0);
+  const windows = conversationOf(room);
+  assert.equal(windows.length, 32, 'all directory participants appear, including those with no messages');
+  assert.deepEqual(windows.map((w) => w.key), participants.map((p) => p.id));
+  const html = conversationHTML(room);
+  assert.equal((html.match(/role="tab"/g) ?? []).length, 32);
+  assert.equal((html.match(/<section class="cw"/g) ?? []).length, 32);
+  assert.match(html, /data-cw="32" data-p="p31"/);
+  assert.match(html, /data-w="32" data-p="p31"/);
+  const ids = windows.map((w) => w.key);
+  for (const n of [1, 8, 9, 16, 32]) assert.equal(activeWindowId(ids, `p${n - 1}`), `p${n - 1}`, `window ${n} selectable`);
+  assert.equal(activeWindowId(ids, 'gone'), 'p0', 'unknown participant falls back to the first');
+  assert.equal(activeWindowId([], 'p0'), null, 'empty room has no active window');
+  const tooMany = collaborationRoom('p', { participants: [...participants, { id: 'p32', name: 'Person 32' }], events });
+  assert.equal(tooMany.identity, 'NO_DIRECTORY', '33 participants are invalid rather than silently dropped');
+  assert.equal(conversationOf(tooMany), null);
+  assert.doesNotMatch(conversationHTML(tooMany), /role="tab"/, 'invalid directory shows read-only record without guessed windows');
 });
 
 await check('WS-P2 addresses still work: 需要你 links land on 協作室 /needs, where the strip is the first thing', () => {

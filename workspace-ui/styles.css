@@ -453,8 +453,7 @@ ol,ul{margin:0;padding:0;list-style:none}
 .cw-unread .cw-dot{opacity:1}
 .chats{display:grid;gap:14px;min-width:0}
 .cw{display:none;flex-direction:column;min-width:0;height:clamp(420px,calc(100vh - 290px),720px);border-radius:var(--r);background:var(--tint);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fg) 8%,transparent),var(--shadow-1);overflow:hidden}
-.chats[data-active="1"] .cw[data-w="1"],.chats[data-active="2"] .cw[data-w="2"],.chats[data-active="3"] .cw[data-w="3"],.chats[data-active="4"] .cw[data-w="4"],
-.chats[data-active="5"] .cw[data-w="5"],.chats[data-active="6"] .cw[data-w="6"],.chats[data-active="7"] .cw[data-w="7"],.chats[data-active="8"] .cw[data-w="8"]{display:flex}
+.chats .cw.cw-active,.chats:not(:has(.cw-active)) .cw:first-child{display:flex}
 @container conv (min-width:720px){
   .cw-tabs{display:none}
   .chats{grid-template-columns:repeat(var(--n,1),minmax(0,1fr))}

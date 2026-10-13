@@ -55,10 +55,13 @@ function step() {
   });
 }
 
+/** Select by stable participant ID, not a positional limit. */
+export const activeWindowId = (ids, active) => ids.includes(active) ? active : ids[0] ?? null;
+
 // The window in front: the participant last opened, or the first window when that participant has none here.
 function front(root) {
   const windows = [...root.querySelectorAll('.cw')];
-  if (!windows.some((win) => win.dataset.p === S.active)) S.active = windows[0]?.dataset.p ?? null;
+  S.active = activeWindowId(windows.map((win) => win.dataset.p), S.active);
   return windows.find((win) => win.dataset.p === S.active);
 }
 function wideRoom(root) {
@@ -69,7 +72,9 @@ function wideRoom(root) {
 function apply() {
   const root = conv();
   if (!root) return;
-  root.querySelector('.chats').dataset.active = front(root)?.dataset.w ?? '1';
+  const active = front(root);
+  for (const win of root.querySelectorAll('.cw')) win.classList.toggle('cw-active', win === active);
+  root.querySelector('.chats').dataset.active = active?.dataset.w ?? '1';
   for (const tab of root.querySelectorAll('[data-cw]')) tab.setAttribute('aria-selected', String(tab.dataset.p === S.active));
   const wide = wideRoom(root);
   for (const win of S.replay ? root.querySelectorAll('.cw') : []) {
