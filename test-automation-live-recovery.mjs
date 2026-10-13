@@ -7,6 +7,7 @@ import { FileControllerStore } from './dist/automation/durable-store.js';
 import { FileInvocationJournal } from './dist/automation/file-invocation-journal.js';
 import { InvocationJournalIntegrityError, invocationIdOf, sha256Hex } from './dist/automation/invocation-journal.js';
 import { AutomationRunner } from './dist/automation/runner.js';
+import { ARCHITECT_REVIEW_ACTOR } from './dist/automation/bridge.js';
 
 // The runner with a durable invocation journal, across every crash window: a restart is
 // a new controller, store, journal, and runner over the same directories. Ports are
@@ -472,17 +473,53 @@ check('G1-RP1: a record for the same run, sequence and actor kind made for anoth
   assert.equal(done.calls.implementation.length + twin.calls.implementation.length, 1);
 }));
 check('G1-RP1: an actor occurrence another writer entered is never dispatched, for either actor', withDir(async (dir) => {
-  const live = open(dir, { create: true });
-  for (let i = 0; i < 3; i++) await live.runner.step('run-1');
-  assert.equal(live.controller.get('run-1').state, 'REMOTE_SHA_READY');
-  // The review occurrence is entered by a Controller caller that is not a runner: nobody prepared a call for it.
-  live.controller.beginAcceptanceReview('run-1', G);
-  // Even the runner that drove the run this far owns nothing at that occurrence.
-  const result = await live.runner.step('run-1');
-  assert.deepEqual([result.state, result.stopReason], ['HUMAN_STOP', 'uncertain architect-review side effect after runner restart; not replayed']);
-  assert.equal(live.calls.review.length, 0);
-  assert.equal(live.journal.find('run-1', 6, 'ARCHITECT_REVIEW'), undefined);
-  assert.equal(count(live.controller, 'ACCEPT_EXACT_SHA') + count(live.controller, 'REJECT_EXACT_SHA'), 0);
+  for (const [label, architect, expected] of [
+    // G1-RP1-C1: begun under another Architect principal: not this runner's review; nothing is written at all.
+    ['another principal', G, ['ACCEPTANCE_REVIEW', 'PROVENANCE_MISMATCH']],
+    // Begun under this runner's own principal by a Controller caller that is not a runner: nobody prepared a call.
+    ['same principal, no invocation', ARCHITECT_REVIEW_ACTOR, ['HUMAN_STOP', 'STOPPED']],
+  ]) {
+    const live = open(join(dir, label.replace(/\W/g, '-')), { create: true });
+    for (let i = 0; i < 3; i++) await live.runner.step('run-1');
+    assert.equal(live.controller.get('run-1').state, 'REMOTE_SHA_READY');
+    live.controller.beginAcceptanceReview('run-1', architect);
+    const length = live.controller.audit('run-1').length;
+    // Even the runner that drove the run this far owns nothing at that occurrence.
+    const result = await live.runner.step('run-1');
+    assert.deepEqual([result.state, result.outcome], expected, label);
+    if (expected[0] === 'HUMAN_STOP') assert.equal(result.stopReason, 'uncertain architect-review side effect after runner restart; not replayed');
+    else assert.equal(live.controller.audit('run-1').length, length, `${label}: a mismatched principal wrote to the Controller`);
+    assert.equal(live.calls.review.length, 0, label);
+    assert.equal(live.journal.find('run-1', 6, 'ARCHITECT_REVIEW'), undefined, label);
+    assert.equal(count(live.controller, 'ACCEPT_EXACT_SHA') + count(live.controller, 'REJECT_EXACT_SHA'), 0, label);
+  }
+}));
+
+// G1-RP1-C1 O1: an invocation keeps the exact grant it was prepared under; a newer grant never stands in for it.
+check('G1-RP1-C1 O1: a newer exact grant never replaces the authorization an invocation was prepared or completed under', withDir(async (dir) => {
+  const newer = grants({ IMPLEMENTATION: grant(IMPL, { authorizationId: 'auth-anthropic-newer' }) });
+  // PREPARED under auth-anthropic; a restarted runner holding only the newer grant does not dispatch it.
+  const first = open(join(dir, 'prepared'), { create: true });
+  await first.runner.step('run-1');
+  assert.equal(first.journal.find('run-1', 3, 'IMPLEMENTATION').identity.authorizationId, 'auth-anthropic');
+  const swapped = open(join(dir, 'prepared'), { authorizations: newer });
+  const result = await swapped.runner.step('run-1');
+  assert.deepEqual([result.state, result.stopReason], ['HUMAN_STOP', 'live model call not authorized by an exact current human grant; not dispatched']);
+  const record = swapped.journal.find('run-1', 3, 'IMPLEMENTATION');
+  assert.deepEqual([record.state, record.identity.authorizationId, record.history.some((entry) => entry.state === 'STARTED')],
+    ['ABANDONED', 'auth-anthropic', false]);
+  assert.equal(first.calls.implementation.length + swapped.calls.implementation.length, 0);
+  // COMPLETED under auth-anthropic: applied without another call, and still attributed to auth-anthropic.
+  const store = crashingStore(join(dir, 'completed'));
+  const done = open(join(dir, 'completed'), { create: true, store });
+  await done.runner.step('run-1');
+  store.armed = true;
+  await assert.rejects(done.runner.step('run-1'));
+  const later = open(join(dir, 'completed'), { authorizations: newer });
+  assert.equal((await later.runner.step('run-1')).state, 'IMPLEMENTATION_COMPLETE');
+  const applied = later.journal.find('run-1', 3, 'IMPLEMENTATION');
+  assert.deepEqual([applied.state, applied.identity.authorizationId, applied.result.metadata.authorizationId], ['APPLIED', 'auth-anthropic', 'auth-anthropic']);
+  assert.equal(done.calls.implementation.length + later.calls.implementation.length, 1);
 }));
 
 let passed = 0, failed = 0;

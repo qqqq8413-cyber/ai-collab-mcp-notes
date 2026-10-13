@@ -2,8 +2,8 @@ import { z } from 'zod';
 import { parseChangeIdentity } from './admission.js';
 import { InMemoryControllerStore, type ControllerStore } from './audit.js';
 import {
-  acceptedAt, assertRunInvariants, assertTransition, isActiveState, isStopState, isTerminalState, parseAcceptanceDecision,
-  parseActivationBinding, preflightPasses,
+  acceptedAt, assertRunInvariants, assertTransition, holdsCurrentCorrection, isActiveState, isStopState, isTerminalState,
+  parseAcceptanceDecision, parseActivationBinding, preflightPasses,
 } from './lifecycle.js';
 import { packetHash, parseCorrection, parsePacket, validateCorrection } from './packet.js';
 import { evaluatePolicy, matchAuthorization, parseAuthorization } from './policy.js';
@@ -204,9 +204,7 @@ export class AutomationController {
     if (run.implementationIterations >= run.activePacket.iterationBudget.maxImplementationIterationsPerSlice) {
       return this.#halt(run, CONTROLLER, 'HUMAN_STOP', 'implementation iteration budget exhausted', now);
     }
-    if (run.state === 'CORRECTION_REQUIRED' &&
-        (run.correctionPacket?.rejectedSha !== run.remoteSha?.sha ||
-         run.correctionPacket?.correctionIteration !== run.implementationIterations + 1)) {
+    if (run.state === 'CORRECTION_REQUIRED' && !holdsCurrentCorrection(run)) {
       throw new Error('Current rejection requires an exact correction packet');
     }
     run.implementationIterations += 1;
@@ -302,7 +300,7 @@ export class AutomationController {
     this.#atOccurrence(run, occurrence);
     this.#require(run, 'CORRECTION_REQUIRED', who, 'GPT_ARCHITECT');
     this.#needsRecheck(run);
-    if (run.correctionPacket?.rejectedSha === run.remoteSha?.sha || !run.activePacket || !run.activePacketHash ||
+    if (holdsCurrentCorrection(run) || !run.activePacket || !run.activePacketHash ||
         run.acceptance?.decision !== 'REJECT' || !run.remoteSha) throw new Error('Correction already recorded or rejection missing');
     const correction = parseCorrection(input);
     validateCorrection(correction, run.activePacket, run.activePacketHash, run.remoteSha.sha,

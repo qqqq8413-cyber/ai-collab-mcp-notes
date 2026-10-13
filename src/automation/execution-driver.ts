@@ -28,13 +28,21 @@ import { ACTOR_KINDS, type ActorKind, type Clock, type ControllerState, type Pro
 //   to be archived in R4P as that exact HUMAN AUTHORIZATION version for this Change. The
 //   runner's own dispatch gate (time, packet entry, egress, budget) still runs unchanged.
 //
+// G1-RP1-C1: current state and resolved authority are not provenance. A runner move is READY
+// only when R4A0's operational provenance shows the governed lineage of what it executes on:
+// the active packet issued by the AP1-bound architecture entry of the configured Architect
+// principal (binding present, both entries that principal's, active packet = binding), no later
+// architecture entry, packet issue or return to architecture (no governed re-activation path
+// exists), and every review entry, decision and correction in the run's history that principal's,
+// each correction directly after the rejection it answers. inspect and step share this gate.
+//
 // One step() calls runner.step at most once, bound to the exact audit position the gate
 // read, so a run another writer moved is never stepped from a position nobody gated. There
 // is no loop, retry or continuation. Nothing here mints a Change, creates a run, writes a
 // Controller transition itself, or appends authority. Results are operational records:
 // identifiers, states and bounded reason codes, never a path, a body, a grant or a payload.
 
-export const EXECUTION_READINESS = Object.freeze(['READY', 'BLOCKED_AUTHORITY', 'WAITING_EXTERNAL_ACTOR', 'WAITING_HUMAN',
+export const EXECUTION_READINESS = Object.freeze(['READY', 'BLOCKED_AUTHORITY', 'BLOCKED_PROVENANCE', 'WAITING_EXTERNAL_ACTOR', 'WAITING_HUMAN',
   'TERMINAL', 'EXECUTION_TARGET_INVALID', 'EXECUTION_CHANGE_NOT_FOUND', 'EXECUTION_RUN_NOT_FOUND', 'EXECUTION_TARGET_MISMATCH',
   'EXECUTION_ADMISSION_INVALID', 'EXECUTION_REGISTRY_INTEGRITY', 'EXECUTION_READ_MODEL_CONFLICT'] as const);
 export type ExecutionReadiness = typeof EXECUTION_READINESS[number];
@@ -99,6 +107,8 @@ export interface GovernedExecutionDriverOptions {
   liveCallAuthorizations: Readonly<Partial<Record<ActorKind, unknown>>>;
   /** The exact scope each actor's adapter calls. */
   scopes: Readonly<Record<ActorKind, ProviderCallScope>>;
+  /** Trusted configuration: the GPT_ARCHITECT principal whose lineage a governed run must carry. Stated, not authenticated. */
+  architectPrincipalRef: string;
   clock?: Clock;
 }
 
@@ -115,8 +125,30 @@ const PROTOCOL: Readonly<Partial<Record<ControllerState, Protocol>>> = Object.fr
     actor: 'ARCHITECT_REVIEW' },
 });
 // Runner outcomes that mean the run left the gated position or another writer holds the work.
-const RACE_OUTCOMES: ReadonlySet<string> = new Set(['STALE_OCCURRENCE', 'INVOCATION_CLAIMED', 'ACTOR_RESULT_DISCARDED']);
+const RACE_OUTCOMES: ReadonlySet<string> = new Set(['STALE_OCCURRENCE', 'INVOCATION_CLAIMED', 'ACTOR_RESULT_DISCARDED',
+  'PROVENANCE_MISMATCH']);
 const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$/;
+const REISSUES: ReadonlySet<string> = new Set(['ENTER_ARCHITECTURE', 'ISSUE_PACKET', 'RETURN_TO_ARCHITECTURE']);
+const DECISIONS: ReadonlySet<string> = new Set(['BEGIN_REMOTE_ACCEPTANCE', 'ACCEPT_EXACT_SHA', 'REJECT_EXACT_SHA', 'ISSUE_CORRECTION_PACKET']);
+
+/** Why the run's recorded provenance is not the governed lineage a runner step may execute on; null when it is. */
+function lineageRefusal(run: GovernedRunV1, principalRef: string): string | null {
+  const { activationBinding: binding, architectEntries: entries } = run.provenance;
+  const [entered, issued] = entries;
+  if (!binding || entered?.sequence !== 1 || entered.action !== 'ENTER_ARCHITECTURE' || issued?.sequence !== 2 ||
+      issued.action !== 'ISSUE_PACKET') return 'ACTIVATION_LINEAGE_MISSING';
+  if (entered.actor !== principalRef || issued.actor !== principalRef) return 'ACTIVATION_LINEAGE_FOREIGN';
+  for (const entry of entries.slice(2)) {
+    if (REISSUES.has(entry.action)) return 'PACKET_REISSUED';
+    if (!DECISIONS.has(entry.action)) continue;
+    if (entry.actor !== principalRef) return entry.action === 'ISSUE_CORRECTION_PACKET' ? 'CORRECTION_LINEAGE_FOREIGN' : 'REVIEW_LINEAGE_FOREIGN';
+    if (entry.action === 'ISSUE_CORRECTION_PACKET' &&
+        entries.find((prior) => prior.sequence === entry.sequence - 1)?.action !== 'REJECT_EXACT_SHA') return 'CORRECTION_LINEAGE_UNBOUND';
+  }
+  if (issued.packetId !== binding.packetId || issued.packetHash !== binding.packetHash || run.packet?.packetId !== binding.packetId ||
+      run.packet.packetHash !== binding.packetHash) return 'ACTIVATION_PACKET_MISMATCH';
+  return null;
+}
 
 function deepFreeze<T>(value: T): T {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -159,6 +191,9 @@ export function openGovernedExecutionDriver(options: GovernedExecutionDriverOpti
   const runner = options.runner;
   const callRunner = (runId: string, expected: RunnerPositionGuard) => step.call(runner, runId, expected);
   const scopes = snapshotScopes(options.scopes);
+  const principalRef = options.architectPrincipalRef;
+  if (typeof principalRef !== 'string' || !principalRef || principalRef.trim() !== principalRef || principalRef.length > 256 ||
+      /[\u0000-\u001f\u007f]/.test(principalRef)) throw new TypeError('The execution driver requires an exact architectPrincipalRef');
   // Snapshotted, like the runner's own copy: a grant changed after composition is not the grant supplied.
   const grants = deepFreeze(structuredClone({ IMPLEMENTATION: options.liveCallAuthorizations?.IMPLEMENTATION,
     ARCHITECT_REVIEW: options.liveCallAuthorizations?.ARCHITECT_REVIEW }));
@@ -229,6 +264,10 @@ export function openGovernedExecutionDriver(options: GovernedExecutionDriverOpti
       const human = nextAction.moves.length > 0 && nextAction.moves.every((move) => move.role === 'HUMAN');
       return answer(human ? 'WAITING_HUMAN' : 'WAITING_EXTERNAL_ACTOR', 'NOT_A_RUNNER_MOVE');
     }
+
+    // 5b. G1-RP1-C1: what the step executes on must carry the governed lineage, not merely look valid.
+    const refusal = lineageRefusal(run, principalRef);
+    if (refusal) return answer('BLOCKED_PROVENANCE', refusal);
 
     // 6. A model-call step also rests on the exact archived Human grant for this actor.
     let liveCall: LiveCallGrantProofV1 | null = null;

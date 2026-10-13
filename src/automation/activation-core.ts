@@ -1,5 +1,5 @@
 import {
-  authorityBodyHash, isAuthorityPrincipalRef, parseAuthorityDocument, type AuthorityDocumentV1, type AuthorityKindV1,
+  authorityBodyHash, isAuthorityPrincipalRef, parseAuthorityDocument, sealAuthorityRecord, type AuthorityDocumentV1, type AuthorityKindV1,
   type AuthorityRefV1, type JsonObject,
 } from './authority/document.js';
 import { AuthorityPreservationError, type DirectAuthorityPreserver } from './authority/preserver.js';
@@ -8,6 +8,7 @@ import { openChangeRegistryReader } from './change-registry.js';
 import { AutomationController } from './controller.js';
 import { sameEgressSet } from './egress-destination.js';
 import { parseHumanPrincipalV1 } from '../identity/canonical.js';
+import { holdsCurrentCorrection } from './lifecycle.js';
 import { packetHash, parseCorrection, parsePacket, validateCorrection } from './packet.js';
 import { LIVE_PROVIDER_MODEL_CALL_TARGET, parseAuthorization } from './policy.js';
 import {
@@ -47,6 +48,16 @@ import {
 // applyCorrection is the narrow recovery for an Architect correction: only where R4A0's exact
 // next move is ISSUE_CORRECTION_PACKET, preserved first, then issued.
 //
+// G1-RP1-C1: a correction belongs to the exact rejection it answers. That rejection is the run's
+// current REJECT_EXACT_SHA occurrence, written by the configured Architect, binding the active
+// packet and hash and the rejected remote SHA, with its review's decision resolved in R4P; the
+// correction is the next iteration's, and the supplied document is the exact R4P record (never
+// another record with the same body). The issue is guarded by that rejection occurrence. Applied
+// state is never inferred from the current correction's body: ALREADY_APPLIED needs the
+// ISSUE_CORRECTION_PACKET directly after that rejection, written by the same Architect, resolving
+// to the same record. If this call's own write fails, durable truth is read again and an
+// equivalent completed operation is reported only when every binding agrees.
+//
 // The target names only the Workspace Goal source and the run; repository, slice and
 // changeKey come from the CM1 record and R4A0. The Architect principal is configured, not
 // authenticated. Errors are bounded codes: no path, body or grant.
@@ -56,7 +67,8 @@ export const ACTIVATION_ERROR_CODES = Object.freeze(['ACTIVATION_TARGET_INVALID'
   'ACTIVATION_READ_MODEL_CONFLICT', 'ACTIVATION_CONFLICT', 'ACTIVATION_ALREADY_ADVANCED', 'ACTIVATION_INCOMPLETE',
   'AUTHORITY_DOCUMENT_INVALID', 'AUTHORITY_SUBJECT_MISMATCH', 'AUTHORITY_ISSUER_MISMATCH', 'HUMAN_PRINCIPAL_MISMATCH',
   'PACKET_BINDING_MISMATCH', 'LIVE_CALL_GRANT_MISSING', 'LIVE_CALL_GRANT_EXTRA', 'LIVE_CALL_GRANT_DUPLICATE',
-  'LIVE_CALL_GRANT_NOT_BOUND', 'AUTHORITY_VERSION_CONFLICT', 'AUTHORITY_PRESERVATION_FAILED', 'CORRECTION_NOT_APPLICABLE'] as const);
+  'LIVE_CALL_GRANT_NOT_BOUND', 'AUTHORITY_VERSION_CONFLICT', 'AUTHORITY_PRESERVATION_FAILED', 'CORRECTION_NOT_APPLICABLE',
+  'CORRECTION_CONFLICT'] as const);
 export type ActivationErrorCode = typeof ACTIVATION_ERROR_CODES[number];
 
 /** Activation refused or incomplete. Nothing the refusal names was written after it was decided. */
@@ -249,7 +261,7 @@ export function openGovernedActivationCore(options: GovernedActivationOptions): 
    * binding R4A0 does not project), read after R4A0's gate. Two reads: the run must still be
    * exactly where R4A0 saw it, or it moved in between and neither read decides anything.
    */
-  const lineageOf = (context: Context): Lineage => {
+  const agreed = (context: Context): ControllerRun => {
     let full: ControllerRun;
     try { full = controller.get(context.run.runId); }
     catch { return fail('ACTIVATION_READ_MODEL_CONFLICT', 'CONTROLLER_RUN_UNREADABLE'); }
@@ -258,8 +270,9 @@ export function openGovernedActivationCore(options: GovernedActivationOptions): 
         last?.sequence !== mark?.sequence || last?.action !== mark?.action || last?.timestamp !== mark?.at) {
       return fail('ACTIVATION_READ_MODEL_CONFLICT', 'RUN_MOVED');
     }
-    return lineageIn(full);
+    return full;
   };
+  const lineageOf = (context: Context): Lineage => lineageIn(agreed(context));
   const sameIntent = (binding: ActivationBinding | null, intent: ActivationBinding) =>
     binding !== null && binding.packetId === intent.packetId && binding.packetHash === intent.packetHash;
 
@@ -407,31 +420,71 @@ export function openGovernedActivationCore(options: GovernedActivationOptions): 
       if (document.issuer.principalRef !== principalRef) return fail('AUTHORITY_ISSUER_MISMATCH');
       if (document.subject.repository !== record.repository || document.subject.sliceId !== record.sliceId) return fail('AUTHORITY_SUBJECT_MISMATCH');
       const correction = parseCorrection(document.body);
-      const bodyHash = authorityBodyHash(document.body as JsonObject);
+      // The supplied document's exact record identity, computed as R4P seals it; nothing is written.
+      const sealed = sealAuthorityRecord(document);
       const facts = (status: CorrectionResultV1['status'], after: Context, authority: AuthorityRefV1): CorrectionResultV1 => deepFreeze({
         recordClass: 'OPERATIONAL_RECORD', status, target: before.target, changeKey: record.changeKey, preSnapshotId: before.model.snapshot.id,
         postSnapshotId: after.model.snapshot.id, state: 'CORRECTION_REQUIRED',
         correction: { correctionPacketId: correction.correctionPacketId, authority } });
-      const current = (context: Context) => context.run.authority.find((reference) => reference.kind === 'CORRECTION_PACKET' &&
-        reference.locator === 'correctionPacket' && reference.bodyHash === bodyHash && reference.resolution === 'RESOLVED');
-      // An exact retry after the correction was issued: nothing to write.
-      const applied = current(before);
-      if (applied && same(moveKeys(view), BEGIN)) return facts('ALREADY_APPLIED', before, applied.authority!);
-      if (!same(moveKeys(view), ISSUE_CORRECTION)) return fail('CORRECTION_NOT_APPLICABLE');
-      // The Controller's operational copies, whose packet and decision R4A0 has just resolved exactly.
-      const full = controller.get(run.runId);
-      if (full.activePacketHash !== run.packet.packetHash || !full.activePacket || !full.remoteSha || full.acceptance?.decision !== 'REJECT') {
-        return fail('CORRECTION_NOT_APPLICABLE');
+      // The correction reference of a run, only when it resolves to exactly the supplied record.
+      const exactReference = (context: Context) => {
+        const reference = context.run.authority.find((item) => item.kind === 'CORRECTION_PACKET' && item.locator === 'correctionPacket');
+        return reference?.resolution === 'RESOLVED' && reference.authority?.recordHash === sealed.recordHash ? reference.authority : null;
+      };
+      // The issue directly after the rejection, written by the configured Architect.
+      const issuedAfter = (full: ControllerRun, rejection: AuditEntry) => {
+        const entry = full.audit[rejection.sequence];
+        return entry?.action === 'ISSUE_CORRECTION_PACKET' ? entry : undefined;
+      };
+
+      // The rejection this correction answers, from the Controller's own record agreeing with R4A0's read.
+      const full = agreed(before);
+      const rejection = [...full.audit].reverse().find((entry) => entry.action === 'REJECT_EXACT_SHA');
+      const decision = full.acceptance;
+      const decisionReference = run.authority.find((item) => item.kind === 'ACCEPTANCE_DECISION' && item.locator === 'acceptance');
+      if (!rejection || !byArchitect(rejection) || !full.activePacket || !full.remoteSha || decision?.decision !== 'REJECT' ||
+          rejection.packetId !== full.activePacket.packetId || rejection.packetHash !== full.activePacketHash ||
+          rejection.acceptanceSHA !== full.remoteSha.sha || decision.reviewedSha !== full.remoteSha.sha ||
+          full.activePacketHash !== run.packet.packetHash || decisionReference?.authorityId !== decision.reviewId ||
+          decisionReference.resolution !== 'RESOLVED') return fail('CORRECTION_NOT_APPLICABLE', 'REJECTION_NOT_GOVERNED');
+      // Never another archived record with the same body in place of the supplied one.
+      const anotherRecord = before.model.authority.some((fact) => fact.ref.kind === 'CORRECTION_PACKET' &&
+        fact.ref.authorityId === document.authorityId && fact.bodyHash === sealed.bodyHash && fact.ref.recordHash !== sealed.recordHash);
+      // Already corrected: another correction answers it (not applicable), or only this same document, applied by
+      // the same Architect directly after this same rejection, is this operation.
+      if (holdsCurrentCorrection(full)) {
+        const current = run.authority.find((item) => item.kind === 'CORRECTION_PACKET' && item.locator === 'correctionPacket');
+        if (current?.bodyHash !== sealed.bodyHash) return fail('CORRECTION_NOT_APPLICABLE');
+        const issued = issuedAfter(full, rejection);
+        const authority = exactReference(before);
+        if (anotherRecord || !issued || !byArchitect(issued) || !authority) return fail('CORRECTION_CONFLICT');
+        return facts('ALREADY_APPLIED', before, authority);
       }
       try {
-        validateCorrection(correction, full.activePacket, full.activePacketHash, full.remoteSha.sha, full.acceptance.findings,
+        validateCorrection(correction, full.activePacket, full.activePacketHash!, full.remoteSha.sha, decision.findings,
           full.implementationIterations + 1);
       } catch { return fail('PACKET_BINDING_MISMATCH'); }
+      if (anotherRecord) return fail('CORRECTION_CONFLICT', 'ANOTHER_RECORD');
+      // Not yet corrected: R4A0's exact move, and the run still at that rejection occurrence.
+      if (!same(moveKeys(view), ISSUE_CORRECTION)) return fail('CORRECTION_NOT_APPLICABLE');
+      if (full.audit.at(-1)?.sequence !== rejection.sequence) return fail('CORRECTION_NOT_APPLICABLE', 'REJECTION_NOT_CURRENT');
       const authority = preserve(document);
-      try { controller.issueCorrection(run.runId, architect, correction); } catch { /* decided by the re-read below */ }
-      const after = resolve(input);
-      if (!current(after) || !same(moveKeys(after.view), BEGIN)) return fail('ACTIVATION_INCOMPLETE');
-      return facts('APPLIED', after, authority);
+      if (authority.recordHash !== sealed.recordHash) return fail('CORRECTION_CONFLICT');
+      let written = false;
+      try { controller.issueCorrectionForOccurrence(run.runId, architect, guardOf(rejection), correction); written = true; }
+      catch { /* decided by durable truth below */ }
+      let after: Context;
+      let afterFull: ControllerRun;
+      try { after = resolve(input); afterFull = agreed(after); }
+      catch (error) {
+        if (error instanceof GovernedActivationError && error.code === 'ACTIVATION_READ_MODEL_CONFLICT') return fail('ACTIVATION_INCOMPLETE', error.reason);
+        throw error;
+      }
+      const issued = issuedAfter(afterFull, rejection);
+      if (!issued) return fail('ACTIVATION_INCOMPLETE');
+      if (!byArchitect(issued) || !exactReference(after)) return fail('CORRECTION_CONFLICT');
+      // Another writer's issue is reported only as the equivalent completed operation; never as this call's write.
+      return facts(written ? 'APPLIED' : 'ALREADY_APPLIED', after, authority);
     },
   });
 }

@@ -181,6 +181,16 @@ correction scope, unchanged original invariants, expected new base, and maximum
 correction iteration. It cannot silently become a new project. If the fix
 requires expanded scope or changed invariants, enter `ARCHITECTURE_STOP`.
 
+A rejection is identified by its iteration, never by the SHA it rejected alone
+(G1-RP1-C1): the same SHA may be rejected again in a later iteration. The
+correction for the rejection of iteration N is the one with `correctionIteration`
+N + 1 that binds that rejection's SHA and the active packet hash. One shared
+definition (`holdsCurrentCorrection`) decides whether the current rejection is
+answered, for the Controller, the lifecycle invariants, the runner and R4A0: an
+earlier rejection's correction never satisfies a later one, a new rejection with
+no correction waits for its correction, and only its exact correction lets the
+next iteration begin.
+
 **IMPLEMENTATION COMPLETE != ACCEPTED.** Acceptance requires an exact remote
 commit SHA, independent GPT_ARCHITECT review from remote repository state,
 scope/diff review, invariant review, build/test and CI status, and explicit
@@ -245,6 +255,12 @@ hash) before and after the projection, and any difference fails closed.
   abandonment and continuation are capability gaps.
 - CHIEF-GOV/1 has no continuation: run lineage is `UNAVAILABLE`, a change has no
   head.
+- Operational provenance (G1-RP1-C1): each run also carries `provenance`, an
+  OPERATIONAL_RECORD read-only copy of what the Controller recorded: the AP1
+  `activationBinding` (or null) and every GPT_ARCHITECT audit entry (sequence,
+  action, actor, time, packet id and hash). It proves which operation and
+  principal wrote what; it is never direct authority, an authority reference or
+  an authority fact.
 
 ### 6.3 Governed Live Execution Driver (G1-LD1)
 
@@ -279,6 +295,20 @@ exactly one AutomationRunner step now, and takes at most that one step.
   `AUTHORIZATION` version with the same body hash, a HUMAN issuer and this
   Change as subject. Otherwise `BLOCKED_AUTHORITY`. The runner's own dispatch
   gate (time, packet entry, egress, call budget) still runs unchanged.
+- Governed execution origin (G1-RP1-C1): PACKET_READY or any later state is not
+  provenance. A runner move is READY only when R4A0's operational provenance
+  shows the AP1 activation of the configured `architectPrincipalRef`: the
+  binding present; audit entry 1 `ENTER_ARCHITECTURE` and entry 2 `ISSUE_PACKET`
+  both that principal's, the issue and the active packet equal to the binding;
+  no later `ENTER_ARCHITECTURE`, `ISSUE_PACKET` or `RETURN_TO_ARCHITECTURE` (no
+  governed re-activation path exists, so a re-issued packet stays blocked); and
+  every `BEGIN_REMOTE_ACCEPTANCE`, `ACCEPT_EXACT_SHA`, `REJECT_EXACT_SHA` and
+  `ISSUE_CORRECTION_PACKET` that principal's, each correction directly after the
+  rejection it answers. Otherwise `BLOCKED_PROVENANCE` with a bounded reason
+  (`ACTIVATION_LINEAGE_MISSING | _FOREIGN`, `ACTIVATION_PACKET_MISMATCH`,
+  `PACKET_REISSUED`, `REVIEW_LINEAGE_FOREIGN`, `CORRECTION_LINEAGE_FOREIGN |
+  _UNBOUND`). `inspect` and `step` share this gate; the packet's direct authority
+  must still resolve exactly.
 - One `step()` takes R4A0 snapshot A, calls `AutomationRunner.step` once, bound
   to the exact audit position A read (a run another writer moved is reported
   `STALE_OCCURRENCE` by the runner and nothing is written), then takes snapshot
@@ -354,6 +384,26 @@ output stay operational records; nothing converts one into authority (Q-R1).
 - Correction recovery applies an Architect correction only where R4A0's exact next
   move is `ISSUE_CORRECTION_PACKET`, after checking it binds the active packet,
   hash and rejected SHA, preserving it first.
+- Correction ownership (G1-RP1-C1): the correction answers the run's current
+  `REJECT_EXACT_SHA` occurrence, which must be the configured Architect's and
+  bind the active packet and hash, the recorded remote SHA and the review whose
+  decision resolves in R4P; the correction must be the next iteration's and the
+  supplied document the exact R4P record (another record with the same body is
+  `CORRECTION_CONFLICT`). It is issued only through
+  `issueCorrectionForOccurrence`, guarded by that rejection occurrence; a run no
+  longer at it is `CORRECTION_NOT_APPLICABLE` (`REJECTION_NOT_CURRENT`) before
+  anything is written. Application is never inferred from the current
+  correction's body: `ALREADY_APPLIED` needs the `ISSUE_CORRECTION_PACKET`
+  directly after that rejection, by the same Architect, resolving to the same
+  record. When this call's own write fails, durable truth is read again and only
+  an equivalent completed operation is reported (`ALREADY_APPLIED`, never
+  `APPLIED`); anything else fails closed.
+- Review principal (G1-RP1-C1): a review belongs to the principal that began its
+  occurrence (the `BEGIN_REMOTE_ACCEPTANCE` actor). A runner configured with
+  another principal neither dispatches it nor preserves or applies its stored
+  result and writes nothing about it (`PROVENANCE_MISMATCH`); only the
+  originating principal's runner continues it. Journal settlement judges an
+  earlier application by the principal of that application's own occurrence.
 - `architectPrincipalRef` is trusted server-side configuration, a stated
   reference, not authentication. Nothing here is wired to Workspace, a route, UI,
   SSE, CLI, MCP or a scheduler.
@@ -390,7 +440,15 @@ to every current and future recoverable operation.
   mechanisms. An operation with a material provenance gap is not exposed through
   Workspace until the Architect has reviewed it. The 2026-10-13 audit (HANDOFF §G1-RP1)
   found open gaps in governed execution (LD1 and the runner's review application) and in
-  correction recovery; those operations stay unexposed until the Architect decides.
+  correction recovery; the Architect confirmed G1–G4 as material.
+- G1-RP1-C1 enforces it for those operations (§6, §6.2, §6.3, §6.4): LD1 executes only
+  on proven AP1 lineage, a review is continued only by its originating principal,
+  correction recovery proves the exact rejection, principal and record, and a rejection
+  is identified by its iteration. The activation intent stays the packet issue: Human
+  live-call grants are separate R4P documents, each call still needs its exact archived
+  grant and the runtime policy, an invocation keeps the grant it was prepared under, and
+  an activation retry cannot rewrite a grant (AUTHORITY_VERSION_CONFLICT). Exposing any
+  of these operations through Workspace is still a separate Architect decision.
 
 ## 7. Git and Promotion
 

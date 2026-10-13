@@ -51,7 +51,7 @@ export function createGovernedLiveAutomation(input: unknown, dependencies: Omit<
     changeRegistryDirectory: config.changeRegistryDirectory };
   const execution = openGovernedExecutionDriver({ ...roots, runner: live.runner, liveCallAuthorizations: config.liveCallAuthorizations,
     scopes: { IMPLEMENTATION: scopeOf('IMPLEMENTATION', config.claude), ARCHITECT_REVIEW: scopeOf('ARCHITECT_REVIEW', config.codex) },
-    clock: dependencies.clock });
+    architectPrincipalRef, clock: dependencies.clock });
   const activation = openGovernedActivationCore({ ...roots, controller: live.controller, preserver, architectPrincipalRef,
     clock: dependencies.clock });
   return Object.freeze({ execution, activation });

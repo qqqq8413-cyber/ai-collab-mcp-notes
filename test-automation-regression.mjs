@@ -906,6 +906,34 @@ check('G1-RP1: main already at the accepted SHA through another operation is nev
     assert.equal(controller.audit('run-1').some((entry) => ['MARK_PROMOTING', 'RECORD_PROMOTED_MAIN', 'RECOVER_PROMOTED_MAIN'].includes(entry.action)), false);
   }
 });
+// G1-RP1-C1 G4: a rejection is identified by its iteration, never by the SHA it rejected alone.
+check('G1-RP1-C1 G4: one SHA rejected twice: the first rejection\'s correction never answers the second', () => {
+  const { c, store } = make(); ready(c);
+  const fix = (n, overrides = {}) => ({ correctionPacketId: `c${n}`, originalPacketId: 'packet-1', originalPacketHash: c.get('run-1').activePacketHash,
+    rejectedSha: B, reviewerFindings: ['synthetic finding'], allowedCorrectionAreas: ['src/automation'],
+    unchangedInvariantReferences: ['human authority retained'], expectedBaseSha: B, correctionIteration: n, maxCorrectionIteration: 3, ...overrides });
+  c.decideAcceptance('run-1', G, decision(c, 'REJECT'));
+  c.issueCorrection('run-1', G, fix(2));
+  ready(c); // the work branch still shows B: the same SHA is recorded and reviewed again
+  c.decideAcceptance('run-1', G, { ...decision(c, 'REJECT'), reviewId: 'review-2' });
+  const run = c.get('run-1');
+  assert.deepEqual([run.state, run.implementationIterations, run.remoteSha.sha, run.correctionPacket.correctionIteration],
+    ['CORRECTION_REQUIRED', 2, B, 2]);
+  // Correction #1 is not the current correction: no implementation, through the Controller or a forged store write.
+  rejectedWithoutMutation(c, () => c.beginImplementation('run-1', X));
+  const forged = store.get('run-1');
+  const last = forged.audit.at(-1);
+  Object.assign(forged, { state: 'IMPLEMENTING', implementationIterations: 3, iterationStartedAt: T, remoteSha: undefined, acceptance: undefined });
+  forged.audit.push({ ...last, sequence: last.sequence + 1, actor: X.id, role: X.role, action: 'BEGIN_IMPLEMENTATION',
+    previousState: 'CORRECTION_REQUIRED', nextState: 'IMPLEMENTING', acceptanceSHA: undefined });
+  assert.throws(() => store.replace(forged), /current rejection requires an exact correction packet/);
+  // Correction #1 again does not answer rejection #2; rejection #2's own correction does, once.
+  rejectedWithoutMutation(c, () => c.issueCorrection('run-1', G, fix(2)));
+  c.issueCorrection('run-1', G, fix(3));
+  rejectedWithoutMutation(c, () => c.issueCorrection('run-1', G, fix(3, { correctionPacketId: 'c3-again' })));
+  assert.equal(c.beginImplementation('run-1', X).state, 'IMPLEMENTING');
+  assert.equal(c.get('run-1').correctionPacket.correctionPacketId, 'c3');
+});
 check('a grant issued while a later-rejected SHA was under review cannot promote the SHA accepted after it', () => {
   const clock = movableClock(); const { c } = make(packet(), clock); ready(c, B);
   const early = auth('HUMAN', 'FAST_FORWARD_MAIN', 'main', { authorizationId: 'early' });

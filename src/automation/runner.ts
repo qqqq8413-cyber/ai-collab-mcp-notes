@@ -8,7 +8,7 @@ import {
   canonicalJson, readStoredOutcome, serializeOutcome, type ActorKind, type InvocationJournal, type InvocationRecord,
   type StoredOutcome,
 } from './invocation-journal.js';
-import { isStopState, isTerminalState } from './lifecycle.js';
+import { holdsCurrentCorrection, isStopState, isTerminalState } from './lifecycle.js';
 import { parseEgressSet } from './egress-destination.js';
 import { authorizeLiveModelCall, parseAuthorization } from './policy.js';
 import type {
@@ -39,11 +39,18 @@ import type {
 // applied either and stays COMPLETED at its occurrence, so a later step preserves and
 // applies the stored result without calling the reviewer again. The invocation journal stays
 // an operational record; the sink is given the review bodies, never a journal record.
+//
+// G1-RP1-C1: a review belongs to the GPT_ARCHITECT principal that began its occurrence (the
+// actor of its BEGIN_REMOTE_ACCEPTANCE). A runner configured with another principal neither
+// dispatches it nor preserves or applies its stored result, and writes nothing about it (no
+// stop, no journal settlement, no authority): it reports PROVENANCE_MISMATCH, and only a runner
+// of the originating principal continues it. Journal settlement judges an earlier application
+// by the principal of that application's own occurrence, never by the current configuration.
 
 export const RUNNER_OUTCOMES = Object.freeze([
   'ADVANCED', 'AWAITING_CORRECTION', 'EXTERNAL_RECHECK_REQUIRED', 'HUMAN_PROMOTION_REQUIRED', 'STOPPED',
   'TERMINAL', 'OUT_OF_SCOPE', 'ACTOR_RESULT_DISCARDED', 'STALE_OCCURRENCE', 'INVOCATION_CLAIMED', 'STEP_LIMIT_REACHED',
-  'AUTHORITY_NOT_PRESERVED',
+  'AUTHORITY_NOT_PRESERVED', 'PROVENANCE_MISMATCH',
 ] as const);
 export type RunnerOutcome = typeof RUNNER_OUTCOMES[number];
 
@@ -111,6 +118,7 @@ const JOURNAL_CONFLICT = 'invocation journal and controller disagree about this 
 const NOT_AT_POSITION = 'the run is not at the position this step was gated on; nothing was done';
 const REVIEW_AUTHORITY_REFUSED = 'direct authority preservation refused; review result not applied';
 const REVIEW_AUTHORITY_NOT_PRESERVED = 'direct authority preservation failed; review result not applied';
+const REVIEW_PRINCIPAL_MISMATCH = 'review occurrence was begun by another architect principal; nothing was dispatched, preserved or applied';
 
 interface Spec { entering: string; state: ControllerState; restart: string; noResult: string }
 const SPECS: Readonly<Record<ActorKind, Spec>> = Object.freeze({
@@ -128,7 +136,8 @@ const CONTROLLER_HALTS: Readonly<Record<ActorKind, readonly string[]>> = Object.
  * Whether the entry right after an occurrence is the application of that occurrence's
  * result: the protocol actor's own transition, a stop this runner writes when applying
  * a result, or a controller halt inside the applying write. Anything else (another
- * writer's stop, a restart stop) means the result was never applied.
+ * writer's stop, a restart stop) means the result was never applied. `architectId` is the
+ * principal that began the occurrence, never the current configuration's.
  */
 function appliesResult(kind: ActorKind, entry: AuditEntry, architectId: string): boolean {
   if (entry.previousState !== SPECS[kind].state) return false;
@@ -193,7 +202,7 @@ function waitingOutcome(run: ControllerRun): RunnerOutcome | undefined {
   if (run.externalRecheckRequired === true) return 'EXTERNAL_RECHECK_REQUIRED';
   // Only the correction for the current rejection lets the next iteration begin; the
   // controller checks it again. The runner never writes one itself.
-  if (run.state === 'CORRECTION_REQUIRED' && run.correctionPacket?.rejectedSha !== run.remoteSha?.sha) return 'AWAITING_CORRECTION';
+  if (run.state === 'CORRECTION_REQUIRED' && !holdsCurrentCorrection(run)) return 'AWAITING_CORRECTION';
   return undefined;
 }
 
@@ -384,6 +393,10 @@ export class AutomationRunner {
     }
     // A resumed occurrence has no invocation of its own; nothing is dispatched for it.
     if (last.action !== spec.entering) return this.#haltAt(observed, 'HUMAN_STOP', spec.restart, 'STALE_OCCURRENCE').result;
+    // G1-RP1-C1: only the principal that began the review occurrence continues it. Nothing is written.
+    if (kind === 'ARCHITECT_REVIEW' && last.actor !== this.#architect.id) {
+      return this.#report(run, 'PROVENANCE_MISMATCH', REVIEW_PRINCIPAL_MISMATCH);
+    }
     const journal = this.#live.journal;
     let record = journal.find(run.runId, last.sequence, kind);
     if (!record) {
@@ -503,9 +516,11 @@ export class AutomationRunner {
       if (record.state === 'PREPARED') this.#settleRecord(record, 'ABANDONED', 'occurrence left before dispatch');
       else if (record.state === 'STARTED') this.#settleRecord(record, 'UNCERTAIN', 'occurrence left with no durable result; not replayed');
       else if (record.state === 'COMPLETED') {
+        // Judged against the occurrence's own entry and principal: a later configuration never
+        // changes who applied an earlier result.
+        const begun = run.audit[occurrence.sequence - 1];
         const entry = run.audit[occurrence.sequence];
-        const applied = entry !== undefined && sameEntry(occurrence, run.audit[occurrence.sequence - 1]) &&
-          appliesResult(record.identity.actorKind, entry, this.#architect.id);
+        const applied = entry !== undefined && sameEntry(occurrence, begun) && appliesResult(record.identity.actorKind, entry, begun.actor);
         if (applied) this.#settleRecord(record, 'APPLIED', 'applied', { sequence: entry.sequence, action: entry.action });
         else this.#settleRecord(record, 'ABANDONED', 'occurrence left before the result was applied');
       }

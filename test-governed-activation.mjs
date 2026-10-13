@@ -195,6 +195,7 @@ check('A-AK. an exact CM1 + RA1 IDLE ROOT with exact Architect and Human documen
   let steps = 0;
   const driver = openGovernedExecutionDriver({ controllerStoreDirectory: w.paths.controller, authorityArchiveDirectory: w.paths.authority,
     changeRegistryDirectory: w.paths.registry, runner: { step: async () => { steps += 1; } }, scopes: SCOPES, clock,
+    architectPrincipalRef: ARCHITECT,
     liveCallAuthorizations: { IMPLEMENTATION: grantOf(IMPL, w.runId), ARCHITECT_REVIEW: grantOf(REVIEW, w.runId) } });
   assert.equal(driver.inspect(w.target()).readiness, 'READY');
   assert.equal(steps, 0);
@@ -647,13 +648,22 @@ check('C1-I. the activation binding is an OPERATIONAL_RECORD: never an R4P docum
   let model = w.read();
   assert.deepEqual(runOf(w, model).authority, [], 'the bound entry became an authority reference');
   assert.deepEqual(archived(model), expected);
-  assert.equal(JSON.stringify(runOf(w, model)).includes('activationBinding'), false, 'R4A0 projects the binding');
+  // G1-RP1-C1: R4A0 projects the binding read-only as operational provenance, never as authority.
+  const provenanceOnly = (projected) => {
+    const { provenance, ...rest } = projected;
+    assert.equal(provenance.recordClass, 'OPERATIONAL_RECORD');
+    assert.equal(JSON.stringify(rest).includes('activationBinding'), false, 'R4A0 projects the binding outside provenance');
+    return provenance;
+  };
+  assert.deepEqual(provenanceOnly(runOf(w, model)).activationBinding, intentOf(w.bundle()));
   assert.deepEqual(w.core.inspect(w.target()).recordClass, 'OPERATIONAL_RECORD');
   w.core.activate(w.target(), w.bundle());
   model = w.read();
   assert.deepEqual(archived(model), expected, 'activation archived something beyond the supplied documents');
   assert.deepEqual(runOf(w, model).authority.map((reference) => reference.locator), ['activePacket']);
   assert.ok(model.authority.every((fact) => fact.recordClass === 'DIRECT_AUTHORITY' && !JSON.stringify(fact).includes('activationBinding')));
+  assert.deepEqual(provenanceOnly(runOf(w, model)).architectEntries.map((entry) => [entry.action, entry.actor]),
+    [['ENTER_ARCHITECTURE', ARCHITECT], ['ISSUE_PACKET', ARCHITECT]]);
   // A binding the run's history does not support is refused on every load.
   const run = w.controller.get(w.runId);
   plantRun(w, { ...run, activationBinding: intentOf(bundleN(w, 2)) });
@@ -723,6 +733,19 @@ check('C1-L. a run that moves between the recovery read and the issue is never i
   refused(() => w.core.activate(w.target(), w.bundle()), 'ACTIVATION_ALREADY_ADVANCED');
   assert.deepEqual(w.controller.audit(w.runId).map((entry) => entry.action), ['ENTER_ARCHITECTURE', 'STOP', 'RETURN_TO_ARCHITECTURE']);
   assert.equal(w.controller.get(w.runId).activePacket, undefined);
+});
+
+// G1-RP1-C1 O1: an activation retry cannot rewrite a Human grant.
+check('G1-RP1-C1 O1. an activation retry with a rewritten grant body is AUTHORITY_VERSION_CONFLICT: nothing written, interrupted or completed', (dir) => {
+  const rewritten = (w) => w.bundle({ grants: [w.doc('AUTHORIZATION', grantOf(IMPL, w.runId, { reason: 'a rewritten reason' })),
+    w.doc('AUTHORIZATION', grantOf(REVIEW, w.runId))] });
+  const entered = enteredWorld(dir);
+  refusedUntouched(entered, () => entered.core.activate(entered.target(), rewritten(entered)), 'AUTHORITY_VERSION_CONFLICT');
+  assert.equal(entered.controller.get(entered.runId).state, 'ARCHITECTURE');
+  const done = world(join(dir, 'done'));
+  done.core.activate(done.target(), done.bundle());
+  refusedUntouched(done, () => done.core.activate(done.target(), rewritten(done)), 'AUTHORITY_VERSION_CONFLICT');
+  assert.equal(versions(done, 'AUTHORIZATION', 'auth-implementation'), 1);
 });
 
 // ---------------------------------------------------------------- architect review authority
@@ -836,12 +859,70 @@ check('AG2. a review the archive refuses (its reviewId already holds another bod
   assert.deepEqual([stopped.state, bad.w.archive().listVersions('ACCEPTANCE_DECISION', 'review-1').length], ['ARCHITECTURE_STOP', 0]);
 });
 
+// G1-RP1-C1 G2: a review belongs to the Architect principal that began its occurrence.
+const OTHER_ARCHITECT = 'architect:other';
+const runnerAs = (w, journal, ports, principal, preserver = w.realPreserver) => new AutomationRunner(w.controller, ports.implementation,
+  ports.review, { journal, clock, scopes: SCOPES, authorizations: { IMPLEMENTATION: grantOf(IMPL, w.runId), ARCHITECT_REVIEW: grantOf(REVIEW, w.runId) },
+    architectAuthority: architectReviewAuthority(preserver, principal) });
+const reviewRecord = (journal, w) => journal.list(w.runId).find((record) => record.identity.actorKind === 'ARCHITECT_REVIEW');
+check('G1-RP1-C1 G2-a. a review X began and prepared is never dispatched by a runner configured as Y: nothing is written', async (dir) => {
+  const { w, journal, ports } = await reviewWorld(dir);
+  const begun = w.controller.audit(w.runId).at(-1);
+  assert.deepEqual([begun.action, begun.actor, reviewRecord(journal, w).state], ['BEGIN_REMOTE_ACCEPTANCE', ARCHITECT, 'PREPARED']);
+  const before = stores(w), record = JSON.stringify(reviewRecord(journal, w));
+  const result = await runnerAs(w, journal, ports, OTHER_ARCHITECT).step(w.runId);
+  assert.deepEqual([result.outcome, result.state], ['PROVENANCE_MISMATCH', 'ACCEPTANCE_REVIEW']);
+  assert.equal(ports.calls.review, 0, 'Y dispatched X\'s review');
+  assert.deepEqual(stores(w), before, 'Y wrote to the Controller, the archive or the registry');
+  assert.equal(JSON.stringify(reviewRecord(journal, w)), record, 'Y settled X\'s invocation');
+});
+check('G1-RP1-C1 G2-b/c. X\'s stored review is never applied by Y; X\'s own restart then recovers it exactly', async (dir) => {
+  let failing = true;
+  const flaky = (real) => ({ preserve(document) {
+    if (failing && document.kind === 'ACCEPTANCE_DECISION') throw new AuthorityPreservationError('AUTHORITY_PRESERVATION_FAILED', null);
+    return real.preserve(document);
+  } });
+  const { w, journal, ports, runner } = await reviewWorld(dir, { preserver: flaky });
+  assert.equal((await runner.step(w.runId)).outcome, 'AUTHORITY_NOT_PRESERVED');
+  assert.equal(reviewRecord(journal, w).state, 'COMPLETED');
+  failing = false;
+  const before = stores(w);
+  const refused = await runnerAs(w, journal, ports, OTHER_ARCHITECT).step(w.runId);
+  assert.deepEqual([refused.outcome, refused.state], ['PROVENANCE_MISMATCH', 'ACCEPTANCE_REVIEW']);
+  assert.deepEqual(stores(w), before, 'Y preserved or applied X\'s review');
+  assert.equal(versions(w, 'ACCEPTANCE_DECISION', 'review-1'), 0);
+  assert.equal(reviewRecord(journal, w).state, 'COMPLETED');
+  // X restarts: the stored result is preserved and applied as X's, without another review call.
+  const recovered = await runnerAs(w, new FileInvocationJournal(w.paths.journal, clock), ports, ARCHITECT).step(w.runId);
+  assert.deepEqual([recovered.outcome, recovered.state], ['HUMAN_PROMOTION_REQUIRED', 'ACCEPTED']);
+  const accepted = w.controller.audit(w.runId).at(-1);
+  assert.deepEqual([accepted.action, accepted.actor], ['ACCEPT_EXACT_SHA', ARCHITECT]);
+  assert.equal(w.read().authority.find((fact) => fact.ref.kind === 'ACCEPTANCE_DECISION').issuer.principalRef, ARCHITECT);
+  assert.deepEqual([ports.calls.review, reviewRecord(journal, w).state], [1, 'APPLIED']);
+});
+check('G1-RP1-C1 G2-d. a result X applied is settled as applied by X when a runner configured as Y reads the journal later', async (dir) => {
+  const { w, journal, ports } = await reviewWorld(dir);
+  // X applies the review, then stops before marking the invocation APPLIED.
+  const stalled = new Proxy(journal, { get(target, name) {
+    if (name === 'markApplied') return () => { throw new Error('crash before APPLIED'); };
+    const value = Reflect.get(target, name);
+    return typeof value === 'function' ? value.bind(target) : value;
+  } });
+  await assert.rejects(runnerAs(w, stalled, ports, ARCHITECT).step(w.runId), /crash before APPLIED/);
+  assert.deepEqual([w.controller.get(w.runId).state, reviewRecord(journal, w).state], ['ACCEPTED', 'COMPLETED']);
+  const result = await runnerAs(w, journal, ports, OTHER_ARCHITECT).step(w.runId);
+  assert.deepEqual([result.outcome, result.state], ['HUMAN_PROMOTION_REQUIRED', 'ACCEPTED']);
+  const record = reviewRecord(journal, w);
+  assert.deepEqual([record.state, record.application?.action], ['APPLIED', 'ACCEPT_EXACT_SHA'], 'a later configuration abandoned X\'s applied review');
+  assert.equal(ports.calls.review, 1);
+});
+
 // ---------------------------------------------------------------- correction recovery
 /** An activated run at CORRECTION_REQUIRED after an archived REJECT, with no correction issued. */
-function rejected(dir) {
+function rejected(dir, { by = ARCHITECT } = {}) {
   const w = world(dir);
   w.core.activate(w.target(), w.bundle());
-  const c = w.controller, architect = { id: ARCHITECT, role: 'GPT_ARCHITECT' };
+  const c = w.controller, architect = { id: by, role: 'GPT_ARCHITECT' };
   c.beginImplementation(w.runId, X);
   c.completeImplementation(w.runId, X, ['npm test: exit 0']);
   c.recordRemoteSha(w.runId, X);
@@ -887,6 +968,125 @@ check('AP-AQ. a correction that does not bind the active packet, hash or rejecte
   for (const [body, options, code] of cases) refusedUntouched(w, () => w.core.applyCorrection(w.target(), w.doc('CORRECTION_PACKET', body, options)), code);
   refusedUntouched(w, () => w.core.applyCorrection(w.target(), correctionOf(run)), 'AUTHORITY_DOCUMENT_INVALID');
   assert.equal(w.controller.get(w.runId).correctionPacket, undefined);
+});
+
+// G1-RP1-C1 G3: a correction belongs to the exact rejection it answers.
+const architectActor = (id = ARCHITECT) => ({ id, role: 'GPT_ARCHITECT' });
+const issues = (w) => w.controller.audit(w.runId).filter((entry) => entry.action === 'ISSUE_CORRECTION_PACKET').map((entry) => entry.actor);
+/** The core over `w` with a preserver that runs `after(document)` right after each real preservation. */
+const coreWith = (w, after) => openGovernedActivationCore({ controllerStoreDirectory: w.paths.controller, authorityArchiveDirectory: w.paths.authority,
+  changeRegistryDirectory: w.paths.registry, controller: w.controller, architectPrincipalRef: ARCHITECT, clock,
+  preserver: { preserve(document) { const ref = w.realPreserver.preserve(document); after(document); return ref; } } });
+check('G1-RP1-C1 G3-a. a correction another Architect issued, or answering another Architect\'s rejection, is never adopted', (dir) => {
+  const w = rejected(dir);
+  const correction = correctionOf(w.controller.get(w.runId));
+  w.realPreserver.preserve(w.doc('CORRECTION_PACKET', correction));
+  w.controller.issueCorrection(w.runId, architectActor(OTHER_ARCHITECT), correction);
+  refusedUntouched(w, () => w.core.applyCorrection(w.target(), w.doc('CORRECTION_PACKET', correction)), 'CORRECTION_CONFLICT');
+  const foreign = rejected(join(dir, 'foreign'), { by: OTHER_ARCHITECT });
+  const error = refusedUntouched(foreign, () => foreign.core.applyCorrection(foreign.target(),
+    foreign.doc('CORRECTION_PACKET', correctionOf(foreign.controller.get(foreign.runId)))), 'CORRECTION_NOT_APPLICABLE');
+  assert.equal(error.reason, 'REJECTION_NOT_GOVERNED');
+  assert.deepEqual(issues(foreign), []);
+});
+check('G1-RP1-C1 G3-b. another writer winning between preservation and the issue is never reported as this call\'s APPLIED', (dir) => {
+  // A foreign Architect wins with the same correction: not this operation.
+  const w = rejected(dir);
+  const correction = correctionOf(w.controller.get(w.runId));
+  const racing = coreWith(w, () => w.controller.issueCorrection(w.runId, architectActor(OTHER_ARCHITECT), correction));
+  refused(() => racing.applyCorrection(w.target(), w.doc('CORRECTION_PACKET', correction)), 'CORRECTION_CONFLICT');
+  assert.deepEqual(issues(w), [OTHER_ARCHITECT]);
+  // The same Architect wins with the same document, guarded by the same rejection: an equivalent completed operation, not APPLIED.
+  const same = rejected(join(dir, 'same'));
+  const fix = correctionOf(same.controller.get(same.runId));
+  const rejection = same.controller.audit(same.runId).at(-1);
+  const twin = coreWith(same, () => same.controller.issueCorrectionForOccurrence(same.runId, architectActor(), { runId: same.runId,
+    sequence: rejection.sequence, action: rejection.action, timestamp: rejection.timestamp }, fix));
+  assert.equal(twin.applyCorrection(same.target(), same.doc('CORRECTION_PACKET', fix)).status, 'ALREADY_APPLIED');
+  assert.deepEqual(issues(same), [ARCHITECT]);
+});
+check('G1-RP1-C1 G3-c. the same correction body under another R4P record is never adopted, before or after an issue', (dir) => {
+  const w = rejected(dir);
+  const correction = correctionOf(w.controller.get(w.runId));
+  w.realPreserver.preserve({ ...w.doc('CORRECTION_PACKET', correction), issuedAt: EARLIER });
+  const error = refusedUntouched(w, () => w.core.applyCorrection(w.target(), w.doc('CORRECTION_PACKET', correction)), 'CORRECTION_CONFLICT');
+  assert.equal(error.reason, 'ANOTHER_RECORD');
+  const rejection = w.controller.audit(w.runId).at(-1);
+  w.controller.issueCorrectionForOccurrence(w.runId, architectActor(), { runId: w.runId, sequence: rejection.sequence, action: rejection.action,
+    timestamp: rejection.timestamp }, correction);
+  refusedUntouched(w, () => w.core.applyCorrection(w.target(), w.doc('CORRECTION_PACKET', correction)), 'CORRECTION_CONFLICT');
+  assert.equal(versions(w, 'CORRECTION_PACKET', correction.correctionPacketId), 1);
+});
+check('G1-RP1-C1 G3-d. an exact retry for the same rejection and the same archived document is idempotent, also after a stop and resume', (dir) => {
+  const w = rejected(dir);
+  const correction = correctionOf(w.controller.get(w.runId));
+  const document = w.doc('CORRECTION_PACKET', correction);
+  const first = w.core.applyCorrection(w.target(), document);
+  assert.equal(first.status, 'APPLIED');
+  const second = w.core.applyCorrection(w.target(), document);
+  assert.deepEqual([second.status, second.correction.authority], ['ALREADY_APPLIED', first.correction.authority]);
+  w.controller.stop(w.runId, { id: 'controller', role: 'CONTROLLER' }, 'SOFT_STOP', 'pause');
+  w.controller.resumeSoft(w.runId, { id: 'controller', role: 'CONTROLLER' }, 'repaired');
+  assert.equal(w.core.applyCorrection(w.target(), document).status, 'ALREADY_APPLIED');
+  assert.deepEqual([issues(w), versions(w, 'CORRECTION_PACKET', correction.correctionPacketId)], [[ARCHITECT], 1]);
+});
+check('G1-RP1-C1 G3-e. a stale rejection occurrence is never issued into: refused before writing, or by the guarded issue', (dir) => {
+  const K = { id: 'controller', role: 'CONTROLLER' };
+  const w = rejected(dir);
+  const correction = correctionOf(w.controller.get(w.runId));
+  w.controller.stop(w.runId, K, 'SOFT_STOP', 'pause');
+  w.controller.resumeSoft(w.runId, K, 'repaired');
+  const error = refusedUntouched(w, () => w.core.applyCorrection(w.target(), w.doc('CORRECTION_PACKET', correction)), 'CORRECTION_NOT_APPLICABLE');
+  assert.equal(error.reason, 'REJECTION_NOT_CURRENT');
+  // The run leaves the rejection occurrence and returns to an identical-looking CORRECTION_REQUIRED between the
+  // read and the issue: the Controller refuses the issue guarded by the original rejection.
+  const moved = rejected(join(dir, 'moved'));
+  const fix = correctionOf(moved.controller.get(moved.runId));
+  const core = coreWith(moved, () => {
+    moved.controller.stop(moved.runId, K, 'SOFT_STOP', 'moved');
+    moved.controller.resumeSoft(moved.runId, K, 'back');
+  });
+  refused(() => core.applyCorrection(moved.target(), moved.doc('CORRECTION_PACKET', fix)), 'ACTIVATION_INCOMPLETE');
+  assert.deepEqual([issues(moved), moved.controller.get(moved.runId).state], [[], 'CORRECTION_REQUIRED']);
+  // Authority may be ahead of the Controller, never behind it.
+  assert.equal(versions(moved, 'CORRECTION_PACKET', fix.correctionPacketId), 1);
+});
+
+// G1-RP1-C1 G4: one SHA rejected twice, end to end.
+check('G1-RP1-C1 G4. rejection 1\'s correction never satisfies rejection 2 of the same SHA: Controller, R4A0, runner, LD1 and recovery agree', async (dir) => {
+  const w = rejected(dir);
+  const c = w.controller, architect = architectActor();
+  const first = correctionOf(c.get(w.runId));
+  assert.equal(w.core.applyCorrection(w.target(), w.doc('CORRECTION_PACKET', first)).status, 'APPLIED');
+  c.beginImplementation(w.runId, X);
+  c.completeImplementation(w.runId, X, ['npm test: exit 0']);
+  c.recordRemoteSha(w.runId, X); // the work branch still shows the rejected SHA
+  c.beginAcceptanceReview(w.runId, architect);
+  const second = decisionOf(c.get(w.runId), 'REJECT', 'review-2');
+  w.realPreserver.preserve(w.doc('ACCEPTANCE_DECISION', second));
+  c.decideAcceptance(w.runId, architect, second);
+  assert.deepEqual([c.get(w.runId).remoteSha.sha, c.get(w.runId).correctionPacket.correctionPacketId], [B, first.correctionPacketId]);
+  const moves = () => w.read().changes[0].nextAction.moves.map((move) => move.action);
+  assert.deepEqual(moves(), ['ISSUE_CORRECTION_PACKET'], 'R4A0 treats the earlier correction as current');
+  const journal = new FileInvocationJournal(w.paths.journal, clock);
+  const ports = modelPorts(() => journal);
+  const runner = runnerAs(w, journal, ports, ARCHITECT);
+  assert.deepEqual(Object.values(await runner.step(w.runId)).slice(1, 3), ['AWAITING_CORRECTION', 'CORRECTION_REQUIRED']);
+  const driver = openGovernedExecutionDriver({ controllerStoreDirectory: w.paths.controller, authorityArchiveDirectory: w.paths.authority,
+    changeRegistryDirectory: w.paths.registry, runner, scopes: SCOPES, clock, architectPrincipalRef: ARCHITECT,
+    liveCallAuthorizations: { IMPLEMENTATION: grantOf(IMPL, w.runId), ARCHITECT_REVIEW: grantOf(REVIEW, w.runId) } });
+  assert.deepEqual([driver.inspect(w.target()).readiness, driver.inspect(w.target()).reason], ['WAITING_EXTERNAL_ACTOR', 'NOT_A_RUNNER_MOVE']);
+  refusedUntouched(w, () => w.core.applyCorrection(w.target(), w.doc('CORRECTION_PACKET', first)), 'PACKET_BINDING_MISMATCH');
+  assert.throws(() => c.beginImplementation(w.runId, X), /exact correction packet/);
+  assert.equal(ports.calls.implementation, 0);
+  // Rejection 2's own correction: applied, then the next iteration is the runner's.
+  const own = correctionOf(c.get(w.runId));
+  assert.equal(own.correctionIteration, 3);
+  assert.equal(w.core.applyCorrection(w.target(), w.doc('CORRECTION_PACKET', own)).status, 'APPLIED');
+  assert.deepEqual(moves(), ['BEGIN_IMPLEMENTATION']);
+  assert.equal(driver.inspect(w.target()).readiness, 'READY');
+  assert.equal((await driver.step(w.target())).postState, 'IMPLEMENTING');
+  assert.deepEqual([c.get(w.runId).implementationIterations, c.get(w.runId).correctionPacket.correctionPacketId], [3, own.correctionPacketId]);
 });
 
 // ---------------------------------------------------------------- the live composition
@@ -983,7 +1183,9 @@ check('AR-AS-AT-AU. one minter (GC1), one run creator (RA1), one archive reader 
   assert.match(code(join(ROOT, CORE)), /controller\.enterArchitectureForActivation\(/);
   assert.match(code(join(ROOT, CORE)), /controller\.issuePacketForOccurrence\(/);
   assert.doesNotMatch(code(join(ROOT, CORE)), /controller\.enterArchitecture\(|controller\.issuePacket\(/);
-  assert.match(code(join(ROOT, CORE)), /controller\.issueCorrection\(/);
+  // G1-RP1-C1: the correction is issued only guarded by the rejection occurrence it answers.
+  assert.match(code(join(ROOT, CORE)), /controller\.issueCorrectionForOccurrence\(/);
+  assert.doesNotMatch(code(join(ROOT, CORE)), /controller\.issueCorrection\(/);
 });
 check('AV-AW-AX. no Workspace, model, validation or LD1 path reaches an authority writer; the runner holds only the sink', () => {
   const workspace = SRC.filter((path) => rel(path).startsWith('src/workspace/'));

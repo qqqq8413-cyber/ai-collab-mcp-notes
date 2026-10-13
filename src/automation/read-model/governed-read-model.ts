@@ -6,7 +6,7 @@ import {
 } from '../authority/document.js';
 import { openAuthorityArchiveReader } from '../authority/file-archive.js';
 import { openStoredRun, storedRunFileName } from '../durable-store.js';
-import { isStopState, isTerminalState } from '../lifecycle.js';
+import { holdsCurrentCorrection, isStopState, isTerminalState } from '../lifecycle.js';
 import { SYSTEM_CLOCK, isInstant } from '../time.js';
 import type { AuditEntry, Authorization, Clock, ControllerRun, ControllerState, Role, StopClass } from '../types.js';
 import { GovernedReadError, takeSourceSnapshot, type SourceSnapshot } from './source-snapshot.js';
@@ -55,6 +55,19 @@ export interface AnomalyV1 {
 export interface ChangeRefV1 { kind: 'SLICE'; changeId: string }
 /** CHIEF-GOV/1 has no continuation lineage. */
 export interface RunLineageV1 { kind: 'UNAVAILABLE'; admission: 'NOT_IMPLEMENTED'; predecessor: null; successor: null }
+/** One GPT_ARCHITECT transition as the Controller audit records it: who wrote it, when, about which packet. */
+export interface ArchitectEntryV1 { sequence: number; action: string; actor: string; at: string; packetId: string | null; packetHash: string | null }
+/**
+ * G1-RP1-C1: the run's operational provenance, read-only, exactly as the Controller recorded it:
+ * the AP1 activation binding of its architecture entry and every GPT_ARCHITECT transition in
+ * audit order. An OPERATIONAL_RECORD: it proves which operation and principal wrote what, and is
+ * never direct authority, an authority reference or an authority fact.
+ */
+export interface RunProvenanceV1 {
+  recordClass: 'OPERATIONAL_RECORD';
+  activationBinding: { packetId: string; packetHash: string } | null;
+  architectEntries: ArchitectEntryV1[];
+}
 export type AuthorityResolution =
   | 'RESOLVED' | 'NOT_ARCHIVED' | 'VERSION_NOT_FOUND' | 'SUBJECT_MISMATCH' | 'AMBIGUOUS' | 'HASH_NOT_RECORDED';
 /** A run's reference to a direct-authority document and what the archive holds for it. */
@@ -103,6 +116,7 @@ export interface GovernedRunV1 {
   /** R4L admission as recorded: operational integrity data, not authority. */
   admission: { recordClass: 'OPERATIONAL_RECORD'; status: AdmissionStatus; rootRunId: string | null; admittedAt: string | null };
   lineage: RunLineageV1;
+  provenance: RunProvenanceV1;
   authority: AuthorityReferenceV1[];
   anomalies: AnomalyV1[];
 }
@@ -313,7 +327,7 @@ function movesOf(run: ControllerRun): NextMoveV1[] {
       // beginImplementation halts to HUMAN_STOP once the iteration budget is spent, before
       // it looks for a correction; a correction could not be issued past that budget either.
       if (budgetSpent) return [move('STOP', 'CONTROLLER', 'HUMAN_STOP')];
-      if (run.state === 'CORRECTION_REQUIRED' && run.correctionPacket?.rejectedSha !== run.remoteSha?.sha) {
+      if (run.state === 'CORRECTION_REQUIRED' && !holdsCurrentCorrection(run)) {
         return [move('ISSUE_CORRECTION_PACKET', 'GPT_ARCHITECT', 'CORRECTION_REQUIRED')];
       }
       return [move('BEGIN_IMPLEMENTATION', 'CODEX_IMPLEMENTER', 'IMPLEMENTING')];
@@ -359,6 +373,14 @@ function nextActionOf(runs: ControllerRun[], references: Map<string, AuthorityRe
   }
   if (conflicts.length) return indeterminate();
   return { determinacy: 'DETERMINATE', moves: movesOf(run), ruleId: null, conflicts, capabilityGaps };
+}
+
+function provenanceOf(run: ControllerRun): RunProvenanceV1 {
+  const binding = run.activationBinding;
+  return { recordClass: 'OPERATIONAL_RECORD',
+    activationBinding: binding ? { packetId: binding.packetId, packetHash: binding.packetHash } : null,
+    architectEntries: run.audit.filter((entry) => entry.role === 'GPT_ARCHITECT').map((entry) => ({ sequence: entry.sequence,
+      action: entry.action, actor: entry.actor, at: entry.timestamp, packetId: entry.packetId ?? null, packetHash: entry.packetHash ?? null })) };
 }
 
 const mark = (entry: AuditEntry | undefined): AuditMarkV1 | null =>
@@ -466,6 +488,7 @@ function project(roots: GovernedReadRoots, snapshot: SourceSnapshot, observedAt:
       audit: { length: run.audit.length, first: mark(run.audit[0]), last: mark(run.audit.at(-1)) },
       admission: admissions.get(run.runId)!,
       lineage: { ...LINEAGE },
+      provenance: provenanceOf(run),
       authority: references.get(run.runId)!,
       anomalies: anomalies.filter((anomaly) => anomaly.runIds.includes(run.runId)),
     };

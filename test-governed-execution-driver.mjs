@@ -16,6 +16,8 @@ import * as liveModule from './dist/automation/live/governed-execution.js';
 const ARCHITECT = 'architect:gpt-synthetic';
 import { openRootRunAdmitter } from './dist/automation/root-run-admitter.js';
 import { AutomationRunner } from './dist/automation/runner.js';
+import { ARCHITECT_REVIEW_ACTOR } from './dist/automation/bridge.js';
+import { packetHash } from './dist/automation/packet.js';
 
 const { openGovernedExecutionDriver } = driverModule;
 // G1-AP1: the governed live composition returns { execution, activation }; this suite drives execution only.
@@ -38,7 +40,11 @@ const T = '2026-10-12T00:00:00.000Z';
 const EARLIER = '2026-10-11T00:00:00.000Z', EXPIRED = '2026-10-11T12:00:00.000Z';
 const REPO = 'synthetic/example', BRANCH = 'work/synthetic-1';
 const clock = { now: () => T };
-const G = { id: 'architect', role: 'GPT_ARCHITECT' }, X = { id: 'implementer', role: 'CODEX_IMPLEMENTER' };
+// The unit worlds' real runner has no review authority sink, so it records reviews under its fixed review actor;
+// that actor is these worlds' configured Architect principal. The live composition uses ARCHITECT (GA).
+const PRINCIPAL = ARCHITECT_REVIEW_ACTOR.id;
+const G = { id: PRINCIPAL, role: 'GPT_ARCHITECT' }, X = { id: 'implementer', role: 'CODEX_IMPLEMENTER' };
+const GA = { id: ARCHITECT, role: 'GPT_ARCHITECT' }, OTHER = { id: 'architect:other', role: 'GPT_ARCHITECT' };
 const H = { id: 'human', role: 'HUMAN' }, K = { id: 'controller', role: 'CONTROLLER' };
 const HUMAN = { schemaVersion: 1, kind: 'HUMAN', principalRef: 'human:local-owner' };
 const goalId = (n) => `goal-00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -140,7 +146,8 @@ function world(dir, { goals = [1], admit = true, runner = 'real', grants, behavi
     return real.step(...args);
   } };
   const driver = openGovernedExecutionDriver({ controllerStoreDirectory: paths.controller, authorityArchiveDirectory: paths.authority,
-    changeRegistryDirectory: paths.registry, runner: port, liveCallAuthorizations: authorizations, scopes: SCOPES, clock });
+    changeRegistryDirectory: paths.registry, runner: port, liveCallAuthorizations: authorizations, scopes: SCOPES, architectPrincipalRef: PRINCIPAL,
+    clock });
   let appender;
   const sliceId = record.sliceId;
   const archive = (kind, body, options = {}) =>
@@ -148,10 +155,15 @@ function world(dir, { goals = [1], admit = true, runner = 'real', grants, behavi
   return { paths, records, record, runs, runId, sliceId, controller, journal, reality, ports, real, counter, driver, archive,
     authorizations, target: (n = 1, id = runId) => ({ source: sourceOf(n), runId: id }) };
 }
+const intentOf = (body) => ({ packetId: body.packetId, packetHash: packetHash(body) });
+/** The AP1 lineage at the Controller: the entry bound to `body` and its guarded issue, both by `architect`. */
+function activated(controller, runId, body, architect = G) {
+  const entered = controller.enterArchitectureForActivation(runId, architect, intentOf(body)).audit[0];
+  controller.issuePacketForOccurrence(runId, architect, { runId, sequence: entered.sequence, action: entered.action, timestamp: entered.timestamp }, body);
+}
 const packetReady = (w, { archive = true, overrides } = {}) => {
-  w.controller.enterArchitecture(w.runId, G);
   const body = packetOf(w.sliceId, overrides);
-  w.controller.issuePacket(w.runId, G, body);
+  activated(w.controller, w.runId, body);
   if (archive) w.archive('IMPLEMENTATION_PACKET', body);
   return body;
 };
@@ -453,9 +465,9 @@ check('V-W-X-Y-Z. across the whole lifecycle only runner-protocol moves are READ
     await notStepped(w, expected);
   };
   await waiting('WAITING_EXTERNAL_ACTOR', ['ENTER_ARCHITECTURE/GPT_ARCHITECT']);                                     // W
-  c.enterArchitecture(id, G);
-  await waiting('WAITING_EXTERNAL_ACTOR', ['ISSUE_PACKET/GPT_ARCHITECT']);                                           // X
   const body = packetOf(w.sliceId);
+  c.enterArchitectureForActivation(id, G, intentOf(body));
+  await waiting('WAITING_EXTERNAL_ACTOR', ['ISSUE_PACKET/GPT_ARCHITECT']);                                           // X
   c.issuePacket(id, G, body);
   w.archive('IMPLEMENTATION_PACKET', body);
   archiveGrants(w);
@@ -541,6 +553,107 @@ check('X2-Z2. ARCHITECTURE_STOP, a spent iteration budget and FAILED_CLOSED are 
   await notStepped(failed, 'TERMINAL');
 });
 
+// ---------------------------------------------------------------- G1-RP1-C1 governed execution origin
+check('G1-RP1-C1 G1-a. a PACKET_READY that is not the AP1 activation is never READY: inspect and step agree, zero model calls', async (dir) => {
+  const cases = [
+    // [label, how the run reached PACKET_READY, reason]
+    ['generic entry and issue by another Architect', (w, body) => { w.controller.enterArchitecture(w.runId, OTHER); w.controller.issuePacket(w.runId, OTHER, body); },
+      'ACTIVATION_LINEAGE_MISSING'],
+    ['generic entry and issue of the identical packet by the configured Architect', (w, body) => {
+      w.controller.enterArchitecture(w.runId, G); w.controller.issuePacket(w.runId, G, body); }, 'ACTIVATION_LINEAGE_MISSING'],
+    ['a bound entry and issue by another Architect', (w, body) => activated(w.controller, w.runId, body, OTHER), 'ACTIVATION_LINEAGE_FOREIGN'],
+  ];
+  for (const [label, reach, reason] of cases) {
+    const w = world(join(dir, label.replace(/\W/g, '-')));
+    const body = packetOf(w.sliceId);
+    reach(w, body);
+    w.archive('IMPLEMENTATION_PACKET', body);
+    archiveGrants(w);
+    const view = is(readiness(w), 'BLOCKED_PROVENANCE', reason);
+    // Everything else about the run looks executable: R4A0's move is the runner's and every authority resolves.
+    assert.deepEqual([view.nextMoves.map(({ action }) => action), view.conflicts, view.step], [['BEGIN_IMPLEMENTATION'], [], null], label);
+    await notStepped(w, 'BLOCKED_PROVENANCE', reason);
+    assert.deepEqual([w.ports.calls.implementation.length, w.ports.calls.review.length, w.journal.list(w.runId).length], [0, 0, 0], label);
+  }
+  // The AP1 activation itself is READY, and its step reaches the model port once.
+  const w = world(join(dir, 'activated'));
+  packetReady(w);
+  archiveGrants(w);
+  is(readiness(w), 'READY');
+  assert.equal((await w.driver.step(w.target())).status, 'STEPPED');
+  assert.equal((await w.driver.step(w.target())).postState, 'IMPLEMENTATION_COMPLETE');
+  assert.equal(w.ports.calls.implementation.length, 1);
+  // The configured principal is required and exact.
+  for (const architectPrincipalRef of [undefined, '', ' architect:x', 'architect:\u0007']) {
+    assert.throws(() => openGovernedExecutionDriver({ controllerStoreDirectory: w.paths.controller, authorityArchiveDirectory: w.paths.authority,
+      changeRegistryDirectory: w.paths.registry, runner: w.real, liveCallAuthorizations: {}, scopes: SCOPES, architectPrincipalRef }), TypeError);
+  }
+});
+check('G1-RP1-C1 G1-b. a packet re-issued after RETURN_TO_ARCHITECTURE stays blocked though its state and authority look valid', async (dir) => {
+  const w = world(dir, { runner: 'fake' });
+  packetReady(w);
+  archiveGrants(w);
+  w.controller.stop(w.runId, G, 'ARCHITECTURE_STOP', 'scope question');
+  w.controller.resumeArchitecture(w.runId, G);
+  const second = packetOf(w.sliceId, { packetId: 'packet-2', packetVersion: 2 });
+  w.controller.issuePacket(w.runId, G, second);
+  w.archive('IMPLEMENTATION_PACKET', second);
+  const grants = { IMPLEMENTATION: liveGrant(IMPL, w.runId, { authorizationId: 'auth-p2-impl', packetId: 'packet-2' }),
+    ARCHITECT_REVIEW: liveGrant(REVIEW, w.runId, { authorizationId: 'auth-p2-review', packetId: 'packet-2' }) };
+  for (const grant of Object.values(grants)) w.archive('AUTHORIZATION', grant);
+  const driver = openGovernedExecutionDriver({ controllerStoreDirectory: w.paths.controller, authorityArchiveDirectory: w.paths.authority,
+    changeRegistryDirectory: w.paths.registry, runner: { step: async () => { w.counter.runner += 1; } }, liveCallAuthorizations: grants,
+    scopes: SCOPES, architectPrincipalRef: PRINCIPAL, clock });
+  const view = is(driver.inspect(w.target()), 'BLOCKED_PROVENANCE', 'PACKET_REISSUED');
+  assert.deepEqual([view.state, view.nextMoves.map(({ action }) => action), view.conflicts], ['PACKET_READY', ['BEGIN_IMPLEMENTATION'], []]);
+  assert.equal((await driver.step(w.target())).status, 'NOT_STEPPED');
+  assert.equal(w.counter.runner, 0);
+});
+check('G1-RP1-C1 G1-c. a review or correction written by another Architect, or a correction not answering its rejection, is never executed on', async (dir) => {
+  const reviewed = (label, reviewer = G) => {
+    const w = world(join(dir, label), { runner: 'fake' });
+    packetReady(w);
+    archiveGrants(w);
+    const c = w.controller, id = w.runId;
+    c.beginImplementation(id, X);
+    c.completeImplementation(id, X, ['offline checks pass']);
+    c.recordRemoteSha(id, X);
+    c.beginAcceptanceReview(id, reviewer);
+    return w;
+  };
+  const rejectedBy = (label, correctionBy, between = () => {}) => {
+    const w = reviewed(label);
+    const c = w.controller, id = w.runId;
+    const rejection = decision(c.get(id), 'REJECT', 'review-1');
+    c.decideAcceptance(id, G, rejection);
+    w.archive('ACCEPTANCE_DECISION', rejection);
+    between(w);
+    const fix = correctionOf(c.get(id));
+    c.issueCorrection(id, correctionBy, fix);
+    w.archive('CORRECTION_PACKET', fix);
+    return w;
+  };
+  is(readiness(rejectedBy('own', G)), 'READY');
+  const foreign = rejectedBy('foreign', OTHER);
+  is(readiness(foreign), 'BLOCKED_PROVENANCE', 'CORRECTION_LINEAGE_FOREIGN');
+  await notStepped(foreign, 'BLOCKED_PROVENANCE', 'CORRECTION_LINEAGE_FOREIGN');
+  // Issued by the configured Architect, but not directly after the rejection it answers (a Human stop and resume in between).
+  const unbound = rejectedBy('unbound', G, (w) => {
+    const c = w.controller, id = w.runId;
+    c.stop(id, H, 'HUMAN_STOP', 'human pause');
+    const resume = humanGrant('RESUME_HUMAN_STOP', c.get(id).stopId, id, 'auth-resume');
+    c.resumeHuman(id, H, resume);
+    w.archive('AUTHORIZATION', resume);
+    c.reconcile(id, K);
+  });
+  is(readiness(unbound), 'BLOCKED_PROVENANCE', 'CORRECTION_LINEAGE_UNBOUND');
+  // A review occurrence another Architect began is not this principal's to continue.
+  const begun = reviewed('review', OTHER);
+  is(readiness(begun), 'BLOCKED_PROVENANCE', 'REVIEW_LINEAGE_FOREIGN');
+  await notStepped(begun, 'BLOCKED_PROVENANCE', 'REVIEW_LINEAGE_FOREIGN');
+  is(readiness(reviewed('review-own')), 'READY');
+});
+
 // ---------------------------------------------------------------- races, recovery, budget
 check('AB. a run moved by another writer after the gate is never stepped: one runner call, no retry, STALE_OR_ADVANCED', async (dir) => {
   const other = { controller: undefined };
@@ -598,7 +711,7 @@ check('AV. an uncertain STARTED invocation is never replayed through the driver'
   let calls = 0;
   const driver = openGovernedExecutionDriver({ controllerStoreDirectory: w.paths.controller, authorityArchiveDirectory: w.paths.authority,
     changeRegistryDirectory: w.paths.registry, runner: { step: (...args) => { calls += 1; return runner.step(...args); } },
-    liveCallAuthorizations: w.authorizations, scopes: SCOPES, clock });
+    liveCallAuthorizations: w.authorizations, scopes: SCOPES, architectPrincipalRef: PRINCIPAL, clock });
   is(driver.inspect(w.target()), 'READY');
   const result = await driver.step(w.target());
   assert.deepEqual([result.status, result.runnerOutcome, result.postState, result.readiness.readiness], ['STEPPED', 'STOPPED', 'HUMAN_STOP', 'WAITING_HUMAN']);
@@ -693,9 +806,8 @@ check('LIVE. the trusted composition returns only the driver, derives each actor
   const target = { source: sourceOf(1), runId };
   is(driver.inspect(target), 'WAITING_EXTERNAL_ACTOR');
   const controller = new AutomationController(clock, new FileControllerStore(probe.controllerStoreDirectory, clock), fakeReality());
-  controller.enterArchitecture(runId, G);
   const body = packetOf(minted.sliceId);
-  controller.issuePacket(runId, G, body);
+  activated(controller, runId, body, GA);
   const appender = openAuthorityArchiveAppender(probe.authorityArchiveDirectory);
   appender.append(documentOf('IMPLEMENTATION_PACKET', body));
   appender.append(documentOf('AUTHORIZATION', grants.IMPLEMENTATION, { sliceId: minted.sliceId }));
@@ -710,8 +822,7 @@ check('LIVE. the trusted composition returns only the driver, derives each actor
   const r2 = openRootRunAdmitter(other.controllerStoreDirectory, clock).admit({ repository: REPO, sliceId: m2.sliceId, changeKey: m2.changeKey }).runId;
   const swapped = createGovernedLiveExecutionDriver({ ...other, liveCallAuthorizations: { IMPLEMENTATION: liveGrant(REVIEW, r2) } }, counted().dependencies);
   const c2 = new AutomationController(clock, new FileControllerStore(other.controllerStoreDirectory, clock), fakeReality());
-  c2.enterArchitecture(r2, G);
-  c2.issuePacket(r2, G, packetOf(m2.sliceId));
+  activated(c2, r2, packetOf(m2.sliceId), GA);
   openAuthorityArchiveAppender(other.authorityArchiveDirectory).append(documentOf('IMPLEMENTATION_PACKET', packetOf(m2.sliceId)));
   is(swapped.inspect({ source: sourceOf(1), runId: r2 }), 'BLOCKED_AUTHORITY', 'LIVE_CALL_GRANT_NOT_BOUND');
 });

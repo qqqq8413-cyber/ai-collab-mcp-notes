@@ -133,6 +133,21 @@ export function acceptedAt(run: ControllerRun): number | undefined {
   return entry && entry.acceptanceSHA === run.acceptance?.reviewedSha ? parseInstant(entry.timestamp) : undefined;
 }
 
+/**
+ * G1-RP1-C1: whether the run holds the correction for its current rejection. The one shared
+ * definition: the Controller, these lifecycle checks, the runner and R4A0 all use it. A
+ * rejection is identified by its iteration, never by the SHA it rejected alone: the same SHA
+ * may be rejected again in a later iteration, and an earlier rejection's correction never
+ * answers a later one. The rejection of iteration N (one per iteration: only a new
+ * BEGIN_IMPLEMENTATION leads to another review) is answered only by the correction for
+ * iteration N + 1 that binds that rejection's SHA and the active packet.
+ */
+export function holdsCurrentCorrection(run: ControllerRun): boolean {
+  const correction = run.correctionPacket;
+  return correction !== undefined && run.remoteSha !== undefined && correction.rejectedSha === run.remoteSha.sha &&
+    correction.correctionIteration === run.implementationIterations + 1 && correction.originalPacketHash === run.activePacketHash;
+}
+
 /** True when the facts show `run`'s accepted SHA may be promoted onto its packet's expected main. */
 export function preflightPasses(facts: PromotionPreflightFacts, run: ControllerRun): boolean {
   return facts.expectedMainSha === run.activePacket?.expectedBaseSha &&
@@ -303,8 +318,7 @@ export function assertTransition(before: ControllerRun, after: ControllerRun): v
           after.implementationIterations > packet!.iterationBudget.maxImplementationIterationsPerSlice) {
         fail('implementation start outside budget or with stale evidence');
       }
-      if (before.state === 'CORRECTION_REQUIRED' && (before.correctionPacket?.rejectedSha !== before.remoteSha?.sha ||
-          before.correctionPacket?.correctionIteration !== after.implementationIterations)) {
+      if (before.state === 'CORRECTION_REQUIRED' && !holdsCurrentCorrection(before)) {
         fail('current rejection requires an exact correction packet');
       }
       break;
@@ -319,7 +333,7 @@ export function assertTransition(before: ControllerRun, after: ControllerRun): v
       if (parseInstant(after.acceptance?.issuedAt)! > at || entry.acceptanceSHA !== after.acceptance?.reviewedSha) fail('acceptance evidence');
       break;
     case 'ISSUE_CORRECTION_PACKET':
-      if (before.correctionPacket?.rejectedSha === before.remoteSha?.sha || !after.correctionPacket) fail('correction already recorded or missing');
+      if (holdsCurrentCorrection(before) || !after.correctionPacket) fail('correction already recorded or missing');
       validateCorrection(after.correctionPacket, packet!, after.activePacketHash!, after.remoteSha!.sha,
         after.acceptance!.findings, after.implementationIterations + 1);
       break;
