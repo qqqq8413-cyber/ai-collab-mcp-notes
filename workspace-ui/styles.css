@@ -149,6 +149,8 @@ ol,ul{margin:0;padding:0;list-style:none}
 .qb{width:32px;height:32px;border-radius:var(--r-s);display:grid;place-items:center;color:var(--muted);transition:background var(--dur-1),color var(--dur-1)}
 .qb:hover:not(:disabled){background:var(--sunk);color:var(--fg)}
 .qb:disabled{opacity:.3;cursor:default}
+.qb[data-act="exec-select"]{width:auto;min-width:60px;padding:0 7px;font-size:12px;white-space:nowrap}
+.qb[data-act="exec-select"][aria-pressed="true"]{color:var(--chief);background:var(--chief-bg)}
 .wl-confirm{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding-top:10px;border-top:1px solid var(--line);font-size:13.5px}
 .wl-confirm span{flex:1;min-width:180px}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 18px;border-radius:999px;font-weight:600;font-size:14px;white-space:nowrap;box-shadow:inset 0 0 0 1px var(--ctl);background:var(--card);color:var(--fg);transition:box-shadow var(--dur-1),background var(--dur-1)}

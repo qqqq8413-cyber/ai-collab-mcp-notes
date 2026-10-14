@@ -426,7 +426,8 @@ await check('WS-P1 escalation: 需要你 is shown and never answered; 查看決�
   assert.match(decisionHTML(event, { demo: true }), /示範資料/);
   const app = read('app.js');
   const sheetFn = slice('function sheetHTML', '// ---------- render');
-  assert.deepEqual([...new Set([...sheetFn.matchAll(/data-act="([\w-]+)"/g)].map((m) => m[1]))], ['close-sheet'], 'the decision sheet can only be closed');
+  const decisionBranch = sheetFn.slice(sheetFn.indexOf("if (S.sheet === 'decision')"), sheetFn.indexOf("if (S.sheet !== 'console')"));
+  assert.deepEqual([...new Set([...decisionBranch.matchAll(/data-act="([\w-]+)"/g)].map((m) => m[1]))], ['close-sheet'], 'the collaboration decision sheet remains read-only');
   assert.doesNotMatch(app, /source\.(decide|approve|authorize|answer)|\/decision|\/authoriz/, 'nothing sends a decision anywhere');
   const stage = slice('function stageHTML', 'function homeView');
   assert.match(stage, /h2 class="ch-t" id="focal-h">需要你<\/h2>/, 'an open escalation takes 此刻\'s focal slot');

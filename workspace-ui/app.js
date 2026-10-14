@@ -1,6 +1,5 @@
-// Chief Workspace (WS-L1): the real local shell. LIVE mode shows only what the local
-// Workspace server holds: configured projects and their non-authoritative goal queues.
-// Nothing in this page starts execution; the server has no route that could.
+// CHIEF Workspace: Goal-scoped governed operations through a trusted Host only.
+// Queue entries are non-authoritative; actions require server-side admission and authority.
 // Demo mode is opt-in (?demo=1), labelled, in-memory, and never mixed into LIVE state.
 // WS-P1: a project has three views, 此刻 / 往來 / 協作室, each with its own address.
 
@@ -139,6 +138,7 @@ const S = {
   decision: null, confirm: null, sending: false, loadError: null, pane: 'now', area: 'discussion', exec: {},
   steps: {}, stepBusy: {}, stepResult: {}, prepBusy: {}, prepResult: {},
   activation: {}, activationBusy: {}, activationResult: {},
+  selectedGoal: {}, actionIntent: null, actionBusy: {},
 };
 const LAST = `chief.workspace.${source.mode}.project`; // last viewed project: a local, non-authoritative UI preference
 const RECENT = `chief.workspace.${source.mode}.recent`; // recently opened projects, newest first: the same kind of preference
@@ -153,6 +153,83 @@ const writeLastViewed = (projectId) => {
 const byId = (projectId) => S.projects.find((item) => item.projectId === projectId);
 const project = () => S.projects.find((item) => item.projectId === S.pid);
 const queue = () => S.queues[S.pid] ?? { revision: 0, goals: [], history: [] };
+// EXE-C3: a visual selection is never an authority claim or queue mutation.
+// A deleted/stale goal fails closed to the first *existing* item.
+function selectedGoalOf(goals, selectedId) {
+  return goals.find((goal) => goal.goalId === selectedId) ?? goals[0] ?? null;
+}
+const selectedGoal = () => selectedGoalOf(queue().goals, S.selectedGoal[S.pid]);
+function intentValid(intent) {
+  if (!intent || intent.projectId !== S.pid) return false;
+  return selectedGoal()?.goalId === intent.goalId &&
+    queue().goals.some((goal) => goal.goalId === intent.goalId) &&
+    ['govern', 'admit', 'activate', 'step'].includes(intent.action);
+}
+function permittedAction(action, projectId, goalId) {
+  const key = execKey(projectId, goalId);
+  if (action === 'govern') return S.exec[key]?.view?.status === 'GOAL_NOT_GOVERNED';
+  if (action === 'admit') return S.exec[key]?.view?.status === 'RUN_NOT_ADMITTED';
+  if (action === 'activate') return S.activation[key]?.view?.canActivate === true;
+  if (action === 'step') return S.steps[key]?.view?.canStep === true;
+  return false;
+}
+function requestAction(action) {
+  const goal = selectedGoal();
+  if (!goal || S.sheet || S.actionBusy[execKey(S.pid, goal.goalId)] ||
+      !permittedAction(action, S.pid, goal.goalId)) return;
+  const key = execKey(S.pid, goal.goalId);
+  S.actionIntent = { action, projectId: S.pid, goalId: goal.goalId,
+    status: S.exec[key]?.view?.status ?? null,
+    runId: S.exec[key]?.view?.run?.runId ?? null,
+    readiness: action === 'step' ? S.steps[key]?.view?.readiness :
+      action === 'activate' ? S.activation[key]?.view?.readiness : null };
+  S.sheet = 'exec-confirm';
+  render();
+  $('#sheet .xbtn')?.focus();
+}
+async function confirmAction() {
+  const intent = S.actionIntent;
+  if (!intentValid(intent) || S.sheet !== 'exec-confirm') return;
+  const key = execKey(intent.projectId, intent.goalId);
+  if (S.actionBusy[key]) return;
+  S.actionBusy[key] = true;
+  render();
+  try {
+    // Re-observe immediately before each mutation. These browser checks improve
+    // usability, not authority: the trusted Host's atomic guards decide.
+    const current = await source.executionStatus(intent.projectId, intent.goalId);
+    if (current.status !== intent.status || (current.run?.runId ?? null) !== intent.runId) {
+      throw new Error('正式狀態已改變，請重新讀取後再次確認。');
+    }
+    if (intent.action === 'step') {
+      const latest = await source.executionStepInspect(intent.projectId, intent.goalId);
+      if (!latest.canStep || latest.runId !== intent.runId || latest.readiness !== intent.readiness)
+        throw new Error('Runner 守門狀態已改變，沒有呼叫 Agent。');
+      S.steps[key] = { state: 'ready', view: latest };
+    } else if (intent.action === 'activate') {
+      const latest = await source.activationInspect(intent.projectId, intent.goalId);
+      if (!latest.canActivate || latest.readiness !== intent.readiness)
+        throw new Error('正式工作文件已改變，沒有啟動。');
+      S.activation[key] = { state: 'ready', view: latest };
+    }
+    if (!intentValid(intent) || !permittedAction(intent.action, intent.projectId, intent.goalId))
+      throw new Error('原先選擇的目標已不適用，沒有提交。');
+    S.sheet = null;
+    S.actionIntent = null;
+    S.exec[key] = { state: 'ready', view: current };
+    if (intent.action === 'step') await stepOnce(intent.projectId, intent.goalId);
+    else if (intent.action === 'activate') await activateGoal(intent.projectId, intent.goalId);
+    else await prepareGoal(intent.projectId, intent.goalId, intent.action);
+  } catch (error) {
+    S.sheet = null;
+    S.actionIntent = null;
+    toast(error.message);
+    await loadExecution(intent.projectId, intent.goalId);
+  } finally {
+    S.actionBusy[key] = false;
+    render();
+  }
+}
 const room = (projectId = S.pid) => S.collab[projectId] ?? collaborationRoom(projectId, null);
 const demoRoom = (projectId = S.pid) => DEMO || room(projectId).provenance === 'DEMO_SAMPLE';
 // Project → the time of its oldest open escalation, from the validated collaboration rooms only.
@@ -320,7 +397,7 @@ function stepHTML(projectId, goalId) {
     <button class="btn" type="button" data-act="exec-step" ${!v.canStep || busy ? 'disabled' : ''}>${busy ? '正在執行單一步驟…' : '執行下一步（一次）'}</button>${outcome}</section>`;
 }
 function ensureExecution() {
-  const first = S.view === 'project' && S.pane === 'now' ? queue().goals[0] : undefined;
+  const first = S.view === 'project' && S.pane === 'now' ? selectedGoal() : undefined;
   if (!first || S.exec[execKey(S.pid, first.goalId)]) return;
   S.exec[execKey(S.pid, first.goalId)] = { state: 'loading' };
   const projectId = S.pid;
@@ -355,6 +432,11 @@ function applyEvent(name, data) {
     q.history.push({ sequence: data.revision, at: data.at, kind: 'GOAL_REMOVED', goalId: data.goalId });
   }
   q.revision = data.revision;
+  if (S.actionIntent?.projectId === data.projectId &&
+      !q.goals.some((goal) => goal.goalId === S.actionIntent.goalId)) {
+    S.actionIntent = null;
+    if (S.sheet === 'exec-confirm') S.sheet = null;
+  }
   const item = S.projects.find((p) => p.projectId === data.projectId);
   if (item) item.queued = q.goals.length;
   render();
@@ -419,10 +501,11 @@ function ackHTML(goal, removed, position) {
 // 工作順序: the ledger at the foot of the stage. Reorder and remove keep their confirmation.
 function queueHTML() {
   const goals = queue().goals;
-  const rows = goals.map((goal, index) => `<li data-goal="${esc(goal.goalId)}" class="${index === 0 ? 'qcur' : ''}">
+  const active = selectedGoal()?.goalId;
+  const rows = goals.map((goal, index) => `<li data-goal="${esc(goal.goalId)}" class="${goal.goalId === active ? 'qcur' : ''}">
       <span class="qn">${index === 0 ? '目前' : `第 ${index + 1} 個`}</span>
-      <span class="qt">${esc(goal.text)}<span class="qs">排隊中 · 尚未開始執行 · ${time(goal.createdAt)} 加入</span></span>
-      <span class="qa"><button class="qb" data-act="up" data-v="${esc(goal.goalId)}" ${index === 0 ? 'disabled' : ''} aria-label="往前移：${esc(goal.text)}">${ic('up', 16)}</button><button class="qb" data-act="down" data-v="${esc(goal.goalId)}" ${index === goals.length - 1 ? 'disabled' : ''} aria-label="往後移：${esc(goal.text)}">${ic('down', 16)}</button><button class="qb" data-act="ask-remove" data-v="${esc(goal.goalId)}" aria-label="移除：${esc(goal.text)}">${ic('trash', 16)}</button></span>
+      <span class="qt">${esc(goal.text)}<span class="qs">${goal.goalId === active ? esc(executionNow(S.exec[execKey(S.pid, goal.goalId)])) : '工作清單項目 · 執行狀態尚未讀取'} · ${time(goal.createdAt)} 加入</span></span>
+      <span class="qa"><button type="button" class="qb" data-act="exec-select" data-v="${esc(goal.goalId)}" aria-pressed="${goal.goalId === active}" aria-label="操作：${esc(goal.text)}">${goal.goalId === active ? '已選擇' : '操作'}</button><button class="qb" data-act="up" data-v="${esc(goal.goalId)}" ${index === 0 ? 'disabled' : ''} aria-label="往前移：${esc(goal.text)}">${ic('up', 16)}</button><button class="qb" data-act="down" data-v="${esc(goal.goalId)}" ${index === goals.length - 1 ? 'disabled' : ''} aria-label="往後移：${esc(goal.text)}">${ic('down', 16)}</button><button class="qb" data-act="ask-remove" data-v="${esc(goal.goalId)}" aria-label="移除：${esc(goal.text)}">${ic('trash', 16)}</button></span>
       ${S.confirm === goal.goalId ? `<div class="wl-confirm"><span>要把「${esc(goal.text.slice(0, 40))}${goal.text.length > 40 ? '…' : ''}」從工作清單移除嗎？它還沒開始執行，移除後不會有其他影響。</span><button class="btn danger" data-act="remove" data-v="${esc(goal.goalId)}">移除</button><button class="btn quiet" data-act="cancel-remove">取消</button></div>` : ''}
     </li>`).join('');
   return `<section class="queue" aria-labelledby="q-h"><h2 class="lbl" id="q-h">工作順序 <span class="num">${goals.length}</span></h2>
@@ -436,7 +519,8 @@ function queueHTML() {
 function stageHTML() {
   const p = project();
   const goals = queue().goals;
-  const first = goals[0];
+  const first = selectedGoalOf(goals, S.selectedGoal[p.projectId]);
+  const selectedIndex = first ? goals.findIndex((goal) => goal.goalId === first.goalId) : -1;
   const r = room();
   const needs = r.summary.needsHuman;
   const toRoom = (label, cls, area) => (area === 'needs'
@@ -446,7 +530,7 @@ function stageHTML() {
     ? `<section class="card focal need" aria-labelledby="focal-h"><header class="card-h"><span class="pulse idle need" aria-hidden="true"></span><h2 class="ch-t" id="focal-h">需要你</h2><span class="ch-s">${esc(needs[0].actor)} 在協作室提出${needs.length > 1 ? ` · 共 ${needs.length} 件` : ''}${demoRoom() ? ' · 示範資料' : ''}</span></header>
         <div class="card-b"><p class="need-x">${esc(needs[0].body).replace(/\n/g, '<br>')}</p>${toRoom('查看協作室', 'btn gold', 'needs')}</div></section>`
     : first
-      ? `<section class="card focal" aria-labelledby="focal-h"><header class="card-h"><span class="pulse idle" aria-hidden="true"></span><h2 class="ch-t" id="focal-h">已加入工作清單 · 排隊第 1 個</h2><span class="ch-s">尚未開始執行 · ${time(first.createdAt)} 加入</span></header>
+      ? `<section class="card focal" aria-labelledby="focal-h"><header class="card-h"><span class="pulse idle" aria-hidden="true"></span><h2 class="ch-t" id="focal-h">已選擇工作 · 清單第 ${selectedIndex + 1} 個</h2><span class="ch-s">實際執行狀態依治理紀錄 · ${time(first.createdAt)} 加入</span></header>
         <div class="card-b">${NOTE}</div></section>`
       : `<section class="card focal" aria-labelledby="focal-h"><header class="card-h"><span class="pulse idle" aria-hidden="true"></span><h2 class="ch-t" id="focal-h">工作清單是空的</h2><span class="ch-s">目前沒有排隊的目標</span></header>
         <div class="card-b">${NOTE}</div></section>`;
@@ -458,6 +542,7 @@ function stageHTML() {
       <div class="sn-meta"><span class="sn-k">此刻</span><span>${esc(p.displayName)}</span><button class="adv" data-act="console">查看詳細監看 ${ic('ext', 13)}</button></div>
       <p class="lbl asked">你交辦的</p>
       <h1 class="goal" id="stage-h">${first ? esc(first.text) : '還沒有排隊的目標'}</h1>
+      ${first ? `<p class="exec-x">目前操作目標：<code>${esc(first.goalId)}</code>。可在下方工作順序選擇其他任務，不會改變排隊順序。</p>` : ''}
       <dl class="now">
         <div class="nw"><dt>Chief 現在</dt><dd>${esc(now)}</dd></div>
         <div class="nw"><dt>需要你嗎</dt><dd>${needs.length ? toRoom(`需要，${needs.length} 件事等你決定`, 'need-a', 'needs') : '不需要'}</dd></div>
@@ -581,6 +666,35 @@ function popHTML() {
 // 查看決策: read-only. The Human decision backend does not exist in WS-P1, so the sheet explains the question and says
 // that nothing can be decided or recorded here; its only control closes it.
 function sheetHTML() {
+  if (S.sheet === 'exec-confirm') {
+    const intent = S.actionIntent;
+    const valid = intentValid(intent);
+    const goal = valid ? queue().goals.find((item) => item.goalId === intent.goalId) : null;
+    if (!goal) return '';
+    const labels = {
+      govern: '建立正式治理變更', admit: '建立 ROOT Run',
+      activate: '啟動正式工作文件', step: '要求 Agent 執行下一步',
+    };
+    const modelWarning = intent.action === 'step'
+      ? '此操作可能實際呼叫 AI 模型服務並產生費用；需要既有、有效、精確綁定的 Human 授權，且仍受 Runner 預算與安全守門限制。'
+      : intent.action === 'activate'
+        ? '只使用 Trusted Host 預先配置的完整 Architect 與 Human 文件，可能封存授權及改變 Run 狀態；本操作不呼叫模型。'
+        : '只建立正式治理紀錄；本操作不會呼叫模型，也不會發出 Human 授權。';
+    const busy = S.actionBusy[execKey(intent.projectId, intent.goalId)];
+    return `<div class="scrim" data-act="cancel-action"></div>
+      <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-t">
+        <header class="sh-h"><h2 id="sheet-t">確認：${labels[intent.action]}</h2><button class="xbtn" type="button" data-act="cancel-action" aria-label="取消">${ic('x', 18)}</button></header>
+        <div class="sh-b"><p><b>專案：</b>${esc(project()?.displayName ?? intent.projectId)}</p>
+          <p><b>任務：</b>${esc(goal.text)}</p>
+          <p><b>Goal：</b><code>${esc(intent.goalId)}</code></p>
+          <p><b>ROOT Run：</b><code>${esc(intent.runId ?? '尚未建立')}</code></p>
+          <p role="note">${esc(modelWarning)}</p>
+          <p>確定後只送出這一項操作；任何治理狀態變更都會使本次確認失效。</p>
+          <button class="btn" type="button" data-act="confirm-action" ${busy ? 'disabled' : ''}>${busy ? '重新驗證中…' : '確認，執行此操作'}</button>
+          <button class="btn quiet" type="button" data-act="cancel-action" ${busy ? 'disabled' : ''}>取消</button>
+        </div>
+      </section>`;
+  }
   if (S.sheet === 'decision') {
     const event = room().summary.needsHuman.find((item) => item.id === S.decision);
     if (!event) return '';
@@ -724,26 +838,37 @@ document.addEventListener('click', (event) => {
     case 'console': S.sheet = 'console'; render(); break;
     case 'decision': S.sheet = 'decision'; S.decision = v; render(); $('#sheet .xbtn')?.focus(); break;
     case 'close-sheet': S.sheet = null; S.decision = null; render(); break;
+    case 'cancel-action':
+      if (!S.actionBusy[execKey(S.actionIntent?.projectId, S.actionIntent?.goalId)]) {
+        S.actionIntent = null; S.sheet = null; render();
+      }
+      break;
+    case 'confirm-action': void confirmAction(); break;
+    case 'exec-select': {
+      if (queue().goals.some((goal) => goal.goalId === v)) {
+        S.selectedGoal[S.pid] = v;
+        S.actionIntent = null;
+        render();
+      }
+      break;
+    }
     case 'pane': go('project', S.pid, { pane: v }); break;
     case 'exec-refresh': {
-      const first = queue().goals[0];
+      const first = selectedGoal();
       if (first) { S.exec[execKey(S.pid, first.goalId)] = { state: 'loading' }; render(); void loadExecution(S.pid, first.goalId); }
       break;
     }
     case 'exec-step': {
-      const first = queue().goals[0];
-      if (first) void stepOnce(S.pid, first.goalId);
+      requestAction('step');
       break;
     }
     case 'exec-activate': {
-      const first = queue().goals[0];
-      if (first) void activateGoal(S.pid, first.goalId);
+      requestAction('activate');
       break;
     }
     case 'exec-govern':
     case 'exec-admit': {
-      const first = queue().goals[0];
-      if (first) void prepareGoal(S.pid, first.goalId, act === 'exec-govern' ? 'govern' : 'admit');
+      requestAction(act === 'exec-govern' ? 'govern' : 'admit');
       break;
     }
     default: break;
@@ -755,7 +880,10 @@ document.addEventListener('submit', (event) => {
   void submitGoal();
 });
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && (S.pop || S.sheet)) { S.pop = null; S.sheet = null; S.decision = null; render(); return; }
+  if (event.key === 'Escape' && (S.pop || S.sheet)) {
+    if (S.sheet === 'exec-confirm' && S.actionBusy[execKey(S.actionIntent?.projectId, S.actionIntent?.goalId)]) return;
+    S.pop = null; S.sheet = null; S.decision = null; S.actionIntent = null; render(); return;
+  }
   if (event.target.id === 'composer' && event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
     event.preventDefault();
     void submitGoal();
