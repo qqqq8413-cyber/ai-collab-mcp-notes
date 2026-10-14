@@ -3,6 +3,7 @@ import type { HumanPrincipalV1 } from '../identity/canonical.js';
 import type { GoalExecutionStatusPort, GoalExecutionStatusView } from '../workspace/goal-execution-status-port.js';
 import { GoalExecutionStepError, type GoalExecutionStepPort, type GoalExecutionStepView } from '../workspace/goal-execution-step-port.js';
 import { goalSourceOf } from './goal-change-binding.js';
+import type { ApprovedRunIdentity } from './human-approval.js';
 
 // Trusted Host only. The status reader checks the stored Goal's Human attribution and
 // exact ROOT binding; LD1 independently rechecks the Change, ROOT, authority, provenance,
@@ -11,6 +12,8 @@ import { goalSourceOf } from './goal-change-binding.js';
 export function createGoalExecutionStepBridge(options: {
   executionStatus: GoalExecutionStatusPort;
   driver: GovernedExecutionDriver;
+  /** Mandatory. Absence of signed approval must block even before driver inspection. */
+  approvalGate: (identity: ApprovedRunIdentity) => boolean;
 }): GoalExecutionStepPort {
   const active = new Set<string>();
   const targetOf = (projectId: string, goalId: string, human: HumanPrincipalV1) => {
@@ -31,6 +34,16 @@ export function createGoalExecutionStepBridge(options: {
   };
   const inspect = (projectId: string, goalId: string, human: HumanPrincipalV1) => {
     const { observed, target } = targetOf(projectId, goalId, human);
+    if (!target) return { observed, target, view: project(observed) };
+    const signed = observed.change ?
+      options.approvalGate({ projectId, goalId, repository: observed.change.repository,
+        changeKey: observed.change.changeKey, runId: target.runId,
+        humanPrincipalRef: human.principalRef }) : false;
+    if (!signed) return { observed, target, view: {
+      recordClass: 'OPERATIONAL_RECORD' as const, authority: 'NOT_EXECUTION_AUTHORITY' as const,
+      runId: target?.runId ?? null, state: observed.run?.state ?? null,
+      readiness: 'HUMAN_APPROVAL_INVALID', reason: 'SIGNED_APPROVAL_MISSING_EXPIRED_OR_MISMATCHED', canStep: false,
+    } };
     return { observed, target, view: project(observed, target ? options.driver.inspect(target) : undefined) };
   };
   return Object.freeze({

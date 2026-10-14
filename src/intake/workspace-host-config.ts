@@ -16,12 +16,16 @@ const executionStatusSchema = z.strictObject({ authorityArchiveDirectory: root()
 const activationPlanSchema = z.strictObject({
   projectId: z.string().regex(PROJECT_ID), goalId: z.string().regex(GOAL_ID),
   bundle: z.strictObject({ implementationPacket: z.unknown(), liveCallAuthorizations: z.array(z.unknown()).max(2) }),
+  // Signed outside CHIEF. Never supplied by the browser or signed by the Host.
+  humanApproval: z.unknown().optional(),
 });
 const executionStepSchema = z.strictObject({
   governedLive: z.unknown(), activationPlans: z.array(activationPlanSchema).max(100).optional(),
+  humanApprovalPublicKeyPem: z.string().min(1).max(8192).optional(),
 });
 export interface ConfiguredActivationPlan {
   projectId: string; goalId: string;
+  humanApproval?: unknown;
   /** Untrusted until the opt-in Host loads the authority validator. Never sent over HTTP. */
   bundle: { implementationPacket: unknown; liveCallAuthorizations: unknown[] };
 }
@@ -39,7 +43,8 @@ export interface TrustedWorkspaceHostConfig {
   /** G1-WE1-R0 read-only execution status: null (disabled) unless explicitly configured. */
   readonly executionStatus: Readonly<{ authorityArchiveDirectory: string; architectPrincipalRef: string }> | null;
   /** EXE-C1: optional governed one-step execution; off unless fully configured. */
-  readonly executionStep: Readonly<{ governedLive: unknown; activationPlans: readonly ConfiguredActivationPlan[] }> | null;
+  readonly executionStep: Readonly<{ governedLive: unknown; activationPlans: readonly ConfiguredActivationPlan[];
+    humanApprovalPublicKeyPem: string | null }> | null;
 }
 
 export function parseGovernedRepositories(input: unknown, workspace: WorkspaceConfig): readonly GovernedRepositoryBinding[] {
@@ -68,7 +73,7 @@ export function parseTrustedWorkspaceHostConfig(input: unknown, baseDirectory: s
       throw new Error('Duplicate activation plan or unknown project');
     }
     seen.add(key);
-    plans.push({ projectId: inputPlan.projectId, goalId: inputPlan.goalId,
+    plans.push({ projectId: inputPlan.projectId, goalId: inputPlan.goalId, humanApproval: inputPlan.humanApproval,
       bundle: { implementationPacket: inputPlan.bundle.implementationPacket,
         liveCallAuthorizations: [...inputPlan.bundle.liveCallAuthorizations] } });
   }
@@ -78,6 +83,7 @@ export function parseTrustedWorkspaceHostConfig(input: unknown, baseDirectory: s
     executionStatus: parsed.governance.executionStatus ? Object.freeze({ ...parsed.governance.executionStatus }) : null,
     executionStep: parsed.governance.executionStep ? Object.freeze({
       governedLive: parsed.governance.executionStep.governedLive, activationPlans: Object.freeze(plans),
+      humanApprovalPublicKeyPem: parsed.governance.executionStep.humanApprovalPublicKeyPem ?? null,
     }) : null });
 }
 

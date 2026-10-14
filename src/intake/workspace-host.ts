@@ -2,8 +2,6 @@ import { startWorkspaceServer, type RunningWorkspace } from '../workspace/server
 import { createGoalChangeBridge } from './goal-change-bridge.js';
 import type { GoalExecutionStatusBridgeOptions } from './goal-execution-status-bridge.js';
 import { createGoalRunAdmissionBridge, trustedIntakeIsolation } from './goal-run-admission-bridge.js';
-import { createGoalExecutionStepBridge } from './goal-execution-step-bridge.js';
-import { createGoalActivationBridge } from './goal-activation-bridge.js';
 import { type TrustedWorkspaceHostConfig } from './workspace-host-config.js';
 
 // Type-only references: erased at runtime, so a host without execution status never loads that module.
@@ -25,14 +23,25 @@ export function startTrustedWorkspaceHost(options: { config: TrustedWorkspaceHos
     controllerStoreDirectory: config.controllerStoreDirectory, uiDirectory: options.uiDirectory };
   // Both protected roots and every Workspace path are checked before the Goal Store or any writer exists.
   trustedIntakeIsolation(roots);
-  const compose = (status?: { module: StatusModule; options: GoalExecutionStatusBridgeOptions },
-    live?: LiveCapabilities, plans: readonly TrustedActivationPlan[] = []) => {
+  const compose = async (status?: { module: StatusModule; options: GoalExecutionStatusBridgeOptions },
+    live?: LiveCapabilities, plans: readonly TrustedActivationPlan[] = []): Promise<RunningWorkspace> => {
     const bridge = createGoalChangeBridge({ config: config.workspace, governedRepositories: config.governedRepositories,
       changeRegistryDirectory: config.changeRegistryDirectory, uiDirectory: options.uiDirectory });
     const runAdmission = createGoalRunAdmissionBridge({ ...roots, governedRepositories: config.governedRepositories, store: bridge.store });
     const executionStatus = status?.module.createGoalExecutionStatusBridge({ ...status.options, store: bridge.store });
-    const executionStep = live && executionStatus ? createGoalExecutionStepBridge({ executionStatus, driver: live.execution }) : undefined;
-    const goalActivation = live && executionStatus ? createGoalActivationBridge({ status: executionStatus,
+    const approvedPlans = new Map(plans.map((plan) => [JSON.stringify([plan.projectId, plan.goalId]), plan]));
+    // Never load the signed approval verifier, Runner bridge or Controller-adjacent
+    // modules in an ordinary or read-only Host. They belong only to opt-in Live.
+    const liveBridges = live && executionStatus ? await Promise.all([
+      import('./goal-execution-step-bridge.js'), import('./goal-activation-bridge.js'), import('./human-approval.js'),
+    ]) : null;
+    const executionStep = live && executionStatus && liveBridges ? liveBridges[0].createGoalExecutionStepBridge({ executionStatus, driver: live.execution,
+      approvalGate: (identity) => {
+        const plan = approvedPlans.get(JSON.stringify([identity.projectId, identity.goalId]));
+        return !!plan && liveBridges[2].humanApprovalMatches(plan.approval, identity, plan.bundle);
+      },
+    }) : undefined;
+    const goalActivation = live && executionStatus && liveBridges ? liveBridges[1].createGoalActivationBridge({ status: executionStatus,
       activation: live.activation, store: bridge.store, plans,
       architectPrincipalRef: config.executionStatus!.architectPrincipalRef }) : undefined;
     return startWorkspaceServer({ config: config.workspace, uiDirectory: options.uiDirectory, port: options.port,
@@ -63,7 +72,13 @@ export function startTrustedWorkspaceHost(options: { config: TrustedWorkspaceHos
     // Validate every complete direct-authority document while no live capability or
     // Goal Store exists. This module is never loaded by a read-only/disabled Host.
     const { validateActivationPlans } = await import('./activation-plan-preflight.js');
-    const plans = validateActivationPlans(config.executionStep.activationPlans);
+    if (!config.executionStep.humanApprovalPublicKeyPem) {
+      throw new Error('EXE-C4 live Host requires an independently pinned Human Ed25519 public key');
+    }
+    const plans = validateActivationPlans(config.executionStep.activationPlans, config.executionStep.humanApprovalPublicKeyPem);
+    if (plans.some((plan) => plan.approval.payload.humanPrincipalRef !== config.workspace.humanPrincipal.principalRef)) {
+      throw new Error('HUMAN_APPROVAL_PRINCIPAL_MISMATCH');
+    }
     // Live imports and writable capabilities exist ONLY behind explicit opt-in.
     const liveModule = await import('../automation/live/governed-execution.js');
     // Validate and compose the governed live driver before opening Workspace's Goal Store.

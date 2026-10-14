@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { generateKeyPairSync, sign } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -9,6 +10,7 @@ import { startWorkspaceServer } from './dist/workspace/server.js';
 import { createGoalActivationBridge } from './dist/intake/goal-activation-bridge.js';
 import { parseTrustedWorkspaceHostConfig } from './dist/intake/workspace-host-config.js';
 import { validateActivationPlans } from './dist/intake/activation-plan-preflight.js';
+import { authorityBundleSha256, approvalSigningBytes, verifyOfflineHumanApproval } from './dist/intake/human-approval.js';
 
 // EXE-C2: only the Host can provision complete direct-authority documents.
 // HTTP never accepts or echoes a packet, a Human grant, a model or a run identity.
@@ -74,6 +76,14 @@ async function check(name, test) {
       bundle: { implementationPacket: { authorityId: 'approved-packet',
         issuer: { role: 'GPT_ARCHITECT', principalRef: 'architect:synthetic' },
         subject: { repository: REPO, sliceId: 'slice-1' }, body: { sliceId: 'slice-1' } }, liveCallAuthorizations: [] } };
+    const approvalKey = generateKeyPairSync('ed25519');
+    const approvalPayload = { schemaVersion: 1, purpose: 'CHIEF_EXE_C4_HUMAN_APPROVAL',
+      projectId: 'chief', goalId: goal.goalId, repository: REPO, changeKey: 'key-1',
+      runId: 'run-1', humanPrincipalRef: HUMAN.principalRef, issuedAt: new Date(Date.now() - 60_000).toISOString(),
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(), bundleSha256: authorityBundleSha256(plan.bundle) };
+    plan.approval = verifyOfflineHumanApproval({
+      payload: approvalPayload, signatureBase64: sign(null, approvalSigningBytes(approvalPayload), approvalKey.privateKey).toString('base64'),
+    }, approvalKey.publicKey.export({ type: 'spki', format: 'pem' }).toString(), plan.bundle);
     const start = async (withPlans = true) => {
       const port = createGoalActivationBridge({ status, activation: core, store,
         architectPrincipalRef: 'architect:synthetic', plans: withPlans ? [plan] : [] });
@@ -183,18 +193,29 @@ await check('invalid or duplicate Host-issued plans fail before a live capabilit
     issuer: { role: 'GPT_ARCHITECT', principalRef: 'architect:synthetic' },
     subject: { repository: REPO, sliceId: packet.sliceId }, supersedes: null, body: packet };
   const valid = structuredClone(base);
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const publicKeyPem = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+  const bundle = { implementationPacket: document, liveCallAuthorizations: [] };
+  const payload = { schemaVersion: 1, purpose: 'CHIEF_EXE_C4_HUMAN_APPROVAL',
+    projectId: 'chief', goalId: goal.goalId, repository: REPO,
+    changeKey: 'key-1', runId: 'run-1', humanPrincipalRef: HUMAN.principalRef,
+    issuedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    bundleSha256: authorityBundleSha256(bundle) };
   valid.governance.executionStep.activationPlans = [{
     projectId: 'chief', goalId: goal.goalId,
-    bundle: { implementationPacket: document, liveCallAuthorizations: [] },
+    bundle, humanApproval: { payload, signatureBase64: sign(null, approvalSigningBytes(payload), privateKey).toString('base64') },
   }];
   const accepted = parseTrustedWorkspaceHostConfig(valid, dir);
-  assert.equal(validateActivationPlans(accepted.executionStep.activationPlans)[0].bundle.implementationPacket.authorityId, 'packet-1');
+  assert.equal(validateActivationPlans(accepted.executionStep.activationPlans, publicKeyPem)[0].bundle.implementationPacket.authorityId, 'packet-1');
   const invalid = structuredClone(valid);
   invalid.governance.executionStep.activationPlans = [{
     projectId: 'chief', goalId: goal.goalId,
     bundle: { implementationPacket: { role: 'HUMAN', forged: true }, liveCallAuthorizations: [] },
   }];
-  assert.throws(() => validateActivationPlans(parseTrustedWorkspaceHostConfig(invalid, dir).executionStep.activationPlans));
+  assert.throws(() => validateActivationPlans(parseTrustedWorkspaceHostConfig(invalid, dir).executionStep.activationPlans, publicKeyPem));
+  const forged = structuredClone(valid);
+  forged.governance.executionStep.activationPlans[0].humanApproval.payload.runId = 'run-other';
+  assert.throws(() => validateActivationPlans(parseTrustedWorkspaceHostConfig(forged, dir).executionStep.activationPlans, publicKeyPem));
   const duplicate = structuredClone(valid);
   duplicate.governance.executionStep.activationPlans.push(structuredClone(duplicate.governance.executionStep.activationPlans[0]));
   assert.throws(() => parseTrustedWorkspaceHostConfig(duplicate, dir));

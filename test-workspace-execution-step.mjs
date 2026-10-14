@@ -50,7 +50,8 @@ async function check(label, task) {
           preState: 'PACKET_READY', postState: 'IMPLEMENTING' };
       },
     };
-    const step = createGoalExecutionStepBridge({ executionStatus: status, driver });
+    // A synthetic approval in this isolated driver test; the Host never injects a permissive gate.
+    const step = createGoalExecutionStepBridge({ executionStatus: status, driver, approvalGate: () => true });
     const running = await startWorkspaceServer({ config, uiDirectory: UI, port: 0, store,
       executionStatus: status, executionStep: step });
     closers.push(running);

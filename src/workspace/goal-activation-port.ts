@@ -6,7 +6,7 @@ import type { HumanPrincipalV1 } from '../identity/canonical.js';
 export interface GoalActivationView {
   recordClass: 'OPERATIONAL_RECORD';
   authority: 'NOT_EXECUTION_AUTHORITY';
-  readiness: 'NO_ROOT' | 'NO_APPROVED_PLAN' | 'PLAN_MISMATCH' | 'READY' | 'RETRY_REQUIRED' | 'ALREADY_ACTIVATED' | 'ADVANCED';
+  readiness: 'NO_ROOT' | 'NO_APPROVED_PLAN' | 'PLAN_MISMATCH' | 'HUMAN_APPROVAL_INVALID' | 'READY' | 'RETRY_REQUIRED' | 'ALREADY_ACTIVATED' | 'ADVANCED';
   canActivate: boolean;
   state: string | null;
   packetId: string | null;

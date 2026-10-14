@@ -5,6 +5,7 @@ import type { GoalExecutionStatusPort } from '../workspace/goal-execution-status
 import type { FileGoalStore } from '../workspace/goal-store.js';
 import { goalSourceOf } from './goal-change-binding.js';
 import type { TrustedActivationPlan } from './activation-plan-preflight.js';
+import { humanApprovalMatches } from './human-approval.js';
 
 // The ONLY input from a browser is its Goal path. The pre-provisioned complete
 // authority documents never leave this bridge. A Workspace cookie is not Human
@@ -49,6 +50,13 @@ export function createGoalActivationBridge(options: {
           doc.issuer.principalRef !== human.principalRef)) {
       return { target, plan, changeKey: observed.change!.changeKey, view: view('PLAN_MISMATCH', position.state,
         'HOST_DOCUMENT_BINDING_MISMATCH') };
+    }
+    if (!humanApprovalMatches(plan.approval, {
+      projectId, goalId, repository: position.repository, changeKey: position.changeKey,
+      runId: target.runId, humanPrincipalRef: human.principalRef,
+    }, plan.bundle)) {
+      return { target, plan, changeKey: observed.change!.changeKey,
+        view: view('HUMAN_APPROVAL_INVALID', position.state, 'SIGNED_APPROVAL_MISSING_EXPIRED_OR_MISMATCHED') };
     }
     const readiness = ({ IDLE: 'READY', ARCHITECTURE_ENTERED: 'RETRY_REQUIRED',
       PACKET_READY: 'ALREADY_ACTIVATED', ADVANCED: 'ADVANCED' } as const)[position.position];
