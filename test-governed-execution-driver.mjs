@@ -887,21 +887,25 @@ check('AJ-AK-AL. Change Mint stays GC1\'s, run creation stays RA1\'s; LD1 holds 
   }
   // Exactly one call into the runner, its one-step entry.
   assert.equal((driver.match(/step\.call\(/g) ?? []).length, 1);
-  // The live composition is the one production caller of createLiveAutomation, and nothing composes it yet.
+  // The live composition is the one production caller of createLiveAutomation.
   assert.deepEqual(users(/createLiveAutomation\(/, ['src/automation/live/composition.ts']), [LIVE]);
   assert.equal((code(join(ROOT, LIVE)).match(/createLiveAutomation\(/g) ?? []).length, 1);
   assert.deepEqual(users(/openGovernedExecutionDriver\(/, [DRIVER]), [LIVE]);
-  assert.deepEqual(users(/createGovernedLiveAutomation|governed-execution\.js|execution-driver\.js/, [DRIVER, LIVE]), []);
+  assert.deepEqual(users(/createGovernedLiveAutomation|governed-execution\.js|execution-driver\.js/, [DRIVER, LIVE]),
+    ['src/intake/goal-execution-step-bridge.ts', 'src/intake/workspace-host.ts']);
 });
-check('AM-AN-AO-AP. Workspace imports, routes, UI and events are unchanged: no execution reaches the product', () => {
+check('AM-AN-AO-AP. EXE-C1 adds a Goal-scoped step route but no raw execution or authority in Workspace', () => {
   const workspace = SRC.filter((path) => rel(path).startsWith('src/workspace/'));
   assert.deepEqual(workspace.filter((path) => /execution-driver|governed-execution|read-model|AutomationRunner|createLiveAutomation/.test(text(path))).map(rel), []);
-  assert.deepEqual(SRC.filter((path) => /['"`][^'"`]*\/(execute|step|drive|start)['"`]/.test(text(path))).map(rel), []);
+  assert.deepEqual(SRC.filter((path) => /['"`][^'"`]*\/(execute|step|drive|start)['"`]/.test(text(path))).map(rel),
+    ['src/workspace/server.ts']);
   const server = text(join(ROOT, 'src/workspace/server.ts'));
-  assert.doesNotMatch(server, /execut(e|ion)\b.*route|\/execute|\/step|\/drive/);
+  assert.match(server, /executionStep\.step\(current\.projectId, rest\[3\], submittedBy\)/);
+  assert.doesNotMatch(server, /\/execute|\/drive|createGovernedLiveAutomation|openGovernedExecutionDriver/);
   const ui = readdirSync(join(ROOT, 'workspace-ui')).filter((name) => name.endsWith('.js') || name.endsWith('.html'))
     .map((name) => readFileSync(join(ROOT, 'workspace-ui', name), 'utf8')).join('\n');
-  assert.doesNotMatch(ui, /\/run['"`]\s*,\s*\{\s*method:\s*['"]POST|\/execute|\/step\b|\/drive\b|execution-step|EXECUTION_STEP/);
+  assert.match(ui, /data-act="exec-step"/);
+  assert.doesNotMatch(ui, /\/run['"`]\s*,\s*\{\s*method:\s*['"]POST|\/execute|\/drive\b|execution-driver|governed-execution|liveCallAuthorizations/);
   assert.doesNotMatch(server + ui, /event:\s*execution|['"]execution[._-](step|started|advanced)['"]/);
   assert.match(text(join(ROOT, 'src/workspace/goal-run-admission-port.ts')), /admit\(/);
   assert.doesNotMatch(text(join(ROOT, 'src/workspace/goal-run-admission-port.ts')), /step|execute|drive/i);

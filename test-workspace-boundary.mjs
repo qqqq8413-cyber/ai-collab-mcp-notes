@@ -256,6 +256,18 @@ check('WE1-R0 permits only the narrow read-only execution status port; nothing t
     /goal-execution-status-bridge|createGoalExecutionStatusBridge|trustedObservationPreflight|readGovernedModel|assessGovernedRun|execution-readiness|openChangeRegistryReader/);
 });
 
+check('EXE-C1 exposes only a narrow injected one-step port, never a raw runner or model adapter', () => {
+  const server = code(readFileSync('src/workspace/server.ts', 'utf8'));
+  const port = code(readFileSync('src/workspace/goal-execution-step-port.ts', 'utf8'));
+  assert.match(server, /executionStep\?: GoalExecutionStepPort/);
+  assert.match(server, /executionStep\.step\(current\.projectId, rest\[3\], submittedBy\)/);
+  assert.match(server, /executionStep\.inspect\(current\.projectId, rest\[3\], submittedBy\)/);
+  assert.match(server, /if \(!executionStep\) throw new HttpError\(503, 'EXECUTION_STEP_UNAVAILABLE'/);
+  assert.deepEqual(importsOf(port).map((item) => item.specifier), ['../identity/canonical.js']);
+  assert.doesNotMatch(server + port, /createGovernedLiveAutomation|openGovernedExecutionDriver|Automatio[n]Runner|providerSdk|process\.spawn/);
+  assert.match(server, /await noBody\(request\)/);
+});
+
 check('at runtime the server loads no automation, provider, or execution module and opens no outbound connection', () => {
   // Every outbound primitive is wrapped before the server loads; a call is charged to the Workspace
   // when dist/workspace is on its stack. The harness itself talks to the server with fetch.

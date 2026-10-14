@@ -33,7 +33,11 @@ const GOAL = 'goal-00000000-0000-4000-8000-000000000001';
 const UNKNOWN = 'goal-00000000-0000-4000-8000-000000000002';
 const SHA_A = 'a'.repeat(40), SHA_B = 'b'.repeat(40);
 const EARLIER = '2026-01-01T00:00:00.000Z';
-const clock = { now: () => new Date().toISOString() };
+// Synthetic Controller and repository observations must share a monotonic test clock.
+// Wall-clock adjustments can otherwise make a later observation appear to be from the future.
+const wallStart = Date.now();
+const monotonicStart = process.hrtime.bigint();
+const clock = { now: () => new Date(wallStart + Number((process.hrtime.bigint() - monotonicStart) / 1_000_000n)).toISOString() };
 const sha = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
 let passed = 0, failed = 0;
 async function check(name, action) {
@@ -123,7 +127,10 @@ async function admitted(dir, running, options) {
   const record = registryRecord(f);
   const runId = `run-${record.changeKey}`;
   const reality = { workSha: SHA_B, mainSha: SHA_A,
-    observeBranch(repository, branch) { return { repository, branch, sha: branch === 'main' ? this.mainSha : this.workSha, observedAt: clock.now() }; },
+    // Controller snapshots 'now' before calling the reality port; synthetic observations
+    // must be slightly earlier than that snapshot (not a future millisecond).
+    observeBranch(repository, branch) { return { repository, branch, sha: branch === 'main' ? this.mainSha : this.workSha,
+      observedAt: new Date(Date.parse(clock.now()) - 1000).toISOString() }; },
     compare() { throw new Error('not used'); }, observeCi() { throw new Error('not used'); }, observeProtection() { throw new Error('not used'); } };
   const controller = new AutomationController(clock, new FileControllerStore(f.controller, clock), reality);
   let appender;
@@ -347,18 +354,24 @@ await check('T/U. no query, body, header or path segment can name a run, actor o
   assert.equal((await call(ws, 'GET', route(GOAL, '/execution'), { headers: { Host: 'evil.example' } })).status, 421);
   assert.equal((await call(ws, 'GET', route(GOAL, '/execution'), { headers: { 'Sec-Fetch-Site': 'cross-site' } })).status, 403);
 });
-await check('W/V. no POST, DELETE or other execution route exists; GETs never step, activate or recover a run', async (dir, running) => {
+await check('W/V. execution status remains GET-only; disabled one-step cannot drive a run', async (dir, running) => {
   const { f, ws, runId, controller, activate, archive } = await admitted(dir, running);
   archive('IMPLEMENTATION_PACKET', activate());
   for (const method of ['POST', 'DELETE', 'PUT', 'PATCH']) {
     const res = await call(ws, method, route(GOAL, '/execution'), { headers: page(ws) });
     assert.ok([404, 405].includes(res.status), `${method} /execution answered ${res.status}`);
   }
-  for (const verb of ['step', 'execute', 'activate', 'resume', 'recover', 'correct', 'authorize', 'promote', 'drive', 'start']) {
+  for (const verb of ['execute', 'activate', 'resume', 'recover', 'correct', 'authorize', 'promote', 'drive', 'start']) {
     assert.equal((await call(ws, 'POST', route(GOAL, `/${verb}`), { headers: page(ws) })).status, 404, verb);
   }
-  assert.deepEqual(API_ROUTES.filter((item) => /execution/.test(item)), ['GET /api/v0/projects/:projectId/goals/:goalId/execution']);
-  assert.ok(!API_ROUTES.some((item) => /\/(step|execute|activate|resume|recover|correct|authoriz|promote|drive|start)\b/.test(item)));
+  for (const method of ['GET', 'POST']) {
+    const res = await call(ws, method, route(GOAL, '/step'), { headers: method === 'POST' ? page(ws) : {} });
+    assert.deepEqual([res.status, res.json.error.code], [503, 'EXECUTION_STEP_UNAVAILABLE']);
+  }
+  assert.deepEqual(API_ROUTES.filter((item) => /\/execution$/.test(item)), ['GET /api/v0/projects/:projectId/goals/:goalId/execution']);
+  assert.deepEqual(API_ROUTES.filter((item) => /\/step$/.test(item)), ['GET /api/v0/projects/:projectId/goals/:goalId/step',
+    'POST /api/v0/projects/:projectId/goals/:goalId/step']);
+  assert.ok(!API_ROUTES.some((item) => /\/(execute|activate|resume|recover|correct|authoriz|promote|drive|start)\b/.test(item)));
   const audit = controller.audit(runId).length;
   for (let i = 0; i < 5; i++) S(await status(ws, f), 'IN_PROGRESS');
   assert.equal(controller.audit(runId).length, audit, 'a GET moved the run');

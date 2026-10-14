@@ -527,9 +527,15 @@ check('40. exactly one production run-creation path exists outside the controlle
   assert.deepEqual(callers.map(rel), [ROOT_RUN_ADMITTER]);
   assert.equal((text(join(ROOT, ROOT_RUN_ADMITTER)).match(/\.createRun\(/g) ?? []).length, 1);
   assert.deepEqual(SRC.filter((path) => /['"`]\/(api\/[^'"`]*\/)?(run|start)['"`]/.test(text(path))).map(rel), []);
-  // G1-LD1: the governed execution composition is the one production caller of createLiveAutomation, and nothing composes it yet.
+  // G1-LD1/EXE-C1: only the optional trusted Workspace Host may compose governed live execution.
+  // The Workspace module graph and browser must never receive a runner or direct Controller.
   assert.deepEqual(SRC.filter((path) => /createLiveAutomation\(/.test(text(path)) && !path.endsWith(join('live', 'composition.ts'))).map(rel), [GOVERNED_EXECUTION]);
-  assert.deepEqual(SRC.filter((path) => /createGovernedLiveAutomation\(/.test(text(path)) && rel(path) !== GOVERNED_EXECUTION).map(rel), []);
+  assert.deepEqual(SRC.filter((path) => /createGovernedLiveAutomation\(/.test(text(path)) && rel(path) !== GOVERNED_EXECUTION).map(rel),
+    [join('src', 'intake', 'workspace-host.ts')]);
+  const host = text(join(ROOT, 'src/intake/workspace-host.ts'));
+  assert.match(host, /if \(!config\.executionStep\) return compose\(/);
+  assert.match(host, /if \(fields\.controllerStoreDirectory !== config\.controllerStoreDirectory/);
+  assert.match(host, /createGoalExecutionStepBridge\(/);
 });
 check('GC1. exactly one trusted bridge path holds Change Minter; every other runtime remains excluded', () => {
   const implementation = join('src', 'automation', 'change-registry.ts');

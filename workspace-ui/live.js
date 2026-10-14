@@ -35,6 +35,11 @@ export function createLiveSource({ fetchImpl = globalThis.fetch.bind(globalThis)
     collaboration: async (projectId) => ({ projectId, provenance: 'NONE', events: [] }),
     // G1-WE1-R0: read-only governed execution status of one goal. GET only; the server derives everything else.
     executionStatus: (projectId, goalId) => call('GET', `/projects/${enc(projectId)}/goals/${enc(goalId)}/execution`),
+    governGoal: (projectId, goalId) => call('POST', `/projects/${enc(projectId)}/goals/${enc(goalId)}/govern`),
+    admitRun: (projectId, goalId) => call('POST', `/projects/${enc(projectId)}/goals/${enc(goalId)}/run`),
+    // EXE-C1: browser names only the Goal. The trusted host owns all execution identity and authorization.
+    executionStepInspect: (projectId, goalId) => call('GET', `/projects/${enc(projectId)}/goals/${enc(goalId)}/step`),
+    executionStep: (projectId, goalId) => call('POST', `/projects/${enc(projectId)}/goals/${enc(goalId)}/step`),
     /** onEvent(name, data) for hello / goal.created / queue.reordered / goal.removed; onState('connecting' | 'open' | 'retrying'). */
     subscribe(onEvent, onState) {
       const stream = new EventSourceImpl(`${API}/stream`);

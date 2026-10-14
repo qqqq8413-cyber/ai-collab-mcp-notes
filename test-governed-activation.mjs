@@ -1173,7 +1173,10 @@ check('AR-AS-AT-AU. one minter (GC1), one run creator (RA1), one archive reader 
   assert.equal((code(join(ROOT, LIVE)).match(/openDirectAuthorityPreserver\(/g) ?? []).length, 1);
   assert.deepEqual(users(/architectReviewAuthority\(/, [SINK]), [LIVE]);
   assert.deepEqual(users(/openGovernedActivationCore\(/, [CORE]), [LIVE]);
-  assert.deepEqual(users(/createGovernedLiveAutomation\(/, [LIVE]), []);
+  // EXE-C1: a configured Trusted Workspace Host is the sole composition caller.
+  assert.deepEqual(users(/createGovernedLiveAutomation\(/, [LIVE]), ['src/intake/workspace-host.ts']);
+  const host = code(join(ROOT, 'src/intake/workspace-host.ts'));
+  assert.match(host, /if \(!config\.executionStep\) return compose\(/);
   for (const file of [CORE, SINK, LIVE]) {
     assert.doesNotMatch(code(join(ROOT, file)), /createRun|openRootRunAdmitter|openChangeMinter|\.mint\(|openAuthorityArchive(Reader|Appender)|file-archive/, file);
   }

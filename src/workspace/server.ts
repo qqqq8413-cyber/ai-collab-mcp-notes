@@ -7,6 +7,7 @@ import { FileGoalStore, GoalQueueRequestError, GoalStoreBusyError, GoalStoreInte
 import { GoalGovernanceError, type GoalGovernancePort } from './goal-governance-port.js';
 import { GoalExecutionStatusError, type GoalExecutionStatusPort } from './goal-execution-status-port.js';
 import { GoalRunAdmissionError, type GoalRunAdmissionPort } from './goal-run-admission-port.js';
+import { GoalExecutionStepError, type GoalExecutionStepPort } from './goal-execution-step-port.js';
 
 // The local Workspace server (WS-L1). It serves the Workspace UI and a small API over
 // the non-authoritative goal queue, from one origin, on the IPv4 loopback address only.
@@ -14,9 +15,10 @@ import { GoalRunAdmissionError, type GoalRunAdmissionPort } from './goal-run-adm
 // What it can do: list configured projects; read, add, reorder, and remove eligible goals;
 // stream queue changes; request a mint through GC1's injected operational port; and ask RA1's injected
 // port to establish a governed goal's one ROOT run in IDLE (G1-RA1); and, when the trusted host configures it,
-// read a goal's governed execution status through G1-WE1-R0's read-only port. It cannot step a run, enter
-// architecture, issue a packet, call a model or record an authorization, and it holds no Controller
-// capability: the trusted host does the admission. The module graph is guarded by test-workspace-boundary.
+// read a goal's governed execution status through G1-WE1-R0's read-only port. EXE-C1 can
+// request one guarded step ONLY through the trusted host's optional injected port.
+// Workspace cannot itself enter architecture, issue a packet, call a model or record an
+// authorization, and holds no Controller or Runner capability. The module graph is guarded.
 //
 // Request isolation is not Human authentication. It only keeps other web pages and other
 // host names from driving these localhost endpoints: the Host header must name this
@@ -36,6 +38,8 @@ export const API_ROUTES = Object.freeze([
   'POST /api/v0/projects/:projectId/goals/:goalId/run',
   'GET /api/v0/projects/:projectId/goals/:goalId/run',
   'GET /api/v0/projects/:projectId/goals/:goalId/execution',
+  'GET /api/v0/projects/:projectId/goals/:goalId/step',
+  'POST /api/v0/projects/:projectId/goals/:goalId/step',
   'GET /api/v0/stream',
 ] as const);
 const MAX_BODY_BYTES = 16 * 1024;
@@ -44,7 +48,7 @@ const HEARTBEAT_MS = 20_000;
 const REQUEST_HEADER = 'x-chief-workspace';
 const SESSION_COOKIE = 'chief_workspace_session';
 const MAX_SESSIONS = 1024;
-const NOTICE = 'Local operator input. Non-authoritative. Execution has not started and cannot be started from the Workspace in this version.';
+const NOTICE = 'Local operator input. Non-authoritative. Execution requires a separately configured governed host, admitted ROOT run, and exact Human authority.';
 
 const STATIC: Readonly<Record<string, { file: string; type: string }>> = Object.freeze({
   '/': { file: 'index.html', type: 'text/html; charset=utf-8' },
@@ -78,6 +82,8 @@ export interface WorkspaceServerOptions {
   runAdmission?: GoalRunAdmissionPort;
   /** Injected by the trusted host only when configured (G1-WE1-R0). Read-only: it can inspect, nothing else. */
   executionStatus?: GoalExecutionStatusPort;
+  /** Only a trusted host may inject the governed one-step execution request. */
+  executionStep?: GoalExecutionStepPort;
   clock?: { now(): string };
 }
 
@@ -271,6 +277,18 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
         json(response, 200, executionStatus.inspect(current.projectId, rest[3], submittedBy));
         return;
       }
+      // EXE-C1: no run ID, actor, grant, configuration, or payload arrives from the browser.
+      // The injected trusted host checks the bound Human, ROOT, authority and occurrence.
+      if (rest.length === 5 && rest[4] === 'step' && (method === 'GET' || method === 'POST')) {
+        if (new URL(request.url ?? '/', 'http://local').search) throw new HttpError(400, 'UNKNOWN_FIELD', 'Step accepts no query.');
+        await noBody(request);
+        const executionStep = options.executionStep;
+        if (!executionStep) throw new HttpError(503, 'EXECUTION_STEP_UNAVAILABLE', 'Governed execution is not configured.');
+        const result = method === 'POST' ? await executionStep.step(current.projectId, rest[3], submittedBy) :
+          executionStep.inspect(current.projectId, rest[3], submittedBy);
+        json(response, 200, result);
+        return;
+      }
       if (rest.length === 3 && method === 'GET') { json(response, 200, queueView(current, store.read(current.projectId))); return; }
       if (rest.length === 3 && method === 'POST') {
         const body = await readJson(request);
@@ -334,6 +352,10 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
         const status = error.code === 'UNKNOWN_GOAL' || error.code === 'UNKNOWN_PROJECT' ? 404 :
           error.code === 'GOAL_PRINCIPAL_MISMATCH' ? 403 : error.code === 'UNATTRIBUTED_GOAL' ? 409 : 500;
         json(response, status, { error: { code: error.code, message: error.message } });
+        return;
+      }
+      if (error instanceof GoalExecutionStepError) {
+        json(response, 409, { error: { code: error.code, message: error.message } });
         return;
       }
       if (error instanceof GoalStoreBusyError) {

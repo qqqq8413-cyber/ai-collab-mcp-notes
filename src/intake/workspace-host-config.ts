@@ -11,9 +11,13 @@ const root = () => z.string().refine((path) => isAbsolute(path) && normalize(pat
   !/[\u0000-\u001f]/.test(path));
 // G1-WE1-R0: read-only execution status, off unless configured. Its principal is checked by the status preflight.
 const executionStatusSchema = z.strictObject({ authorityArchiveDirectory: root(), architectPrincipalRef: z.string().min(1).max(256) });
+// EXE-C1: explicit opt-in. The full guarded-live settings are validated by the
+// governed execution composition, never accepted from an HTTP request.
+const executionStepSchema = z.strictObject({ governedLive: z.unknown() });
 const schema = z.strictObject({ schemaVersion: z.literal(1), workspace: z.unknown(),
   governance: z.strictObject({ changeRegistryDirectory: root(), controllerStoreDirectory: root(),
-    repositories: z.array(bindingSchema).min(1).max(50), executionStatus: executionStatusSchema.optional() }) });
+    repositories: z.array(bindingSchema).min(1).max(50), executionStatus: executionStatusSchema.optional(),
+    executionStep: executionStepSchema.optional() }) });
 
 export type GovernedRepositoryBinding = Readonly<z.infer<typeof bindingSchema>>;
 export interface TrustedWorkspaceHostConfig {
@@ -23,6 +27,8 @@ export interface TrustedWorkspaceHostConfig {
   readonly governedRepositories: readonly GovernedRepositoryBinding[];
   /** G1-WE1-R0 read-only execution status: null (disabled) unless explicitly configured. */
   readonly executionStatus: Readonly<{ authorityArchiveDirectory: string; architectPrincipalRef: string }> | null;
+  /** EXE-C1: optional governed one-step execution; off unless fully configured. */
+  readonly executionStep: Readonly<{ governedLive: unknown }> | null;
 }
 
 export function parseGovernedRepositories(input: unknown, workspace: WorkspaceConfig): readonly GovernedRepositoryBinding[] {
@@ -39,11 +45,15 @@ export function parseGovernedRepositories(input: unknown, workspace: WorkspaceCo
 
 export function parseTrustedWorkspaceHostConfig(input: unknown, baseDirectory: string): TrustedWorkspaceHostConfig {
   const parsed = schema.parse(input);
+  if (parsed.governance.executionStep && !parsed.governance.executionStatus) {
+    throw new Error('executionStep requires the existing read-only executionStatus configuration');
+  }
   const workspace = parseWorkspaceConfig(parsed.workspace, baseDirectory);
   return Object.freeze({ workspace, changeRegistryDirectory: parsed.governance.changeRegistryDirectory,
     controllerStoreDirectory: parsed.governance.controllerStoreDirectory,
     governedRepositories: parseGovernedRepositories(parsed.governance.repositories, workspace),
-    executionStatus: parsed.governance.executionStatus ? Object.freeze({ ...parsed.governance.executionStatus }) : null });
+    executionStatus: parsed.governance.executionStatus ? Object.freeze({ ...parsed.governance.executionStatus }) : null,
+    executionStep: parsed.governance.executionStep ? Object.freeze({ ...parsed.governance.executionStep }) : null });
 }
 
 export function loadTrustedWorkspaceHostConfig(file: string): TrustedWorkspaceHostConfig {

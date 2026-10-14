@@ -104,6 +104,13 @@ export function createDemoSource({ now = () => new Date().toISOString() } = {}) 
       get(projectId);
       return { provenance: 'DEMO_SAMPLE', demo: true };
     },
+    async executionStepInspect(projectId) {
+      get(projectId);
+      return { recordClass: 'OPERATIONAL_RECORD', readiness: 'DEMO_DISABLED', canStep: false };
+    },
+    async executionStep() { throw new Error('示範模式不能執行'); },
+    async governGoal() { throw new Error('示範模式不能建立治理變更'); },
+    async admitRun() { throw new Error('示範模式不能建立正式執行任務'); },
     async collaboration(projectId) {
       get(projectId);
       return { projectId, provenance: 'DEMO_SAMPLE', events: structuredClone(rooms.get(projectId)) };

@@ -99,11 +99,18 @@ await check('browser assets do not keep a Human session secret in JavaScript sto
   assert.doesNotMatch(read('live.js'), /localStorage|sessionStorage|document\.cookie/);
 });
 
-await check('the UI calls only the WS-L1 routes and shows no execution it does not have', () => {
+await check('the UI uses only the governed Goal-scoped routes; no raw runtime actions', () => {
   const live = read('live.js'), app = read('app.js');
   for (const route of ['/projects', '/goals', '/order', '/stream']) assert.match(live, new RegExp(route.replace('/', '\\/')));
-  assert.doesNotMatch(live + app, /\/(start|run|execute|resume|promote|create-run)\b/);
-  assert.equal(API_ROUTES.length, 11);
+  assert.doesNotMatch(live + app, /\/(start|execute|resume|promote|create-run)\b/);
+  assert.equal((live.match(/\/run`/g) ?? []).length, 1, 'only RA1 ROOT admission route may be used by the browser');
+  assert.equal(API_ROUTES.length, 13);
+  assert.deepEqual(API_ROUTES.filter((route) => /\/step$/.test(route)), [
+    'GET /api/v0/projects/:projectId/goals/:goalId/step',
+    'POST /api/v0/projects/:projectId/goals/:goalId/step',
+  ], 'EXE-C1 adds only the Goal-scoped guarded inspection and one-step route');
+  assert.match(live, /executionStepInspect: \(projectId, goalId\) => call\('GET'/);
+  assert.match(live, /executionStep: \(projectId, goalId\) => call\('POST'/);
   // G1-WE1-R0: exactly one read-only execution status route, GET only; the UI reads it and nothing else new.
   assert.deepEqual(API_ROUTES.filter((route) => /\/execution$/.test(route)), ['GET /api/v0/projects/:projectId/goals/:goalId/execution']);
   assert.match(live, /executionStatus: \(projectId, goalId\) => call\('GET', `\/projects\/\$\{enc\(projectId\)\}\/goals\/\$\{enc\(goalId\)\}\/execution`\)/);
@@ -121,7 +128,7 @@ await check('the UI calls only the WS-L1 routes and shows no execution it does n
   assert.match(app, /已收到這個目標。我已經把它加入/);
   assert.match(app, /排隊中/);
   assert.match(app, /尚未開始執行/);
-  assert.match(app, /目前這個版本只會保存與排列工作，還不會自動啟動 AI 執行。/);
+  assert.match(app, /工作清單不會自動啟動 AI。只有正式治理 Host 啟用並通過授權檢查後，才能手動執行下一步。/);
   assert.match(app, /無法連到對應的監看畫面/, 'Console deep link is stated as not available yet');
 });
 
@@ -312,7 +319,7 @@ await check('WS-P1 signals: Human-required only from an escalation time; the LIV
   const html = roomHTML(r);
   assert.ok(html.includes(EMPTY_ROOM) && html.includes(NEEDS_EMPTY), 'LIVE shows both areas empty');
   assert.doesNotMatch(html, /示範資料|AI 協作摘要|class="ev /, 'no demo label, no summary, no event');
-  assert.equal(API_ROUTES.filter((route) => !/\/(govern|governance|run|execution)$/.test(route)).length, 6, 'no collaboration API route was added');
+  assert.equal(API_ROUTES.filter((route) => !/\/(govern|governance|run|execution|step)$/.test(route)).length, 6, 'no collaboration API route was added');
 });
 
 await check('WS-P1 CollaborationEventV1: nine runtime-neutral types; anything outside the model is refused, never shown', () => {
