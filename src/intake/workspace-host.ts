@@ -3,11 +3,14 @@ import { createGoalChangeBridge } from './goal-change-bridge.js';
 import type { GoalExecutionStatusBridgeOptions } from './goal-execution-status-bridge.js';
 import { createGoalRunAdmissionBridge, trustedIntakeIsolation } from './goal-run-admission-bridge.js';
 import { createGoalExecutionStepBridge } from './goal-execution-step-bridge.js';
+import { createGoalActivationBridge } from './goal-activation-bridge.js';
 import { type TrustedWorkspaceHostConfig } from './workspace-host-config.js';
 
 // Type-only references: erased at runtime, so a host without execution status never loads that module.
 type StatusModule = typeof import('./goal-execution-status-bridge.js');
 type LiveDriver = ReturnType<typeof import('../automation/live/governed-execution.js')['createGovernedLiveAutomation']>['execution'];
+type LiveCapabilities = ReturnType<typeof import('../automation/live/governed-execution.js')['createGovernedLiveAutomation']>;
+type TrustedActivationPlan = import('./activation-plan-preflight.js').TrustedActivationPlan;
 
 /**
  * Trusted production host: checks storage before listening and injects only the narrow GC1
@@ -23,15 +26,18 @@ export function startTrustedWorkspaceHost(options: { config: TrustedWorkspaceHos
   // Both protected roots and every Workspace path are checked before the Goal Store or any writer exists.
   trustedIntakeIsolation(roots);
   const compose = (status?: { module: StatusModule; options: GoalExecutionStatusBridgeOptions },
-    driver?: LiveDriver) => {
+    live?: LiveCapabilities, plans: readonly TrustedActivationPlan[] = []) => {
     const bridge = createGoalChangeBridge({ config: config.workspace, governedRepositories: config.governedRepositories,
       changeRegistryDirectory: config.changeRegistryDirectory, uiDirectory: options.uiDirectory });
     const runAdmission = createGoalRunAdmissionBridge({ ...roots, governedRepositories: config.governedRepositories, store: bridge.store });
     const executionStatus = status?.module.createGoalExecutionStatusBridge({ ...status.options, store: bridge.store });
-    const executionStep = driver && executionStatus ? createGoalExecutionStepBridge({ executionStatus, driver }) : undefined;
+    const executionStep = live && executionStatus ? createGoalExecutionStepBridge({ executionStatus, driver: live.execution }) : undefined;
+    const goalActivation = live && executionStatus ? createGoalActivationBridge({ status: executionStatus,
+      activation: live.activation, store: bridge.store, plans,
+      architectPrincipalRef: config.executionStatus!.architectPrincipalRef }) : undefined;
     return startWorkspaceServer({ config: config.workspace, uiDirectory: options.uiDirectory, port: options.port,
       store: bridge.store, governance: bridge.governance, runAdmission, ...(executionStatus ? { executionStatus } : {}),
-      ...(executionStep ? { executionStep } : {}) });
+      ...(executionStep ? { executionStep } : {}), ...(goalActivation ? { goalActivation } : {}) });
   };
   // G1-WE1-R0: read-only execution status is off unless configured. Only then is its module loaded, and its three
   // protected roots, Workspace paths and Architect principal are checked before the Goal Store or any writer exists.
@@ -54,10 +60,14 @@ export function startTrustedWorkspaceHost(options: { config: TrustedWorkspaceHos
         config.governedRepositories.some((binding) => binding.repository !== fields.repository)) {
       throw new Error('executionStep must bind the exact trusted governance roots, principal and repository');
     }
+    // Validate every complete direct-authority document while no live capability or
+    // Goal Store exists. This module is never loaded by a read-only/disabled Host.
+    const { validateActivationPlans } = await import('./activation-plan-preflight.js');
+    const plans = validateActivationPlans(config.executionStep.activationPlans);
     // Live imports and writable capabilities exist ONLY behind explicit opt-in.
     const liveModule = await import('../automation/live/governed-execution.js');
     // Validate and compose the governed live driver before opening Workspace's Goal Store.
-    const driver = liveModule.createGovernedLiveAutomation(live).execution;
-    return compose({ module, options: statusOptions }, driver);
+    const capabilities = liveModule.createGovernedLiveAutomation(live);
+    return compose({ module, options: statusOptions }, capabilities, plans);
   });
 }

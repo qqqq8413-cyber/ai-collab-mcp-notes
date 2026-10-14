@@ -111,6 +111,11 @@ export function createDemoSource({ now = () => new Date().toISOString() } = {}) 
     async executionStep() { throw new Error('示範模式不能執行'); },
     async governGoal() { throw new Error('示範模式不能建立治理變更'); },
     async admitRun() { throw new Error('示範模式不能建立正式執行任務'); },
+    async activationInspect(projectId) {
+      get(projectId);
+      return { readiness: 'DEMO_DISABLED', canActivate: false };
+    },
+    async activateGoal() { throw new Error('示範模式不能啟動正式任務'); },
     async collaboration(projectId) {
       get(projectId);
       return { projectId, provenance: 'DEMO_SAMPLE', events: structuredClone(rooms.get(projectId)) };

@@ -8,6 +8,7 @@ import { GoalGovernanceError, type GoalGovernancePort } from './goal-governance-
 import { GoalExecutionStatusError, type GoalExecutionStatusPort } from './goal-execution-status-port.js';
 import { GoalRunAdmissionError, type GoalRunAdmissionPort } from './goal-run-admission-port.js';
 import { GoalExecutionStepError, type GoalExecutionStepPort } from './goal-execution-step-port.js';
+import { GoalActivationError, type GoalActivationPort } from './goal-activation-port.js';
 
 // The local Workspace server (WS-L1). It serves the Workspace UI and a small API over
 // the non-authoritative goal queue, from one origin, on the IPv4 loopback address only.
@@ -40,6 +41,8 @@ export const API_ROUTES = Object.freeze([
   'GET /api/v0/projects/:projectId/goals/:goalId/execution',
   'GET /api/v0/projects/:projectId/goals/:goalId/step',
   'POST /api/v0/projects/:projectId/goals/:goalId/step',
+  'GET /api/v0/projects/:projectId/goals/:goalId/activation',
+  'POST /api/v0/projects/:projectId/goals/:goalId/activation',
   'GET /api/v0/stream',
 ] as const);
 const MAX_BODY_BYTES = 16 * 1024;
@@ -84,6 +87,8 @@ export interface WorkspaceServerOptions {
   executionStatus?: GoalExecutionStatusPort;
   /** Only a trusted host may inject the governed one-step execution request. */
   executionStep?: GoalExecutionStepPort;
+  /** EXE-C2: request a pre-provisioned, complete authority bundle; no document crosses HTTP. */
+  goalActivation?: GoalActivationPort;
   clock?: { now(): string };
 }
 
@@ -289,6 +294,16 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
         json(response, 200, result);
         return;
       }
+      if (rest.length === 5 && rest[4] === 'activation' && (method === 'GET' || method === 'POST')) {
+        if (new URL(request.url ?? '/', 'http://local').search) throw new HttpError(400, 'UNKNOWN_FIELD', 'Activation accepts no query.');
+        await noBody(request);
+        const activation = options.goalActivation;
+        if (!activation) throw new HttpError(503, 'ACTIVATION_UNAVAILABLE', 'The trusted Host has no activation capability.');
+        const result = method === 'POST' ? await activation.activate(current.projectId, rest[3], submittedBy)
+          : activation.inspect(current.projectId, rest[3], submittedBy);
+        json(response, 200, result);
+        return;
+      }
       if (rest.length === 3 && method === 'GET') { json(response, 200, queueView(current, store.read(current.projectId))); return; }
       if (rest.length === 3 && method === 'POST') {
         const body = await readJson(request);
@@ -355,6 +370,10 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
         return;
       }
       if (error instanceof GoalExecutionStepError) {
+        json(response, 409, { error: { code: error.code, message: error.message } });
+        return;
+      }
+      if (error instanceof GoalActivationError) {
         json(response, 409, { error: { code: error.code, message: error.message } });
         return;
       }

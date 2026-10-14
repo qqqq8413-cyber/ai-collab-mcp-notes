@@ -104,7 +104,13 @@ await check('the UI uses only the governed Goal-scoped routes; no raw runtime ac
   for (const route of ['/projects', '/goals', '/order', '/stream']) assert.match(live, new RegExp(route.replace('/', '\\/')));
   assert.doesNotMatch(live + app, /\/(start|execute|resume|promote|create-run)\b/);
   assert.equal((live.match(/\/run`/g) ?? []).length, 1, 'only RA1 ROOT admission route may be used by the browser');
-  assert.equal(API_ROUTES.length, 13);
+  assert.equal(API_ROUTES.length, 15);
+  assert.deepEqual(API_ROUTES.filter((route) => /\/activation$/.test(route)), [
+    'GET /api/v0/projects/:projectId/goals/:goalId/activation',
+    'POST /api/v0/projects/:projectId/goals/:goalId/activation',
+  ], 'EXE-C2 adds only a Goal-scoped pre-provisioned authority activation');
+  assert.match(live, /activationInspect: \(projectId, goalId\) => call\('GET'/);
+  assert.match(live, /activateGoal: \(projectId, goalId\) => call\('POST'/);
   assert.deepEqual(API_ROUTES.filter((route) => /\/step$/.test(route)), [
     'GET /api/v0/projects/:projectId/goals/:goalId/step',
     'POST /api/v0/projects/:projectId/goals/:goalId/step',
@@ -319,7 +325,7 @@ await check('WS-P1 signals: Human-required only from an escalation time; the LIV
   const html = roomHTML(r);
   assert.ok(html.includes(EMPTY_ROOM) && html.includes(NEEDS_EMPTY), 'LIVE shows both areas empty');
   assert.doesNotMatch(html, /示範資料|AI 協作摘要|class="ev /, 'no demo label, no summary, no event');
-  assert.equal(API_ROUTES.filter((route) => !/\/(govern|governance|run|execution|step)$/.test(route)).length, 6, 'no collaboration API route was added');
+  assert.equal(API_ROUTES.filter((route) => !/\/(govern|governance|run|execution|step|activation)$/.test(route)).length, 6, 'no collaboration API route was added');
 });
 
 await check('WS-P1 CollaborationEventV1: nine runtime-neutral types; anything outside the model is refused, never shown', () => {

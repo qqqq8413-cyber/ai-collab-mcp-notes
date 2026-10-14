@@ -371,6 +371,8 @@ await check('W/V. execution status remains GET-only; disabled one-step cannot dr
   assert.deepEqual(API_ROUTES.filter((item) => /\/execution$/.test(item)), ['GET /api/v0/projects/:projectId/goals/:goalId/execution']);
   assert.deepEqual(API_ROUTES.filter((item) => /\/step$/.test(item)), ['GET /api/v0/projects/:projectId/goals/:goalId/step',
     'POST /api/v0/projects/:projectId/goals/:goalId/step']);
+  assert.deepEqual(API_ROUTES.filter((item) => /\/activation$/.test(item)), ['GET /api/v0/projects/:projectId/goals/:goalId/activation',
+    'POST /api/v0/projects/:projectId/goals/:goalId/activation']);
   assert.ok(!API_ROUTES.some((item) => /\/(execute|activate|resume|recover|correct|authoriz|promote|drive|start)\b/.test(item)));
   const audit = controller.audit(runId).length;
   for (let i = 0; i < 5; i++) S(await status(ws, f), 'IN_PROGRESS');

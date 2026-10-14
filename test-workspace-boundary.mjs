@@ -268,6 +268,18 @@ check('EXE-C1 exposes only a narrow injected one-step port, never a raw runner o
   assert.match(server, /await noBody\(request\)/);
 });
 
+check('EXE-C2 exposes a Goal-only pre-provisioned activation port; no raw authority document arrives by HTTP', () => {
+  const server = code(readFileSync('src/workspace/server.ts', 'utf8'));
+  const port = code(readFileSync('src/workspace/goal-activation-port.ts', 'utf8'));
+  assert.match(server, /goalActivation\?: GoalActivationPort/);
+  assert.match(server, /activation\.activate\(current\.projectId, rest\[3\], submittedBy\)/);
+  assert.match(server, /activation\.inspect\(current\.projectId, rest\[3\], submittedBy\)/);
+  assert.match(server, /if \(!activation\) throw new HttpError\(503, 'ACTIVATION_UNAVAILABLE'/);
+  assert.deepEqual(importsOf(port).map((item) => item.specifier), ['../identity/canonical.js']);
+  assert.doesNotMatch(server + port, /createGovernedLiveAutomation|openDirectAuthorityPreserver|parseAuthorityDocument|liveCallAuthorizations/);
+  assert.match(server, /await noBody\(request\)/);
+});
+
 check('at runtime the server loads no automation, provider, or execution module and opens no outbound connection', () => {
   // Every outbound primitive is wrapped before the server loads; a call is charged to the Workspace
   // when dist/workspace is on its stack. The harness itself talks to the server with fetch.

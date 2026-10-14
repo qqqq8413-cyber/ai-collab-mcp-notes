@@ -40,6 +40,8 @@ export function createLiveSource({ fetchImpl = globalThis.fetch.bind(globalThis)
     // EXE-C1: browser names only the Goal. The trusted host owns all execution identity and authorization.
     executionStepInspect: (projectId, goalId) => call('GET', `/projects/${enc(projectId)}/goals/${enc(goalId)}/step`),
     executionStep: (projectId, goalId) => call('POST', `/projects/${enc(projectId)}/goals/${enc(goalId)}/step`),
+    activationInspect: (projectId, goalId) => call('GET', `/projects/${enc(projectId)}/goals/${enc(goalId)}/activation`),
+    activateGoal: (projectId, goalId) => call('POST', `/projects/${enc(projectId)}/goals/${enc(goalId)}/activation`),
     /** onEvent(name, data) for hello / goal.created / queue.reordered / goal.removed; onState('connecting' | 'open' | 'retrying'). */
     subscribe(onEvent, onState) {
       const stream = new EventSourceImpl(`${API}/stream`);

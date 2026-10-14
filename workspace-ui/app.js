@@ -138,6 +138,7 @@ const S = {
   view: 'home', pid: null, target: null, homeAck: null, projects: [], queues: {}, collab: {}, conn: 'connecting', pop: null, sheet: null,
   decision: null, confirm: null, sending: false, loadError: null, pane: 'now', area: 'discussion', exec: {},
   steps: {}, stepBusy: {}, stepResult: {}, prepBusy: {}, prepResult: {},
+  activation: {}, activationBusy: {}, activationResult: {},
 };
 const LAST = `chief.workspace.${source.mode}.project`; // last viewed project: a local, non-authoritative UI preference
 const RECENT = `chief.workspace.${source.mode}.recent`; // recently opened projects, newest first: the same kind of preference
@@ -192,7 +193,58 @@ async function loadExecution(projectId, goalId) {
     S.exec[key] = error.status === 503 && error.code === 'EXECUTION_STATUS_UNAVAILABLE' ? { state: 'disabled' } : { state: 'error', message: error.message };
   }
   await loadStep(projectId, goalId);
+  await loadActivation(projectId, goalId);
   render();
+}
+async function loadActivation(projectId, goalId) {
+  const key = execKey(projectId, goalId);
+  try {
+    const view = await source.activationInspect(projectId, goalId);
+    S.activation[key] = view.readiness === 'DEMO_DISABLED' ? { state: 'disabled' } : { state: 'ready', view };
+  } catch (error) {
+    S.activation[key] = error.status === 503 && error.code === 'ACTIVATION_UNAVAILABLE'
+      ? { state: 'disabled' } : { state: 'error', message: error.message };
+  }
+}
+async function activateGoal(projectId, goalId) {
+  const key = execKey(projectId, goalId);
+  if (S.activationBusy[key] || S.activation[key]?.view?.canActivate !== true) return;
+  S.activationBusy[key] = true;
+  S.activationResult[key] = null;
+  render();
+  try {
+    const result = await source.activateGoal(projectId, goalId);
+    S.activationResult[key] = `正式啟動結果：${result.status}。此操作本身不呼叫 AI 模型。`;
+  } catch (error) {
+    S.activationResult[key] = `正式啟動遭拒：${error.code || 'UNKNOWN'}`;
+  } finally {
+    S.activationBusy[key] = false;
+    S.exec[key] = { state: 'loading' };
+    await loadExecution(projectId, goalId);
+  }
+}
+function activationHTML(projectId, goalId) {
+  const key = execKey(projectId, goalId);
+  const entry = S.activation[key];
+  if (!entry || entry.state === 'disabled') return '';
+  if (entry.state !== 'ready') return `<section class="exec"><p class="exec-x">無法檢查正式啟動：${esc(entry.message)}</p></section>`;
+  const v = entry.view;
+  if (v.readiness === 'NO_ROOT') return '';
+  const busy = !!S.activationBusy[key];
+  const explanations = {
+    NO_APPROVED_PLAN: 'Host 尚未配置完整的 Architect 工作封包與必要的 Human 授權文件，不能在網頁中自行核發。',
+    PLAN_MISMATCH: 'Host 預先配置的正式文件與此任務或核發者不符；不能啟動。',
+    READY: '已存在 Host 事先配置的完整正式文件，可要求核對並啟動。',
+    RETRY_REQUIRED: '上次啟動在架構階段中斷；只允許相同正式文件的精確重試。',
+    ALREADY_ACTIVATED: '已完成正式工作文件核發；尚須通過 Runner 的模型授權與預算檢查。',
+    ADVANCED: '流程已前進；這裡不能重複啟動或變更授權。',
+  };
+  return `<section class="exec" aria-label="正式工作文件啟動"><h2 class="lbl">Architect 啟動</h2>
+    <p class="exec-x">${esc(explanations[v.readiness] || v.readiness)}</p>
+    ${v.packetId ? `<p class="exec-x">預先配置的文件：<code>${esc(v.packetId)}</code></p>` : ''}
+    ${v.canActivate ? `<button class="btn" type="button" data-act="exec-activate" ${busy ? 'disabled' : ''}>${busy ? '核對正式文件中…' : '依正式文件啟動（單次）'}</button>` : ''}
+    ${S.activationResult[key] ? `<p class="exec-x">${esc(S.activationResult[key])}</p>` : ''}
+  </section>`;
 }
 async function loadStep(projectId, goalId) {
   const key = execKey(projectId, goalId);
@@ -411,7 +463,8 @@ function stageHTML() {
         <div class="nw"><dt>需要你嗎</dt><dd>${needs.length ? toRoom(`需要，${needs.length} 件事等你決定`, 'need-a', 'needs') : '不需要'}</dd></div>
       </dl>
       <div class="focus">${focal}${records}</div>
-      ${first ? executionStatusHTML(exec) + prepareHTML(p.projectId, first.goalId, exec) + stepHTML(p.projectId, first.goalId) : ''}
+      ${first ? executionStatusHTML(exec) + prepareHTML(p.projectId, first.goalId, exec) +
+        activationHTML(p.projectId, first.goalId) + stepHTML(p.projectId, first.goalId) : ''}
       <div class="ledger">${queueHTML()}
         <section aria-labelledby="ctx-h"><h2 class="lbl" id="ctx-h">專案</h2><dl class="ctx"><dt>專案</dt><dd>${esc(p.displayName)}</dd><dt>位置</dt><dd>${esc(p.repository)}</dd><dt>狀態</dt><dd><span class="stat"><span class="dot" aria-hidden="true"></span>${first && now !== '排隊中 · 尚未開始執行' ? esc(now) : '尚未開始執行'}</span></dd></dl></section>
       </div>
@@ -680,6 +733,11 @@ document.addEventListener('click', (event) => {
     case 'exec-step': {
       const first = queue().goals[0];
       if (first) void stepOnce(S.pid, first.goalId);
+      break;
+    }
+    case 'exec-activate': {
+      const first = queue().goals[0];
+      if (first) void activateGoal(S.pid, first.goalId);
       break;
     }
     case 'exec-govern':

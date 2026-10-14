@@ -1199,13 +1199,15 @@ check('AV-AW-AX. no Workspace, model, validation or LD1 path reaches an authorit
     assert.doesNotMatch(text(join(ROOT, file)), /preserver\.js|openDirectAuthorityPreserver|AuthorityArchiveAppender|openAuthorityArchive|file-archive/, file);
   }
   assert.deepEqual(users(/architectAuthority/), ['src/automation/live/composition.ts', LIVE, 'src/automation/runner.ts']);
-  // No route, UI control or event activates anything.
+  // EXE-C2: the sole activation route is Goal-scoped and the trusted Host alone
+  // selects complete authority; the Workspace cannot import the core or archive.
   assert.deepEqual(SRC.filter((path) => /['"`]\/[^'"`\s]*\/(activate|packet|authority|execute|step)['"`]/.test(text(path))).map(rel), []);
   const ui = readdirSync(join(ROOT, 'workspace-ui')).filter((name) => /\.(js|html)$/.test(name)).map((name) => readFileSync(join(ROOT, 'workspace-ui', name), 'utf8')).join('\n');
-  // G1-WE1-R0: the read-only status displays RP1's bounded provenance reason codes and the read-only activationBound
-  // fact; nothing else may name activation.
-  assert.doesNotMatch(ui.replace(/\bACTIVATION_(LINEAGE_MISSING|LINEAGE_FOREIGN|PACKET_MISMATCH)\b|\boperationalProvenance\.activationBound\b/g, ''),
-    /\/activate|\/authority|activation/i);
+  assert.match(ui, /data-act="exec-activate"/);
+  assert.doesNotMatch(ui, /\/authority\b|openDirectAuthorityPreserver|parseAuthorityDocument|liveCallAuthorizations|packetHash\(/);
+  const server = text(join(ROOT, 'src/workspace/server.ts'));
+  assert.match(server, /activation\.activate\(current\.projectId, rest\[3\], submittedBy\)/);
+  assert.doesNotMatch(server, /openDirectAuthorityPreserver|parseAuthorityDocument|activation-core/);
 });
 
 let passed = 0, failed = 0;
