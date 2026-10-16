@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync,
-  writeFileSync } from 'node:fs';
+  unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,7 +13,7 @@ import { openAuthorityArchiveReader } from './dist/automation/authority/file-arc
 import * as preserverModule from './dist/automation/authority/preserver.js';
 import { openChangeMinter } from './dist/automation/change-registry.js';
 import { AutomationController } from './dist/automation/controller.js';
-import { FileControllerStore } from './dist/automation/durable-store.js';
+import { FileControllerStore, storedRunFileName } from './dist/automation/durable-store.js';
 import { openGovernedExecutionDriver } from './dist/automation/execution-driver.js';
 import { packetHash } from './dist/automation/packet.js';
 import { FileInvocationJournal } from './dist/automation/file-invocation-journal.js';
@@ -571,29 +571,70 @@ check('C1-F. concurrent activations with different packets: one binds IDLE → A
   assert.throws(() => x.controller.issuePacket(x.runId, ARCH, x.packet({ packetId: 'packet-2' })), /not the activation/);
   assert.throws(() => x.controller.issuePacket(x.runId, ARCH, x.packet({ objective: 'Same id, other body' })), /not the activation/);
   assert.equal(x.core.activate(x.target(), x.bundle()).status, 'ACTIVATED');
-  // Real processes started together, each with its own packet.
-  const outcomes = [];
+  // Real processes started together, each with its own packet. Exactly one activation binds the run (the winner). The
+  // winner may meet another process's run lock when it issues (a loser refused inside the lock): its issue is then
+  // refused, it reports ACTIVATION_INCOMPLETE and the run stays at ARCHITECTURE bound to it (C1-F2 below, deterministic).
+  // That is the designed recoverable outcome: no loser can complete or replace it, and only the winner's exact retry
+  // completes it. So the winner is read from the binding, not from an issued packet.
   for (let round = 0; round < 3; round++) {
     const r = world(join(dir, `race-${round}`));
     const bundles = [1, 2, 3, 4].map((n) => bundleN(r, n));
     const goAt = Date.now() + 2000;
     const results = await Promise.all(bundles.map((bundle) => activateInProcess(r, bundle, { goAt })));
-    outcomes.push(...results.map((result) => result.outcome));
-    const final = r.controller.get(r.runId);
-    assert.equal(final.state, 'PACKET_READY', JSON.stringify(results));
-    assert.deepEqual(auditOf(r), [['ENTER_ARCHITECTURE', ARCHITECT, 'GPT_ARCHITECT'], ['ISSUE_PACKET', ARCHITECT, 'GPT_ARCHITECT']]);
-    const winner = Number(final.activePacket.packetId.slice('packet-'.length));
+    let final = r.controller.get(r.runId);
+    assert.ok(final.activationBinding, JSON.stringify(results));
+    const winner = Number(final.activationBinding.packetId.slice('packet-'.length));
+    assert.ok([1, 2, 3, 4].includes(winner), JSON.stringify(results));
     assert.deepEqual(final.activationBinding, intentOf(bundles[winner - 1]));
     results.forEach((result, index) => {
       const allowed = index === winner - 1 ? ['ACTIVATED', 'ACTIVATION_INCOMPLETE'] : ['ACTIVATION_CONFLICT', 'ACTIVATION_INCOMPLETE', 'ACTIVATION_READ_MODEL_CONFLICT'];
       assert.ok(allowed.includes(result.outcome), JSON.stringify(results));
     });
+    if (results[winner - 1].outcome === 'ACTIVATED') {
+      // The winner said it completed: it did, with nothing left to retry.
+      assert.equal(final.state, 'PACKET_READY', JSON.stringify(results));
+    } else if (final.state === 'ARCHITECTURE') {
+      // Entered but not issued: only the entry exists, no packet, no loser can complete it, and the winner's exact
+      // retry completes it.
+      assert.equal(final.activePacket, undefined, JSON.stringify(results));
+      assert.deepEqual(auditOf(r), [['ENTER_ARCHITECTURE', ARCHITECT, 'GPT_ARCHITECT']], JSON.stringify(results));
+      for (const [index, bundle] of bundles.entries()) {
+        if (index !== winner - 1) refusedUntouched(r, () => r.core.activate(r.target(), bundle), 'ACTIVATION_CONFLICT');
+      }
+      assert.equal(r.core.activate(r.target(), bundles[winner - 1]).status, 'ACTIVATED');
+      final = r.controller.get(r.runId);
+    }
+    assert.equal(final.state, 'PACKET_READY', JSON.stringify(results));
+    assert.equal(final.activePacket.packetId, `packet-${winner}`);
+    assert.deepEqual(final.activationBinding, intentOf(bundles[winner - 1]));
+    assert.deepEqual(auditOf(r), [['ENTER_ARCHITECTURE', ARCHITECT, 'GPT_ARCHITECT'], ['ISSUE_PACKET', ARCHITECT, 'GPT_ARCHITECT']]);
     assert.equal(r.core.activate(r.target(), bundles[winner - 1]).status, 'ALREADY_ACTIVATED');
     for (const [index, bundle] of bundles.entries()) {
       if (index !== winner - 1) refusedUntouched(r, () => r.core.activate(r.target(), bundle), 'ACTIVATION_CONFLICT');
     }
   }
-  assert.ok(outcomes.filter((outcome) => outcome === 'ACTIVATED').length === 3, JSON.stringify(outcomes));
+});
+check('C1-F2. the winner meets another writer\'s run lock when it issues: ACTIVATION_INCOMPLETE at ARCHITECTURE, bound to it; no loser completes; its exact retry does', async (dir) => {
+  const w = world(dir);
+  const lock = `${join(w.paths.controller, storedRunFileName(w.runId))}.lock`;
+  // Another writer (a loser refused inside the lock) holds the run lock exactly when the winner writes ISSUE_PACKET.
+  let writes = 0;
+  const a = coreOver(w, () => { writes += 1; if (writes === 2) writeFileSync(lock, '', { flag: 'wx', mode: 0o600 }); });
+  refused(() => a.core.activate(w.target(), w.bundle()), 'ACTIVATION_INCOMPLETE');
+  assert.equal(writes, 2, 'the entry was written; the issue met the held lock');
+  unlinkSync(lock); // the other writer releases its lock
+  const held = w.controller.get(w.runId);
+  assert.deepEqual([held.state, held.activationBinding, held.activePacket], ['ARCHITECTURE', intentOf(w.bundle()), undefined]);
+  assert.deepEqual(auditOf(w), [['ENTER_ARCHITECTURE', ARCHITECT, 'GPT_ARCHITECT']]);
+  // The losers, each with its own packet, neither replace nor complete it, and write nothing.
+  for (const n of [2, 3, 4]) refusedUntouched(w, () => coreOver(w).core.activate(w.target(), bundleN(w, n)), 'ACTIVATION_CONFLICT');
+  // Only the winner's exact retry completes its own activation.
+  assert.equal(w.core.activate(w.target(), w.bundle()).status, 'ACTIVATED');
+  const done = w.controller.get(w.runId);
+  assert.deepEqual([done.state, done.activePacket.packetId, done.activationBinding], ['PACKET_READY', 'packet-1', intentOf(w.bundle())]);
+  assert.deepEqual(auditOf(w), [['ENTER_ARCHITECTURE', ARCHITECT, 'GPT_ARCHITECT'], ['ISSUE_PACKET', ARCHITECT, 'GPT_ARCHITECT']]);
+  assert.equal(w.core.activate(w.target(), w.bundle()).status, 'ALREADY_ACTIVATED');
+  assert.equal(existsSync(lock), false, 'no lock is left behind');
 });
 check('C1-G. concurrent exact activations of one packet converge: one entry, one issue, one active packet', async (dir) => {
   // P1 completes while P2, having read IDLE, is about to enter: P2 converges on P1's result.
