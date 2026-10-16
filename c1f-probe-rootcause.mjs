@@ -419,19 +419,20 @@ const ACTIVATE_CHILD = `
   const { paths, target, bundle, crashAfter, goAt, now, architect } = JSON.parse(readFileSync(process.argv[1], 'utf8'));
   const clock = { now: () => now };
   const writeFailures = [];
+  const calls = [];
   const inner = new FileControllerStore(paths.controller, clock);
   // A real crash: the process dies right after the named Controller write is durable.
   const store = { create: (run) => inner.create(run), get: (id) => inner.get(id), replace: (run) => inner.replace(run),
     entries: (id) => inner.entries(id),
     bindController() { const write = inner.bindController(); return (run) => { try { write(run); } catch (error) { writeFailures.push({ action: run.audit.at(-1).action, code: error.code ?? error.message }); throw error; } if (run.audit.at(-1).action === crashAfter) process.exit(0); }; } };
   const core = openGovernedActivationCore({ controllerStoreDirectory: paths.controller, authorityArchiveDirectory: paths.authority,
-    changeRegistryDirectory: paths.registry, controller: new AutomationController(clock, store),
+    changeRegistryDirectory: paths.registry, controller: new Proxy(new AutomationController(clock, store), { get(target, key) { const value = target[key]; return typeof value === 'function' ? (...args) => { try { const out = value.apply(target, args); calls.push(String(key) + ':ok'); return out; } catch (error) { calls.push(String(key) + ':' + (error.code ?? error.message)); throw error; } } : value; } }),
     preserver: openDirectAuthorityPreserver(paths.authority), architectPrincipalRef: architect, clock });
   const late = Date.now() > goAt;
   while (Date.now() < goAt) { /* start together */ }
   let outcome;
   try { outcome = core.activate(target, bundle).status; } catch (error) { outcome = error.code ?? error.message; }
-  console.log(JSON.stringify({ outcome, late, writeFailures }));`;
+  console.log(JSON.stringify({ outcome, late, writeFailures, calls: calls.filter((c) => /^(enterArchitectureForActivation|issuePacketForOccurrence|issuePacket)/.test(c)) }));`;
 let jobs = 0;
 /** One activation of `bundle` in a separate process. Resolves { outcome, late } or { crashed: true }. */
 function activateInProcess(w, bundle, { crashAfter = '', goAt = 0 } = {}) {
@@ -584,7 +585,7 @@ check('C1-F. concurrent activations with different packets: one binds IDLE → A
     const goAt = Date.now() + 2000;
     const results = await Promise.all(bundles.map((bundle) => activateInProcess(r, bundle, { goAt })));
     let final = r.controller.get(r.runId);
-    if (results.some((x) => x.writeFailures?.length)) console.log('PROBE WF round', round, final.state, JSON.stringify(results.map((x) => [x.outcome, x.writeFailures])));
+    console.log('PROBE ROUND', round, final.state, 'winnerOutcome', results.find((x) => x.calls?.some((c) => c === 'enterArchitectureForActivation:ok'))?.outcome ?? 'none', JSON.stringify(results.map((x) => [x.outcome, x.calls])));
     assert.ok(final.activationBinding, JSON.stringify(results));
     const winner = Number(final.activationBinding.packetId.slice('packet-'.length));
     assert.ok([1, 2, 3, 4].includes(winner), JSON.stringify(results));
@@ -597,7 +598,7 @@ check('C1-F. concurrent activations with different packets: one binds IDLE → A
       // The winner said it completed: it did, with nothing left to retry.
       assert.equal(final.state, 'PACKET_READY', JSON.stringify(results));
     } else if (final.state === 'ARCHITECTURE') {
-      console.log('PROBE ARCHITECTURE round', round, 'winner', winner, JSON.stringify(results.map((x) => [x.outcome, x.writeFailures])));
+      console.log('PROBE ARCHITECTURE round', round, 'winner', winner, JSON.stringify(results.map((x) => [x.outcome, x.writeFailures, x.calls])));
       // Entered but not issued: only the entry exists, no packet, no loser can complete it, and the winner's exact
       // retry completes it.
       assert.equal(final.activePacket, undefined, JSON.stringify(results));
@@ -1251,7 +1252,7 @@ check('AV-AW-AX. no Workspace, model, validation or LD1 path reaches an authorit
 });
 
 let passed = 0, failed = 0;
-for (const [name, fn] of tests.filter(([n]) => n.startsWith(process.env.ONLY ?? ''))) {
+for (const [name, fn] of tests) {
   const dir = mkdtempSync(join(tmpdir(), 'chief-ap1-'));
   try { await fn(dir); console.log(`  PASS ${name}`); passed++; }
   catch (error) { console.error(`  FAIL ${name}: ${error.stack}`); failed++; }
