@@ -1,5 +1,5 @@
 // 協作室 (WS-P1, WS-P2, UI-C1, UI-C1-C1): the projection of observable AI-to-AI collaboration events, and how the Workspace shows
-// them. Pure: no DOM, no storage, no network, no imports (tested directly in test-workspace-ui.mjs).
+// them. Pure: no DOM, storage or network; imports only the pure local reader bundle.
 //
 // What an event is (canonical rule). CollaborationEventV1 represents only collaboration artifacts a participant
 // explicitly emitted: an agent message, a review comment, a hand-off, evidence, an operational event, or a summary of
@@ -17,6 +17,8 @@
 // LIVE can read locally observed public messages (SRC-C1), never initiate execution.
 // Demo fixtures (demo.js, ?demo=1 only) are labelled as demo data wherever they appear. A Human decision
 // cannot be made here: an escalation is shown, never answered, and nothing in this module records a decision.
+
+import { markdownHTML, readerIcon } from './reader.generated.js';
 
 export const EVENT_TYPES = Object.freeze(['PROPOSAL', 'QUESTION', 'CHALLENGE', 'RESPONSE', 'HANDOFF', 'EVIDENCE', 'AGREEMENT', 'ESCALATION', 'SYSTEM']);
 export const EVIDENCE_KINDS = Object.freeze(['FILE', 'TESTS', 'COMMIT']);
@@ -338,7 +340,7 @@ export function messageHTML(item, chat, label = plain) {
   const at = `data-seq="${seq}" data-id="${esc(event.id)}"`;
   if (side === 'system') return `<li class="cm-sys" ${at}>${para(event.body)} · ${when(event.timestamp)}</li>`;
   const kind = `t-${event.type.toLowerCase()}`;
-  const body = `<div class="bub">${para(event.body)}${attachmentsHTML(event.evidence)}${observationHTML(event)}</div>`;
+  const body = `<div class="bub">${markdownHTML(event.body)}${attachmentsHTML(event.evidence)}${observationHTML(event)}</div>`;
   if (side === 'out') return `<li class="cm cm-out ${kind}" ${at}>${body}<p class="cm-m">${tag(event)} · ${sentTo(event, label)} · ${when(event.timestamp)}</p></li>`;
   const from = esc(label(event.actorId ?? event.actor));
   if (item.broadcast) {
@@ -361,7 +363,7 @@ function recordHTML(room) {
     const at = `data-seq="${index + 1}" data-id="${esc(event.id)}"`;
     if (event.type === 'SYSTEM') return `<li class="cm-sys" ${at}>${para(event.body)} · ${when(event.timestamp)}</li>`;
     return `<li class="cm cm-in t-${event.type.toLowerCase()}" ${at}><p class="cm-from">${esc(event.actor)} · ${event.actorId ? esc(event.actorId) : '沒有身分代號'}</p>
-      <div class="bub">${para(event.body)}${attachmentsHTML(event.evidence)}</div><p class="cm-m">${tag(event)} · ${when(event.timestamp)}</p></li>`;
+      <div class="bub">${markdownHTML(event.body)}${attachmentsHTML(event.evidence)}</div><p class="cm-m">${tag(event)} · ${when(event.timestamp)}</p></li>`;
   }).join('');
   return `<p class="c-warn" role="note">${UNSORTED[room.identity]}以下依時間列出原始紀錄：不分對話視窗，也不推算收件者。</p>
     <div class="conv" data-key="${esc(room.projectId)}" data-max="${room.events.length}"><div class="chats" data-n="1" data-active="1">
@@ -383,14 +385,16 @@ export function conversationHTML(room, { replay = false } = {}) {
   if (!chats) return recordHTML(room);
   const label = labelsOf(room);
   const windows = chats.map((chat, index) => `<section class="cw" id="cw-${index + 1}" data-w="${index + 1}" data-p="${esc(chat.key)}" aria-label="${esc(label(chat.key))} 的對話">
-      <header class="cw-h"><b class="cw-n">${esc(label(chat.key))}</b><span class="cw-r">${chat.role ? `${esc(chat.role)} · ` : ''}${chat.partners.length ? `和 ${names(chat.partners.map(label))} 對話` : '還沒有對話對象'}</span></header>
-      <ol class="cw-log">${chat.items.map((item) => messageHTML(item, chat, label)).join('')}${replay ? TYPING : ''}</ol></section>`).join('');
-  const tabs = chats.map((chat, index) => `<button type="button" role="tab" data-cw="${index + 1}" data-p="${esc(chat.key)}" aria-controls="cw-${index + 1}" aria-selected="${index === 0}">${esc(label(chat.key))}<span class="cw-dot" aria-hidden="true"></span></button>`).join('');
+      <header class="cw-h"><div><b class="cw-n">${esc(label(chat.key))}</b><span class="cw-r">${chat.role ? `${esc(chat.role)} · ` : ''}${chat.partners.length ? `和 ${names(chat.partners.map(label))} 對話` : '還沒有對話對象'}</span></div>
+      ${chats.length > 1 ? `<button class="reader-btn" type="button" data-focus="${esc(chat.key)}" aria-label="最大化 ${esc(label(chat.key))}" title="最大化此視窗">${readerIcon('focus')}<span class="reader-restore" hidden>${readerIcon('restore')}</span></button>` : ''}</header>
+      <ol class="cw-log" tabindex="0" aria-label="${esc(label(chat.key))} 的工作紀錄">${chat.items.map((item) => messageHTML(item, chat, label)).join('')}${replay ? TYPING : ''}</ol></section>`).join('');
+  const tabs = chats.map((chat, index) => `<button type="button" data-cw="${index + 1}" data-p="${esc(chat.key)}" aria-controls="cw-${index + 1}" aria-pressed="${index === 0}">${esc(label(chat.key))}<span class="cw-dot" aria-hidden="true"></span></button>`).join('');
   const bar = replay ? `<div class="cv-bar"><span class="cv-k">示範重播</span><span class="cv-p num"></span>
       <button class="btn quiet" type="button" data-replay="restart">從頭播放</button><button class="btn quiet" type="button" data-replay="all">全部顯示</button></div>` : '';
   return `${room.identity === 'LEGACY' ? LEGACY_NOTE : ''}<div class="conv" data-key="${esc(room.projectId)}" data-max="${room.events.length}"${replay ? ' data-replay="1"' : ''}>${bar}
-    <div class="cw-tabs" role="tablist" aria-label="切換對話視窗">${tabs}</div>
-    <div class="chats${chats.length > 4 ? ' cw-many' : ''}" data-n="${Math.min(chats.length, 4)}" data-active="1">${windows}</div></div>`;
+    ${chats.length > 1 ? `<div class="reader-toolbar"><div class="cw-tabs" role="group" aria-label="選擇 Agent 視窗">${tabs}</div>
+    <div class="reader-layout" role="group" aria-label="閱讀版面"><button class="reader-btn" type="button" data-reader-layout="split" aria-label="雙欄" title="雙欄">${readerIcon('split')}</button><button class="reader-btn" type="button" data-reader-layout="focus" aria-label="單一視窗" title="單一視窗">${readerIcon('focus')}</button></div></div>` : ''}
+    <div class="chats" data-n="${chats.length}" data-active="1">${windows}</div></div>`;
 }
 
 /** 需要你: each open escalation shown, never answered; the only action opens a read-only explanation. */
@@ -417,9 +421,13 @@ export function roomHTML(room, { demo = false, replay = false } = {}) {
     room.unverified ? `<p class="c-left">有 <span class="num">${room.unverified}</span> 則事件的參與者身分無法確認，沒有顯示。</p>` : ''}`;
   const need = room.summary.needsHuman.length;
   const seqOf = new Map(room.events.map((event, index) => [event.id, index + 1]));
-  return `${isDemo ? DEMO_TAG : ''}
+  return `<header class="room-heading"><h1>協作室 <span class="num">${room.events.length}</span></h1><details class="room-info"><summary>紀錄資訊${need ? ` · ${need} 則需要你` : ''}</summary><div class="room-info-body">
+    <p>這是 AI 明確送出的工作紀錄，不是私有思考過程。收件者欄位不代表已送達。</p>
+    ${isDemo ? DEMO_TAG : ''}
+    ${room.provenance === 'LOCAL_SOURCE_OBSERVATION' ? '<p>本機 AI 公開回覆。歷史匯入與監看收到分開標示；監看收到不代表 AI 此刻仍在工作，回覆內容不等於已驗證的完成狀態。</p>' : ''}
+    </div></details></header>
+    ${isDemo ? DEMO_TAG : ''}
     ${room.sourceError ? `<p class="c-warn" role="alert">${esc(room.sourceError)}${room.events.length ? ' 以下保留上次成功讀取的紀錄。' : ''}</p>` : ''}
-    ${room.provenance === 'LOCAL_SOURCE_OBSERVATION' ? `<p class="c-note" role="note">本機 AI 工作紀錄 · ${room.events.length} 則公開回覆紀錄。歷史匯入與監看收到分開標示；監看收到不代表 AI 此刻仍在工作，回覆內容不等於已驗證的完成狀態。</p>` : ''}
     <div class="room-body">
       <section class="nstrip${need ? ' has-need' : ''}" aria-labelledby="needs-h">${needsHTML(room.summary, { seqOf })}</section>
       <section class="disc" aria-label="AI 之間的對話">${conversationHTML(room, { replay: replay && isDemo })}</section>

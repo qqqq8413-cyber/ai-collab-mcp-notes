@@ -2845,3 +2845,16 @@ M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型�
 - Verification: final full `npm test` exit 0; 52 suites, 1,980 passed / 0 failed / 0 skips on this Mac. Includes new event-source 18, Workspace UI 49, Workspace boundary 10, existing Seatbelt/isolation/governance suites unchanged. Build and `git diff --check` pass. Existing dependency installation reported 5 advisories (3 moderate / 1 high / 1 critical); not triaged or upgraded here, lockfile unchanged.
 - Unchanged / forbidden actions not taken: EXE HOLD, Human authorization records, admin credentials, GitHub protection rules, other agents' global settings. Model/provider calls 0, autonomous execution 0, authority writes 0. No second agent, tool-progress extraction, percent-complete inference, actual agent delivery, source auto-discovery, provider signature verification, pagination/rotation or main release.
 - STOP FOR ARCHITECT REVIEW. This implementation and local evidence do not constitute Architect acceptance.
+
+## SRC-C1-UI-R1 閱讀空間修正（2026-10-20）
+
+- 狀態：實作與驗證完成，待 GPT-6 Architect Review；不是 Architect 核准，不發布 main。基準 SRC-C1 candidate `dc84970260522e28ead15b05879e6d3702294e06`，獨立分支 `work/src-c1-ui-r1-reading-space`。
+- 移除協作室外層 `.scroll`／`.work` 與固定視窗高度；單 Agent 全寬並使用剩餘高度，每個訊息窗僅一層縱向捲動。多 Agent 支援雙欄／單窗、最大化／還原與完整參與者選擇，房間寬度不足 820px 時為單窗。
+- 訊息文字 16px、行距 1.7。以固定版 markdown-it 解析標題、列表、程式碼等，關閉 HTML，連結僅無帳密 HTTP(S) 且 noopener/noreferrer，圖片只顯示替代文字。無 CDN、無遠端嵌入、不放寬 CSP。Lucide 圖示與純解析器由 build 產生同源 bundle 及授權檔。
+- 來源、Session、Event ID 與時間預設收合；保留非授權與歷史／監看語意。重繪保存 participant 閱讀位置與展開狀態，讀舊文時不被新事件拉到底部。沒有將新顯示狀態寫入儲存。
+- 前後實測：1440×900 桌面閱讀高度 532→692px；390×844 手機 476→598px；縱向捲動祖先 2→1。另測 1280×600、320×568、844×390、1920×1080，無頁面橫向溢出、訊息區不超出可視高度。
+- 真實歷史事件庫 3 則，瀏覽器測試前後 byte/hash 不變。多 Agent、更新事件、網路失敗／恢復測試均為清楚標示且不持久化的合成案例；沒有新增真實第二個 Agent 或模型事件。
+- 驗證：完整 npm test 53 組／1,990 passed／0 failed／0 skipped；新增閱讀與攻擊測試 10 項，既有 UI 49、來源 18 與治理／Seatbelt 測試通過。乾淨 npm ci 後可建置；git diff --check 通過。
+- 範圍：僅 UI、固定版 UI 依賴／建置與測試文件；server.ts 只增加兩個靜態資產，API 維持 12 條。src/event-source、事件儲存、Identity、Automation、Human Authority、CI／保護設定未變；EXE HOLD 維持，模型／provider 呼叫 0。
+- 證據與限制：`SRC_C1_UI_R1_ARCHITECT_REVIEW.md`、`regressions/src-c1-ui-r1/browser-acceptance.json`。前後與雙欄／最大化截圖只存本機，不公開私人歷史文字。跨既有 4000 字元事件片段的 Markdown 不重組；既有 5 項依賴警示未在本輪處理。
+- STOP FOR ARCHITECT REVIEW。

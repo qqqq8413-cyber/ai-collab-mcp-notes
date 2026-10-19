@@ -1,0 +1,129 @@
+{
+  "scope": "SRC-C1-UI-R1",
+  "before": [
+    {
+      "name": "desktop",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "readingHeight": 532,
+      "fontSize": "14.5px",
+      "lineHeight": "24.65px",
+      "verticalScrollLayers": [
+        "cw-log",
+        "room-scroll"
+      ]
+    },
+    {
+      "name": "mobile",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "readingHeight": 476,
+      "fontSize": "14.5px",
+      "lineHeight": "24.65px",
+      "verticalScrollLayers": [
+        "cw-log",
+        "room-scroll"
+      ]
+    }
+  ],
+  "after": [
+    {
+      "name": "desktop",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "readingHeight": 692,
+      "fontSize": 16,
+      "lineHeight": 27.2,
+      "verticalScrollLayers": [
+        "cw-log"
+      ],
+      "horizontalOverflow": false,
+      "singlePaneWidth": 1328,
+      "roomWidth": 1328
+    },
+    {
+      "name": "mobile",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "readingHeight": 598,
+      "fontSize": 16,
+      "lineHeight": 27.2,
+      "verticalScrollLayers": [
+        "cw-log"
+      ],
+      "horizontalOverflow": false,
+      "singlePaneWidth": 390,
+      "roomWidth": 390
+    }
+  ],
+  "sourceStoreUnchanged": true,
+  "sourceStoreHash": "f6baffdf34c0b46d42dd78cfd948eb0fa6ee05d9adb248d78f6044da3e807f8b",
+  "pageErrors": [],
+  "mutationRequests": [],
+  "foreignRequests": [],
+  "syntheticMultiAgentTests": {
+    "dualColumns": "PASS",
+    "maximizeRestore": "PASS",
+    "allParticipantsSelectable": "PASS",
+    "mobileSinglePane": "PASS",
+    "keyboardSelection": "PASS",
+    "liveUpdatePreservesScroll": "PASS",
+    "xssAndRemoteImagesBlocked": "PASS"
+  },
+  "simulatedReadFailurePreservesScrollAndOpenMetadata": "PASS",
+  "realNewAgentEventsGenerated": 0,
+  "modelCalls": 0,
+  "baseSha": "dc84970260522e28ead15b05879e6d3702294e06",
+  "branch": "work/src-c1-ui-r1-reading-space",
+  "offlineTests": {
+    "suites": 53,
+    "passed": 1990,
+    "failed": 0,
+    "skipped": 0
+  },
+  "edgeViewports": [
+    {
+      "width": 1280,
+      "height": 600,
+      "readingHeight": 392
+    },
+    {
+      "width": 320,
+      "height": 568,
+      "readingHeight": 322
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "readingHeight": 182
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "readingHeight": 872
+    }
+  ],
+  "screenshotFiles": {
+    "desktop": [
+      "before-desktop.png",
+      "after-desktop.png"
+    ],
+    "mobile": [
+      "before-mobile.png",
+      "after-mobile.png"
+    ],
+    "syntheticMultipleAgents": [
+      "after-two-agents-desktop.png",
+      "after-maximized-desktop.png",
+      "after-multiple-agents-mobile.png"
+    ]
+  }
+}

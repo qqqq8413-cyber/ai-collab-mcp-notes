@@ -10,3 +10,5 @@
 /orchestrator-run-*.txt
 *.local.md
 /.chief-workspace/
+workspace-ui/reader.generated.js
+workspace-ui/reader-licenses.txt

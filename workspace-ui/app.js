@@ -6,7 +6,7 @@
 
 import { collaborationRoom, decisionHTML, roomHTML } from './collaboration.js';
 import { executionNow, executionStatusHTML } from './execution-status.js';
-import { attachConversation } from './conversation.js';
+import { attachConversation, captureConversation } from './conversation.js';
 
 const DEMO = new URLSearchParams(location.search).get('demo') === '1';
 const source = DEMO ? (await import('./demo.js')).createDemoSource() : (await import('./live.js')).createLiveSource();
@@ -436,10 +436,7 @@ function projectView() {
     pane = `<section class="journal" id="journal" aria-labelledby="journal-h"><h2 class="sr" id="journal-h">往來</h2>
         <div class="jscroll" id="scroller" tabindex="0" aria-label="和 Chief 的往來紀錄"><div class="stream">${stream || '<p class="wl-empty">還沒有往來紀錄。在下面輸入目標，就會加入這個專案的工作清單。</p>'}</div></div></section>`;
   } else if (S.pane === 'collaboration') {
-    pane = `<section class="stage room" id="room" aria-label="協作室"><div class="scroll" id="room-scroll" tabindex="0" aria-label="協作室的內容"><div class="work">
-        <div class="sn-meta"><span class="sn-k">協作室</span><span>${esc(p.displayName)}</span></div>
-        <p class="room-lede">參與工作的 AI 彼此明確送出的訊息，每個 AI 一個對話視窗：它送出的在右邊，寫給它的在左邊。「給」是紀錄寫的收件者；沒寫收件者的訊息會相容顯示在其他每個視窗。兩者都不代表訊息確實送達。這是它們送出的訊息，不是 AI 的思考過程。</p>
-        ${roomHTML(r, { demo: demoRoom(), replay: DEMO })}</div></div></section>`;
+    pane = `<section class="stage room" id="room" aria-label="協作室">${roomHTML(r, { demo: demoRoom(), replay: DEMO })}</section>`;
   } else {
     pane = `<section class="stage" id="stage" aria-label="此刻"><div class="scroll" id="stage-scroll">${stageHTML()}</div></section>`;
   }
@@ -500,6 +497,7 @@ function sheetHTML() {
 // ---------- render
 let lastView = null;
 function render() {
+  const reading = captureConversation();
   const focusId = document.activeElement?.id;
   const draft = $('#composer')?.value ?? '';
   const at = S.view === 'project' ? `project:${S.pid}:${S.pane}` : S.view;
@@ -527,7 +525,7 @@ function render() {
   if ($('#room-scroll') && keep.room !== undefined) $('#room-scroll').scrollTop = keep.room;
   if ($('#other-scroll') && keep.other !== undefined) $('#other-scroll').scrollTop = keep.other;
   ensureExecution();
-  attachConversation();
+  attachConversation(reading);
 }
 
 // ---------- actions

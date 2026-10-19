@@ -341,7 +341,8 @@ await check('WS-P1 CollaborationEventV1: nine runtime-neutral types; anything ou
   assert.equal(parseCollaborationEvents('p', [ev({ body: 'line 1\nline 2' })]).events[0].body, 'line 1\nline 2', 'newlines in a body are kept');
   assert.match(roomHTML(collaborationRoom('p', { events: [ev(), ev({ id: 'x', type: 'NOPE' })] })), /有 <span class="num">1<\/span> 則事件格式不正確，沒有顯示。/);
   const module = read('collaboration.js');
-  assert.doesNotMatch(module, /\bimport\b|fetch|EventSource|XMLHttpRequest|localStorage|document\.|window\./, 'pure: no imports, network, storage or DOM');
+  assert.match(module, /import \{ markdownHTML, readerIcon \} from '\.\/reader.generated.js';/);
+  assert.doesNotMatch(module.replace(/import .*?;/g, ''), /\bimport\b|fetch|EventSource|XMLHttpRequest|localStorage|document\.|window\./, 'pure: only the local pure reader bundle, no network, storage or DOM');
 });
 
 await check('WS-P1 CollaborationSummaryV1: derived from the events alone', () => {
@@ -476,7 +477,7 @@ await check('WS-P1 responsive: the new blocks wrap inside their column instead o
   const css = read('styles.css');
   for (const rule of [/\.evd dd\{[^}]*overflow-wrap:anywhere/, /\.evd code\{[^}]*overflow-wrap:anywhere/, /\.mt\{[^}]*max-width:100%;overflow-x:auto/,
     /\.journal\{[^}]*max-width:760px/, /\.hn-x\{[^}]*overflow-wrap:anywhere/, /\.nr-q\{[^}]*overflow-wrap:anywhere/, /\.cw\{[^}]*min-width:0/,
-    /\.cm\{[^}]*max-width:90%;min-width:0/, /\.bub\{[^}]*overflow-wrap:anywhere;min-width:0;max-width:100%/, /\.cw-n\{[^}]*overflow-wrap:anywhere/,
+    /\.cm\{[^}]*max-width:100%;min-width:0/, /\.bub\{[^}]*overflow-wrap:anywhere;min-width:0;max-width:100%/, /\.cw-n\{[^}]*overflow-wrap:anywhere/,
     /\.cw-r\{[^}]*overflow-wrap:anywhere/, /\.cm-m\{[^}]*overflow-wrap:anywhere/, /\.cm-from\{[^}]*overflow-wrap:anywhere/, /\.att code\{[^}]*overflow-wrap:anywhere/,
     /\.cw-tabs\{[^}]*max-width:100%;overflow-x:auto/]) assert.match(css, rule);
   assert.match(css, /@media \(max-width:759px\)\{[\s\S]*\.dock\{max-width:none/, 'the phone composer spans the screen');
@@ -596,7 +597,7 @@ await check('UI-C1-C1 C2 two participants with one display name stay two: separa
   const html = conversationHTML(room);
   assert.match(html, /<section class="cw" id="cw-1" data-w="1" data-p="claude-a" aria-label="Claude · claude-a 的對話">/);
   assert.match(html, /<section class="cw" id="cw-3" data-w="3" data-p="claude-b" aria-label="Claude · claude-b 的對話">/);
-  assert.match(html, /data-cw="3" data-p="claude-b" aria-controls="cw-3" aria-selected="false">Claude · claude-b<span class="cw-dot"/);
+  assert.match(html, /data-cw="3" data-p="claude-b" aria-controls="cw-3" aria-pressed="false">Claude · claude-b<span class="cw-dot"/);
   assert.match(html, /<li class="cm cm-out t-proposal" data-seq="3" data-id="g1"><div class="bub">只給 B。<\/div><p class="cm-m"><span class="cm-t">提案<\/span> · 給 Claude · claude-b · <time/);
   assert.match(html, /<p class="cm-from">Claude · claude-a<\/p><div class="bub">我是 A。/);
   assert.match(html, /<span class="cw-r">Implementer · 和 Claude · claude-a、Claude · claude-b 對話<\/span>/);
@@ -674,7 +675,7 @@ await check('UI-C1-C1 C2 one rule per room: legacy records by name, said so; mix
 await check('UI-C1 windows: sent on the right, received on the left under the sender\'s name; tabs for every window', () => {
   const html = conversationHTML(talkRoom());
   const win = (n) => html.slice(html.indexOf(`<section class="cw" id="cw-${n}"`), html.indexOf('</section>', html.indexOf(`<section class="cw" id="cw-${n}"`)));
-  assert.match(win(2), /^<section class="cw" id="cw-2" data-w="2" data-p="maker" aria-label="Maker 的對話">\s*<header class="cw-h"><b class="cw-n">Maker<\/b><span class="cw-r">實作 · 和 Lead、Checker、Watcher 對話<\/span><\/header>/);
+  assert.match(win(2), /^<section class="cw" id="cw-2" data-w="2" data-p="maker" aria-label="Maker 的對話">\s*<header class="cw-h"><div><b class="cw-n">Maker<\/b><span class="cw-r">實作 · 和 Lead、Checker、Watcher 對話<\/span><\/div>/);
   assert.match(win(2), /<li class="cm cm-in t-handoff" data-seq="2" data-id="h1"><p class="cm-from">Lead<\/p><div class="bub">交給你們。<\/div>\s*<p class="cm-m"><span class="cm-t">交接<\/span> · 也給 Checker · <time/);
   assert.match(win(2), /<li class="cm cm-out t-proposal" data-seq="3" data-id="p1"><div class="bub">先改 middleware。<\/div><p class="cm-m"><span class="cm-t">提案<\/span> · 給 Checker · <time/);
   assert.match(win(2), /<li class="cm cm-in t-challenge" data-seq="5" data-id="c1"><p class="cm-from">Checker<\/p><div class="bub">有問題。<p class="att" aria-label="附件"><span><b>檔案<\/b><code>src\/a\.ts<\/code><\/span><\/p><\/div>/);
@@ -682,12 +683,12 @@ await check('UI-C1 windows: sent on the right, received on the left under the se
   assert.match(win(4), /<span class="cw-r">和 Maker 對話<\/span>/, 'no role is invented for a participant who never spoke');
   assert.equal((html.match(/<li class="cm-sys" data-seq="1" data-id="s0">/g) ?? []).length, 4);
   assert.equal((html.match(/class="cm cm-in /g) ?? []).length, 5 + 3, 'five addressed deliveries and one broadcast shown to three');
-  assert.match(html, /<div class="cw-tabs" role="tablist" aria-label="切換對話視窗"><button type="button" role="tab" data-cw="1" data-p="lead" aria-controls="cw-1" aria-selected="true">Lead<span class="cw-dot" aria-hidden="true"><\/span><\/button>/);
-  assert.equal((html.match(/role="tab"/g) ?? []).length, 4);
+  assert.match(html, /<div class="cw-tabs" role="group" aria-label="選擇 Agent 視窗"><button type="button" data-cw="1" data-p="lead" aria-controls="cw-1" aria-pressed="true">Lead<span class="cw-dot" aria-hidden="true"><\/span><\/button>/);
+  assert.equal((html.match(/data-cw="/g) ?? []).length, 4);
   assert.match(html, /<div class="chats" data-n="4" data-active="1">/);
   const wide = conversationHTML(collaborationRoom('p', { participants: ringDir(['A', 'B', 'C', 'D', 'E', 'F']), events: ring(['A', 'B', 'C', 'D', 'E', 'F']) }));
-  assert.match(wide, /<div class="chats cw-many" data-n="4" data-active="1">/);
-  assert.equal((wide.match(/<section class="cw"/g) ?? []).length, 6, 'more than four windows scroll sideways; none is dropped');
+  assert.match(wide, /<div class="chats" data-n="6" data-active="1">/);
+  assert.equal((wide.match(/<section class="cw"/g) ?? []).length, 6, 'all participants remain selectable; only two are displayed together');
   assert.equal(attachmentsHTML(undefined), '');
   assert.match(attachmentsHTML([{ kind: 'TESTS', passed: 3 }, { kind: 'COMMIT', sha: '4820528f0be1ba' }]), /<b>測試<\/b><span class="num">3<\/span> 項通過<\/span><span><b>提交<\/b><code title="4820528f0be1ba">4820528<\/code>/, 'no failure count is invented');
 });
@@ -705,12 +706,10 @@ await check('UI-C1 layout: the gold 需要你 strip, then the windows; side by s
   const block = css.slice(css.indexOf('/* 協作室 as conversations (UI-C1)'), css.indexOf('/* the project rail folds away'));
   assert.match(block, /\.room-body\{[^}]*container:room\/inline-size/);
   assert.match(block, /\.conv\{[^}]*container:conv\/inline-size/);
-  assert.match(block, /\.cw\{display:none;/, 'narrow: one window at a time');
-  assert.match(block, /\.chats\[data-active="1"\] \.cw\[data-w="1"\][\s\S]*\.chats\[data-active="8"\] \.cw\[data-w="8"\]\{display:flex\}/);
-  const wide = block.slice(block.indexOf('@container conv (min-width:720px){'), block.indexOf('.cw-h{'));
-  assert.match(wide, /\.cw-tabs\{display:none\}/);
-  assert.match(wide, /\.chats\{grid-template-columns:repeat\(var\(--n,1\),minmax\(0,1fr\)\)\}/);
-  assert.match(wide, /\.chats \.cw\{display:flex\}/);
+  assert.match(block, /\.cw\[hidden\]\{display:none!important\}/, 'non-visible participants are hidden by identity, not index');
+  assert.match(block, /\.conv\[data-layout="split"\] \.chats\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/);
+  assert.match(block, /\.cw\{display:flex;[^}]*min-height:0;height:100%/);
+  assert.doesNotMatch(block, /clamp\(420px|grid-auto-flow:column/);
   assert.match(block, /\.cm-out\{align-self:flex-end/);
   assert.match(block, /\.cm-in\{align-self:flex-start/);
   const gold = block.match(/[^{}]+\{[^}]*(--gold|--human)[^}]*\}/g).map((rule) => rule.trim().split('{')[0]);
@@ -792,9 +791,9 @@ await check('UI-C1-C1 C3 LIVE unread: a message arriving while a record room is 
   assert.deepEqual([...opened(new Set(['maker', 'checker', 'watcher']), 'checker')], ['maker', 'watcher'], 'opening one window clears that window\'s dot only');
   // Wiring: only a record room (never a replay) tracks arrivals; windows are followed by participant, not by position.
   const module = read('conversation.js');
-  assert.match(module, /if \(!replay\) \{[\s\S]*const now = arrivals\(S\.seen, items, \{ active: front\(root\)\?\.dataset\.p \?\? null, wide: wideRoom\(root\) \}\);/);
-  assert.match(module, /Object\.assign\(S, \{ key, replay, max, active: null, seen: null \}/, 'a room opened again starts from its history');
-  assert.match(module, /if \(tab\) \{ S\.active = tab\.dataset\.p; S\.unread = opened\(S\.unread, S\.active\); apply\(\); return; \}/);
+  assert.match(module, /if \(!replay\) \{[\s\S]*const now = arrivals\(S\.seen, items, \{ active: front\(root\)\?\.dataset\.p \?\? null, visible: panels\(root\) \}\);/);
+  assert.match(module, /Object\.assign\(S, \{ key, replay, max, active: null,[^\n]*seen: null \}/, 'a room opened again starts from its history');
+  assert.match(module, /S\.active = tab\.dataset\.p; S\.unread = opened\(S\.unread, S\.active\); apply\(\); return;/);
   assert.match(module, /for \(const win of S\.replay \? root\.querySelectorAll\('\.cw'\) : \[\]\) \{/, 'the replay reveal, typing row and its dots run only in a replay room');
   assert.match(module, /tab\.classList\.toggle\('cw-unread', S\.unread\.has\(tab\.dataset\.p\)\)/);
   // LIVE never shows the demo typing effect, however the record grows and whatever the page asks for.
@@ -808,7 +807,7 @@ await check('UI-C1-C1 adds no execution or authority capability', () => {
   const app = read('app.js');
   assert.doesNotMatch(app, /source\.(send|post|deliver|ack|participants)\b/, 'the page asks the source for nothing new');
   for (const file of ['collaboration.js', 'conversation.js']) {
-    assert.doesNotMatch(read(file), /\bimport\b|fetch\(|EventSource|XMLHttpRequest|localStorage|sessionStorage|\bsource\./, `${file}: no network, storage or source`);
+    assert.doesNotMatch(read(file).replace(/import .*?;/g, ''), /\bimport\b|fetch\(|EventSource|XMLHttpRequest|localStorage|sessionStorage|\bsource\./, `${file}: no network, storage or source`);
   }
   assert.deepEqual(Object.keys(createLiveSource({ fetchImpl: async () => ({}), EventSourceImpl: class {} })).sort(),
     ['addGoal', 'collaboration', 'executionStatus', 'mode', 'projects', 'queue', 'removeGoal', 'reorder', 'subscribe'], 'LIVE source unchanged');
@@ -876,7 +875,7 @@ await check('WS-P2 chain-of-thought boundary: the rule is stated as a source obl
   assert.match(module, /it cannot tell what text a source puts into `body`/, 'the code says what it cannot prove');
   assert.doesNotMatch(module, /no source can put chain-of-thought|cannot smuggle/, 'the WS-P1 overclaim is gone');
   const app = read('app.js');
-  assert.match(app, /參與工作的 AI 彼此明確送出的訊息，每個 AI 一個對話視窗：它送出的在右邊，寫給它的在左邊。「給」是紀錄寫的收件者；沒寫收件者的訊息會相容顯示在其他每個視窗。兩者都不代表訊息確實送達。這是它們送出的訊息，不是 AI 的思考過程。/);
+  assert.match(module, /這是 AI 明確送出的工作紀錄，不是私有思考過程。收件者欄位不代表已送達。/);
   assert.doesNotMatch(app, /不包含 AI 的內部推理|真的送出/, 'the room promises nothing the projection cannot check');
 });
 
