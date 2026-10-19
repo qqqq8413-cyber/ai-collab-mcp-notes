@@ -7,9 +7,10 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { openAdmissionRecord } from './dist/automation/admission.js';
 import { openAuthorityArchiveAppender } from './dist/automation/authority/file-archive.js';
 import { AutomationController } from './dist/automation/controller.js';
-import { FileControllerStore } from './dist/automation/durable-store.js';
+import { FileControllerStore, storedRunFileName } from './dist/automation/durable-store.js';
 import { GovernanceStoreIsolationError } from './dist/automation/governance-store-isolation.js';
 import { packetHash } from './dist/automation/packet.js';
 import { parseTrustedWorkspaceHostConfig } from './dist/intake/workspace-host-config.js';
@@ -33,7 +34,22 @@ const GOAL = 'goal-00000000-0000-4000-8000-000000000001';
 const UNKNOWN = 'goal-00000000-0000-4000-8000-000000000002';
 const SHA_A = 'a'.repeat(40), SHA_B = 'b'.repeat(40);
 const EARLIER = '2026-01-01T00:00:00.000Z';
-const clock = { now: () => new Date().toISOString() };
+/**
+ * The test-held Controller's clock (CI-F1): deterministic, never the system clock. It is anchored once to the instant
+ * the Workspace host recorded when it admitted the run (fixture data, so the Controller's transitions follow the
+ * admission), then every reading is exactly 1 ms later than the one before. A reading made before another is therefore
+ * always earlier than it.
+ */
+function steppingClock() {
+  let next;
+  return Object.freeze({
+    anchor(iso) { next = Date.parse(iso) + 1; },
+    now() {
+      if (next === undefined) throw new Error('test clock read before it was anchored');
+      return new Date(next++).toISOString();
+    },
+  });
+}
 const sha = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
 let passed = 0, failed = 0;
 async function check(name, action) {
@@ -122,9 +138,19 @@ async function admitted(dir, running, options) {
   assert.equal((await admit(ws)).status, 200);
   const record = registryRecord(f);
   const runId = `run-${record.changeKey}`;
-  const reality = { workSha: SHA_B, mainSha: SHA_A,
-    observeBranch(repository, branch) { return { repository, branch, sha: branch === 'main' ? this.mainSha : this.workSha, observedAt: clock.now() }; },
+  const clock = steppingClock();
+  clock.anchor(openAdmissionRecord(readFileSync(join(f.controller, 'changes', `${record.changeKey}.json`), 'utf8')).admittedAt);
+  // Like the live GitHub port, the repository is observed before the Controller acts (prime) and the Controller is
+  // served that held observation; it is never stamped at the moment the Controller asks, which would be after the
+  // Controller's own reading of the clock (the old fixture's race: "Repository observation is from the future").
+  const reality = { workSha: SHA_B, mainSha: SHA_A, observedAt: undefined,
+    prime() { this.observedAt = clock.now(); },
+    observeBranch(repository, branch) {
+      if (this.observedAt === undefined) throw new Error('repository observed before it was primed');
+      return { repository, branch, sha: branch === 'main' ? this.mainSha : this.workSha, observedAt: this.observedAt };
+    },
     compare() { throw new Error('not used'); }, observeCi() { throw new Error('not used'); }, observeProtection() { throw new Error('not used'); } };
+  reality.prime();
   const controller = new AutomationController(clock, new FileControllerStore(f.controller, clock), reality);
   let appender;
   const archive = (kind, body, { principalRef = ARCHITECT } = {}) => {
@@ -165,13 +191,14 @@ async function admitted(dir, running, options) {
   const rejected = (reviewer = A) => {
     controller.beginImplementation(runId, X);
     controller.completeImplementation(runId, X, ['npm test: exit 0']);
+    reality.prime();
     controller.recordRemoteSha(runId, X);
     controller.beginAcceptanceReview(runId, reviewer);
     const rejection = decision('REJECT', 'review-1');
     archive('ACCEPTANCE_DECISION', rejection);
     controller.decideAcceptance(runId, A, rejection);
   };
-  return { f, ws, record, runId, controller, archive, packet, activate, rejected, correction };
+  return { f, ws, record, runId, clock, reality, controller, archive, packet, activate, rejected, correction };
 }
 const S = (json, expected, reason) => {
   assert.equal(json.status, expected, JSON.stringify(json));
@@ -432,6 +459,7 @@ await check('O/P/Q/R. foreign activation, a re-issued packet, a foreign review a
       w.archive('IMPLEMENTATION_PACKET', w.activate());
       w.controller.beginImplementation(w.runId, X);
       w.controller.completeImplementation(w.runId, X, ['npm test: exit 0']);
+      w.reality.prime();
       w.controller.recordRemoteSha(w.runId, X);
       w.controller.beginAcceptanceReview(w.runId, OTHER);
     }],
@@ -452,6 +480,34 @@ await check('O/P/Q/R. foreign activation, a re-issued packet, a foreign review a
     assert.equal(blocked.operationalProvenance.recordClass, 'OPERATIONAL_RECORD');
   }
 });
+await check('CI-F1. the repository is observed before the Controller acts; an observation stamped while it acts is refused as from the future, every time', async (dir, running) => {
+  const w = await admitted(dir, running);
+  w.archive('IMPLEMENTATION_PACKET', w.activate());
+  w.controller.beginImplementation(w.runId, X);
+  w.controller.completeImplementation(w.runId, X, ['npm test: exit 0']);
+  const stored = join(w.f.controller, storedRunFileName(w.runId));
+  const before = readFileSync(stored, 'utf8');
+  // The old fixture's port: it reads the clock when the Controller asks, i.e. after the Controller's own reading. With
+  // the stepping clock that is always 1 ms in the future, so the Controller's check refuses it deterministically.
+  const late = { observeBranch: (repository, branch) => ({ repository, branch, sha: SHA_B, observedAt: w.clock.now() }),
+    compare() { throw new Error('not used'); }, observeCi() { throw new Error('not used'); }, observeProtection() { throw new Error('not used'); } };
+  const asked = new AutomationController(w.clock, new FileControllerStore(w.f.controller, w.clock), late);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    assert.throws(() => asked.recordRemoteSha(w.runId, X), /Repository observation is from the future/, `attempt ${attempt}`);
+  }
+  assert.equal(readFileSync(stored, 'utf8'), before, 'a refused observation changed nothing');
+  // The fixture's port, primed before the Controller acts, is accepted, and its observation predates the transition.
+  w.reality.prime();
+  const run = w.controller.recordRemoteSha(w.runId, X);
+  assert.equal(run.remoteSha.sha, SHA_B);
+  assert.ok(Date.parse(run.remoteSha.observedAt) < Date.parse(run.audit.at(-1).timestamp), 'observed strictly before the Controller acted');
+  // The stepping clock itself: strictly increasing by exactly 1 ms, and unusable before it is anchored.
+  const c = steppingClock();
+  assert.throws(() => c.now(), /before it was anchored/);
+  c.anchor('2026-10-14T00:00:00.000Z');
+  assert.deepEqual([c.now(), c.now(), c.now()], ['2026-10-14T00:00:00.001Z', '2026-10-14T00:00:00.002Z', '2026-10-14T00:00:00.003Z']);
+});
+
 await check('waiting, terminal and conflicting runs are shown as they are, never repaired or explained away', async (dir, running) => {
   const w = await admitted(join(dir, 'waiting'), running);
   w.archive('IMPLEMENTATION_PACKET', w.activate());
