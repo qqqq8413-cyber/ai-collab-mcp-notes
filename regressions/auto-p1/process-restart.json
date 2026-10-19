@@ -1,0 +1,44 @@
+{
+  "kind": "AUTO_P1_REAL_PROCESS_RESTART",
+  "at": "2026-10-19T19:50:24.828Z",
+  "oldPid": 12974,
+  "finalPilotPid": 18644,
+  "samples": [
+    {
+      "kind": "PROCESS_RESTART_WITH_ENABLED_SCHEDULE",
+      "at": "2026-10-19T19:50:24.132Z",
+      "pass": true,
+      "persistedNextDueAt": "2026-10-19T19:51:23.751Z",
+      "runIds": [
+        "b9b19691-5b48-4f63-bcdc-e24f586adeac",
+        "67978d1a-c1f0-4a22-a92a-3fa26c3c1696",
+        "e673af45-fce7-4c64-9822-587885693a17"
+      ],
+      "ciIds": [
+        39296456090,
+        39287763419,
+        39250964550,
+        39250209129,
+        39051728193
+      ]
+    },
+    {
+      "kind": "PROCESS_RESTART_AFTER_PAUSE_AND_DUPLICATE_REPLAY",
+      "at": "2026-10-19T19:50:24.515Z",
+      "pass": true,
+      "runCount": 3,
+      "readBudgetEntries": 3,
+      "scheduleEnabled": false
+    }
+  ],
+  "duplicateReplay": "PASS",
+  "sourceEventsUnchanged": 3,
+  "collaborationOperationalSummary": "自動化紀錄\nCHIEF CI WATCH · 已完成 · 2026/10/20 03:41:31\nOPERATIONAL_RECORD · 非授權",
+  "mobile": {
+    "width": 390,
+    "scrollWidth": 390
+  },
+  "finalScheduleEnabled": false,
+  "modelCalls": 0,
+  "exe": "HOLD"
+}

@@ -551,3 +551,59 @@ ol,ul{margin:0;padding:0;list-style:none}
   .cw-log{padding:12px 8px 16px}
   .bub{padding:12px}
 }
+/* AUTO-P1: one page scroller, compact controls and full-width operational records. */
+.proj[data-pane="automation"] { grid-template-rows: auto minmax(0, 1fr); }
+.auto-page { max-width: 1160px; margin: 0 auto; padding: 24px 28px 60px; min-width: 0; font-size: 16px; line-height: 1.7; letter-spacing: 0; }
+.auto-head, .auto-task > header, .auto-ci > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.auto-head h1 { font-size: 26px; margin: 0; }
+.auto-head p, .auto-task header p, .auto-runs p { margin: 4px 0; }
+.auto-page h2 { font-size: 19px; margin: 0; }
+.auto-page h3 { font-size: 17px; margin: 0; }
+.auto-lock { color: var(--human); font-size: 14px; font-weight: 600; }
+.auto-message { min-height: 28px; color: var(--human); margin: 8px 0; overflow-wrap: anywhere; }
+.auto-message:empty { display: none; }
+.auto-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 20px; padding: 0 0 24px; border-bottom: 1px solid var(--line); }
+.auto-form label { display: grid; gap: 5px; font-size: 14px; }
+.auto-form input, .auto-form select { width: 100%; min-width: 0; background: var(--card); color: var(--fg); border: 1px solid var(--ctl); border-radius: 4px; padding: 8px 10px; font: inherit; font-size: 16px; line-height: 1.5; }
+.auto-form .btn { justify-self: start; display: inline-flex; align-items: center; gap: 6px; }
+.auto-create > summary { padding: 8px 0; }
+.auto-create[open] > summary { margin-bottom: 12px; }
+.auto-room-summary { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; padding: 8px 14px; font-size: 13px; line-height: 1.6; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.auto-room-summary small { color: var(--muted); }
+.auto-form :disabled { opacity: .55; }
+.auto-ai { display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; padding: 20px 0; border-bottom: 1px solid var(--line); }
+.auto-ai span { font-size: 14px; color: var(--muted); }
+.auto-section-title { padding: 24px 0 8px; }
+.auto-task, .auto-ci { border-bottom: 1px solid var(--line); padding: 20px 0; min-width: 0; }
+.auto-task header p, .auto-ci > p, .auto-runs, .auto-facts { color: var(--muted); font-size: 14px; }
+.auto-state { font-size: 14px; font-weight: 600; color: var(--fg); }
+.auto-state[data-state="COMPLETED"] { color: #70cc9b; }
+.auto-state[data-state="FAILED"], .auto-error { color: #f38f8c; overflow-wrap: anywhere; }
+.auto-state[data-state="RUNNING"] { color: #8dc9f0; }
+.auto-facts { display: flex; gap: 12px 28px; flex-wrap: wrap; margin: 12px 0; }
+.auto-facts div { display: grid; }
+.auto-facts dt { color: var(--muted); }
+.auto-facts dd { margin: 0; color: var(--fg); }
+.auto-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.auto-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; padding: 7px 10px; border: 1px solid var(--ctl); border-radius: 4px; background: transparent; color: var(--fg); font: inherit; font-size: 14px; cursor: pointer; }
+.auto-button:hover:not(:disabled) { background: var(--sunk); }
+.auto-button:disabled { opacity: .4; cursor: default; }
+.auto-button svg { flex: 0 0 18px; }
+.auto-page details { margin: 12px 0; }
+.auto-page summary { cursor: pointer; }
+.auto-page code, .auto-runs, .auto-ci, .auto-outcome { overflow-wrap: anywhere; word-break: break-word; }
+.auto-page code { font-size: 13px; }
+.auto-runs { padding-left: 22px; }
+.auto-runs > li { padding: 8px 0; }
+.auto-ci ul { padding-left: 22px; }
+.auto-ci li { padding: 4px 0; }
+.auto-ci li span { margin-left: 8px; font-size: 14px; color: var(--muted); }
+.auto-page a { color: var(--link); text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 700px) {
+  .auto-page { padding: 16px 16px 40px; }
+  .auto-form { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .auto-form label:first-child { grid-column: 1 / -1; }
+  .auto-ai { gap: 8px 14px; }
+  .auto-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
+  .auto-head h1 { font-size: 24px; }
+}

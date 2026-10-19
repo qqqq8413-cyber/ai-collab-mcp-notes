@@ -2858,3 +2858,20 @@ M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型�
 - 範圍：僅 UI、固定版 UI 依賴／建置與測試文件；server.ts 只增加兩個靜態資產，API 維持 12 條。src/event-source、事件儲存、Identity、Automation、Human Authority、CI／保護設定未變；EXE HOLD 維持，模型／provider 呼叫 0。
 - 證據與限制：`SRC_C1_UI_R1_ARCHITECT_REVIEW.md`、`regressions/src-c1-ui-r1/browser-acceptance.json`。前後與雙欄／最大化截圖只存本機，不公開私人歷史文字。跨既有 4000 字元事件片段的 Markdown 不重組；既有 5 項依賴警示未在本輪處理。
 - STOP FOR ARCHITECT REVIEW。
+
+## AUTO-P1 可用唯讀自動化 Pilot（2026-10-20）
+
+- 基準：已驗收候選版 `3923d267690d291ddc77e13d6fe9b81f9439266b`；獨立分支 `work/auto-p1-usable-automation`。正式 main `e7eb87b4b481c885bea8730f8498eb493dc38184` 未變，不發布 main。
+- 狀態：唯讀工作已可操作，待 Architect Review；不是 AI 自主執行已啟用。網址 `http://127.0.0.1:4873/#/p/chief/automation`。Human 可點「立即檢查」讀取真實 GitHub CI，或明確啟用週期監測，亦可對同專案已保存 CI 產生本機摘要。
+- 新 `src/pilot` composition：固定 repo、既有 chief-ai-bot helper、固定 GET、exact run/attempt/job、原子持久化與 checksum、單一程序 lease、單一 concurrency、時間／讀取預算／重試／容量上限。Workspace 僅接 injected operational port，沿用 D1 session / Host / Origin / Fetch-Site / CSP，不增加其 outbound、child-process、Controller、Authority 或模型能力。
+- 三模式：MANUAL、SCHEDULED（預設關閉，最短 60 秒）、EVENT_DRIVEN（僅 verified CI 差異 → 本機摘要，不是 AI 訊息觸發執行）。每個監看任務有獨立 baseline；排程 occurrence 與手動 request 去重；不補發漏失週期造成暴增。每個資料目錄每小時最多 30 次 GitHub snapshot，單次 60 秒；每專案 20 工作，最多同時 1 件。
+- 分開「暫停未來排程」、「中止正在執行」、「取消未開始工作」。逾時 FAILED / READ_TIMEOUT；使用者停止 CANCELLED / USER_STOP；重啟發現 RUNNING 則 FAILED，不擅自重放；失敗僅在設定 0–2 次內手動重試。保存實際執行、操作、CI 狀態與證據；全部 OPERATIONAL_RECORD，不是 AUTHORITY_RECORD。
+- 介面：現有 Workspace 第四分頁「自動化」，顯示任務、來源、時間、狀態、步驟、結果、錯誤、run / attempt / SHA / branch / jobs 與證據。協作室有獨立 operational 摘要，未向 Claude 訊息流插入假事件。原事件庫 3 則的 byte/hash 不變。
+- 真實驗收：頁面建立 CI WATCH → 手動讀取 5 個真實 GitHub Actions runs → 寫磁碟 → 頁面自動顯示；60 秒真實週期讀取成功；重新整理及兩次真實程序重啟保留結果、enabled / nextDueAt 與暫停設定；重送相同 request 不重複。另以真實已存 CI 完成本機摘要，保留來源 run 與原始觀察時間。
+- 證據界線：觀察期間沒有自然 CI 狀態變更，真實 EVENT_DRIVEN 觸發未觀察；變更、故障、競爭與資源上限以明確隔離合成測試驗證，不冒充真實事件。SRC-C1 的 WAITING_FOR_REAL_EVENT 已獲 Architect 接受；Claude 自然 LIVE_TAIL 仍 UNVERIFIED，未空等舊 Session，也不阻擋本輪 CI 工作。
+- 驗證：build 成功；最終 npm test **54 組 / 2028 passed / 0 failed / 0 skipped**，其中新增 AUTO-P1 38 項；既有治理／隔離／Goal／Workspace／來源／閱讀回歸均通過。1440x1000、1024x768、768x1024、390x844、320x740 無頁面橫向溢出或操作列越界，字級 16px，page errors 0。
+- Phase 5：沿用 Goal Queue 保存 AI 需求與既有治理回歸；一般 pilot host 不持有 Driver 或 Authority appender。AI 執行仍 LOCKED / EXE HOLD，H1–H9 不變，模型呼叫 0。真正 AI 工作仍需有界 Human grant、exact 模型、成本預算 enforce、governed activation 操作接線與獲授權的端到端驗收；不得稱為「只差開關」。
+- 殘餘風險：仍有 5 項既有依賴告警（3 moderate / 1 high / 1 critical），本輪未升級或宣稱修復；限制為 loopback 本機 pilot，非公開部署驗收。無全域 launchd、服務或 Agent hooks；若要永久背景運作需另獲授權。歷史有界，取最近 5 個 Actions runs，不是全庫完整歸檔。
+- 交付：`AUTO_P1_READINESS.md`、`AUTO_P1_USAGE.md`、`AUTO_P1_ARCHITECT_REVIEW.md`、`AUTOMATION_PILOT_PERMIT.md`（DRAFT / NOT AUTHORIZED）、`regressions/auto-p1/`。工作分支 exact SHA / CI 結果見本輪完成回報；舊 #120–124 CI 只是唯讀來源，不能當新候選 CI。
+- 所有測試監測最後已關閉；預覽保留讓 Human 試用。不修改 Human Authority、main、Ruleset、管理員憑證、其他 Agent 全域設定。
+- STOP FOR ARCHITECT REVIEW。

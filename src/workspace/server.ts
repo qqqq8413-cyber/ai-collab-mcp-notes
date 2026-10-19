@@ -8,6 +8,7 @@ import { GoalGovernanceError, type GoalGovernancePort } from './goal-governance-
 import { GoalExecutionStatusError, type GoalExecutionStatusPort } from './goal-execution-status-port.js';
 import { GoalRunAdmissionError, type GoalRunAdmissionPort } from './goal-run-admission-port.js';
 import { FileCollaborationStore, CollaborationStoreError } from './collaboration-store.js';
+import { AutomationRequestError, type AutomationPort } from './automation-port.js';
 
 // The local Workspace server (WS-L1). It serves the Workspace UI and a small API over
 // the non-authoritative goal queue, from one origin, on the IPv4 loopback address only.
@@ -30,6 +31,9 @@ export const API_ROUTES = Object.freeze([
   'GET /api/v0/projects',
   'GET /api/v0/projects/:projectId/goals',
   'GET /api/v0/projects/:projectId/collaboration',
+  'GET /api/v0/projects/:projectId/automations',
+  'POST /api/v0/projects/:projectId/automations',
+  'POST /api/v0/projects/:projectId/automations/:taskId/actions',
   'POST /api/v0/projects/:projectId/goals',
   'POST /api/v0/projects/:projectId/goals/order',
   'DELETE /api/v0/projects/:projectId/goals/:goalId',
@@ -59,6 +63,7 @@ const STATIC: Readonly<Record<string, { file: string; type: string }>> = Object.
   '/reader-licenses.txt': { file: 'reader-licenses.txt', type: 'text/plain; charset=utf-8' },
   '/conversation.js': { file: 'conversation.js', type: 'text/javascript; charset=utf-8' },
   '/execution-status.js': { file: 'execution-status.js', type: 'text/javascript; charset=utf-8' },
+  '/automation.js': { file: 'automation.js', type: 'text/javascript; charset=utf-8' },
   '/styles.css': { file: 'styles.css', type: 'text/css; charset=utf-8' },
 });
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; " +
@@ -83,6 +88,8 @@ export interface WorkspaceServerOptions {
   runAdmission?: GoalRunAdmissionPort;
   /** Injected by the trusted host only when configured (G1-WE1-R0). Read-only: it can inspect, nothing else. */
   executionStatus?: GoalExecutionStatusPort;
+  /** Read-only-work pilot, injected by its host. No authority or AI execution methods. */
+  automation?: AutomationPort;
   clock?: { now(): string };
 }
 
@@ -228,6 +235,17 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
     const submittedBy = requireSession(request);
     const rest = parts.slice(2);
 
+    if (rest[0] === 'projects' && rest[2] === 'automations') {
+      const current = project(rest[1]);
+      if (new URL(request.url!, 'http://local').search) throw new HttpError(400, 'UNEXPECTED_QUERY', 'This operation accepts no query.');
+      const port = options.automation;
+      if (!port) throw new HttpError(503, 'AUTOMATION_UNAVAILABLE', '此服務尚未接上唯讀自動化；AI 執行仍為 HOLD。');
+      if (rest.length === 3 && method === 'GET') { await noBody(request); json(response, 200, port.read(current.projectId)); return; }
+      if (rest.length === 3 && method === 'POST') { json(response, 201, port.create(current.projectId, await readJson(request))); return; }
+      if (rest.length === 5 && rest[4] === 'actions' && method === 'POST') { json(response, 200, port.action(current.projectId, rest[3], await readJson(request))); return; }
+      throw new HttpError(404, 'NOT_FOUND', 'Not found.');
+    }
+
     if (method === 'GET' && rest.length === 3 && rest[0] === 'projects' && rest[2] === 'collaboration') {
       project(rest[1]);
       await noBody(request);
@@ -333,6 +351,7 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
     handle(request, response).catch((error: unknown) => {
       if (response.headersSent) { response.end(); return; }
       if (error instanceof HttpError) { json(response, error.status, { error: { code: error.code, message: error.message } }); return; }
+      if (error instanceof AutomationRequestError) { json(response, error.status, { error: { code: error.code, message: error.message } }); return; }
       if (error instanceof GoalGovernanceError) {
         const status = error.code === 'UNKNOWN_GOAL' || error.code === 'UNKNOWN_PROJECT' ? 404 :
           error.code === 'GOAL_PRINCIPAL_MISMATCH' ? 403 :

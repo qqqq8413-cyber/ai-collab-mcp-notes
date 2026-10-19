@@ -89,7 +89,7 @@ await check('the LIVE module never loads demo data, and demo loads only on expli
   assert.doesNotMatch(live, /\bimport\b/, 'the LIVE source imports nothing, demo data included');
   assert.doesNotMatch(demo, /fetch|EventSource|XMLHttpRequest|\/api\//);
   const imports = [...app.matchAll(/import\((['"])(.+?)\1\)|from\s+(['"])(.+?)\3/g)].map((m) => m[2] ?? m[4]);
-  assert.deepEqual(imports.sort(), ['./collaboration.js', './conversation.js', './demo.js', './execution-status.js', './live.js']);
+  assert.deepEqual(imports.sort(), ['./automation.js', './collaboration.js', './conversation.js', './demo.js', './execution-status.js', './live.js']);
   assert.match(app, /const DEMO = new URLSearchParams\(location\.search\)\.get\('demo'\) === '1';/);
   assert.match(app, /const source = DEMO \? \(await import\('\.\/demo\.js'\)\)\.createDemoSource\(\) : \(await import\('\.\/live\.js'\)\)\.createLiveSource\(\);/);
   assert.match(app, /示範模式/, 'demo mode is labelled on screen');
@@ -105,7 +105,7 @@ await check('the UI calls only the WS-L1 routes and shows no execution it does n
   const live = read('live.js'), app = read('app.js');
   for (const route of ['/projects', '/goals', '/order', '/stream']) assert.match(live, new RegExp(route.replace('/', '\\/')));
   assert.doesNotMatch(live + app, /\/(start|run|execute|resume|promote|create-run)\b/);
-  assert.equal(API_ROUTES.length, 12);
+  assert.equal(API_ROUTES.length, 15);
   // G1-WE1-R0: exactly one read-only execution status route, GET only; the UI reads it and nothing else new.
   assert.deepEqual(API_ROUTES.filter((route) => /\/execution$/.test(route)), ['GET /api/v0/projects/:projectId/goals/:goalId/execution']);
   assert.match(live, /executionStatus: \(projectId, goalId\) => call\('GET', `\/projects\/\$\{enc\(projectId\)\}\/goals\/\$\{enc\(goalId\)\}\/execution`\)/);
@@ -318,7 +318,7 @@ await check('SRC-C1 signals: empty persisted source stays empty; LIVE uses only 
   const html = roomHTML(r);
   assert.ok(html.includes(EMPTY_ROOM) && html.includes(NEEDS_EMPTY), 'LIVE shows the 需要你 strip and the room empty');
   assert.doesNotMatch(html, /示範資料|class="conv|class="cm|data-replay/, 'no demo label, no window, no message, no replay');
-  assert.equal(API_ROUTES.filter((route) => !/\/(govern|governance|run|execution|collaboration)$/.test(route)).length, 6, 'only the read-only collaboration route was added');
+  assert.equal(API_ROUTES.filter((route) => !/\/(govern|governance|run|execution|collaboration|automations|actions)$/.test(route)).length, 6, 'base queue routes remain unchanged');
 });
 
 await check('WS-P1 CollaborationEventV1: nine runtime-neutral types; anything outside the model is refused, never shown', () => {
@@ -439,7 +439,7 @@ await check('WS-P1 協作室 empty state, and 此刻 never shows execution that 
 await check('WS-P1 往來 keeps the Human ↔ Chief record and the docked composer; 協作室 has no composer', () => {
   const views = slice('function projectView', 'function projectsView');
   assert.match(views, /if \(S\.pane === 'conversation'\)[\s\S]*ackHTML\(event\.goal/, '往來 is the durable goal history, Human bubble and Chief reply');
-  assert.match(views, /\$\{S\.pane === 'collaboration' \? '' : `<div class="dock">\$\{composerHTML\(false\)\}<\/div>`\}/);
+  assert.match(views, /\$\{\['collaboration', 'automation'\]\.includes\(S\.pane\) \? '' : `<div class="dock">\$\{composerHTML\(false\)\}<\/div>`\}/);
   const submit = slice('async function submitGoal', 'async function move');
   assert.match(submit, /const projectId = home \? S\.target : S\.pid;/);
   assert.doesNotMatch(submit, /\bgo\(|S\.view\s*=(?!=)|S\.pane\s*=(?!=)/, 'submitting never changes the view');
@@ -803,14 +803,18 @@ await check('UI-C1-C1 C3 LIVE unread: a message arriving while a record room is 
 });
 
 await check('UI-C1-C1 adds no execution or authority capability', () => {
-  assert.equal(API_ROUTES.length, 12, 'SRC-C1 adds only the read-only collaboration route');
+  assert.equal(API_ROUTES.length, 15, 'AUTO-P1 adds exactly three operational-only pilot routes');
+  assert.deepEqual(API_ROUTES.filter(route => /automations/.test(route)), [
+    'GET /api/v0/projects/:projectId/automations', 'POST /api/v0/projects/:projectId/automations',
+    'POST /api/v0/projects/:projectId/automations/:taskId/actions',
+  ]);
   const app = read('app.js');
   assert.doesNotMatch(app, /source\.(send|post|deliver|ack|participants)\b/, 'the page asks the source for nothing new');
   for (const file of ['collaboration.js', 'conversation.js']) {
     assert.doesNotMatch(read(file).replace(/import .*?;/g, ''), /\bimport\b|fetch\(|EventSource|XMLHttpRequest|localStorage|sessionStorage|\bsource\./, `${file}: no network, storage or source`);
   }
   assert.deepEqual(Object.keys(createLiveSource({ fetchImpl: async () => ({}), EventSourceImpl: class {} })).sort(),
-    ['addGoal', 'collaboration', 'executionStatus', 'mode', 'projects', 'queue', 'removeGoal', 'reorder', 'subscribe'], 'LIVE source unchanged');
+    ['addGoal', 'automationAction', 'automations', 'collaboration', 'createAutomation', 'executionStatus', 'mode', 'projects', 'queue', 'removeGoal', 'reorder', 'subscribe'], 'LIVE adds only narrow pilot operations');
   assert.match(read('live.js'), /collaboration: \(projectId\) => call\('GET', `\/projects\/\$\{enc\(projectId\)\}\/collaboration`\)/, 'LIVE reads observations, never sends or executes');
 });
 

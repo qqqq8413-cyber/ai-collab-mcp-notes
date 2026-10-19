@@ -1,0 +1,72 @@
+{
+  "kind": "AUTO_P1_FINAL_UI_AND_REAL_LOCAL_REPORT",
+  "at": "2026-10-19T19:51:45.976Z",
+  "manualReadRunId": "4df0fc37-1e60-480d-a1b0-59ac93c08197",
+  "localReportRunId": "ea632848-9c5d-4131-9969-43ab7df7edfe",
+  "localReportSourceRunId": "4df0fc37-1e60-480d-a1b0-59ac93c08197",
+  "sourceObservedAt": "2026-10-19T19:51:34.084Z",
+  "localReport": "REAL_LOCAL_CI_OBSERVATIONS_PASS",
+  "eventTrigger": "UNOBSERVED_NO_NATURAL_CI_CHANGE",
+  "schedulesEnabledAtEnd": 0,
+  "measurements": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "taskCount": 2,
+      "paneHeight": 860,
+      "contentFontSize": "16px",
+      "newestCi": "CI #124",
+      "taskControls": true,
+      "bodyScrollHeight": 1000
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "scrollWidth": 1024,
+      "taskCount": 2,
+      "paneHeight": 634,
+      "contentFontSize": "16px",
+      "newestCi": "CI #124",
+      "taskControls": true,
+      "bodyScrollHeight": 768
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "scrollWidth": 768,
+      "taskCount": 2,
+      "paneHeight": 890,
+      "contentFontSize": "16px",
+      "newestCi": "CI #124",
+      "taskControls": true,
+      "bodyScrollHeight": 1024
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "taskCount": 2,
+      "paneHeight": 672,
+      "contentFontSize": "16px",
+      "newestCi": "CI #124",
+      "taskControls": true,
+      "bodyScrollHeight": 844
+    },
+    {
+      "width": 320,
+      "height": 740,
+      "scrollWidth": 320,
+      "taskCount": 2,
+      "paneHeight": 568,
+      "contentFontSize": "16px",
+      "newestCi": "CI #124",
+      "taskControls": true,
+      "bodyScrollHeight": 740
+    }
+  ],
+  "browserErrors": [],
+  "modelCalls": 0,
+  "exe": "HOLD",
+  "authority": "NON_AUTHORITATIVE"
+}

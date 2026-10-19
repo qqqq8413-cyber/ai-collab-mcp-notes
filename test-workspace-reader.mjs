@@ -64,7 +64,7 @@ check('reader uses locally bundled Lucide icons and no executable or external ca
   const renderer = readFileSync('workspace-ui/reader-source.js', 'utf8');
   assert.match(renderer, /html: false/); assert.match(renderer, /from 'markdown-it'/); assert.match(renderer, /from 'lucide'/);
   assert.doesNotMatch(renderer, /\bfetch\(|XMLHttpRequest|EventSource|eval\(|new Function|localStorage|document\./);
-  assert.equal(API_ROUTES.length, 12);
+  assert.equal(API_ROUTES.length, 15);
 });
 check('room body has no outer scroll and no fixed chat height; text is at least 16px at 1.7 line height', () => {
   const app = readFileSync('workspace-ui/app.js', 'utf8');

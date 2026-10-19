@@ -7,6 +7,7 @@
 import { collaborationRoom, decisionHTML, roomHTML } from './collaboration.js';
 import { executionNow, executionStatusHTML } from './execution-status.js';
 import { attachConversation, captureConversation } from './conversation.js';
+import { automationHTML, attachAutomation, attachAutomationSummary } from './automation.js';
 
 const DEMO = new URLSearchParams(location.search).get('demo') === '1';
 const source = DEMO ? (await import('./demo.js')).createDemoSource() : (await import('./live.js')).createLiveSource();
@@ -75,7 +76,7 @@ function resolveEntry(signals) {
 // '#/advanced', and a project view '#/p/<id>/now' (此刻), '#/p/<id>/conversation' (往來) or
 // '#/p/<id>/collaboration' (協作室, its 討論 area; '/collaboration/needs' is its 需要你 area); '#/p/<id>' alone is 此刻.
 const ROUTES = ['projects', 'activity', 'advanced'];
-const PANES = ['now', 'conversation', 'collaboration'];
+const PANES = ['now', 'conversation', 'collaboration', 'automation'];
 const AREAS = ['discussion', 'needs'];
 function parseRoute(hash) {
   const m = /^#\/p\/([^/]+)(?:\/([a-z]+)(?:\/([a-z]+))?)?$/.exec(hash);
@@ -423,7 +424,7 @@ function projectView() {
   const added = q.history.filter((event) => event.kind === 'GOAL_ADDED');
   const tab = (pane, label, extra = '') => `<a href="${paneHref(p.projectId, pane)}" data-act="pane" data-v="${pane}" ${S.pane === pane ? 'aria-current="page"' : ''}>${label}${extra}</a>`;
   const need = r.summary.needsHuman.length ? '<span class="tneed" aria-hidden="true"></span><span class="sr">，需要你</span>' : '';
-  const tabs = `<nav class="mtabs" aria-label="${esc(p.displayName)}的檢視"><div class="mt">${tab('now', '此刻')}${tab('conversation', '往來', ` <span class="tn num">${added.length}</span>`)}${tab('collaboration', '協作室', r.events.length ? ` <span class="tn num">${r.events.length}</span>${need}` : '')}</div></nav>`;
+  const tabs = `<nav class="mtabs" aria-label="${esc(p.displayName)}的檢視"><div class="mt">${tab('now', '此刻')}${tab('conversation', '往來', ` <span class="tn num">${added.length}</span>`)}${tab('collaboration', '協作室', r.events.length ? ` <span class="tn num">${r.events.length}</span>${need}` : '')}${tab('automation', '自動化')}</div></nav>`;
   let pane;
   if (S.pane === 'conversation') {
     const removed = new Set(q.history.filter((event) => event.kind === 'GOAL_REMOVED').map((event) => event.goalId));
@@ -435,12 +436,14 @@ function projectView() {
     }).join('');
     pane = `<section class="journal" id="journal" aria-labelledby="journal-h"><h2 class="sr" id="journal-h">往來</h2>
         <div class="jscroll" id="scroller" tabindex="0" aria-label="和 Chief 的往來紀錄"><div class="stream">${stream || '<p class="wl-empty">還沒有往來紀錄。在下面輸入目標，就會加入這個專案的工作清單。</p>'}</div></div></section>`;
+  } else if (S.pane === 'automation') {
+    pane = `<div class="scroll" id="automation-scroll">${automationHTML()}</div>`;
   } else if (S.pane === 'collaboration') {
-    pane = `<section class="stage room" id="room" aria-label="協作室">${roomHTML(r, { demo: demoRoom(), replay: DEMO })}</section>`;
+    pane = `<section class="stage room" id="room" aria-label="協作室"><div id="auto-room-summary" class="auto-room-summary"></div>${roomHTML(r, { demo: demoRoom(), replay: DEMO })}</section>`;
   } else {
     pane = `<section class="stage" id="stage" aria-label="此刻"><div class="scroll" id="stage-scroll">${stageHTML()}</div></section>`;
   }
-  return `<div class="view proj" data-pane="${S.pane}">${tabs}${pane}${S.pane === 'collaboration' ? '' : `<div class="dock">${composerHTML(false)}</div>`}</div>`;
+  return `<div class="view proj" data-pane="${S.pane}">${tabs}${pane}${['collaboration', 'automation'].includes(S.pane) ? '' : `<div class="dock">${composerHTML(false)}</div>`}</div>`;
 }
 
 function projectsView() {
@@ -526,6 +529,8 @@ function render() {
   if ($('#other-scroll') && keep.other !== undefined) $('#other-scroll').scrollTop = keep.other;
   ensureExecution();
   attachConversation(reading);
+  if (S.view === 'project' && S.pane === 'automation') attachAutomation({ projectId: S.pid, source, root: $('#automation') });
+  if (!DEMO && S.view === 'project' && S.pane === 'collaboration') attachAutomationSummary({ projectId: S.pid, source, root: $('#auto-room-summary') });
 }
 
 // ---------- actions
