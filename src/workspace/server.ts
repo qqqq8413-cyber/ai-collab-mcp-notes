@@ -7,6 +7,7 @@ import { FileGoalStore, GoalQueueRequestError, GoalStoreBusyError, GoalStoreInte
 import { GoalGovernanceError, type GoalGovernancePort } from './goal-governance-port.js';
 import { GoalExecutionStatusError, type GoalExecutionStatusPort } from './goal-execution-status-port.js';
 import { GoalRunAdmissionError, type GoalRunAdmissionPort } from './goal-run-admission-port.js';
+import { FileCollaborationStore, CollaborationStoreError } from './collaboration-store.js';
 
 // The local Workspace server (WS-L1). It serves the Workspace UI and a small API over
 // the non-authoritative goal queue, from one origin, on the IPv4 loopback address only.
@@ -28,6 +29,7 @@ export const READ_MODEL_VERSION = 'workspace.v0';
 export const API_ROUTES = Object.freeze([
   'GET /api/v0/projects',
   'GET /api/v0/projects/:projectId/goals',
+  'GET /api/v0/projects/:projectId/collaboration',
   'POST /api/v0/projects/:projectId/goals',
   'POST /api/v0/projects/:projectId/goals/order',
   'DELETE /api/v0/projects/:projectId/goals/:goalId',
@@ -113,6 +115,7 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
   const { config } = options;
   const principal = parseHumanPrincipalV1(config.humanPrincipal);
   const store = options.store ?? new FileGoalStore(config.dataDirectory, options.clock ? { clock: options.clock } : {});
+  const observations = new FileCollaborationStore(config.dataDirectory);
   const projects = new Map(config.projects.map((project) => [project.projectId, project]));
   const ui = new Map(Object.entries(STATIC).map(([path, entry]) => [path, { ...entry, body: readFileSync(join(options.uiDirectory, entry.file)) }]));
   const streams = new Set<ServerResponse>();
@@ -222,6 +225,17 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
     if (parts[0] !== 'api' || parts[1] !== 'v0') throw new HttpError(404, 'NOT_FOUND', 'Not found.');
     const submittedBy = requireSession(request);
     const rest = parts.slice(2);
+
+    if (method === 'GET' && rest.length === 3 && rest[0] === 'projects' && rest[2] === 'collaboration') {
+      project(rest[1]);
+      await noBody(request);
+      if (new URL(request.url!, 'http://local').search) throw new HttpError(400, 'UNEXPECTED_QUERY', 'This read accepts no query.');
+      const events = observations.read(rest[1]);
+      json(response, 200, { readModelVersion: READ_MODEL_VERSION, projectId: rest[1],
+        provenance: events.length ? 'LOCAL_SOURCE_OBSERVATION' : 'NONE', authority: 'NON_AUTHORITATIVE',
+        participants: events.length ? [{ id: 'claude-code', name: 'Claude Code' }] : [], events });
+      return;
+    }
 
     if (method === 'GET' && rest.length === 1 && rest[0] === 'stream') {
       if (streams.size >= MAX_STREAMS) throw new HttpError(503, 'TOO_MANY_STREAMS', 'Too many open Workspace windows.');
@@ -348,6 +362,10 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
       }
       if (error instanceof GoalStoreIntegrityError) {
         json(response, 500, { error: { code: 'STORE_INTEGRITY', message: `The goal queue on disk failed its integrity check and was not changed: ${error.message}` } });
+        return;
+      }
+      if (error instanceof CollaborationStoreError) {
+        json(response, 500, { error: { code: 'COLLABORATION_INTEGRITY', message: '事件紀錄無法通過完整性檢查；未修改任何資料。' } });
         return;
       }
       json(response, 500, { error: { code: 'INTERNAL', message: 'The Workspace server could not complete the request.' } });

@@ -513,3 +513,7 @@ ol,ul{margin:0;padding:0;list-style:none}
   .rbtn:hover{color:var(--fg);background:color-mix(in srgb,var(--card) 60%,transparent)}
   .rbtn[aria-expanded="false"]{color:var(--fg)}
 }
+.observation { margin-top: 12px; font-size: 12px; line-height: 1.6; }
+.observation summary { cursor: pointer; }
+.observation dl { display: grid; grid-template-columns: 86px minmax(0, 1fr); gap: 4px 8px; }
+.observation dd { margin: 0; overflow-wrap: anywhere; }

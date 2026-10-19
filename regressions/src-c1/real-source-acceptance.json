@@ -1,0 +1,105 @@
+{
+  "kind": "SRC_C1_EXISTING_LOCAL_SOURCE_ACCEPTANCE",
+  "testedAt": "2026-10-19T16:38:12.207Z",
+  "baseSha": "e7eb87b4b481c885bea8730f8498eb493dc38184",
+  "source": "CLAUDE_CODE_LOCAL_TRANSCRIPT",
+  "sourceFileHash": "54b6d7a710cf2519971d4f2f7b6db089fd8d60795913fe783ee0110c3754550d",
+  "sourceSessionId": "0ef2cf5c-a9fc-4947-8525-7b85f1c5d21c",
+  "selectedPublicEvents": [
+    {
+      "eventId": "b0a01624-e11a-4c12-8f69-a3b37870a375",
+      "timestamp": "2026-10-15T04:25:06.205Z",
+      "textHash": "57f62cf466290068f2a894ed1789a1b166c9d1fd81b2380ca10424592b78f875",
+      "chars": 918,
+      "captureMode": "HISTORY"
+    },
+    {
+      "eventId": "bb3bcf9e-e542-4d1d-96f7-255e8930648f",
+      "timestamp": "2026-10-15T04:28:22.321Z",
+      "textHash": "4a0c9309082b20dcf38e8e6bcc7f8162d149c32f88c3a56a06ed2a0965f4c63a",
+      "chars": 34,
+      "captureMode": "HISTORY"
+    },
+    {
+      "eventId": "c8042d7f-ee0d-456f-88e3-ebac0a9fa58a",
+      "timestamp": "2026-10-15T04:29:07.969Z",
+      "textHash": "ee9f5fd9624f701cd6d003e0d7b97872145a4e56a78f26ca945f931b0e1c6a5c",
+      "chars": 1376,
+      "captureMode": "HISTORY"
+    }
+  ],
+  "byteExactBodyVerified": true,
+  "reimport": {
+    "added": 0,
+    "duplicates": 3
+  },
+  "storageByteUnchangedAfterReimport": true,
+  "sourceUnmodified": true,
+  "restarts": [
+    {
+      "instance": 1,
+      "httpStatus": 200,
+      "events": 3,
+      "rejected": 0,
+      "identity": "IDENTIFIED"
+    },
+    {
+      "instance": 2,
+      "httpStatus": 200,
+      "events": 3,
+      "rejected": 0,
+      "identity": "IDENTIFIED"
+    }
+  ],
+  "syntheticEventsInRealAcceptance": 0,
+  "providerCalls": 0,
+  "realTimeSourceArrivalVerified": false,
+  "limitations": [
+    "Historical source acceptance only; new tail arrivals tested synthetically without calling a model.",
+    "Local transcript provenance is not a provider signature or task-completion proof.",
+    "A multi-cwd source was refused before selecting this single-cwd session; no relaxation or source repair."
+  ],
+  "browserAcceptance": {
+    "desktop": {
+      "width": 1440,
+      "height": 1000,
+      "events": 3,
+      "reloadPreserved": true,
+      "horizontalOverflow": false,
+      "pageErrors": 0,
+      "mutationRequests": 0
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "events": 3,
+      "reloadPreserved": true,
+      "horizontalOverflow": false,
+      "pageErrors": 0,
+      "mutationRequests": 0
+    }
+  },
+  "syntheticBrowserWatchAcceptance": {
+    "syntheticOnly": true,
+    "historyEvents": 1,
+    "tailEvents": 1,
+    "watcherToStorageToBrowser": "PASS",
+    "corruptionWarningKeepsPriorView": "PASS",
+    "recovery": "PASS",
+    "reloadNoFalseUnread": "PASS",
+    "navigationChanged": false,
+    "pageErrors": 0,
+    "mutationRequests": 0
+  },
+  "offlineRegression": {
+    "command": "npm test",
+    "exitCode": 0,
+    "suites": 52,
+    "passed": 1980,
+    "failed": 0,
+    "skipped": 0,
+    "eventSourceTests": 18,
+    "workspaceUiTests": 49,
+    "workspaceBoundaryTests": 10
+  }
+}

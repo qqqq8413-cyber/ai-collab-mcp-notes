@@ -14,8 +14,8 @@
 // The summary and the conversation windows are derived here, deterministically, from the events alone. No model
 // writes them, and nothing here names a particular agent: every name shown comes from the record.
 //
-// There is no execution, so LIVE has no source of these events: live.js returns none and the room shows its empty
-// state. Demo fixtures (demo.js, ?demo=1 only) are labelled as demo data wherever they appear. A Human decision
+// LIVE can read locally observed public messages (SRC-C1), never initiate execution.
+// Demo fixtures (demo.js, ?demo=1 only) are labelled as demo data wherever they appear. A Human decision
 // cannot be made here: an escalation is shown, never answered, and nothing in this module records a decision.
 
 export const EVENT_TYPES = Object.freeze(['PROPOSAL', 'QUESTION', 'CHALLENGE', 'RESPONSE', 'HANDOFF', 'EVIDENCE', 'AGREEMENT', 'ESCALATION', 'SYSTEM']);
@@ -35,7 +35,7 @@ export const TYPE_LABEL = Object.freeze({
 // Human by its type). Without `to`, an AI message is addressed to no one in particular (see conversationOf).
 // An event that breaks any of these is refused, never repaired.
 // evidence: [{ kind: 'FILE', path, lines? } | { kind: 'TESTS', passed, failed?, label? } | { kind: 'COMMIT', sha }]
-const EVENT_KEYS = ['id', 'projectId', 'goalId', 'actor', 'actorId', 'role', 'runtime', 'to', 'type', 'body', 'timestamp', 'evidence'];
+const EVENT_KEYS = ['id', 'projectId', 'goalId', 'actor', 'actorId', 'role', 'runtime', 'to', 'type', 'body', 'timestamp', 'evidence', 'observation'];
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/;
 const MAX_EVIDENCE = 8;
 const MAX_TO = 8;
@@ -103,10 +103,24 @@ function eventOf(projectId, raw) {
   const role = optional(raw.role, 40);
   const runtime = optional(raw.runtime, 40);
   const to = raw.to === undefined ? undefined : addresseesOf(raw.to, actorId, raw.type);
+  let observation;
+  if (raw.observation !== undefined) {
+    const o = raw.observation;
+    if (!isObject(o)) refuse('bad observation');
+    only(o, ['source', 'sessionId', 'eventId', 'eventType', 'receivedAt', 'captureMode', 'blockIndex', 'partIndex', 'partCount', 'textHash']);
+    const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+    if (o.source !== 'CLAUDE_CODE_LOCAL_TRANSCRIPT' || o.eventType !== 'assistant.text' ||
+        !uuid.test(o.sessionId) || !uuid.test(o.eventId) || !/^[a-f0-9]{64}$/.test(o.textHash) ||
+        !['HISTORY', 'LIVE_TAIL'].includes(o.captureMode) || typeof o.receivedAt !== 'string' || !Number.isFinite(Date.parse(o.receivedAt)) ||
+        !Number.isSafeInteger(o.blockIndex) || o.blockIndex < 0 || !Number.isSafeInteger(o.partIndex) || o.partIndex < 0 ||
+        !Number.isSafeInteger(o.partCount) || o.partCount < 1 || o.partIndex >= o.partCount || raw.type !== 'RESPONSE' || !actorId) refuse('bad observation');
+    observation = Object.freeze({ ...o });
+  }
   return Object.freeze({
     id: id(raw.id), projectId, ...(raw.goalId === undefined ? {} : { goalId: id(raw.goalId) }),
     actor, ...(actorId === undefined ? {} : { actorId }), ...(role === undefined ? {} : { role }), ...(runtime === undefined ? {} : { runtime }), ...(to === undefined ? {} : { to }),
     type: raw.type, body: text(raw.body, 4000, { lines: true }), timestamp: raw.timestamp,
+    ...(observation === undefined ? {} : { observation }),
     ...(raw.evidence === undefined ? {} : { evidence: Object.freeze(raw.evidence.map(evidenceOf)) }),
   });
 }
@@ -205,7 +219,8 @@ export function collaborationRoom(projectId, data) {
   const known = (event) => event.type === 'SYSTEM' || (named.get(event.actorId) === event.actor && (event.to ?? []).every((to) => named.has(to)));
   const events = identity === 'IDENTIFIED' ? Object.freeze(parsed.events.filter(known)) : parsed.events;
   return Object.freeze({
-    projectId, provenance: data?.provenance ?? 'NONE', identity, participants: identity === 'IDENTIFIED' ? directory : Object.freeze([]),
+    projectId, provenance: data?.provenance ?? 'NONE', sourceError: typeof data?.sourceError === 'string' ? data.sourceError : null,
+    identity, participants: identity === 'IDENTIFIED' ? directory : Object.freeze([]),
     events, rejected: parsed.rejected, unverified: parsed.events.length - events.length, summary: summarizeCollaboration(projectId, events),
   });
 }
@@ -297,6 +312,14 @@ const sentTo = (event, label) => (event.type === 'ESCALATION' ? '給 你' : even
 const TYPING = '<li class="cm-typing" aria-hidden="true"><span class="ty-n"></span><span class="ty-d"><i></i><i></i><i></i></span></li>';
 const plain = (key) => key;
 
+function observationHTML(event) {
+  const o = event.observation;
+  if (!o) return '';
+  return `<details class="observation"><summary>${o.captureMode === 'HISTORY' ? '歷史匯入' : '監看收到'} · ${esc(event.runtime)} · 公開回覆${o.partCount > 1 ? ` · 第 ${o.partIndex + 1}/${o.partCount} 段` : ''}</summary>
+    <dl><dt>來源</dt><dd>${esc(o.source)}</dd><dt>Session ID</dt><dd>${esc(o.sessionId)}</dd><dt>Event ID</dt><dd>${esc(o.eventId)}</dd>
+    <dt>事件類型</dt><dd>${esc(o.eventType)}</dd><dt>來源時間</dt><dd>${esc(event.timestamp)}</dd><dt>接收時間</dt><dd>${esc(o.receivedAt)}</dd></dl></details>`;
+}
+
 /**
  * How a participant is written: its name, plus its ID when another directory participant has the same name, so two
  * participants are never shown as one. In a LEGACY room the key is the name.
@@ -315,7 +338,7 @@ export function messageHTML(item, chat, label = plain) {
   const at = `data-seq="${seq}" data-id="${esc(event.id)}"`;
   if (side === 'system') return `<li class="cm-sys" ${at}>${para(event.body)} · ${when(event.timestamp)}</li>`;
   const kind = `t-${event.type.toLowerCase()}`;
-  const body = `<div class="bub">${para(event.body)}${attachmentsHTML(event.evidence)}</div>`;
+  const body = `<div class="bub">${para(event.body)}${attachmentsHTML(event.evidence)}${observationHTML(event)}</div>`;
   if (side === 'out') return `<li class="cm cm-out ${kind}" ${at}>${body}<p class="cm-m">${tag(event)} · ${sentTo(event, label)} · ${when(event.timestamp)}</p></li>`;
   const from = esc(label(event.actorId ?? event.actor));
   if (item.broadcast) {
@@ -395,6 +418,8 @@ export function roomHTML(room, { demo = false, replay = false } = {}) {
   const need = room.summary.needsHuman.length;
   const seqOf = new Map(room.events.map((event, index) => [event.id, index + 1]));
   return `${isDemo ? DEMO_TAG : ''}
+    ${room.sourceError ? `<p class="c-warn" role="alert">${esc(room.sourceError)}${room.events.length ? ' 以下保留上次成功讀取的紀錄。' : ''}</p>` : ''}
+    ${room.provenance === 'LOCAL_SOURCE_OBSERVATION' ? `<p class="c-note" role="note">本機 AI 工作紀錄 · ${room.events.length} 則公開回覆紀錄。歷史匯入與監看收到分開標示；監看收到不代表 AI 此刻仍在工作，回覆內容不等於已驗證的完成狀態。</p>` : ''}
     <div class="room-body">
       <section class="nstrip${need ? ' has-need' : ''}" aria-labelledby="needs-h">${needsHTML(room.summary, { seqOf })}</section>
       <section class="disc" aria-label="AI 之間的對話">${conversationHTML(room, { replay: replay && isDemo })}</section>

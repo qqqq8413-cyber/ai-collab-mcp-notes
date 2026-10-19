@@ -105,7 +105,7 @@ await check('the UI calls only the WS-L1 routes and shows no execution it does n
   const live = read('live.js'), app = read('app.js');
   for (const route of ['/projects', '/goals', '/order', '/stream']) assert.match(live, new RegExp(route.replace('/', '\\/')));
   assert.doesNotMatch(live + app, /\/(start|run|execute|resume|promote|create-run)\b/);
-  assert.equal(API_ROUTES.length, 11);
+  assert.equal(API_ROUTES.length, 12);
   // G1-WE1-R0: exactly one read-only execution status route, GET only; the UI reads it and nothing else new.
   assert.deepEqual(API_ROUTES.filter((route) => /\/execution$/.test(route)), ['GET /api/v0/projects/:projectId/goals/:goalId/execution']);
   assert.match(live, /executionStatus: \(projectId, goalId\) => call\('GET', `\/projects\/\$\{enc\(projectId\)\}\/goals\/\$\{enc\(goalId\)\}\/execution`\)/);
@@ -302,21 +302,23 @@ await check('WS-P1 Home: 需要你 from escalations only, 目前的工作 empty 
   assert.match(home, /<label class="c-to"|composerHTML\(true\)/, 'the Home composer keeps its explicit project target');
 });
 
-await check('WS-P1 signals: Human-required only from an escalation time; the LIVE source has no collaboration events at all', async () => {
+await check('SRC-C1 signals: empty persisted source stays empty; LIVE uses only its read-only route', async () => {
   const { signalsOf } = resolver;
   const s = signalsOf([{ projectId: 'a' }, { projectId: 'constructor' }, { projectId: '__proto__' }], { a: '2026-10-06T04:00:00.000Z' });
   assert.deepEqual(s.map((x) => [x.humanRequired, x.humanRequiredSince]), [[true, '2026-10-06T04:00:00.000Z'], [false, null], [false, null]]);
   assert.ok(s.every((x) => x.working === false), 'nothing is ever working: there is no execution');
   const requested = [];
-  const live = createLiveSource({ fetchImpl: (...args) => { requested.push(args); throw new Error('network'); }, EventSourceImpl: class {} });
+  const live = createLiveSource({ fetchImpl: async (...args) => { requested.push(args); return { ok: true, json: async () => ({ projectId: 'cand', provenance: 'NONE', events: [] }) }; }, EventSourceImpl: class {} });
   assert.deepEqual(await live.collaboration('cand'), { projectId: 'cand', provenance: 'NONE', events: [] });
-  assert.deepEqual(requested, [], 'no request: there is no collaboration route or source');
+  assert.equal(requested.length, 1);
+  assert.equal(requested[0][0], '/api/v0/projects/cand/collaboration');
+  assert.equal(requested[0][1].method, 'GET');
   const r = collaborationRoom('cand', await live.collaboration('cand'));
   assert.equal(r.summary.needsHuman.length, 0);
   const html = roomHTML(r);
   assert.ok(html.includes(EMPTY_ROOM) && html.includes(NEEDS_EMPTY), 'LIVE shows the 需要你 strip and the room empty');
   assert.doesNotMatch(html, /示範資料|class="conv|class="cm|data-replay/, 'no demo label, no window, no message, no replay');
-  assert.equal(API_ROUTES.filter((route) => !/\/(govern|governance|run|execution)$/.test(route)).length, 6, 'no collaboration API route was added');
+  assert.equal(API_ROUTES.filter((route) => !/\/(govern|governance|run|execution|collaboration)$/.test(route)).length, 6, 'only the read-only collaboration route was added');
 });
 
 await check('WS-P1 CollaborationEventV1: nine runtime-neutral types; anything outside the model is refused, never shown', () => {
@@ -802,7 +804,7 @@ await check('UI-C1-C1 C3 LIVE unread: a message arriving while a record room is 
 });
 
 await check('UI-C1-C1 adds no execution or authority capability', () => {
-  assert.equal(API_ROUTES.length, 11, 'no route');
+  assert.equal(API_ROUTES.length, 12, 'SRC-C1 adds only the read-only collaboration route');
   const app = read('app.js');
   assert.doesNotMatch(app, /source\.(send|post|deliver|ack|participants)\b/, 'the page asks the source for nothing new');
   for (const file of ['collaboration.js', 'conversation.js']) {
@@ -810,7 +812,7 @@ await check('UI-C1-C1 adds no execution or authority capability', () => {
   }
   assert.deepEqual(Object.keys(createLiveSource({ fetchImpl: async () => ({}), EventSourceImpl: class {} })).sort(),
     ['addGoal', 'collaboration', 'executionStatus', 'mode', 'projects', 'queue', 'removeGoal', 'reorder', 'subscribe'], 'LIVE source unchanged');
-  assert.match(read('live.js'), /collaboration: async \(projectId\) => \(\{ projectId, provenance: 'NONE', events: \[\] \}\),/, 'LIVE still has no collaboration events and makes no request for them');
+  assert.match(read('live.js'), /collaboration: \(projectId\) => call\('GET', `\/projects\/\$\{enc\(projectId\)\}\/collaboration`\)/, 'LIVE reads observations, never sends or executes');
 });
 
 await check('UI-C1 identity is display metadata: windows and names come from the record; no code names an agent', () => {

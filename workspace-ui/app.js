@@ -201,9 +201,14 @@ async function loadQueue(projectId) {
   const item = S.projects.find((p) => p.projectId === projectId);
   if (item) item.queued = data.goals.length;
 }
-// 協作室: whatever the source returns goes through the CollaborationEventV1 projection; LIVE returns no events.
+// Read observations only. A source failure must not hide queues or silently look like an empty room.
 async function loadRoom(projectId) {
-  S.collab[projectId] = collaborationRoom(projectId, await source.collaboration(projectId));
+  try {
+    S.collab[projectId] = collaborationRoom(projectId, await source.collaboration(projectId));
+  } catch {
+    const prior = S.collab[projectId];
+    S.collab[projectId] = Object.freeze({ ...(prior ?? collaborationRoom(projectId, null)), sourceError: '無法讀取 AI 工作紀錄，請稍後再試。' });
+  }
 }
 // G1-WE1-R0: the goal on the stage gets its read-only governed execution status: read when it first appears there and
 // again only on 重新讀取. Never polled; a failed or disabled read leaves every other part of the page working.
@@ -649,6 +654,18 @@ document.addEventListener('keydown', (event) => {
 
 source.subscribe(applyEvent, (state) => { S.conn = state; if (!DEMO) render(); });
 await reloadAll();
+// Only observe the open room. No run status polling, writes, navigation or execution.
+let roomReading = false;
+if (!DEMO) setInterval(async () => {
+  if (roomReading || document.hidden || S.view !== 'project' || S.pane !== 'collaboration') return;
+  roomReading = true;
+  const projectId = S.pid;
+  const before = JSON.stringify(room(projectId));
+  try {
+    await loadRoom(projectId);
+    if (projectId === S.pid && S.pane === 'collaboration' && before !== JSON.stringify(room(projectId))) render();
+  } finally { roomReading = false; }
+}, 3000);
 // Entry: only the root runs the attention resolver (LIVE: always Home, since LIVE has no escalation); an explicit route
 // is kept. Back/forward and clicks go straight to their destination, and SSE updates never navigate.
 {
