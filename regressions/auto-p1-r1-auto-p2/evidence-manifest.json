@@ -1,0 +1,24 @@
+{
+  "at": "2026-10-20T11:32:30.397Z",
+  "files": {
+    "test-summary.json": "cc03c816f813bb8f46d22b953e9cb224b00b8fa152c2ae26b5aef4bb78d42fbd",
+    "browser-acceptance.json": "e34b3c857b7f613009a021c92d8db08796a5e925cff30d14468eab348fc1f4c9",
+    "live-copy-compatibility.json": "0e2551e02c1d9c2b77a85e2f46580431cdcdfef95ee76267270400ad57b80e4a",
+    "restart-evidence.json": "2603a36ebb176620086e6cabccfb9878178341c800eb0056c4c81baedc069849",
+    "real-github-ci.json": "8d0a7f4b79d904fcf51663916b46d13309ce79d078c94e5d599b011e4e760a1f",
+    "before-4873-desktop.png": "afae1610db772541aa6f587ecef9157a2a4debf455883c1cc8723bba8406f5d1",
+    "after-1440.png": "0d87423e12178ef0ffd8224cf78834fdb5d1ceeda12b714ab359fe388098bc58",
+    "after-768.png": "fd6e674de77ba8ad9155f8980ecc9246243edd3f10b7f626e92549b22a68cd4e",
+    "after-390.png": "408301564645614e741f99c9aa6b2d738e9c54546ef50161c39f84e0e0f66560",
+    "after-320.png": "8b23207c44ba34c3cedfa4df1245f37fbe9668afd22d2db10ff3e90b6e374351",
+    "after-desktop-ci-results.png": "bd7d25150cb3d9567f482b5ed2137cb54d879f1d04240136bacb1b2134cbe27d",
+    "after-mobile-ci-results.png": "dddcc648b95a098cc3de27834492adb07ef42d22a3e5fa01954c909cb4e93e69",
+    "source-seal.json": "8273ba324632801ece0bcc4f56ce835e7670a49acfd86c97ff4e069a68e3a5cb"
+  },
+  "modelCalls": 0,
+  "liveGithubSource": "real-github-ci.json",
+  "syntheticEvidenceBoundary": "Only isolated budget/clock and journal test fixtures are synthetic; not live model acceptance.",
+  "original4873Replaced": false,
+  "candidate4874": "ISOLATED_PREVIEW_WITH_EXE_HOLD",
+  "ci": "Exact post-push candidate CI is reported separately to avoid changing the tested commit."
+}

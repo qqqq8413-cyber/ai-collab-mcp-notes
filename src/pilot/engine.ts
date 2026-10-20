@@ -3,6 +3,10 @@ import { AutomationRequestError, type AutomationPort } from '../workspace/automa
 import { actionInput, ciSchema, LIMITS, REPOSITORY, taskInput, type CiRun, type PilotData, type PilotRun, type Task } from './model.js';
 import { digest, PilotStore } from './store.js';
 import type { CiReader } from './github.js';
+import { readBudget } from './read-budget.js';
+
+const waiting = (state: string) => ['QUEUED', 'DEFERRED'].includes(state);
+const pending = (state: string) => waiting(state) || state === 'RUNNING';
 
 function refuse(code: string, message: string, status = 409): never { throw new AutomationRequestError(code, status, message); }
 const changedSignature = (run: CiRun) => digest({ ...run, updatedAt: null, jobs: [...run.jobs].sort((a, b) => a.id - b.id) });
@@ -43,6 +47,19 @@ export class PilotEngine implements AutomationPort {
           run.state = 'FAILED'; run.error = 'PROCESS_INTERRUPTED_NO_AUTOMATIC_REPLAY'; run.endedAt = this.#now();
           this.#task(data, run.taskId).state = 'FAILED'; recovered = true;
         }
+        // A missed scheduled slot is not a backlog. Keep its evidence, never replay it on restart.
+        for (const run of data.runs.filter(r => r.state === 'QUEUED' && r.trigger === 'SCHEDULED')) {
+          run.state = 'CANCELLED'; run.error = 'SCHEDULE_SLOT_EXPIRED_NO_CATCHUP'; run.endedAt = this.#now();
+          this.#task(data, run.taskId).state = 'CANCELLED'; recovered = true;
+        }
+        for (const task of data.tasks.filter(t => t.enabled && t.mode === 'SCHEDULED' && t.nextDueAt && Date.parse(t.nextDueAt) < this.#clock())) {
+          task.nextDueAt = new Date(this.#clock() + task.intervalSeconds * 1000).toISOString(); recovered = true;
+        }
+        for (const task of data.tasks.filter(t => t.budgetDeferral && Date.parse(t.budgetDeferral.until) <= this.#clock())) {
+          if (!data.runs.some(r => r.taskId === task.id && pending(r.state))) {
+            delete task.budgetDeferral; task.state = 'READY'; recovered = true;
+          }
+        }
         if (recovered) this.#save(data);
       }
     } catch (e) { this.#release(); throw e; }
@@ -55,7 +72,7 @@ export class PilotEngine implements AutomationPort {
   #task(data: PilotData, id: string): Task { return data.tasks.find(t => t.id === id) ?? refuse('UNKNOWN_TASK', '找不到自動化工作。', 404); }
   #save(data: PilotData): void {
     data.revision++;
-    const terminal = data.runs.filter(r => r.state !== 'RUNNING' && r.state !== 'QUEUED');
+    const terminal = data.runs.filter(r => !pending(r.state));
     const remove = new Set(terminal.slice(0, Math.max(0, data.runs.length - LIMITS.history)).map(r => r.id));
     data.runs = data.runs.filter(r => !remove.has(r.id));
     data.changes = data.changes.slice(-LIMITS.changes);
@@ -67,8 +84,18 @@ export class PilotEngine implements AutomationPort {
   read(projectId: string): unknown {
     return { recordKind: 'OPERATIONAL_RECORD', authority: 'NON_AUTHORITATIVE', repository: REPOSITORY,
       exe: 'HOLD', aiExecution: 'LOCKED', modelCalls: 0, limits: LIMITS, fault: this.#fault,
+      budget: this.#budget(),
       capabilities: { CI_WATCH: 'AUTHORIZED_READ_ONLY', CI_REPORT: 'AUTHORIZED_LOCAL_READ_ONLY', AI_WORK: 'HOLD' },
       ...this.#data(projectId) };
+  }
+  #budget() { return readBudget([...this.#projects].flatMap(p => this.#data(p).readStarts), this.#clock()); }
+  #defer(data: PilotData, task: Task, until: string, run?: PilotRun): void {
+    const prior = run?.budgetDeferral ?? task.budgetDeferral;
+    const metadata = { reason: 'GITHUB_READ_BUDGET' as const, since: prior?.since ?? this.#now(), until };
+    task.budgetDeferral = metadata; task.state = 'DEFERRED'; task.updatedAt = this.#now();
+    if (task.enabled && task.mode === 'SCHEDULED') task.nextDueAt = until;
+    if (run) { run.state = 'DEFERRED'; run.budgetDeferral = { ...metadata }; }
+    if (!prior || prior.until !== until) data.operations.push({ requestId: randomUUID(), taskId: task.id, action: 'SYSTEM_BUDGET_DEFERRED', at: this.#now() });
   }
   create(projectId: string, input: unknown): unknown {
     if (this.#closed || this.#fault) refuse('PILOT_STOPPED', '自動化已停止，請檢查服務。');
@@ -91,8 +118,8 @@ export class PilotEngine implements AutomationPort {
   #enqueue(data: PilotData, task: Task, occurrence: string, trigger: PilotRun['trigger'], retry?: PilotRun): PilotRun {
     const prior = data.runs.find(r => r.taskId === task.id && r.occurrence === occurrence);
     if (prior) return prior;
-    if (data.runs.some(r => r.taskId === task.id && ['QUEUED', 'RUNNING'].includes(r.state))) refuse('TASK_BUSY', '同一工作已有待執行或執行中的紀錄。');
-    if (data.runs.filter(r => r.state === 'QUEUED').length >= LIMITS.queue) refuse('QUEUE_LIMIT', '待執行工作已達上限。');
+    if (data.runs.some(r => r.taskId === task.id && pending(r.state))) refuse('TASK_BUSY', '同一工作已有待執行或執行中的紀錄。');
+    if (data.runs.filter(r => waiting(r.state)).length >= LIMITS.queue) refuse('QUEUE_LIMIT', '待執行工作已達上限。');
     const run: PilotRun = { id: randomUUID(), taskId: task.id, occurrence, trigger, state: 'QUEUED', createdAt: this.#now(),
       startedAt: null, endedAt: null, retryOf: retry?.id ?? null, retryCount: retry ? retry.retryCount + 1 : 0,
       error: null, steps: ['QUEUED'], result: null };
@@ -123,12 +150,21 @@ export class PilotEngine implements AutomationPort {
       task.nextDueAt = task.mode === 'SCHEDULED' ? new Date(this.#clock() + task.intervalSeconds * 1000).toISOString() : null;
     } else if (action === 'PAUSE' || action === 'STOP') {
       task.enabled = false; task.nextDueAt = null; task.pendingEventKey = null;
+      if (!data.runs.some(r => r.taskId === taskId && pending(r.state))) {
+        delete task.budgetDeferral;
+        task.state = [...data.runs].reverse().find(r => r.taskId === taskId)?.state ?? 'READY';
+      }
+      if (action === 'STOP') for (const run of data.runs.filter(r => r.taskId === taskId && waiting(r.state))) {
+        run.state = 'CANCELLED'; run.endedAt = this.#now(); run.error = 'USER_STOP'; delete run.budgetDeferral;
+        task.state = 'CANCELLED'; delete task.budgetDeferral;
+      }
       if (action === 'STOP' && this.#active?.projectId === projectId && data.runs.find(r => r.id === this.#active!.runId)?.taskId === taskId) {
         this.#active.abort.abort(new Error('USER_STOP'));
       }
     } else if (action === 'CANCEL') {
-      for (const run of data.runs.filter(r => r.taskId === taskId && r.state === 'QUEUED')) {
+      for (const run of data.runs.filter(r => r.taskId === taskId && waiting(r.state))) {
         run.state = 'CANCELLED'; run.endedAt = this.#now(); run.error = 'QUEUED_WORK_CANCELLED'; task.state = 'CANCELLED';
+        delete run.budgetDeferral; delete task.budgetDeferral;
       }
     }
     task.updatedAt = this.#now(); data.operations.push({ requestId, taskId, action, at: this.#now() }); this.#save(data);
@@ -145,7 +181,12 @@ export class PilotEngine implements AutomationPort {
       const data = this.#data(id); let updated = false;
       for (const task of data.tasks.filter(t => t.enabled && t.mode === 'SCHEDULED' && t.nextDueAt && Date.parse(t.nextDueAt) <= this.#clock())) {
         // Skip missed slots, never catch up in a burst, and never queue a parallel occurrence.
-        if (!data.runs.some(r => r.taskId === task.id && ['QUEUED', 'RUNNING'].includes(r.state))) {
+        if (!data.runs.some(r => r.taskId === task.id && pending(r.state))) {
+          const budget = this.#budget();
+          if (task.type === 'CI_WATCH' && budget.nextAvailableAt) {
+            this.#defer(data, task, budget.nextAvailableAt); updated = true; continue;
+          }
+          delete task.budgetDeferral;
           this.#enqueue(data, task, 'schedule:' + task.nextDueAt, 'SCHEDULED');
         }
         task.nextDueAt = new Date(this.#clock() + task.intervalSeconds * 1000).toISOString(); updated = true;
@@ -165,26 +206,38 @@ export class PilotEngine implements AutomationPort {
       for (const projectId of this.#projects) {
         const pending = this.#data(projectId); let updated = false;
         for (const task of pending.tasks.filter(t => t.enabled && t.mode === 'EVENT_DRIVEN' && t.pendingEventKey)) {
-          if (pending.runs.some(r => r.taskId === task.id && ['QUEUED', 'RUNNING'].includes(r.state))) continue;
+          if (pending.runs.some(r => r.taskId === task.id && ['QUEUED', 'DEFERRED', 'RUNNING'].includes(r.state))) continue;
           this.#enqueue(pending, task, task.pendingEventKey!, 'EVENT_DRIVEN'); task.pendingEventKey = null; updated = true;
         }
         if (updated) this.#save(pending);
-        const run = pending.runs.find(r => r.state === 'QUEUED');
+        const budget = this.#budget();
+        let deferred = false;
+        for (const run of pending.runs.filter(r => waiting(r.state))) {
+          const task = this.#task(pending, run.taskId);
+          if (task.type === 'CI_WATCH' && budget.nextAvailableAt &&
+              (run.state !== 'DEFERRED' || run.budgetDeferral?.until !== budget.nextAvailableAt)) {
+            this.#defer(pending, task, budget.nextAvailableAt, run); deferred = true;
+          }
+        }
+        if (deferred) this.#save(pending);
+        const run = pending.runs.find(r => r.state === 'QUEUED' || r.state === 'DEFERRED' && !budget.nextAvailableAt);
         if (run) { chosen = { projectId, runId: run.id }; break; }
       }
       if (!chosen) return;
       const { projectId, runId } = chosen;
       const data = this.#data(projectId), run = data.runs.find(r => r.id === runId)!, task = this.#task(data, run.taskId);
-      const usedReads = [...this.#projects].reduce((sum, p) => sum + this.#data(p).readStarts.filter(at => Date.parse(at) > this.#clock() - 3600000).length, 0);
+      const budget = this.#budget();
+      if (task.type === 'CI_WATCH' && budget.nextAvailableAt) { this.#defer(data, task, budget.nextAvailableAt, run); this.#save(data); continue; }
+      delete run.budgetDeferral; delete task.budgetDeferral;
+      if (run.steps.length < 8 && run.state === 'DEFERRED') run.steps.push('READY_AFTER_BUDGET');
       run.state = 'RUNNING'; run.startedAt = this.#now(); run.steps.push('STARTED_READ_ONLY'); task.state = 'RUNNING';
-      if (task.type === 'CI_WATCH' && usedReads < LIMITS.githubReadsPerHour) data.readStarts.push(this.#now());
+      if (task.type === 'CI_WATCH') data.readStarts.push(this.#now());
       this.#save(data);
       const abort = new AbortController(); this.#active = { projectId, runId, abort };
       const timeout = setTimeout(() => abort.abort(new Error('READ_TIMEOUT')), this.#timeoutMs);
       try {
         let snapshot: CiRun[], sourceRunId: string | null = null, sourceObservedAt: string | null = null;
         if (task.type === 'CI_WATCH') {
-          if (usedReads >= LIMITS.githubReadsPerHour) throw new Error('GITHUB_READ_BUDGET_EXHAUSTED');
           snapshot = (await this.#reader.read(abort.signal)).map(r => ciSchema.parse(r));
         }
         else {

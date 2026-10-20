@@ -9,6 +9,7 @@ import { GoalExecutionStatusError, type GoalExecutionStatusPort } from './goal-e
 import { GoalRunAdmissionError, type GoalRunAdmissionPort } from './goal-run-admission-port.js';
 import { FileCollaborationStore, CollaborationStoreError } from './collaboration-store.js';
 import { AutomationRequestError, type AutomationPort } from './automation-port.js';
+import { AiPilotRequestError, type AiPilotPort } from './ai-pilot-port.js';
 
 // The local Workspace server (WS-L1). It serves the Workspace UI and a small API over
 // the non-authoritative goal queue, from one origin, on the IPv4 loopback address only.
@@ -34,6 +35,9 @@ export const API_ROUTES = Object.freeze([
   'GET /api/v0/projects/:projectId/automations',
   'POST /api/v0/projects/:projectId/automations',
   'POST /api/v0/projects/:projectId/automations/:taskId/actions',
+  'GET /api/v0/projects/:projectId/ai-pilot',
+  'POST /api/v0/projects/:projectId/ai-pilot',
+  'POST /api/v0/projects/:projectId/ai-pilot/:planId/actions',
   'POST /api/v0/projects/:projectId/goals',
   'POST /api/v0/projects/:projectId/goals/order',
   'DELETE /api/v0/projects/:projectId/goals/:goalId',
@@ -64,6 +68,7 @@ const STATIC: Readonly<Record<string, { file: string; type: string }>> = Object.
   '/conversation.js': { file: 'conversation.js', type: 'text/javascript; charset=utf-8' },
   '/execution-status.js': { file: 'execution-status.js', type: 'text/javascript; charset=utf-8' },
   '/automation.js': { file: 'automation.js', type: 'text/javascript; charset=utf-8' },
+  '/ai-pilot.js': { file: 'ai-pilot.js', type: 'text/javascript; charset=utf-8' },
   '/styles.css': { file: 'styles.css', type: 'text/css; charset=utf-8' },
 });
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; " +
@@ -90,6 +95,8 @@ export interface WorkspaceServerOptions {
   executionStatus?: GoalExecutionStatusPort;
   /** Read-only-work pilot, injected by its host. No authority or AI execution methods. */
   automation?: AutomationPort;
+  /** Preparation only: no execution or authorization capability. */
+  aiPilot?: AiPilotPort;
   clock?: { now(): string };
 }
 
@@ -235,6 +242,17 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
     const submittedBy = requireSession(request);
     const rest = parts.slice(2);
 
+    if (rest[0] === 'projects' && rest[2] === 'ai-pilot') {
+      const current = project(rest[1]);
+      if (new URL(request.url!, 'http://local').search) throw new HttpError(400, 'UNEXPECTED_QUERY', 'This operation accepts no query.');
+      const port = options.aiPilot;
+      if (!port) throw new HttpError(503, 'AI_PREPARATION_UNAVAILABLE', 'AI Pilot 準備服務未接通；EXE 維持 HOLD。');
+      if (rest.length === 3 && method === 'GET') { await noBody(request); json(response, 200, port.list(current.projectId, submittedBy)); return; }
+      if (rest.length === 3 && method === 'POST') { json(response, 201, port.create(current.projectId, await readJson(request), submittedBy)); return; }
+      if (rest.length === 5 && rest[4] === 'actions' && method === 'POST') { json(response, 200, await port.action(current.projectId, rest[3], await readJson(request), submittedBy)); return; }
+      throw new HttpError(404, 'NOT_FOUND', 'Not found.');
+    }
+
     if (rest[0] === 'projects' && rest[2] === 'automations') {
       const current = project(rest[1]);
       if (new URL(request.url!, 'http://local').search) throw new HttpError(400, 'UNEXPECTED_QUERY', 'This operation accepts no query.');
@@ -352,6 +370,7 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
       if (response.headersSent) { response.end(); return; }
       if (error instanceof HttpError) { json(response, error.status, { error: { code: error.code, message: error.message } }); return; }
       if (error instanceof AutomationRequestError) { json(response, error.status, { error: { code: error.code, message: error.message } }); return; }
+      if (error instanceof AiPilotRequestError) { json(response, error.status, { error: { code: error.code, message: error.message } }); return; }
       if (error instanceof GoalGovernanceError) {
         const status = error.code === 'UNKNOWN_GOAL' || error.code === 'UNKNOWN_PROJECT' ? 404 :
           error.code === 'GOAL_PRINCIPAL_MISMATCH' ? 403 :

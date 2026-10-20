@@ -580,6 +580,13 @@ ol,ul{margin:0;padding:0;list-style:none}
 .auto-state[data-state="COMPLETED"] { color: #70cc9b; }
 .auto-state[data-state="FAILED"], .auto-error { color: #f38f8c; overflow-wrap: anywhere; }
 .auto-state[data-state="RUNNING"] { color: #8dc9f0; }
+.auto-state[data-state="DEFERRED"], .auto-deferred { color: var(--human); }
+.ai-preparation { padding: 20px 0; border-bottom: 1px solid var(--line); }
+.ai-preparation > a { display: inline-block; margin: 8px 0 16px; }
+.ai-plan { padding: 20px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.ai-plan h4 { margin: 16px 0 4px; font-size: 16px; }
+.ai-plan pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.7; }
+.ai-form[hidden] { display: none; }
 .auto-facts { display: flex; gap: 12px 28px; flex-wrap: wrap; margin: 12px 0; }
 .auto-facts div { display: grid; }
 .auto-facts dt { color: var(--muted); }

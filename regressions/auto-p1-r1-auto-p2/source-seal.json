@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-20T11:32:30.395Z",
+  "base": "913385b0e1b8f8c529152a091255f46cad67787a",
+  "scope": "Changed runtime, UI, package scripts and tests only. Excludes documentation, evidence and unchanged files.",
+  "files": {
+    "package.json": "e2b68bd80cb0b915590b5b2e784f2e1d622533336e0e3af23034cd4d617c7247",
+    "src/ai-pilot/main.ts": "3ca3af984a37cbcc6c728b2f001ff4bf150af4a1b676a47ad92289173a1e9a13",
+    "src/ai-pilot/plans.ts": "1a00cdf2e2e97396929e4a5fa54a848a8b90c62a81ef2d5b8273d744659697da",
+    "src/ai-pilot/preparation.ts": "9a573542e5ce5261326ac783e6816230ddb37ac1f4f2af5a7612fca686500f87",
+    "src/intake/workspace-host.ts": "215c915dabd45a057dce48fd617c39fa9cb3b4eab630601430f4866cd0df0e5d",
+    "src/pilot/engine.ts": "aff8fb48e74f947ba941c5c9c1828a2b3d411d22388f509b6832baebefdbe86b",
+    "src/pilot/model.ts": "4c94df70c344b86426fd404c0928cb99d39ca4203d64a43521fb5b6070aee6d1",
+    "src/pilot/read-budget.ts": "d577a7009248b37e689c85ea70f66db8201c066464d14348e1a2d866603ee469",
+    "src/workspace/ai-pilot-port.ts": "62cac207497961d94122ce3f3f9427af164a76fb459522545a89fb77a22d63ee",
+    "src/workspace/server.ts": "bb7f66c677e15de28a25b9879004649640d4e05e50e8eb8feedcaca3993c9d52",
+    "test-auto-p1-r1.mjs": "50d5e599349e79d8ca9205ce7353524104774e7f40b0b40d2b77040ab25de25d",
+    "test-auto-p1.mjs": "9029562c8784ef9d1d720443ef204ba7871b0ba660ecacfd2b310489a7f3f62e",
+    "test-auto-p2-preparation.mjs": "64f84e35f8cd8c9cca7933d7a5063e54fddaefcb31b6bad133b93e6249c7d060",
+    "test-goal-execution-status.mjs": "c01c6d679aeb37e111f56be7481e0dab276cdc5c9ab664186107990c96009d60",
+    "test-governed-execution-driver.mjs": "bc8f571168d0644c17c9893c54e66537205a8390bc729ea02776309f19c5229f",
+    "test-workspace-reader.mjs": "953e702a39e28f809f34bd911bd4d1350bc6d5d866e5b570c26eafa06a2f8d12",
+    "test-workspace-ui.mjs": "6c74e822a51ac07f08331f3714b0b0db8016956101d8702f0215285c5956819e",
+    "workspace-ui/ai-pilot.js": "e91a2cdbc5642576154639472c030fd822b9febd908e65e019e2ae2d0067e6d8",
+    "workspace-ui/automation.js": "779c1b74c2aa4b1c66e090064e8b4715e18d9c39672f49dd70aaa2bd87a35bbf",
+    "workspace-ui/live.js": "23578521a9c6d5cbadf19708381899135666d36959a0af4b0ba848f68e135e1f",
+    "workspace-ui/styles.css": "868bc67edb04a5c424fc464263c431849a1fb6dc83ef0664dcf6bd5dff8f217c"
+  }
+}

@@ -891,7 +891,10 @@ check('AJ-AK-AL. Change Mint stays GC1\'s, run creation stays RA1\'s; LD1 holds 
   assert.deepEqual(users(/createLiveAutomation\(/, ['src/automation/live/composition.ts']), [LIVE]);
   assert.equal((code(join(ROOT, LIVE)).match(/createLiveAutomation\(/g) ?? []).length, 1);
   assert.deepEqual(users(/openGovernedExecutionDriver\(/, [DRIVER]), [LIVE]);
-  assert.deepEqual(users(/createGovernedLiveAutomation|governed-execution\.js|execution-driver\.js/, [DRIVER, LIVE]), []);
+  assert.deepEqual(users(/createGovernedLiveAutomation|governed-execution\.js|execution-driver\.js/, [DRIVER, LIVE]), ['src/ai-pilot/preparation.ts']);
+  assert.match(text(join(ROOT, 'src/ai-pilot/preparation.ts')), /import type \{ ExecutionInspectionV1 \} from '\.\.\/automation\/execution-driver\.js';/);
+  assert.doesNotMatch(readFileSync(join(ROOT, 'dist/ai-pilot/preparation.js'), 'utf8'), /execution-driver|governed-execution/,
+    'preparation holds only the inspection type; no driver runtime is loaded');
 });
 check('AM-AN-AO-AP. Workspace imports, routes, UI and events are unchanged: no execution reaches the product', () => {
   const workspace = SRC.filter((path) => rel(path).startsWith('src/workspace/'));

@@ -1,0 +1,46 @@
+{
+  "observedAt": "2026-10-20T11:19:26.148Z",
+  "baselineCommit": "913385b0e1b8f8c529152a091255f46cad67787a",
+  "source": "READ_ONLY_SNAPSHOT_OF_RUNNING_AUTO_P1",
+  "configSha256": "0052ec07e1f92c1bf4418eb861a3331fb8e02df0ee7fb338f4d4d0a5b12dde3f",
+  "capturedStoreSha256": "26fb3428c9947a2919f2217ed87fee4977c67060c1f0545adb8d5fc49003cb9d",
+  "baseline": {
+    "revision": 755,
+    "runs": 249,
+    "ci": 6,
+    "taskSettings": [
+      {
+        "id": "cfca0ca3-4e85-495f-90a5-2af3da0af1c3",
+        "name": "CHIEF CI WATCH",
+        "type": "CI_WATCH",
+        "mode": "SCHEDULED",
+        "intervalSeconds": 60,
+        "maxRetries": 1,
+        "enabled": true,
+        "createdAt": "2026-10-19T19:39:25.690Z"
+      },
+      {
+        "id": "aa28180c-8579-4f7b-88c2-4cbcac557825",
+        "name": "CI 狀態摘要",
+        "type": "CI_REPORT",
+        "mode": "EVENT_DRIVEN",
+        "intervalSeconds": 60,
+        "maxRetries": 1,
+        "enabled": false,
+        "sourceTaskId": "cfca0ca3-4e85-495f-90a5-2af3da0af1c3",
+        "createdAt": "2026-10-19T19:51:35.051Z"
+      }
+    ]
+  },
+  "compatibility": "PASS",
+  "preservedCiAndTerminalHistory": true,
+  "preservedTaskSettings": true,
+  "budgetTest": {
+    "kind": "ISOLATED_COPY_WITH_SYNTHETIC_BUDGET_AND_CLOCK",
+    "state": "DEFERRED",
+    "newRuns": 0,
+    "actualGitHubRequests": 0,
+    "liveSourceWrittenByThisScript": false
+  },
+  "note": "The original service keeps writing naturally. Its store hash is not expected to stay constant."
+}

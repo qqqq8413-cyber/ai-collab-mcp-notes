@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const REPOSITORY = 'qqqq8413-cyber/ai-collab-mcp-notes';
 export const LIMITS = Object.freeze({ tasks: 20, history: 500, changes: 500, ciRuns: 100, queue: 20,
   intervalMin: 60, intervalMax: 86400, timeoutMs: 60000, retriesMax: 2, snapshotRuns: 5,
-  outputBytes: 2 * 1024 * 1024, githubReadsPerHour: 30 });
+  outputBytes: 2 * 1024 * 1024, githubReadsPerHour: 30, recommendedIntervalSeconds: 300 });
 const instant = z.iso.datetime();
 const id = z.string().uuid();
 const text = z.string().trim().min(1).max(100).refine(v => !/[\u0000-\u001f\u007f]/.test(v));
@@ -17,7 +17,8 @@ export const taskInput = z.strictObject({ requestId: id, name: text,
   if (v.type === 'CI_WATCH' && v.sourceTaskId) ctx.addIssue({ code: 'custom', message: 'CI watch cannot name an upstream task' });
 });
 export const actionInput = z.strictObject({ action: z.enum(['RUN', 'ENABLE', 'PAUSE', 'STOP', 'CANCEL', 'RETRY']), requestId: id });
-export const states = ['QUEUED', 'READY', 'RUNNING', 'WAITING_FOR_HUMAN', 'COMPLETED', 'FAILED', 'CANCELLED', 'HOLD'] as const;
+export const states = ['QUEUED', 'READY', 'RUNNING', 'DEFERRED', 'WAITING_FOR_HUMAN', 'COMPLETED', 'FAILED', 'CANCELLED', 'HOLD'] as const;
+const deferral = z.strictObject({ reason: z.literal('GITHUB_READ_BUDGET'), since: instant, until: instant });
 const status = z.string().min(1).max(100);
 export const stepSchema = z.strictObject({ name: z.string().max(300), status, conclusion: status.nullable(), number: z.number().int() });
 export const jobSchema = z.strictObject({ id: z.number().int().positive(), name: z.string().max(300), status,
@@ -30,12 +31,14 @@ export const ciSchema = z.strictObject({ id: z.number().int().positive(), attemp
   updatedAt: instant, url: z.string().url(), jobs: z.array(jobSchema).max(200) });
 export type CiRun = z.infer<typeof ciSchema>;
 export const taskSchema = taskInput.safeExtend({ id, enabled: z.boolean(), createdAt: instant, updatedAt: instant,
-  nextDueAt: instant.nullable(), lastRunId: id.nullable(), state: z.enum(states), pendingEventKey: z.string().max(100).nullable() });
+  nextDueAt: instant.nullable(), lastRunId: id.nullable(), state: z.enum(states), pendingEventKey: z.string().max(100).nullable(),
+  budgetDeferral: deferral.optional() });
 export type Task = z.infer<typeof taskSchema>;
 export const runSchema = z.strictObject({ id, taskId: id, occurrence: z.string().max(200),
   trigger: z.enum(['MANUAL', 'SCHEDULED', 'EVENT_DRIVEN', 'RETRY']), state: z.enum(states),
   createdAt: instant, startedAt: instant.nullable(), endedAt: instant.nullable(),
   retryOf: id.nullable(), retryCount: z.number().int().min(0).max(LIMITS.retriesMax),
+  budgetDeferral: deferral.optional(),
   error: z.string().max(500).nullable(), steps: z.array(z.string().max(200)).max(10),
   result: z.strictObject({ source: z.enum(['GITHUB_ACTIONS', 'LOCAL_CI_OBSERVATIONS']), observedAt: instant,
     changed: z.number().int().nonnegative(), firstBaseline: z.boolean(), snapshot: z.array(ciSchema).max(LIMITS.snapshotRuns),

@@ -34,6 +34,9 @@ export function createLiveSource({ fetchImpl = globalThis.fetch.bind(globalThis)
     automations: (projectId) => call('GET', `/projects/${enc(projectId)}/automations`),
     createAutomation: (projectId, input) => call('POST', `/projects/${enc(projectId)}/automations`, input),
     automationAction: (projectId, taskId, input) => call('POST', `/projects/${enc(projectId)}/automations/${enc(taskId)}/actions`, input),
+    aiPilot: (projectId) => call('GET', `/projects/${enc(projectId)}/ai-pilot`),
+    createAiPilot: (projectId, input) => call('POST', `/projects/${enc(projectId)}/ai-pilot`, input),
+    aiPilotAction: (projectId, planId, input) => call('POST', `/projects/${enc(projectId)}/ai-pilot/${enc(planId)}/actions`, input),
     // G1-WE1-R0: read-only governed execution status of one goal. GET only; the server derives everything else.
     executionStatus: (projectId, goalId) => call('GET', `/projects/${enc(projectId)}/goals/${enc(goalId)}/execution`),
     /** onEvent(name, data) for hello / goal.created / queue.reordered / goal.removed; onState('connecting' | 'open' | 'retrying'). */

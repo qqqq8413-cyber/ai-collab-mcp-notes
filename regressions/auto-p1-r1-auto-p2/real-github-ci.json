@@ -1,0 +1,1629 @@
+{
+  "observedAt": "2026-10-20T11:29:44.794Z",
+  "source": "REAL_GITHUB_ACTIONS_READ_ONLY",
+  "task": {
+    "requestId": "48e5e3a2-d3a3-4423-9197-04fd880b12b5",
+    "name": "R1 唯讀 GitHub 驗證",
+    "type": "CI_WATCH",
+    "mode": "MANUAL",
+    "intervalSeconds": 300,
+    "maxRetries": 1,
+    "id": "48e5e3a2-d3a3-4423-9197-04fd880b12b5",
+    "enabled": false,
+    "createdAt": "2026-10-20T11:21:21.580Z",
+    "updatedAt": "2026-10-20T11:21:30.556Z",
+    "nextDueAt": null,
+    "lastRunId": "9dcca6e7-489b-422b-b479-f57ff8d1f663",
+    "state": "COMPLETED",
+    "pendingEventKey": null
+  },
+  "run": {
+    "id": "9dcca6e7-489b-422b-b479-f57ff8d1f663",
+    "taskId": "48e5e3a2-d3a3-4423-9197-04fd880b12b5",
+    "occurrence": "RUN:31139d75-2e95-4d22-8f7a-eff41b74384b",
+    "trigger": "MANUAL",
+    "state": "COMPLETED",
+    "createdAt": "2026-10-20T11:21:21.746Z",
+    "startedAt": "2026-10-20T11:21:22.717Z",
+    "endedAt": "2026-10-20T11:21:30.556Z",
+    "retryOf": null,
+    "retryCount": 0,
+    "error": null,
+    "steps": [
+      "QUEUED",
+      "STARTED_READ_ONLY",
+      "VALIDATED_SOURCE",
+      "PERSISTED_RESULT"
+    ],
+    "result": {
+      "source": "GITHUB_ACTIONS",
+      "observedAt": "2026-10-20T11:21:30.556Z",
+      "changed": 0,
+      "firstBaseline": true,
+      "snapshot": [
+        {
+          "id": 39314953791,
+          "attempt": 1,
+          "number": 125,
+          "name": "CI",
+          "sha": "913385b0e1b8f8c529152a091255f46cad67787a",
+          "branch": "work/auto-p1-usable-automation",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "push",
+          "updatedAt": "2026-10-19T19:57:12Z",
+          "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39314953791",
+          "jobs": [
+            {
+              "id": 118273886421,
+              "name": "r4t-macos",
+              "status": "completed",
+              "conclusion": "success",
+              "labels": [
+                "macos-latest"
+              ],
+              "platform": "MACOS",
+              "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39314953791/job/118273886421",
+              "steps": [
+                {
+                  "name": "Set up job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 1
+                },
+                {
+                  "name": "Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 2
+                },
+                {
+                  "name": "Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 3
+                },
+                {
+                  "name": "Require a working macOS Seatbelt",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 4
+                },
+                {
+                  "name": "Run npm ci",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 5
+                },
+                {
+                  "name": "Run npm run build",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 6
+                },
+                {
+                  "name": "Run the isolation suites with every check executed",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 7
+                },
+                {
+                  "name": "Post Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 13
+                },
+                {
+                  "name": "Post Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 14
+                },
+                {
+                  "name": "Complete job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 15
+                }
+              ],
+              "requiredMacSkip": false
+            },
+            {
+              "id": 118273887084,
+              "name": "test",
+              "status": "completed",
+              "conclusion": "success",
+              "labels": [
+                "ubuntu-latest"
+              ],
+              "platform": "UBUNTU",
+              "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39314953791/job/118273887084",
+              "steps": [
+                {
+                  "name": "Set up job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 1
+                },
+                {
+                  "name": "Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 2
+                },
+                {
+                  "name": "Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 3
+                },
+                {
+                  "name": "Run npm ci",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 4
+                },
+                {
+                  "name": "Run npm run build",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 5
+                },
+                {
+                  "name": "Run npm test",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 6
+                },
+                {
+                  "name": "Post Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 11
+                },
+                {
+                  "name": "Post Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 12
+                },
+                {
+                  "name": "Complete job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 13
+                }
+              ],
+              "requiredMacSkip": false
+            }
+          ]
+        },
+        {
+          "id": 39296456090,
+          "attempt": 1,
+          "number": 124,
+          "name": "CI",
+          "sha": "3923d267690d291ddc77e13d6fe9b81f9439266b",
+          "branch": "work/src-c1-ui-r1-reading-space",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "push",
+          "updatedAt": "2026-10-19T17:44:31Z",
+          "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39296456090",
+          "jobs": [
+            {
+              "id": 118210144526,
+              "name": "test",
+              "status": "completed",
+              "conclusion": "success",
+              "labels": [
+                "ubuntu-latest"
+              ],
+              "platform": "UBUNTU",
+              "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39296456090/job/118210144526",
+              "steps": [
+                {
+                  "name": "Set up job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 1
+                },
+                {
+                  "name": "Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 2
+                },
+                {
+                  "name": "Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 3
+                },
+                {
+                  "name": "Run npm ci",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 4
+                },
+                {
+                  "name": "Run npm run build",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 5
+                },
+                {
+                  "name": "Run npm test",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 6
+                },
+                {
+                  "name": "Post Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 11
+                },
+                {
+                  "name": "Post Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 12
+                },
+                {
+                  "name": "Complete job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 13
+                }
+              ],
+              "requiredMacSkip": false
+            },
+            {
+              "id": 118210144843,
+              "name": "r4t-macos",
+              "status": "completed",
+              "conclusion": "success",
+              "labels": [
+                "macos-latest"
+              ],
+              "platform": "MACOS",
+              "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39296456090/job/118210144843",
+              "steps": [
+                {
+                  "name": "Set up job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 1
+                },
+                {
+                  "name": "Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 2
+                },
+                {
+                  "name": "Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 3
+                },
+                {
+                  "name": "Require a working macOS Seatbelt",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 4
+                },
+                {
+                  "name": "Run npm ci",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 5
+                },
+                {
+                  "name": "Run npm run build",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 6
+                },
+                {
+                  "name": "Run the isolation suites with every check executed",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 7
+                },
+                {
+                  "name": "Post Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 13
+                },
+                {
+                  "name": "Post Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 14
+                },
+                {
+                  "name": "Complete job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 15
+                }
+              ],
+              "requiredMacSkip": false
+            }
+          ]
+        },
+        {
+          "id": 39287763419,
+          "attempt": 1,
+          "number": 123,
+          "name": "CI",
+          "sha": "dc84970260522e28ead15b05879e6d3702294e06",
+          "branch": "work/src-c1-real-agent-events",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "push",
+          "updatedAt": "2026-10-19T16:44:55Z",
+          "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39287763419",
+          "jobs": [
+            {
+              "id": 118179861980,
+              "name": "test",
+              "status": "completed",
+              "conclusion": "success",
+              "labels": [
+                "ubuntu-latest"
+              ],
+              "platform": "UBUNTU",
+              "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39287763419/job/118179861980",
+              "steps": [
+                {
+                  "name": "Set up job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 1
+                },
+                {
+                  "name": "Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 2
+                },
+                {
+                  "name": "Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 3
+                },
+                {
+                  "name": "Run npm ci",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 4
+                },
+                {
+                  "name": "Run npm run build",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 5
+                },
+                {
+                  "name": "Run npm test",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 6
+                },
+                {
+                  "name": "Post Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 11
+                },
+                {
+                  "name": "Post Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 12
+                },
+                {
+                  "name": "Complete job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 13
+                }
+              ],
+              "requiredMacSkip": false
+            },
+            {
+              "id": 118179862634,
+              "name": "r4t-macos",
+              "status": "completed",
+              "conclusion": "success",
+              "labels": [
+                "macos-latest"
+              ],
+              "platform": "MACOS",
+              "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39287763419/job/118179862634",
+              "steps": [
+                {
+                  "name": "Set up job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 1
+                },
+                {
+                  "name": "Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 2
+                },
+                {
+                  "name": "Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 3
+                },
+                {
+                  "name": "Require a working macOS Seatbelt",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 4
+                },
+                {
+                  "name": "Run npm ci",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 5
+                },
+                {
+                  "name": "Run npm run build",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 6
+                },
+                {
+                  "name": "Run the isolation suites with every check executed",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 7
+                },
+                {
+                  "name": "Post Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 13
+                },
+                {
+                  "name": "Post Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 14
+                },
+                {
+                  "name": "Complete job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 15
+                }
+              ],
+              "requiredMacSkip": false
+            }
+          ]
+        },
+        {
+          "id": 39250964550,
+          "attempt": 1,
+          "number": 122,
+          "name": "CI",
+          "sha": "e7eb87b4b481c885bea8730f8498eb493dc38184",
+          "branch": "main",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "push",
+          "updatedAt": "2026-10-19T12:19:35Z",
+          "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39250964550",
+          "jobs": [
+            {
+              "id": 118054357958,
+              "name": "test",
+              "status": "completed",
+              "conclusion": "success",
+              "labels": [
+                "ubuntu-latest"
+              ],
+              "platform": "UBUNTU",
+              "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39250964550/job/118054357958",
+              "steps": [
+                {
+                  "name": "Set up job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 1
+                },
+                {
+                  "name": "Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 2
+                },
+                {
+                  "name": "Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 3
+                },
+                {
+                  "name": "Run npm ci",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 4
+                },
+                {
+                  "name": "Run npm run build",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 5
+                },
+                {
+                  "name": "Run npm test",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 6
+                },
+                {
+                  "name": "Post Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 11
+                },
+                {
+                  "name": "Post Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 12
+                },
+                {
+                  "name": "Complete job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 13
+                }
+              ],
+              "requiredMacSkip": false
+            },
+            {
+              "id": 118054358068,
+              "name": "r4t-macos",
+              "status": "completed",
+              "conclusion": "success",
+              "labels": [
+                "macos-latest"
+              ],
+              "platform": "MACOS",
+              "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39250964550/job/118054358068",
+              "steps": [
+                {
+                  "name": "Set up job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 1
+                },
+                {
+                  "name": "Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 2
+                },
+                {
+                  "name": "Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 3
+                },
+                {
+                  "name": "Require a working macOS Seatbelt",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 4
+                },
+                {
+                  "name": "Run npm ci",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 5
+                },
+                {
+                  "name": "Run npm run build",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 6
+                },
+                {
+                  "name": "Run the isolation suites with every check executed",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 7
+                },
+                {
+                  "name": "Post Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 13
+                },
+                {
+                  "name": "Post Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 14
+                },
+                {
+                  "name": "Complete job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 15
+                }
+              ],
+              "requiredMacSkip": false
+            }
+          ]
+        },
+        {
+          "id": 39250209129,
+          "attempt": 1,
+          "number": 121,
+          "name": "CI",
+          "sha": "2521774f300baede30ea94d7d54311a3a1d28688",
+          "branch": "work/ci-stability-integration",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request",
+          "updatedAt": "2026-10-19T12:13:53Z",
+          "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39250209129",
+          "jobs": [
+            {
+              "id": 118051870805,
+              "name": "r4t-macos",
+              "status": "completed",
+              "conclusion": "success",
+              "labels": [
+                "macos-latest"
+              ],
+              "platform": "MACOS",
+              "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39250209129/job/118051870805",
+              "steps": [
+                {
+                  "name": "Set up job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 1
+                },
+                {
+                  "name": "Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 2
+                },
+                {
+                  "name": "Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 3
+                },
+                {
+                  "name": "Require a working macOS Seatbelt",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 4
+                },
+                {
+                  "name": "Run npm ci",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 5
+                },
+                {
+                  "name": "Run npm run build",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 6
+                },
+                {
+                  "name": "Run the isolation suites with every check executed",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 7
+                },
+                {
+                  "name": "Post Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 13
+                },
+                {
+                  "name": "Post Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 14
+                },
+                {
+                  "name": "Complete job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 15
+                }
+              ],
+              "requiredMacSkip": false
+            },
+            {
+              "id": 118051871139,
+              "name": "test",
+              "status": "completed",
+              "conclusion": "success",
+              "labels": [
+                "ubuntu-latest"
+              ],
+              "platform": "UBUNTU",
+              "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39250209129/job/118051871139",
+              "steps": [
+                {
+                  "name": "Set up job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 1
+                },
+                {
+                  "name": "Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 2
+                },
+                {
+                  "name": "Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 3
+                },
+                {
+                  "name": "Run npm ci",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 4
+                },
+                {
+                  "name": "Run npm run build",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 5
+                },
+                {
+                  "name": "Run npm test",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 6
+                },
+                {
+                  "name": "Post Run actions/setup-node@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 11
+                },
+                {
+                  "name": "Post Run actions/checkout@v7",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 12
+                },
+                {
+                  "name": "Complete job",
+                  "status": "completed",
+                  "conclusion": "success",
+                  "number": 13
+                }
+              ],
+              "requiredMacSkip": false
+            }
+          ]
+        }
+      ],
+      "failures": [],
+      "sourceRunId": null,
+      "sourceObservedAt": "2026-10-20T11:21:30.556Z"
+    }
+  },
+  "ci": [
+    {
+      "id": 39314953791,
+      "attempt": 1,
+      "number": 125,
+      "name": "CI",
+      "sha": "913385b0e1b8f8c529152a091255f46cad67787a",
+      "branch": "work/auto-p1-usable-automation",
+      "status": "completed",
+      "conclusion": "success",
+      "event": "push",
+      "updatedAt": "2026-10-19T19:57:12Z",
+      "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39314953791",
+      "jobs": [
+        {
+          "id": 118273886421,
+          "name": "r4t-macos",
+          "status": "completed",
+          "conclusion": "success",
+          "labels": [
+            "macos-latest"
+          ],
+          "platform": "MACOS",
+          "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39314953791/job/118273886421",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3
+            },
+            {
+              "name": "Require a working macOS Seatbelt",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4
+            },
+            {
+              "name": "Run npm ci",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5
+            },
+            {
+              "name": "Run npm run build",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6
+            },
+            {
+              "name": "Run the isolation suites with every check executed",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 14
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 15
+            }
+          ],
+          "requiredMacSkip": false
+        },
+        {
+          "id": 118273887084,
+          "name": "test",
+          "status": "completed",
+          "conclusion": "success",
+          "labels": [
+            "ubuntu-latest"
+          ],
+          "platform": "UBUNTU",
+          "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39314953791/job/118273887084",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3
+            },
+            {
+              "name": "Run npm ci",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4
+            },
+            {
+              "name": "Run npm run build",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5
+            },
+            {
+              "name": "Run npm test",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 11
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13
+            }
+          ],
+          "requiredMacSkip": false
+        }
+      ]
+    },
+    {
+      "id": 39296456090,
+      "attempt": 1,
+      "number": 124,
+      "name": "CI",
+      "sha": "3923d267690d291ddc77e13d6fe9b81f9439266b",
+      "branch": "work/src-c1-ui-r1-reading-space",
+      "status": "completed",
+      "conclusion": "success",
+      "event": "push",
+      "updatedAt": "2026-10-19T17:44:31Z",
+      "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39296456090",
+      "jobs": [
+        {
+          "id": 118210144526,
+          "name": "test",
+          "status": "completed",
+          "conclusion": "success",
+          "labels": [
+            "ubuntu-latest"
+          ],
+          "platform": "UBUNTU",
+          "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39296456090/job/118210144526",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3
+            },
+            {
+              "name": "Run npm ci",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4
+            },
+            {
+              "name": "Run npm run build",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5
+            },
+            {
+              "name": "Run npm test",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 11
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13
+            }
+          ],
+          "requiredMacSkip": false
+        },
+        {
+          "id": 118210144843,
+          "name": "r4t-macos",
+          "status": "completed",
+          "conclusion": "success",
+          "labels": [
+            "macos-latest"
+          ],
+          "platform": "MACOS",
+          "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39296456090/job/118210144843",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3
+            },
+            {
+              "name": "Require a working macOS Seatbelt",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4
+            },
+            {
+              "name": "Run npm ci",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5
+            },
+            {
+              "name": "Run npm run build",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6
+            },
+            {
+              "name": "Run the isolation suites with every check executed",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 14
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 15
+            }
+          ],
+          "requiredMacSkip": false
+        }
+      ]
+    },
+    {
+      "id": 39287763419,
+      "attempt": 1,
+      "number": 123,
+      "name": "CI",
+      "sha": "dc84970260522e28ead15b05879e6d3702294e06",
+      "branch": "work/src-c1-real-agent-events",
+      "status": "completed",
+      "conclusion": "success",
+      "event": "push",
+      "updatedAt": "2026-10-19T16:44:55Z",
+      "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39287763419",
+      "jobs": [
+        {
+          "id": 118179861980,
+          "name": "test",
+          "status": "completed",
+          "conclusion": "success",
+          "labels": [
+            "ubuntu-latest"
+          ],
+          "platform": "UBUNTU",
+          "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39287763419/job/118179861980",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3
+            },
+            {
+              "name": "Run npm ci",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4
+            },
+            {
+              "name": "Run npm run build",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5
+            },
+            {
+              "name": "Run npm test",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 11
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13
+            }
+          ],
+          "requiredMacSkip": false
+        },
+        {
+          "id": 118179862634,
+          "name": "r4t-macos",
+          "status": "completed",
+          "conclusion": "success",
+          "labels": [
+            "macos-latest"
+          ],
+          "platform": "MACOS",
+          "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39287763419/job/118179862634",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3
+            },
+            {
+              "name": "Require a working macOS Seatbelt",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4
+            },
+            {
+              "name": "Run npm ci",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5
+            },
+            {
+              "name": "Run npm run build",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6
+            },
+            {
+              "name": "Run the isolation suites with every check executed",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 14
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 15
+            }
+          ],
+          "requiredMacSkip": false
+        }
+      ]
+    },
+    {
+      "id": 39250964550,
+      "attempt": 1,
+      "number": 122,
+      "name": "CI",
+      "sha": "e7eb87b4b481c885bea8730f8498eb493dc38184",
+      "branch": "main",
+      "status": "completed",
+      "conclusion": "success",
+      "event": "push",
+      "updatedAt": "2026-10-19T12:19:35Z",
+      "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39250964550",
+      "jobs": [
+        {
+          "id": 118054357958,
+          "name": "test",
+          "status": "completed",
+          "conclusion": "success",
+          "labels": [
+            "ubuntu-latest"
+          ],
+          "platform": "UBUNTU",
+          "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39250964550/job/118054357958",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3
+            },
+            {
+              "name": "Run npm ci",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4
+            },
+            {
+              "name": "Run npm run build",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5
+            },
+            {
+              "name": "Run npm test",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 11
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13
+            }
+          ],
+          "requiredMacSkip": false
+        },
+        {
+          "id": 118054358068,
+          "name": "r4t-macos",
+          "status": "completed",
+          "conclusion": "success",
+          "labels": [
+            "macos-latest"
+          ],
+          "platform": "MACOS",
+          "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39250964550/job/118054358068",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3
+            },
+            {
+              "name": "Require a working macOS Seatbelt",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4
+            },
+            {
+              "name": "Run npm ci",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5
+            },
+            {
+              "name": "Run npm run build",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6
+            },
+            {
+              "name": "Run the isolation suites with every check executed",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 14
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 15
+            }
+          ],
+          "requiredMacSkip": false
+        }
+      ]
+    },
+    {
+      "id": 39250209129,
+      "attempt": 1,
+      "number": 121,
+      "name": "CI",
+      "sha": "2521774f300baede30ea94d7d54311a3a1d28688",
+      "branch": "work/ci-stability-integration",
+      "status": "completed",
+      "conclusion": "success",
+      "event": "pull_request",
+      "updatedAt": "2026-10-19T12:13:53Z",
+      "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39250209129",
+      "jobs": [
+        {
+          "id": 118051870805,
+          "name": "r4t-macos",
+          "status": "completed",
+          "conclusion": "success",
+          "labels": [
+            "macos-latest"
+          ],
+          "platform": "MACOS",
+          "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39250209129/job/118051870805",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3
+            },
+            {
+              "name": "Require a working macOS Seatbelt",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4
+            },
+            {
+              "name": "Run npm ci",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5
+            },
+            {
+              "name": "Run npm run build",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6
+            },
+            {
+              "name": "Run the isolation suites with every check executed",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 14
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 15
+            }
+          ],
+          "requiredMacSkip": false
+        },
+        {
+          "id": 118051871139,
+          "name": "test",
+          "status": "completed",
+          "conclusion": "success",
+          "labels": [
+            "ubuntu-latest"
+          ],
+          "platform": "UBUNTU",
+          "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39250209129/job/118051871139",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2
+            },
+            {
+              "name": "Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3
+            },
+            {
+              "name": "Run npm ci",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4
+            },
+            {
+              "name": "Run npm run build",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5
+            },
+            {
+              "name": "Run npm test",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6
+            },
+            {
+              "name": "Post Run actions/setup-node@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 11
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13
+            }
+          ],
+          "requiredMacSkip": false
+        }
+      ]
+    }
+  ],
+  "budget": {
+    "limit": 30,
+    "used": 1,
+    "remaining": 29,
+    "nextAvailableAt": null
+  },
+  "modelCalls": 0
+}

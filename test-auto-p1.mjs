@@ -155,8 +155,8 @@ await test('hourly read budget persists independently of run history', () => fix
   const id = f.task();
   for (let i = 0; i < LIMITS.githubReadsPerHour; i++) { f.action(id); await f.e.drain(); }
   await f.restart(); f.action(id); await f.e.drain(); assert.equal(f.calls, LIMITS.githubReadsPerHour);
-  assert.equal(f.view().runs.at(-1).error, 'GITHUB_READ_BUDGET_EXHAUSTED');
-  f.advance(3600001); f.action(id); await f.e.drain(); assert.equal(f.calls, LIMITS.githubReadsPerHour + 1);
+  assert.equal(f.view().runs.at(-1).state, 'DEFERRED'); assert.equal(f.view().runs.at(-1).error, null);
+  f.advance(3600001); await f.e.drain(); assert.equal(f.calls, LIMITS.githubReadsPerHour + 1);
 }));
 await test('restart marks interrupted RUNNING as failed and does not replay it', () => fixture(async f => {
   const id = f.task(); f.action(id); const store = new PilotStore(f.dir), data = store.read('chief');

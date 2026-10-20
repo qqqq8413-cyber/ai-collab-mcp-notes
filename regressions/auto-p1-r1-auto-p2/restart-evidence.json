@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-10-20T11:29:38.694Z",
+  "result": "PASS",
+  "previousPid": 35632,
+  "newPid": 39860,
+  "preservedStoreHashes": {
+    "preview-data/auto-p1/chief.json": "8e0853fae59314d7b9000045506798898cf63c3e5996c9194a8d46509c189648",
+    "preview-data/ai-preparation/chief.json": "3934761b10896cfe038940101804a3f2f3822d670d78e528763b279214c6ad27"
+  },
+  "persistedPlanCount": 1,
+  "persistedRunId": "run-a7a13b8d4030df2f26d45fe5ce119573912d39d9bd86fd9165cb1ac2d434db24",
+  "persistedExecutionStatus": "RUN_IDLE",
+  "persistedCiRunCount": 1,
+  "duplicateRecords": 0,
+  "previewSchedulesEnabled": false,
+  "authorityRecords": 0,
+  "providerCalls": 0,
+  "original4873ServiceTouched": false
+}

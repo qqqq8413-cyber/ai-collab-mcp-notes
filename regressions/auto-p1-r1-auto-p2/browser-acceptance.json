@@ -1,0 +1,250 @@
+{
+  "at": "2026-10-20T11:29:46.776Z",
+  "checks": [
+    {
+      "check": "BROWSER_GOAL_TO_REAL_GOVERNED_IDLE",
+      "result": "PASS"
+    },
+    {
+      "check": "UI_DISABLED_AND_API_START_DENIED",
+      "result": "PASS"
+    },
+    {
+      "check": "BROWSER_TO_REAL_GITHUB_TO_STORE_TO_UI",
+      "result": "PASS",
+      "observedCiRuns": 5
+    },
+    {
+      "check": "VIEWPORT",
+      "width": 1440,
+      "result": "PASS",
+      "viewport": 1440,
+      "document": 1440,
+      "auto": 1160,
+      "overflow": []
+    },
+    {
+      "check": "VIEWPORT",
+      "width": 768,
+      "result": "PASS",
+      "viewport": 768,
+      "document": 768,
+      "auto": 658,
+      "overflow": []
+    },
+    {
+      "check": "VIEWPORT",
+      "width": 390,
+      "result": "PASS",
+      "viewport": 390,
+      "document": 390,
+      "auto": 390,
+      "overflow": []
+    },
+    {
+      "check": "VIEWPORT",
+      "width": 320,
+      "result": "PASS",
+      "viewport": 320,
+      "document": 320,
+      "auto": 320,
+      "overflow": []
+    }
+  ],
+  "errors": [],
+  "aiPreparation": {
+    "recordClass": "OPERATIONAL_RECORD",
+    "exe": "HOLD",
+    "agents": [
+      {
+        "id": "claude-code",
+        "name": "Claude Code",
+        "provider": "anthropic",
+        "requestedModel": "claude-sonnet-5",
+        "modelSource": "REPOSITORY_CONFIG_DEFAULT_NOT_PROBED",
+        "adapterRole": "IMPLEMENTATION",
+        "scopeCompatible": false
+      },
+      {
+        "id": "codex",
+        "name": "Codex",
+        "provider": "openai",
+        "requestedModel": "gpt-5",
+        "modelSource": "REPOSITORY_CONFIG_DEFAULT_NOT_PROBED",
+        "adapterRole": "ARCHITECT_REVIEW",
+        "scopeCompatible": false
+      }
+    ],
+    "plans": [
+      {
+        "requestId": "548532cc-5f1c-4e3a-b97c-79a4ae4b8c68",
+        "goalId": "goal-3d32959b-0636-4b3c-ba94-60186fb9662a",
+        "agentId": "claude-code",
+        "objectiveHash": "8d3ba70018bf249d1ef32ed129a309e402beaf405b4fbf20d9487709f85dfaaf",
+        "createdAt": "2026-10-20T11:21:21.213Z",
+        "principalRef": "human:local-owner",
+        "recordClass": "OPERATIONAL_RECORD",
+        "state": "PERMIT_DRAFT",
+        "requestedModel": "claude-sonnet-5",
+        "objective": "限定 AI Pilot：只審查指定版本 README.md，產出隔離文件報告；不得修改程式、Git 或授權。",
+        "sourceMissing": false,
+        "agent": {
+          "id": "claude-code",
+          "name": "Claude Code",
+          "provider": "anthropic",
+          "requestedModel": "claude-sonnet-5",
+          "modelSource": "REPOSITORY_CONFIG_DEFAULT_NOT_PROBED",
+          "adapterRole": "IMPLEMENTATION",
+          "scopeCompatible": false
+        },
+        "exe": "HOLD",
+        "modelCallsIssuedByPreparation": 0,
+        "authorityIssuedByPreparation": false,
+        "governance": {
+          "provenance": "CHANGE_REGISTRY",
+          "state": "GOVERNED",
+          "sourceKey": "f123a6c1d9beed458675aaf951473bf73a3ee0bf3fb05eb1e81e6ebdce852b44",
+          "change": {
+            "kind": "SLICE",
+            "changeId": "goal-f123a6c1d9beed458675aaf951473bf73a3ee0bf3fb05eb1e81e6ebdce852b44"
+          },
+          "changeKey": "a7a13b8d4030df2f26d45fe5ce119573912d39d9bd86fd9165cb1ac2d434db24",
+          "repository": "qqqq8413-cyber/ai-collab-mcp-notes",
+          "recordClass": "OPERATIONAL_RECORD",
+          "sourceClassification": "LOCAL_OPERATOR_INPUT",
+          "sourceNotice": "Non-authoritative local operator input.",
+          "execution": "NOT_STARTED",
+          "runCreated": false
+        },
+        "admission": {
+          "provenance": "CONTROLLER_STORE",
+          "state": "ADMITTED",
+          "admission": "ROOT",
+          "recordClass": "OPERATIONAL_RECORD",
+          "runId": "run-a7a13b8d4030df2f26d45fe5ce119573912d39d9bd86fd9165cb1ac2d434db24",
+          "change": {
+            "kind": "SLICE",
+            "changeId": "goal-f123a6c1d9beed458675aaf951473bf73a3ee0bf3fb05eb1e81e6ebdce852b44"
+          },
+          "changeKey": "a7a13b8d4030df2f26d45fe5ce119573912d39d9bd86fd9165cb1ac2d434db24",
+          "repository": "qqqq8413-cyber/ai-collab-mcp-notes",
+          "controllerState": "IDLE",
+          "execution": "NOT_STARTED",
+          "modelStarted": false,
+          "packetIssued": false,
+          "authorityGranted": false
+        },
+        "execution": {
+          "readModelVersion": "goal-execution-status.v0",
+          "recordClass": "OPERATIONAL_RECORD",
+          "authority": "NOT_EXECUTION_AUTHORITY",
+          "status": "RUN_IDLE",
+          "reason": null,
+          "executionEligibility": "EXECUTION_ELIGIBILITY_NOT_EVALUATED",
+          "attention": "ARCHITECT",
+          "change": {
+            "kind": "SLICE",
+            "changeId": "goal-f123a6c1d9beed458675aaf951473bf73a3ee0bf3fb05eb1e81e6ebdce852b44",
+            "changeKey": "a7a13b8d4030df2f26d45fe5ce119573912d39d9bd86fd9165cb1ac2d434db24",
+            "repository": "qqqq8413-cyber/ai-collab-mcp-notes"
+          },
+          "run": {
+            "runId": "run-a7a13b8d4030df2f26d45fe5ce119573912d39d9bd86fd9165cb1ac2d434db24",
+            "state": "IDLE",
+            "terminal": false,
+            "admission": "ROOT"
+          },
+          "nextMoves": [
+            {
+              "action": "ENTER_ARCHITECTURE",
+              "role": "GPT_ARCHITECT"
+            }
+          ],
+          "directAuthority": [],
+          "unresolvedAuthority": [],
+          "operationalProvenance": {
+            "recordClass": "OPERATIONAL_RECORD",
+            "activationBound": false
+          },
+          "snapshotId": "d5af595fb5a0807d78e72f1309345882a2d0f698acc291e31d9bdb1b876406c8",
+          "notice": "Read-only governed status. It is not execution authority: nothing was started, activated, recovered, corrected or authorized."
+        },
+        "driverInspection": null,
+        "invocations": null,
+        "readiness": "BLOCKED",
+        "blockers": [
+          "EXE_HOLD",
+          "H1_H9_NOT_GRANTED",
+          "MODEL_BINDING_NOT_PROBED",
+          "COST_ENFORCEMENT_NOT_IMPLEMENTED",
+          "SINGLE_TASK_ADAPTER_NOT_AVAILABLE",
+          "DRIVER_NOT_COMPOSED",
+          "INVOCATION_READER_NOT_COMPOSED",
+          "IMPLEMENTATION_ADAPTER_REQUIRES_BRANCH_WRITES"
+        ],
+        "permit": {
+          "kind": "AI_PILOT_PERMIT_PROPOSAL",
+          "state": "DRAFT_NOT_AUTHORITY",
+          "repository": "qqqq8413-cyber/ai-collab-mcp-notes",
+          "goalId": "goal-3d32959b-0636-4b3c-ba94-60186fb9662a",
+          "objectiveHash": "8d3ba70018bf249d1ef32ed129a309e402beaf405b4fbf20d9487709f85dfaaf",
+          "agentId": "claude-code",
+          "provider": "anthropic",
+          "requestedModel": "claude-sonnet-5",
+          "modelVerification": "NOT_PROBED",
+          "baseSha": "913385b0e1b8f8c529152a091255f46cad67787a",
+          "taskType": "READ_ONLY_DOCUMENT_REVIEW",
+          "sourceFiles": [
+            "README.md"
+          ],
+          "maxSourceBytes": 16384,
+          "tools": [
+            "READ_BOUND_SOURCE",
+            "WRITE_ISOLATED_RESULT"
+          ],
+          "allowedWrite": "ONE_ISOLATED_OUTPUT_DIRECTORY",
+          "forbidden": [
+            "SOURCE_WRITE",
+            "GIT_WRITE",
+            "PUSH",
+            "DEPLOY",
+            "HUMAN_AUTHORITY_WRITE",
+            "SHELL",
+            "AI_TO_AI",
+            "WEB_SEARCH"
+          ],
+          "externalSideEffects": [
+            "ONE_EXACT_MODEL_REQUEST_IF_LATER_AUTHORIZED"
+          ],
+          "maxCostUsd": 1,
+          "pricing": null,
+          "costEnforced": false,
+          "maxInputTokens": 4096,
+          "maxOutputTokens": 2048,
+          "maxCalls": 1,
+          "timeoutSeconds": 300,
+          "maxRetries": 0,
+          "mode": "MANUAL",
+          "validity": {
+            "durationSeconds": 3600,
+            "notBefore": null,
+            "expiresAt": null,
+            "state": "UNISSUED"
+          },
+          "stop": "CANCEL_MODEL_PROCESS_AND_WAIT_FOR_HUMAN",
+          "formalAuthority": "EXISTING_AUTHORITY_ARCHIVE_ONLY"
+        }
+      }
+    ]
+  },
+  "startRefusal": {
+    "status": 403,
+    "body": {
+      "error": {
+        "code": "EXE_HOLD",
+        "message": "EXE HOLD：這是權限申請草案，不是 Human 授權；未呼叫 Driver 或模型。"
+      }
+    }
+  },
+  "providerCalls": 0
+}

@@ -2875,3 +2875,21 @@ M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型�
 - 交付：`AUTO_P1_READINESS.md`、`AUTO_P1_USAGE.md`、`AUTO_P1_ARCHITECT_REVIEW.md`、`AUTOMATION_PILOT_PERMIT.md`（DRAFT / NOT AUTHORIZED）、`regressions/auto-p1/`。工作分支 exact SHA / CI 結果見本輪完成回報；舊 #120–124 CI 只是唯讀來源，不能當新候選 CI。
 - 所有測試監測最後已關閉；預覽保留讓 Human 試用。不修改 Human Authority、main、Ruleset、管理員憑證、其他 Agent 全域設定。
 - STOP FOR ARCHITECT REVIEW。
+
+## AUTO-P1-R1 排程修正 + AUTO-P2 準備（2026-10-20）
+
+- 基準候選 `913385b0e1b8f8c529152a091255f46cad67787a`；獨立 worktree／分支 `work/auto-p1-r1-auto-p2-preparation`。正式 main `e7eb87b4b481c885bea8730f8498eb493dc38184` 未修改，遠端 main protected=true。工作分支 exact SHA 與其 push CI 見本輪完成回報，不以舊候選 CI 代替。
+- P0：滾動一小時、同資料目錄跨專案的 30 snapshot 額度在 dispatch 前計算；不足則 `DEFERRED` / `GITHUB_READ_BUDGET`，保存最早可用時間，不發請求、不重複新增 FAILED。週期延後不新增 Run；手動待辦保留 request/Run，恢復後一次執行，並非 retry。
+- 保留單一 lease、全域同時一件、去重、取消／STOP。重啟取消未開始的舊週期 occurrence 並保留證據，過期排程跳至未來原設定週期，不補發漏失時段。真正失敗仍 FAILED，使用者取消仍 CANCELLED；STOP 也取消 QUEUED / DEFERRED，PAUSE 不取消已有待辦。
+- UI 顯示下次執行／恢復、頻率、預算剩餘及延後原因，新工作表單建議 300 秒。optional schema 欄位維持舊 checksum 相容，不改舊 60 秒設定、不刪舊歷史。
+- P2：新 opt-in trusted preparation host，沿用 D1/Goal Queue → 儲存 Agent／目標綁定草案 → GC1 真實 mint → RA1 真實 ROOT/IDLE → WE1/Authority Archive 唯讀狀態。不是假進度或靜態展示。預覽 `http://127.0.0.1:4874/#/p/chief/automation`，資料及三個空治理根目錄與舊服務隔離。
+- P2 UI 無核發 grant 或執行能力；START 無條件 403 / EXE_HOLD。偽造授權、Human、模型、scope／budget 欄位均拒絕。草案 OPERATIONAL_RECORD，不是 Authority。EXE/H1-H9 維持 HOLD，模型呼叫 0。
+- 既有 Driver inspect 與 FileInvocationJournal 已在隔離測試接真正的 Goal/run target，驗證 gate、持久化及唯讀投影；合成 journal outcome 只屬離線 fixture。預覽未組合 Driver / invocation reader，明確顯示 null／未接通，不偽裝已執行或零次紀錄。
+- 實際阻礙：Claude implementation adapter 需要分支寫入／commit/push；Codex architect-review 需要實作 SHA／封包 lineage，兩者都不是限定單次唯讀文件 Worker。還缺限定 adapter、模型/CLI/egress 精確綁定、pricing／USD 硬上限與 token enforcement、正式 source/output/packet、停止驗證及有期限 Human grant；不是只差開關。本輪不改 adapters 或自主執行流程。
+- Permit：`AI_PILOT_PERMIT_DRAFT.md`，提議單一 Claude Code、模型申請值 `claude-sonnet-5`（未探測，僅 repo default）、指定 SHA 的 README.md ≤16KB、隔離 output、USD1 申請上限（未 enforce，pricing未知）、4096/2048 tokens、一次／300 秒／零重試、MANUAL、核發後最長一小時；未核發，UTC 起訖為 null，不寫 Archive。
+- 驗證：完整 build/npm test 56 組／2068 passed／0 failed／0 skipped；新增排程 16、準備整合 24（含來源移除及容量不足時保留舊證據）。瀏覽器真實 Goal→RUN_IDLE、START=403；真實唯讀 GitHub→儲存→UI 顯示5個CI。1440/768/390/320px 無橫向溢出，page errors=0；新預覽程序重啟保留草案／CI 檔案 hash、1個原 Run、不重複、排程關閉、Archive 空。
+- 舊資料驗證：唯讀擷取當時249筆Run、6個CI與既有enabled/60秒設定，在隔離副本驗證 checksum／歷史相容；合成額度測試延後無新增Run／GitHub請求，不把它稱作真實跨小時 live acceptance。
+- **部署界線：4873 舊服務從未停止、替換或改排程，仍可能以舊邏輯產生額度 FAILED；修正只在候選版／4874隔離預覽。Architect 接受後仍需 Human 授權切換服務／調整排程。** 舊服務會自然寫入，不能以 live store hash 未改作證。
+- 交付：`AUTO_P1_R1_AUTO_P2_REVIEW.md`、`AI_PILOT_PERMIT_DRAFT.md`、`regressions/auto-p1-r1-auto-p2/`（測試摘要、真實GitHub、瀏覽器、隔離副本、重啟及公開內容截圖）。沒有私人對話、憑證或真實授權內容。既有5項依賴告警未處理，不把離線 npm ci 摘要當最新安全審查。
+- 狀態：候選實作完成，待 Architect Review；不開始下一個 slice、不發布 main、不更動 Ruleset／管理員憑證／其他Agent全域設定。
+- STOP FOR ARCHITECT REVIEW。
