@@ -578,7 +578,7 @@ await check('Z/topology. the bridge is read-only and lives outside Workspace; Wo
   });
   assert.doesNotMatch(bridge.replace(/\/\/.*$/gm, ''), /openChangeMinter|openRootRunAdmitter|AutomationController|AutomationRunner|FileControllerStore|createRun|openAuthorityArchive|DirectAuthorityPreserver|\.preserve\(|\.append\(|execution-driver|live\/|runner\.js|\.step\(|\.activate\(|withLockedGoal|addGoal|removeGoal|\.reorder\(|\.mint\(|\.admit\(/);
   assert.deepEqual(SRC.filter((path) => /createGoalExecutionStatusBridge|trustedObservationPreflight/.test(text(path)) && rel(path) !== BRIDGE).map(rel),
-    ['src/ai-pilot/main.ts', 'src/intake/workspace-host.ts']);
+    ['src/ai-pilot/main.ts', 'src/intake/workspace-host.ts', 'src/limited-worker/main.ts']);
   // The port: one method, inspect; it imports only the identity module.
   const port = text(join(ROOT, PORT)).replace(/\/\/.*$/gm, '');
   assert.match(port, /export interface GoalExecutionStatusPort \{\s*inspect\(projectId: string, goalId: string, sessionHuman: HumanPrincipalV1\): GoalExecutionStatusView;\s*\}/);

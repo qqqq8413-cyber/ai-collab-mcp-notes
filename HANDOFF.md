@@ -2893,3 +2893,22 @@ M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型�
 - 交付：`AUTO_P1_R1_AUTO_P2_REVIEW.md`、`AI_PILOT_PERMIT_DRAFT.md`、`regressions/auto-p1-r1-auto-p2/`（測試摘要、真實GitHub、瀏覽器、隔離副本、重啟及公開內容截圖）。沒有私人對話、憑證或真實授權內容。既有5項依賴告警未處理，不把離線 npm ci 摘要當最新安全審查。
 - 狀態：候選實作完成，待 Architect Review；不開始下一個 slice、不發布 main、不更動 Ruleset／管理員憑證／其他Agent全域設定。
 - STOP FOR ARCHITECT REVIEW。
+
+## AUTO-P2 Limited AI Worker（2026-10-21）
+
+- 基準 exact SHA `a3164fd12d6d3129978da32ea024854d6e9b5cdc`；獨立分支 `work/auto-p2-limited-ai-worker`。main／origin/main 維持 `e7eb87b4b481c885bea8730f8498eb493dc38184`，protected=true；不發布 main。本候選 exact SHA／push CI 見完成回報，不引用前輪 CI。
+- 新限定 adapter 使用原生 Anthropic Messages API，不重用 Claude Git implementation adapter，不啟動 Claude Code CLI。唯一 Agent `limited-readme-worker`，精確 model `claude-haiku-4-5-20251001`／API `2023-06-01`，不使用 SDK retry／fallback／model alias。
+- 只讀基準 SHA 的 README.md 普通 Git blob，最多16KB；目前5568 bytes／SHA-256 `5a65327552f70506d0c68fe297f5202bf2a530f3cdc6e9c279ad6f74d8438d5d`。模型只收 Goal／README 文字，無工具、shell、私人 Session／憑證／其他專案或其他 Agent。Host 固定唯讀 Git 提取，成果只寫綁定隔離目錄的 report.md ≤64KB，不做 Git write／push／deploy。
+- 真實治理接線：Goal Queue → GC1 → RA1 ROOT/IDLE → 既有 Archive 唯讀驗證 → Execution Driver → Controller → AutomationRunner → limited adapter → Invocation Journal／成果。限定 canonical contract 放既有 packet.objective，重建完整 packetHash 驗證所有固定欄位；不改 Authority 格式、不新增 Archive writer／preserver／RunAdmitter 或旁路 Runner。
+- 每次必須同時有既有 LIVE_PROVIDER_MODEL_CALL 與新增限定 operation LIMITED_README_WORKER 的 Human grants。兩者均驗證 Archive bodyHash／principal／subject／scope／期限及未被新版取代；限定 target=contractHash，綁 exact Worker SHA/codeHash、Goal/objectiveHash、Run/packet、source/version/hash/bytes、model/API、工具、store physical identity/outputKey、成本/token/時限/quote。provider preflight 後重查兩層授權；不能在檢查過程到期後仍送出。
+- 網路僅固定 API endpoint 與官方 pricing Markdown URL；packet／grant 的 egress 同時明列 api.anthropic.com:443 與 platform.claude.com:443。不把公開定價 GET 偷藏在 API-only 授權之外。價格來源完整雜湊綁契約，最長1小時有效；執行前重取一致文件與帳戶 exact model metadata，未知必要欄位即拒絕。
+- 不把 count_tokens 的估計當4096 token硬上限。README16KB外另按已驗證200K模型輸入上界預留，output max_tokens2048、thinking disabled／standard_only。公開基礎標準價input $1/MTok／output $5/MTok，單次最壞預留210240 micro-USD（US$0.210240）；同綁定 store 持久總預留≤US$1，不自動還原不確定或成功預留。此為標準 inference tariff 上限，不聲稱控制帳戶其他使用、稅或供應商帳單。
+- 僅1次生成、0重試／fallback、最多300秒且不得超過任一 grant／quote期限。send前 durable generation claim，單一lease／Worker／Run claim，checksum與實體store綁定；取消或逾時中止HTTP，送出後未知則UNCERTAIN、保留預算、不重放。真實子程序SIGKILL恢復測試不產生第二個請求。鎖／ledger損壞需人工核對，不自動修補證據。
+- Driver 僅兩步到 IMPLEMENTATION_COMPLETE，不 Runner.drive，不進 remote-SHA／review／Git delivery。成果完成不是工程 Run CLOSED；UI須同時驗證 report 檔案hash、Invocation APPLIED 與 Controller IMPLEMENTATION_COMPLETE，否則顯示待核對。
+- 新隔離預覽4875：Human建立Goal→指定唯一Agent→準備計畫→查看條件／成本／Run→取消／檢查。START UI LOCKED，後端403／EXE_HOLD；模型／usage／實際費用無資料時明確未知。舊Agent準備區保留收合，不刪歷史。可選私有--permit-config僅載入已核發grant copies，仍需真實Archiveproof，不能核發或解鎖。
+- 48項新離線測試覆蓋真實既有治理元件鏈、授權拒絕、scope／model／來源隔離、token／費用、取消／超時、崩潰／去重、Archive與Journal、真實HTTP邊界及成果損壞。模型／授權／來源 fixture 明確 OFFLINE_SYNTHETIC，絕不冒充 live AI。最終完整build／test／macOS Seatbelt為57組／2116 passed／0 failed／0 skipped，UTC 2026-10-20T17:31:57.056Z完成；原始摘要見 regressions/auto-p2-limited-worker/test-summary.json。exact候選遠端Ubuntu／macOS與必要步驟另在push後驗證。
+- 桌面1440／768、手機390／320px均實測，無橫向溢出或pageerror；真正GC1/RA1 IDLE、START403／偽造400、重新整理／去重。4873／4874只做GET UI/API回歸，原工作樹與服務不重啟、不換版、不改設定、不刪歷史。4873仍可能自然累積舊邏輯額度錯誤，不能宣稱修好了原服務。
+- 現實界線：公開價格查核通過不等於帳戶模型可用。帳戶Model API／付費生成0次，真實provider schema／取消後計費／實際成果仍UNVERIFIED。現有Seatbelt suites回歸，不稱新API Worker為Seatbelt隔離CLI；本機Host仍是可信邊界，不是多租戶沙箱。
+- 正式Pilot還需要：Architect接受此候選及保守預留策略；Human另外核准限定activation／EXE與必要H1–H9；在最終執行SHA上重新準備Goal/Run／新鮮quote及兩層Archivegrants；本機專用provider憑證及帳戶metadata查驗；一次明確付費Pilot授權與live驗收。**這版硬HOLD，普通「允許」、grant copies或改設定都不能啟動。若另修改activation版本，舊contract的SHA/codeHash不可重用。**
+- 交付：AUTO_P2_LIMITED_WORKER_REVIEW.md、AUTO_P2_LIMITED_WORKER_PERMIT.md、regressions/auto-p2-limited-worker/；提交後另產生綁exact候選的本機PILOT_PERMIT_PACKET.json與closure，避免自引用commit。Permit為UNISSUED_NOT_AUTHORITY，issuedAt／expiresAt=null，無本輪正式Authority寫入。未處理既有依賴警示，不宣稱最新安全審查已完成。
+- 狀態：限定Worker技術候選待Architect Review，EXE/H1–H9 HOLD不變。真實模型呼叫0，不開始下一slice，不自行執行Pilot或發布main。STOP FOR ARCHITECT REVIEW。

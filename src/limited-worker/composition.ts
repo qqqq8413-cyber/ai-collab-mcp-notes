@@ -1,0 +1,59 @@
+import { AutomationController } from '../automation/controller.js';
+import { FileControllerStore } from '../automation/durable-store.js';
+import { FileInvocationJournal } from '../automation/file-invocation-journal.js';
+import { AutomationRunner } from '../automation/runner.js';
+import { openGovernedExecutionDriver } from '../automation/execution-driver.js';
+import { readGovernedModel } from '../automation/read-model/governed-read-model.js';
+import { GovernanceStoreIsolation } from '../automation/governance-store-isolation.js';
+import type { Clock } from '../automation/types.js';
+import { LimitedReadmeWorker } from './adapter.js';
+import { SCOPE, EXE, hash, type Contract } from './contract.js';
+import { WorkerStore } from './store.js';
+import type { WorkerTransport } from './transport.js';
+import { packetFor } from './contract.js';
+import { verifyPermit } from './governance.js';
+
+export function composeLimitedWorker(options: {
+  controllerStoreDirectory: string; authorityArchiveDirectory: string; changeRegistryDirectory: string;
+  journalDirectory: string; resultDirectory: string; architectPrincipalRef: string; humanPrincipalRef: string;
+  implementationSha: string; workerCodeHash: string; clock: Clock; transport: WorkerTransport;
+  currentImplementation(): { sha: string; codeHash: string; clean: boolean };
+  liveCallGrant: unknown; limitedGrant: unknown; readSource(c: Contract): { text: string; sha: string; path: string; bytes: number; hash: string };
+  readGoal(c: Contract): string; deadlineMs?: number;
+}) {
+  options = { ...options, liveCallGrant: structuredClone(options.liveCallGrant), limitedGrant: structuredClone(options.limitedGrant) };
+  const isolation = GovernanceStoreIsolation.forLiveRoots(options);
+  isolation.assertDisjoint('limited worker journal', options.journalDirectory);
+  isolation.assertDisjoint('limited worker results', options.resultDirectory);
+  const store = new WorkerStore(options.resultDirectory), journal = new FileInvocationJournal(options.journalDirectory, options.clock);
+  const controller = new AutomationController(options.clock, new FileControllerStore(options.controllerStoreDirectory, options.clock), {
+    observeBranch() { throw new Error('LIMITED_WORKER_HAS_NO_GIT_DELIVERY'); }, compare() { throw new Error('LIMITED_WORKER_HAS_NO_GIT_DELIVERY'); },
+    observeCi() { throw new Error('LIMITED_WORKER_HAS_NO_GIT_DELIVERY'); }, observeProtection() { throw new Error('LIMITED_WORKER_HAS_NO_GIT_DELIVERY'); } });
+  const readModel = () => readGovernedModel(options, options.clock);
+  const adapter = new LimitedReadmeWorker({ ...options, store, journal, humanGrant: options.limitedGrant, liveGrant: options.liveCallGrant,
+    now: () => options.clock.now(), readModel, readRun: id => controller.get(id) });
+  const scopes = { IMPLEMENTATION: structuredClone(SCOPE), ARCHITECT_REVIEW: { actorKind: 'ARCHITECT_REVIEW' as const, provider: 'openai', model: 'NOT_AUTHORIZED', egressDestinations: ['api.openai.com:443'] } };
+  const runner = new AutomationRunner(controller, adapter, { review() { throw new Error('SECOND_AGENT_FORBIDDEN'); } },
+    { journal, clock: options.clock, authorizations: { IMPLEMENTATION: options.liveCallGrant }, scopes });
+  const driver = openGovernedExecutionDriver({ ...options, runner, liveCallAuthorizations: { IMPLEMENTATION: options.liveCallGrant }, scopes });
+  const target = (c: Contract) => ({ source: { kind: 'WORKSPACE_GOAL' as const, projectId: c.projectId, goalId: c.goalId }, runId: c.runId });
+  return Object.freeze({
+    inspect: (c: Contract) => ({ driver: driver.inspect(target(c)), journal: journal.list(c.runId).map(r => ({ invocationId: r.invocationId, state: r.state })),
+      job: store.read().jobs.find(j => j.id === hash(c)) ?? null }),
+    permit(c: Contract) {
+      const model = readModel(), run = model.runs.find(r => r.runId === c.runId);
+      if (!run) throw new Error('RUN_BINDING_MISMATCH');
+      return verifyPermit(c, { grant: options.limitedGrant, liveGrant: options.liveCallGrant, model, packet: packetFor(c, run.sliceId),
+        humanPrincipalRef: options.humanPrincipalRef, now: options.clock.now() });
+    },
+    async execute(c: Contract) {
+      if (options.transport.kind === 'LIVE_PROVIDER' && EXE === 'HOLD') throw new Error('EXE_HOLD');
+      const position = driver.inspect(target(c));
+      if (!['PACKET_READY', 'IMPLEMENTING'].includes(position.state ?? '')) throw new Error('LIMITED_WORKER_NOT_AT_OWNED_STAGE');
+      // Exactly two protocol steps, never Runner.drive: no remote-SHA, review, Git delivery or promotion step exists here.
+      if (position.state === 'PACKET_READY') await driver.step(target(c));
+      const result = await driver.step(target(c)); return result;
+    },
+    cancel: (c: Contract) => adapter.cancel(hash(c)),
+  });
+}

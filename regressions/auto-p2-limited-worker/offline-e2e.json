@@ -1,0 +1,54 @@
+{
+  "evidenceClass": "OFFLINE_SYNTHETIC",
+  "realModelAcceptance": false,
+  "paidModelCalls": 0,
+  "at": "2026-10-20T17:29:27.597Z",
+  "dataFlow": [
+    "Goal Queue",
+    "GC1",
+    "RA1",
+    "Controller",
+    "Authority Archive",
+    "Driver",
+    "Runner",
+    "LimitedReadmeWorker",
+    "Invocation Journal",
+    "Isolated report"
+  ],
+  "controllerState": "IMPLEMENTATION_COMPLETE",
+  "jobState": "COMPLETED",
+  "syntheticGenerationCalls": 1,
+  "syntheticAuthorityRecords": 3,
+  "journalHistory": [
+    {
+      "state": "PREPARED",
+      "at": "2026-10-20T17:29:27.470Z"
+    },
+    {
+      "state": "STARTED",
+      "at": "2026-10-20T17:29:27.490Z"
+    },
+    {
+      "state": "COMPLETED",
+      "at": "2026-10-20T17:29:27.560Z"
+    },
+    {
+      "state": "APPLIED",
+      "at": "2026-10-20T17:29:27.582Z"
+    }
+  ],
+  "modelPreflight": {
+    "evidenceClass": "OFFLINE_SYNTHETIC",
+    "model": "claude-haiku-4-5-20251001",
+    "apiVersion": "2023-06-01",
+    "maxInputTokens": 200000,
+    "maxOutputTokens": 2048,
+    "priceSourceHash": "e875ab9bfc146c6937ad1e441c798c94d2888a6b512d826c444a60a898c5fed5",
+    "observedAt": "2026-10-20T17:29:27.517Z"
+  },
+  "providerMessageId": "synthetic-message-id",
+  "reservedMicroUsd": 210240,
+  "syntheticUsageCostMicroUsd": 350,
+  "reportHash": "595e5a96fd4883cc914cf64087acab0e0a7d147938cee62a155f9aeeec2e3d4d",
+  "reportArtifactVerified": true
+}

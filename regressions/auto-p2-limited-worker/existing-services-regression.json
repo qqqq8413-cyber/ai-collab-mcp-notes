@@ -1,0 +1,40 @@
+{
+  "at": "2026-10-20T17:19:20.603Z",
+  "result": "PASS",
+  "services": [
+    {
+      "port": 4873,
+      "http": 200,
+      "tasks": [
+        {
+          "id": "cfca0ca3-4e85-495f-90a5-2af3da0af1c3",
+          "intervalSeconds": 60,
+          "enabled": true,
+          "mode": "SCHEDULED"
+        },
+        {
+          "id": "aa28180c-8579-4f7b-88c2-4cbcac557825",
+          "intervalSeconds": 60,
+          "enabled": false,
+          "mode": "EVENT_DRIVEN"
+        }
+      ],
+      "runs": 500
+    },
+    {
+      "port": 4874,
+      "http": 200,
+      "tasks": [
+        {
+          "id": "48e5e3a2-d3a3-4423-9197-04fd880b12b5",
+          "intervalSeconds": 300,
+          "enabled": false,
+          "mode": "MANUAL"
+        }
+      ],
+      "runs": 1
+    }
+  ],
+  "modifiedExistingServices": false,
+  "note": "Read-only UI/API checks; no schedule action or service restart."
+}

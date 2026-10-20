@@ -468,7 +468,7 @@ check('35. only the governed read model obtains the archive reader; nothing outs
   const users = outside.filter((path) => /openAuthorityArchive(Appender|Reader)|authority\/file-archive(\.js)?['"]/.test(text(path)));
   assert.deepEqual(users.map(rel), [GOVERNED_READ_MODEL]);
   assert.deepEqual(outside.filter((path) => /authority\/document(\.js)?['"]/.test(text(path))).map(rel).sort(),
-    [ACTIVATION_CORE, EXECUTION_DRIVER, GOVERNED_EXECUTION, GOVERNED_READ_MODEL, STATUS_BRIDGE].sort());
+    [ACTIVATION_CORE, EXECUTION_DRIVER, GOVERNED_EXECUTION, GOVERNED_READ_MODEL, STATUS_BRIDGE, 'src/limited-worker/governance.ts'].sort());
   assert.match(text(join(ROOT, STATUS_BRIDGE)), /import \{ isAuthorityPrincipalRef \} from '\.\.\/automation\/authority\/document\.js';/);
   // Inside R4P: the appender is opened by the preserver alone; the preserver is opened by the governed composition alone.
   assert.deepEqual(SRC.filter((path) => rel(path) !== join('src', 'automation', 'authority', 'file-archive.ts') &&
@@ -483,9 +483,10 @@ check('35. only the governed read model obtains the archive reader; nothing outs
   // R4A0 readers: LD1, the activation core, the shared readiness assessment (types and schema only) and the read-only
   // status bridge. No Workspace, runner, controller, model process, MCP or live composition holds it.
   assert.deepEqual(SRC.filter((path) => !path.includes(`${join('src', 'automation', 'read-model')}/`) &&
-    /read-model\//.test(text(path))).map(rel).sort(), [ACTIVATION_CORE, EXECUTION_DRIVER, EXECUTION_READINESS, STATUS_BRIDGE].sort());
+    /read-model\//.test(text(path))).map(rel).sort(), [ACTIVATION_CORE, EXECUTION_DRIVER, EXECUTION_READINESS, STATUS_BRIDGE,
+      'src/limited-worker/adapter.ts', 'src/limited-worker/composition.ts', 'src/limited-worker/governance.ts'].sort());
   assert.deepEqual(SRC.filter((path) => rel(path) !== GOVERNED_READ_MODEL && /readGovernedModel\(/.test(text(path))).map(rel).sort(),
-    [ACTIVATION_CORE, EXECUTION_DRIVER, STATUS_BRIDGE].sort());
+    [ACTIVATION_CORE, EXECUTION_DRIVER, STATUS_BRIDGE, 'src/limited-worker/composition.ts'].sort());
   assert.doesNotMatch(text(join(ROOT, EXECUTION_READINESS)), /readGovernedModel\(|from '\.\/(runner|controller|durable-store|live\/)/);
   for (const surface of ['src/workspace', 'src/automation/live/composition.ts', 'src/automation/runner.ts', 'src/automation/controller.ts',
     'src/automation/live/claude-code-implementation.ts', 'src/automation/live/codex-architect-review.ts', 'src/automation/live/seatbelt-model-process.ts',
@@ -559,7 +560,7 @@ check('RA1. one trusted path reaches the root-run admitter; it exposes no lifecy
     [join('src', 'intake', 'workspace-host.ts')]);
   // Production holders of a Controller or its store: the live composition (unchanged) and the admitter.
   assert.deepEqual(SRC.filter((path) => /new (AutomationController|FileControllerStore)\(/.test(text(path))).map(rel).sort(),
-    [join('src', 'automation', 'live', 'composition.ts'), ROOT_RUN_ADMITTER].sort());
+    [join('src', 'automation', 'live', 'composition.ts'), ROOT_RUN_ADMITTER, 'src/limited-worker/composition.ts'].sort());
   // The admitter calls no lifecycle, runner, model or authority surface.
   const admitter = text(join(ROOT, ROOT_RUN_ADMITTER));
   assert.doesNotMatch(admitter.replace(/\/\/.*$/gm, ''), /enterArchitecture|issuePacket|beginImplementation|completeImplementation|beginAcceptanceReview|decideAcceptance|requestPromotion|beginPromotion|issueCorrection|resume|\.stop\(|failClosed|\.replace\(|bindController|runner|AutomationRunner|authority|live\//);

@@ -1,0 +1,107 @@
+{
+  "at": "2026-10-20T17:32:42.009Z",
+  "baseSha": "a3164fd12d6d3129978da32ea024854d6e9b5cdc",
+  "note": "Pre-commit source hashes, not a final commit assertion. Final SHA and push CI are recorded after commit.",
+  "files": [
+    {
+      "path": "package.json",
+      "sha256": "f37ff9934edea3a26d5e18fec444110d92c9eb20cbe7cac0e3e0da5c411b0ec7"
+    },
+    {
+      "path": "src/intake/workspace-host.ts",
+      "sha256": "3fdf3f212d8cdba42cf338e7c9666327e8002951f989a737fed00ba4ceb2182b"
+    },
+    {
+      "path": "src/limited-worker/adapter.ts",
+      "sha256": "22d01bd117d1338ba996dc0e7d7b55b5d903500aca6a4ea374aabc7431329eea"
+    },
+    {
+      "path": "src/limited-worker/composition.ts",
+      "sha256": "2802f512f06cbeaa08e687c2b8c6f0345667e0d83ef3eefe3c4f561ea5aa8cfa"
+    },
+    {
+      "path": "src/limited-worker/config.ts",
+      "sha256": "92988a09df8641209113cd92b9315574585b29ec3e52afac5eeaf264848420b0"
+    },
+    {
+      "path": "src/limited-worker/contract.ts",
+      "sha256": "e0572016407d3d51d1c59c661b281d579ffd6198d2c0326ca2281f599788b76a"
+    },
+    {
+      "path": "src/limited-worker/governance.ts",
+      "sha256": "34742e05e8f5467daee0c81b12b5e911d095e854e3220cb704210eb9173ae2a4"
+    },
+    {
+      "path": "src/limited-worker/main.ts",
+      "sha256": "0abd53a1e05859678e77d9a5d9070d18405fe11ea3938a95e46db4fc66482149"
+    },
+    {
+      "path": "src/limited-worker/service.ts",
+      "sha256": "fc066fd70a8b675fe96062272651c2577271fa9f9ba7657420a0cef9d5e87ba8"
+    },
+    {
+      "path": "src/limited-worker/source.ts",
+      "sha256": "efcded9a9a86adfe6fd7eeef39d5ef1d21b12a189557234c58797528b8bfc87f"
+    },
+    {
+      "path": "src/limited-worker/store.ts",
+      "sha256": "1993d8f3437b78ee08e4bb386b164f17f2b690b110bc6517b98982919c9b99b0"
+    },
+    {
+      "path": "src/limited-worker/transport.ts",
+      "sha256": "4451ac5d6d3ee2464d73cd82b869d9d7a4f24e97d0de48a75c7293f5eb36f1c3"
+    },
+    {
+      "path": "src/workspace/limited-worker-port.ts",
+      "sha256": "43427f8e22073b735be65119cccad116424f8ed8ce3d3488845bef4b353262f6"
+    },
+    {
+      "path": "src/workspace/server.ts",
+      "sha256": "2f5a65169b13ad7c874016ce6b024085b8df5174a16b7952c9626e17052ec1e4"
+    },
+    {
+      "path": "test-automation-authority-archive.mjs",
+      "sha256": "288918716d280325eb941520c30178601800a703232214502741536040b68c87"
+    },
+    {
+      "path": "test-automation-governance-isolation.mjs",
+      "sha256": "a0551d7e225fa7685e7d1d4aad0903767f13e604b79054c67932647e57c4c418"
+    },
+    {
+      "path": "test-goal-execution-status.mjs",
+      "sha256": "c675af87e80419ed5d22bb6b2edf59535d8e3bf8fdef43927b902b9d5363319f"
+    },
+    {
+      "path": "test-governed-execution-driver.mjs",
+      "sha256": "ad03e6b778d2ddd1220554b5f30e9b7390f49c744dda592e6cf142e9b7e63929"
+    },
+    {
+      "path": "test-limited-worker.mjs",
+      "sha256": "02b29ec94b95b2c0658494ba78efb9af879239034923ce5b0fec668c30ff6b18"
+    },
+    {
+      "path": "test-workspace-reader.mjs",
+      "sha256": "7d4ca4ff9539e9933e7c63ca33096418ed5cf430c83ab642dacfea4891cc10e1"
+    },
+    {
+      "path": "test-workspace-ui.mjs",
+      "sha256": "ab3ab9a878807ba84f082934f51359732aee136587eba2be22a7eb74defcff42"
+    },
+    {
+      "path": "workspace-ui/automation.js",
+      "sha256": "ece6ad6811a868bf1c489d9dd77bd29b0dbb63316c133245ddfe77e421090bbd"
+    },
+    {
+      "path": "workspace-ui/limited-worker.js",
+      "sha256": "532e074ec44adfd5a88a1477a003919e821f60c48f13000a7978d6e4280e5b17"
+    },
+    {
+      "path": "workspace-ui/live.js",
+      "sha256": "988a5a228af5ad431c30636db2844c6fa2c4da78b808c64366a72ee1c7dcfbf4"
+    },
+    {
+      "path": "workspace-ui/styles.css",
+      "sha256": "089fe36012211a51071ab13ef57d099228de867871cdab5a0b239b92b5851301"
+    }
+  ]
+}

@@ -866,9 +866,10 @@ check('AF-AG-AH-AI. LD1 holds no appender; the archive reader stays in R4A0; R4A
   assert.deepEqual(users(/openAuthorityArchiveReader/, ['src/automation/authority/file-archive.ts']), [READ_MODEL]);
   // G1-WE1-R0: the shared readiness assessment takes R4A0's types and schema; the read-only status bridge also reads R4A0.
   assert.deepEqual(users(/read-model\/governed-read-model\.js/), ['src/automation/activation-core.ts', DRIVER,
-    'src/automation/execution-readiness.ts', 'src/intake/goal-execution-status-bridge.ts'].sort());
+    'src/automation/execution-readiness.ts', 'src/intake/goal-execution-status-bridge.ts',
+    'src/limited-worker/adapter.ts', 'src/limited-worker/composition.ts', 'src/limited-worker/governance.ts'].sort());
   assert.deepEqual(users(/readGovernedModel\(/, [READ_MODEL]), ['src/automation/activation-core.ts', DRIVER,
-    'src/intake/goal-execution-status-bridge.ts'].sort());
+    'src/intake/goal-execution-status-bridge.ts', 'src/limited-worker/composition.ts'].sort());
   assert.equal((code(join(ROOT, DRIVER)).match(/readGovernedModel\(/g) ?? []).length, 1);
   // From R4P the driver takes only the existing body hash.
   assert.match(text(join(ROOT, DRIVER)), /import \{ authorityBodyHash, type AuthorityRefV1, type JsonObject \} from '\.\/authority\/document\.js';/);
@@ -890,8 +891,8 @@ check('AJ-AK-AL. Change Mint stays GC1\'s, run creation stays RA1\'s; LD1 holds 
   // The live composition is the one production caller of createLiveAutomation, and nothing composes it yet.
   assert.deepEqual(users(/createLiveAutomation\(/, ['src/automation/live/composition.ts']), [LIVE]);
   assert.equal((code(join(ROOT, LIVE)).match(/createLiveAutomation\(/g) ?? []).length, 1);
-  assert.deepEqual(users(/openGovernedExecutionDriver\(/, [DRIVER]), [LIVE]);
-  assert.deepEqual(users(/createGovernedLiveAutomation|governed-execution\.js|execution-driver\.js/, [DRIVER, LIVE]), ['src/ai-pilot/preparation.ts']);
+  assert.deepEqual(users(/openGovernedExecutionDriver\(/, [DRIVER]), [LIVE, 'src/limited-worker/composition.ts'].sort());
+  assert.deepEqual(users(/createGovernedLiveAutomation|governed-execution\.js|execution-driver\.js/, [DRIVER, LIVE]), ['src/ai-pilot/preparation.ts', 'src/limited-worker/composition.ts']);
   assert.match(text(join(ROOT, 'src/ai-pilot/preparation.ts')), /import type \{ ExecutionInspectionV1 \} from '\.\.\/automation\/execution-driver\.js';/);
   assert.doesNotMatch(readFileSync(join(ROOT, 'dist/ai-pilot/preparation.js'), 'utf8'), /execution-driver|governed-execution/,
     'preparation holds only the inspection type; no driver runtime is loaded');

@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-20T17:32:42.008Z",
+  "evidenceClass": "PUBLIC_DOCUMENT_READ_ONLY",
+  "quote": {
+    "model": "claude-haiku-4-5-20251001",
+    "apiVersion": "2023-06-01",
+    "sourceUrl": "https://platform.claude.com/docs/en/models/haiku-4-5/overview.md",
+    "sourceSha256": "bec0ed34119af773736e4ee5897e25cf43b1261a5e63b77b0639fb36814f32e7",
+    "checkedAt": "2026-10-20T17:32:41.335Z",
+    "validUntil": "2026-10-20T18:32:41.335Z",
+    "inputMicroUsdPerToken": 1,
+    "outputMicroUsdPerToken": 5,
+    "maxInputTokens": 200000,
+    "maxOutputTokens": 2048
+  },
+  "source": {
+    "sha": "a3164fd12d6d3129978da32ea024854d6e9b5cdc",
+    "path": "README.md",
+    "bytes": 5568,
+    "hash": "5a65327552f70506d0c68fe297f5202bf2a530f3cdc6e9c279ad6f74d8438d5d"
+  },
+  "accountAvailability": "UNVERIFIED_NO_ACCOUNT_API_CALL",
+  "paidModelCalls": 0,
+  "actualUsage": null,
+  "actualCost": null,
+  "maximumReservedMicroUsd": 210240,
+  "scope": "standard inference only, no tools, cache, beta or priority; not provider invoice or tax control"
+}

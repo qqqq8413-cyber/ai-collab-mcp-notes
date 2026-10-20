@@ -105,7 +105,7 @@ await check('the UI calls only the WS-L1 routes and shows no execution it does n
   const live = read('live.js'), app = read('app.js');
   for (const route of ['/projects', '/goals', '/order', '/stream']) assert.match(live, new RegExp(route.replace('/', '\\/')));
   assert.doesNotMatch(live + app, /\/(start|run|execute|resume|promote|create-run)\b/);
-  assert.equal(API_ROUTES.length, 18);
+  assert.equal(API_ROUTES.length, 21);
   // G1-WE1-R0: exactly one read-only execution status route, GET only; the UI reads it and nothing else new.
   assert.deepEqual(API_ROUTES.filter((route) => /\/execution$/.test(route)), ['GET /api/v0/projects/:projectId/goals/:goalId/execution']);
   assert.match(live, /executionStatus: \(projectId, goalId\) => call\('GET', `\/projects\/\$\{enc\(projectId\)\}\/goals\/\$\{enc\(goalId\)\}\/execution`\)/);
@@ -318,7 +318,7 @@ await check('SRC-C1 signals: empty persisted source stays empty; LIVE uses only 
   const html = roomHTML(r);
   assert.ok(html.includes(EMPTY_ROOM) && html.includes(NEEDS_EMPTY), 'LIVE shows the 需要你 strip and the room empty');
   assert.doesNotMatch(html, /示範資料|class="conv|class="cm|data-replay/, 'no demo label, no window, no message, no replay');
-  assert.equal(API_ROUTES.filter((route) => !/\/(govern|governance|run|execution|collaboration|automations|ai-pilot|actions)$/.test(route)).length, 6, 'base queue routes remain unchanged');
+  assert.equal(API_ROUTES.filter((route) => !/\/(govern|governance|run|execution|collaboration|automations|ai-pilot|limited-worker|actions)$/.test(route)).length, 6, 'base queue routes remain unchanged');
 });
 
 await check('WS-P1 CollaborationEventV1: nine runtime-neutral types; anything outside the model is refused, never shown', () => {
@@ -803,7 +803,7 @@ await check('UI-C1-C1 C3 LIVE unread: a message arriving while a record room is 
 });
 
 await check('UI-C1-C1 adds no execution or authority capability', () => {
-  assert.equal(API_ROUTES.length, 18, 'AUTO-P2 adds exactly three preparation-only routes');
+  assert.equal(API_ROUTES.length, 21, 'limited worker adds exactly three held operational routes');
   assert.deepEqual(API_ROUTES.filter(route => /ai-pilot/.test(route)), [
     'GET /api/v0/projects/:projectId/ai-pilot', 'POST /api/v0/projects/:projectId/ai-pilot',
     'POST /api/v0/projects/:projectId/ai-pilot/:planId/actions',
@@ -818,7 +818,7 @@ await check('UI-C1-C1 adds no execution or authority capability', () => {
     assert.doesNotMatch(read(file).replace(/import .*?;/g, ''), /\bimport\b|fetch\(|EventSource|XMLHttpRequest|localStorage|sessionStorage|\bsource\./, `${file}: no network, storage or source`);
   }
   assert.deepEqual(Object.keys(createLiveSource({ fetchImpl: async () => ({}), EventSourceImpl: class {} })).sort(),
-    ['addGoal', 'aiPilot', 'aiPilotAction', 'automationAction', 'automations', 'collaboration', 'createAiPilot', 'createAutomation', 'executionStatus', 'mode', 'projects', 'queue', 'removeGoal', 'reorder', 'subscribe'], 'LIVE adds only narrow pilot and preparation operations');
+    ['addGoal', 'aiPilot', 'aiPilotAction', 'automationAction', 'automations', 'collaboration', 'createAiPilot', 'createAutomation', 'executionStatus', 'limitedWorker', 'mode', 'prepareWorker', 'projects', 'queue', 'removeGoal', 'reorder', 'subscribe', 'workerAction'], 'LIVE adds only narrow pilot and preparation operations');
   assert.match(read('live.js'), /collaboration: \(projectId\) => call\('GET', `\/projects\/\$\{enc\(projectId\)\}\/collaboration`\)/, 'LIVE reads observations, never sends or executes');
 });
 

@@ -1,0 +1,14 @@
+{
+  "startedAt": "2026-10-20T17:29:02.946Z",
+  "endedAt": "2026-10-20T17:31:57.056Z",
+  "command": "npm test",
+  "exitCode": 0,
+  "suites": 57,
+  "totals": {
+    "passed": 2116,
+    "failed": 0,
+    "skipped": 0
+  },
+  "failures": [],
+  "skipLines": []
+}

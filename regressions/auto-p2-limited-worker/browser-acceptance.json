@@ -1,0 +1,192 @@
+{
+  "at": "2026-10-20T17:19:17.167Z",
+  "checks": [
+    {
+      "name": "Goal to real GC1/RA1 IDLE and bounded worker plan",
+      "result": "PASS"
+    },
+    {
+      "name": "UI and backend remain locked with zero invocation",
+      "result": "PASS"
+    },
+    {
+      "name": "viewport",
+      "width": 1440,
+      "result": "PASS",
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "overflow": []
+    },
+    {
+      "name": "viewport",
+      "width": 768,
+      "result": "PASS",
+      "viewport": 768,
+      "documentWidth": 768,
+      "overflow": []
+    },
+    {
+      "name": "viewport",
+      "width": 390,
+      "result": "PASS",
+      "viewport": 390,
+      "documentWidth": 390,
+      "overflow": []
+    },
+    {
+      "name": "viewport",
+      "width": 320,
+      "result": "PASS",
+      "viewport": 320,
+      "documentWidth": 320,
+      "overflow": []
+    }
+  ],
+  "errors": [],
+  "worker": {
+    "exe": "HOLD",
+    "recordClass": "OPERATIONAL_RECORD",
+    "model": "claude-haiku-4-5-20251001",
+    "provider": "anthropic",
+    "apiVersion": "2023-06-01",
+    "agentId": "limited-readme-worker",
+    "quote": {
+      "model": "claude-haiku-4-5-20251001",
+      "apiVersion": "2023-06-01",
+      "sourceUrl": "https://platform.claude.com/docs/en/models/haiku-4-5/overview.md",
+      "sourceSha256": "bec0ed34119af773736e4ee5897e25cf43b1261a5e63b77b0639fb36814f32e7",
+      "checkedAt": "2026-10-20T17:18:40.094Z",
+      "validUntil": "2026-10-20T18:18:40.094Z",
+      "inputMicroUsdPerToken": 1,
+      "outputMicroUsdPerToken": 5,
+      "maxInputTokens": 200000,
+      "maxOutputTokens": 2048
+    },
+    "accountAvailability": "UNVERIFIED",
+    "totalReservedMicroUsd": 0,
+    "totalCeilingMicroUsd": 1000000,
+    "jobs": [
+      {
+        "id": "433e68d944696111d1a803783950fda5946c1b12ac5ac8225f35ccd617804bfa",
+        "contract": {
+          "schemaVersion": 1,
+          "kind": "LIMITED_README_WORKER",
+          "repository": "qqqq8413-cyber/ai-collab-mcp-notes",
+          "projectId": "chief",
+          "goalId": "goal-c0ef0407-1984-4140-b96c-9037320a74d1",
+          "objectiveHash": "86d8c9623038a33e65691a43a74660fef00e090994bf552d9e0b8a6dc37abee3",
+          "runId": "run-be6056b01df05dfbb446cc9a1e4b4b3253e3598fa56033fdf91daaefb377a01c",
+          "implementationSha": "a3164fd12d6d3129978da32ea024854d6e9b5cdc",
+          "workerCodeHash": "5db046d51bb9cd964f436baf2ed44ae78ae107e7503d3dcbc1fb21e777db9adb",
+          "sourceSha": "a3164fd12d6d3129978da32ea024854d6e9b5cdc",
+          "sourcePath": "README.md",
+          "sourceHash": "5a65327552f70506d0c68fe297f5202bf2a530f3cdc6e9c279ad6f74d8438d5d",
+          "sourceBytes": 5568,
+          "agentId": "limited-readme-worker",
+          "provider": "anthropic",
+          "model": "claude-haiku-4-5-20251001",
+          "apiVersion": "2023-06-01",
+          "tools": [
+            "READ_PINNED_README",
+            "WRITE_ISOLATED_REPORT"
+          ],
+          "outputKey": "9cbafe089f8638f77759a4c4629b8c68d99651aa878f831424091affa9333089",
+          "storageIdentity": "2985e1e8a1ed2106d5488887fb39270a18515e3e0fda77b115aff123cd9c7d35",
+          "maxInputTokens": 200000,
+          "maxOutputTokens": 2048,
+          "maxCalls": 1,
+          "maxRetries": 0,
+          "maxCostMicroUsd": 1000000,
+          "totalCostMicroUsd": 1000000,
+          "timeoutSeconds": 300,
+          "quote": {
+            "model": "claude-haiku-4-5-20251001",
+            "apiVersion": "2023-06-01",
+            "sourceUrl": "https://platform.claude.com/docs/en/models/haiku-4-5/overview.md",
+            "sourceSha256": "bec0ed34119af773736e4ee5897e25cf43b1261a5e63b77b0639fb36814f32e7",
+            "checkedAt": "2026-10-20T17:02:03.222Z",
+            "validUntil": "2026-10-20T18:02:03.222Z",
+            "inputMicroUsdPerToken": 1,
+            "outputMicroUsdPerToken": 5,
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 2048
+          }
+        },
+        "createdAt": "2026-10-20T17:03:03.022Z",
+        "state": "PREPARED",
+        "evidenceClass": "LIVE_PROVIDER",
+        "invocationId": null,
+        "reason": null,
+        "reservedMicroUsd": 0,
+        "generationClaimed": false,
+        "report": null,
+        "reportHash": null,
+        "actualCostMicroUsd": null,
+        "usage": null,
+        "events": [
+          {
+            "at": "2026-10-20T17:03:03.022Z",
+            "kind": "PREPARED_NO_EXECUTION"
+          }
+        ],
+        "objective": "只審查固定版本的 README.md，產出文件問題清單，不修改程式或 Git。",
+        "conditions": [
+          "EXE_HOLD",
+          "H1_H9_NOT_GRANTED",
+          "ACCOUNT_MODEL_UNVERIFIED",
+          "IMPLEMENTATION_NOT_ACCEPTED_OR_CHANGED",
+          "LIMITED_PERMIT_MISSING_OR_INVALID"
+        ],
+        "authorityStatus": "MISSING_OR_INVALID",
+        "authority": null,
+        "driver": {
+          "recordClass": "OPERATIONAL_RECORD",
+          "readiness": "WAITING_EXTERNAL_ACTOR",
+          "reason": "NOT_A_RUNNER_MOVE",
+          "target": {
+            "source": {
+              "kind": "WORKSPACE_GOAL",
+              "projectId": "chief",
+              "goalId": "goal-c0ef0407-1984-4140-b96c-9037320a74d1"
+            },
+            "runId": "run-be6056b01df05dfbb446cc9a1e4b4b3253e3598fa56033fdf91daaefb377a01c"
+          },
+          "change": {
+            "kind": "SLICE",
+            "changeId": "goal-5e45bf70bb93dc233ef6f071752314076fad17fcf43b82c87ca9fea4619021f0"
+          },
+          "changeKey": "be6056b01df05dfbb446cc9a1e4b4b3253e3598fa56033fdf91daaefb377a01c",
+          "repository": "qqqq8413-cyber/ai-collab-mcp-notes",
+          "snapshotId": "1971383eca74f4790f4acf3eda3100f1f1f41937c67b70b03876cb6fa3040238",
+          "state": "IDLE",
+          "nextMoves": [
+            {
+              "action": "ENTER_ARCHITECTURE",
+              "role": "GPT_ARCHITECT"
+            }
+          ],
+          "conflicts": [],
+          "step": null
+        },
+        "invocations": [],
+        "effectiveState": "PREPARED",
+        "resultApplied": false,
+        "exe": "HOLD",
+        "modelAccountAvailability": "UNVERIFIED_NO_ACCOUNT_CALL",
+        "maximumReservationMicroUsd": 210240,
+        "notice": "Operational evidence, not authority. OFFLINE_SYNTHETIC is not real AI acceptance."
+      }
+    ]
+  },
+  "startRefusal": {
+    "status": 403,
+    "body": {
+      "error": {
+        "code": "EXE_HOLD",
+        "message": "EXE_HOLD"
+      }
+    }
+  },
+  "paidModelCalls": 0,
+  "authorityRecords": 0
+}

@@ -1,5 +1,6 @@
 import { readerIcon } from './reader.generated.js';
 import { aiPilotHTML, attachAiPilot } from './ai-pilot.js';
+import { workerHTML, attachWorker } from './limited-worker.js';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const time = iso => iso ? new Date(iso).toLocaleString('zh-TW', { hour12: false }) : '—';
@@ -28,7 +29,8 @@ export function automationHTML() {
   return `<section class="auto-page" id="automation" aria-label="自動化">
     <header class="auto-head"><div><h1>自動化</h1><p>CHIEF CI WATCH</p></div><span class="auto-lock">AI 執行 · HOLD</span></header>
     <div class="auto-message" role="status"></div>
-    ${aiPilotHTML()}
+    ${workerHTML()}
+    <details><summary>舊版 Agent 準備紀錄</summary>${aiPilotHTML()}</details>
     <details class="auto-create" open><summary>新增自動化工作</summary><form id="auto-form" class="auto-form">
       <label>工作名稱<input name="name" maxlength="100" required value="CHIEF CI WATCH"></label>
       <label>工作類型<select name="type"><option value="CI_WATCH">GitHub CI 監看</option><option value="CI_REPORT">CI 狀態摘要（本機）</option></select></label>
@@ -99,6 +101,7 @@ export function attachAutomation({ projectId, source, root }) {
   if (!root || mounted?.root === root) return;
   mounted = { projectId, source, root };
   attachAiPilot({ projectId, source, root: root.querySelector('#ai-pilot') });
+  attachWorker({ projectId, source, root: root.querySelector('#limited-worker') });
   const form = root.querySelector('#auto-form');
   const draft = drafts.get(projectId);
   if (draft) for (const [name, value] of Object.entries(draft)) if (form.elements[name] && name !== 'sourceTaskId') form.elements[name].value = value;
