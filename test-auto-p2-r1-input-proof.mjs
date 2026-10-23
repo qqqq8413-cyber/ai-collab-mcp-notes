@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {auditLimitedInput} from './scripts/audit-limited-input.mjs';
+import {auditLimitedInput,loadReadmeSnapshot} from './scripts/audit-limited-input.mjs';
 import {API_VERSION,MODEL,EXE,hash,parseContract,inputPolicy,messageBody,assertInputReady,maximumCost,SYSTEM_PROMPT} from './dist/limited-worker/contract.js';
-import {readPinnedReadme} from './dist/limited-worker/source.js';
 import {nativeAnthropicTransport} from './dist/limited-worker/transport.js';
 
 // Local serialization and refusal checks only. No actual model token count is measured.
 const fixture=JSON.parse(readFileSync('regressions/auto-p2-a2/browser-acceptance.json','utf8')).worker.jobs[0];
-const source=readPinnedReadme(process.cwd(),fixture.contract.sourceSha),base=fixture.contract,goal=fixture.objective;
+const source=loadReadmeSnapshot(fixture.contract),base=fixture.contract,goal=fixture.objective;
 const contract=(g=goal,text=source.text)=>parseContract({...base,objectiveHash:hash(g),sourceHash:hash(Buffer.from(text)),sourceBytes:Buffer.byteLength(text)});
 let passed=0,failed=0;
 async function test(name,fn){try{await fn();passed++;console.log('  PASS '+name);}catch(e){failed++;console.error('  FAIL '+name+': '+e.stack);}}
@@ -16,6 +15,7 @@ await test('R1 inventories complete real README and full system/user content, ne
  assert.equal(r.status,'BLOCKED_NO_PROVABLE_INPUT_BOUND');assert.equal(r.canDispatch,false);assert.equal(r.providerCalls,0);
  for(const key of['estimatedInputTokens','exactInputTokens','provenInputTokenUpperBound','protocolTokenOverhead'])assert.equal(r[key],null);
  assert.equal(r.sourceBytes,5568);assert.equal(JSON.parse(body.messages[0].content).source.text,source.text);assert.equal(body.system,SYSTEM_PROMPT);
+ assert.throws(()=>loadReadmeSnapshot({...base,sourceHash:'f'.repeat(64)}),/OFFLINE_SNAPSHOT_BINDING_MISMATCH/);
  assert.equal(r.systemUtf8Bytes,Buffer.byteLength(SYSTEM_PROMPT));assert.equal(r.messageContentUtf8Bytes,Buffer.byteLength(body.messages[0].content));
  assert.equal(r.requestUtf8Bytes,Buffer.byteLength(JSON.stringify(body)));assert.equal(r.requestHash,hash(JSON.stringify(body)));
  assert.equal(r.model,'claude-haiku-4-5-20251001');assert.equal(r.apiVersion,'2023-06-01');

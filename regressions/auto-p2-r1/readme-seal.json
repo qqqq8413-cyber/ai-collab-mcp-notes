@@ -1,0 +1,14 @@
+{
+  "evidenceClass": "PINNED_PUBLIC_SOURCE_SNAPSHOT",
+  "materializedAt": "2026-10-23T15:45:44.081Z",
+  "repository": "qqqq8413-cyber/ai-collab-mcp-notes",
+  "sourceSha": "a3164fd12d6d3129978da32ea024854d6e9b5cdc",
+  "path": "README.md",
+  "blob": "f1c983a99e4abb4c240f3f77a35f53cf6968dcd6",
+  "bytes": 5568,
+  "sha256": "5a65327552f70506d0c68fe297f5202bf2a530f3cdc6e9c279ad6f74d8438d5d",
+  "complete": true,
+  "truncated": false,
+  "method": "Existing production readPinnedReadme verified local exact Git commit and regular blob before materializing this offline-only fixture",
+  "limitation": "Snapshot serialization regression, not live Git acquisition on a shallow checkout; production source reader is unchanged"
+}

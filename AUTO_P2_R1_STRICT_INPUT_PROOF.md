@@ -34,7 +34,7 @@ Human A2-D1 維持嚴格 4,096 完整輸入上限；本輪沒有變更規格或�
 離線命令：`npm run build` 後執行 `node scripts/audit-limited-input.mjs --evidence OUTPUT_JSON`。
 它是盤點工具，不是 tokenizer、獨立的 admission 路徑或可簽發證書的 verifier。
 
-使用已提交 A2 的 OFFLINE_SYNTHETIC Goal 及完整真實公開 README，直接呼叫既有 `messageBody`／`inputFacts`，沒有複製另一套 prompt builder：
+使用已提交 A2 的 OFFLINE_SYNTHETIC Goal 及完整真實公開 README 快照，直接呼叫既有 `messageBody`／`inputFacts`，沒有複製另一套 prompt builder。快照在本機先經原 `readPinnedReadme` 驗證指定 Git commit／普通 blob，記錄 blob SHA／內容hash／bytes；CI 再對照已提交 A2 contract 的 source SHA／hash／bytes 核驗，不依賴歷史 checkout。這是序列化回歸，不冒充 CI 的 live Git acquisition：
 
 | 成分 | 本機可精確核對的值 | 不可推出的結論 |
 | --- | --- | --- |
@@ -64,6 +64,8 @@ Human A2-D1 維持嚴格 4,096 完整輸入上限；本輪沒有變更規格或�
 4,095／4,096／4,097 的測試分成「位元組長度」與「未驗證的計數聲明」。它們全部維持拒絕；**不是實測 provider token 邊界**。真正 token-boundary acceptance 沒有可用 oracle／proof，狀態為 UNVERIFIED，不得命名為 PASS。
 
 Production source、UI、Authority、EXE 及現有服務完全不修改。研究結果碼為 BLOCKED_NO_PROVABLE_INPUT_BOUND；原 runtime guard 繼續 INPUT_LIMIT_DECISION_REQUIRED。本輪不為換錯誤碼修改執行契約或冒充修好了上限。
+
+首次候選 CI #130 的 Ubuntu 測試因 shallow checkout 不含歷史 README commit 而失敗，macOS 隔離成功。僅修正新離線測試的 fixture 取得方式，完整快照與來源 seal 同時提交、內容不合即拒絕，亦在無 `.git` 的隔離目錄驗證；未改 workflow checkout、production source reader 或 token 判斷。首次失敗證據保留於 `first-ci-failure.json`，不可當最終候選的成功 CI。
 
 完整測試／CI／source seals 見 `regressions/auto-p2-r1/` 與提交後本機 closure。測試成功只證明本機盤點與拒絕防線，不代表輸入保證或付費執行授權。
 

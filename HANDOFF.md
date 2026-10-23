@@ -2960,6 +2960,7 @@ M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型�
 - Runtime source／Workspace UI／Authority／workflows／dependency lock均未修改；原input guard維持INPUT_LIMIT_DECISION_REQUIRED，研究結論碼另為BLOCKED_NO_PROVABLE_INPUT_BOUND。USD1／一次生成／零retry／300秒、取消與崩潰不重送及Controller邊界原封保留；不因改研究碼觸發重綁或開放START。
 - 新增26項離線測試，保留原2182項；完整build／npm test **59組／2208 passed／0 failed／0 skipped**。Unicode／NFC-NFD／emoji／RTL／escape／特殊token文字／surrogate、完整request／system／16KB不截斷、拒絕估計與偽造上界、版本／成本／時限／calls及原HOLD-before-key callback通過；原START拒絕／恢復／Archive／Journal／macOS Seatbelt也由全套回歸驗證。4095／4096／4097是byte長度與不可信計數聲明，**真實token邊界仍UNVERIFIED，不能稱PASS**。
 - 未啟動、停止或替換任何既有服務；4873–4875查核時ECONNREFUSED，4876／4877可連線，既有設定／資料／worktree僅讀取seals作前後比較。不替Human修理或重啟舊服務，也不把HTTP可連線稱作完整功能回歸。
-- 交付AUTO_P2_R1_STRICT_INPUT_PROOF.md、離線盤點script／新tests、regressions/auto-p2-r1/；提交後本機closure包含exact CI與遠端一致性。公開完整文件快照只留本機，repo只存來源seals／自撰結論；不含key或私人Session，帳戶API／count_tokens／付費模型呼叫均0，Human Authority核發0。
+- 交付AUTO_P2_R1_STRICT_INPUT_PROOF.md、離線盤點script／新tests、regressions/auto-p2-r1/；提交後本機closure包含exact CI與遠端一致性。第三方官方文件全文快照只留本機，repo保存其seals／自撰結論，以及本專案完整公開README測試快照；不含key或私人Session，帳戶API／count_tokens／付費模型呼叫均0，Human Authority核發0。
 - 剩餘技術前提：指定模型與API的完整tokenizer／normalizer／framing／服務端注入界線，或官方可驗證硬input cap／有限誤差及count-to-generation保證。下一個Human決定不是重選放寬規格，而是是否透過供應商支援取得正式技術保證；在取得前暫停這條付費路徑。聯絡、付費研究或改換模型／平台都未執行、需另案授權。
 - STOP FOR ARCHITECT REVIEW。不發布main、不核發Authority、不啟動付費Pilot。
+- R1 CI修正紀錄：首次候選 `1bdc50d5325cedd8ba9c91fe5cee842d2389eb99` 的CI #130／39980716439，Ubuntu因shallow checkout沒有a3164fd歷史commit而在新增測試初始化失敗，macOS成功。修正僅為完整公開README快照＋exact來源hash／bytes核驗，另以無.git隔離目錄重現驗證；不改production source reader、checkout workflow或input guard。首次失敗保留，最終成功CI必須對應後續修正的exact SHA。

@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-23T15:48:47.407Z",
+  "evidenceClass": "OFFLINE_ISOLATED_TEST",
+  "gitDirectoryPresent": false,
+  "exitCode": 0,
+  "passed": 26,
+  "failed": 0,
+  "providerCalls": 0,
+  "purpose": "Prove fixture serialization tests work without any Git history; no production-source fallback"
+}

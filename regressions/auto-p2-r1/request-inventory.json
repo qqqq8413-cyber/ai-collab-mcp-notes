@@ -56,6 +56,6 @@
   "notice": "Bytes and hashes describe the exact local request. They are not token bounds. No content is truncated or normalized.",
   "sourceSha": "a3164fd12d6d3129978da32ea024854d6e9b5cdc",
   "sourceHash": "5a65327552f70506d0c68fe297f5202bf2a530f3cdc6e9c279ad6f74d8438d5d",
-  "fixture": "Committed A2 OFFLINE_SYNTHETIC objective plus complete real pinned public README",
+  "fixture": "Committed A2 OFFLINE_SYNTHETIC objective plus sealed complete public Git README snapshot; not a live Git-source acceptance",
   "note": "This is the base request inventory, not a newly authorized R1 contract or live provider acceptance."
 }

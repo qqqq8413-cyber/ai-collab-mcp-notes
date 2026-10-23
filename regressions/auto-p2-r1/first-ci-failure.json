@@ -1,0 +1,24 @@
+{
+  "at": "2026-10-23T15:45:14.582Z",
+  "sha": "1bdc50d5325cedd8ba9c91fe5cee842d2389eb99",
+  "branch": "work/auto-p2-r1-strict-input-proof",
+  "runId": 39980716439,
+  "runNumber": 130,
+  "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39980716439",
+  "status": "completed",
+  "conclusion": "failure",
+  "ubuntuTest": "failure",
+  "macosR4t": "success",
+  "requiredMacSteps": [
+    {
+      "name": "Require a working macOS Seatbelt",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run the isolation suites with every check executed",
+      "conclusion": "success"
+    }
+  ],
+  "requiredMacSkip": false,
+  "pass": false
+}

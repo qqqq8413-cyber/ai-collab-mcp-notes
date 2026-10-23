@@ -55,15 +55,23 @@
     },
     {
       "path": "scripts/audit-limited-input.mjs",
-      "sha256": "25e1bcf0da8d53c02a80f49685b2c86c41cde9fa688e833fbae16e5d3fdfa915"
+      "sha256": "ba4876e4d380fb18239c7b19993e77445c508bf36f0729fc719fb920b5616bca"
     },
     {
       "path": "test-auto-p2-r1-input-proof.mjs",
-      "sha256": "3eb00aad8f7496d997a34ed25c1cb7c34611b7cc29607a934f8906d1649b0126"
+      "sha256": "d640d244a196efe159c5e9c5613c5c59b7a91e74b521ccb9f53ac3b9082022de"
     },
     {
       "path": "AUTO_P2_R1_STRICT_INPUT_PROOF.md",
-      "sha256": "c415eb86e46008230a9ff4da4ac26db6877f8016e6ac3839d37ea922f2f5cf75"
+      "sha256": "c57ccd2fb31425a6e376a6df26b33f306efdc6229a1122de12677bf19eb60948"
+    },
+    {
+      "path": "regressions/auto-p2-r1/pinned-readme.md",
+      "sha256": "5a65327552f70506d0c68fe297f5202bf2a530f3cdc6e9c279ad6f74d8438d5d"
+    },
+    {
+      "path": "regressions/auto-p2-r1/readme-seal.json",
+      "sha256": "8eece43660dcbdd06e5537e81c2b31f4d35eb53e8cd8257e5a428455c93ddd20"
     }
   ],
   "runtimeCodeChanged": false
