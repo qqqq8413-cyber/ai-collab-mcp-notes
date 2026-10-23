@@ -1,0 +1,61 @@
+{
+  "evidenceClass": "PUBLIC_DOCUMENT_READ_ONLY",
+  "sources": [
+    {
+      "name": "token-counting",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/token-counting.md",
+      "resolvedUrl": "https://platform.claude.com/docs/en/build-with-claude/token-counting.md",
+      "readAt": "2026-10-23T11:22:09.479Z",
+      "http": 200,
+      "bytes": 44259,
+      "sha256": "012ebe6155984b65d290bf4d16251f9fce90be46c00188928e6f727e9329aaba"
+    },
+    {
+      "name": "messages",
+      "url": "https://platform.claude.com/docs/en/api/messages/create.md",
+      "resolvedUrl": "https://platform.claude.com/docs/en/api/messages/create.md",
+      "readAt": "2026-10-23T11:22:09.915Z",
+      "http": 200,
+      "bytes": 142411,
+      "sha256": "5ed4512aa9516a3b22f59aac28e29f42585cd04aeaa74fa88a2da20ec3e8b64c"
+    },
+    {
+      "name": "count-tokens",
+      "url": "https://platform.claude.com/docs/en/api/messages/count_tokens.md",
+      "resolvedUrl": "https://platform.claude.com/docs/en/api/messages/count_tokens.md",
+      "readAt": "2026-10-23T11:22:11.013Z",
+      "http": 200,
+      "bytes": 99937,
+      "sha256": "2e9e136ee0f22c1e3129442cb3b70033c28aa7c9939f5271a7dd14a262330e6b"
+    },
+    {
+      "name": "versions",
+      "url": "https://platform.claude.com/docs/en/api/versioning.md",
+      "resolvedUrl": "https://platform.claude.com/docs/en/api/versioning.md",
+      "readAt": "2026-10-23T11:22:11.386Z",
+      "http": 200,
+      "bytes": 4684,
+      "sha256": "f4a2cdd317587feac501351aca906c5b7375aac18e2cca969d7b31aa3ba2d0b2"
+    },
+    {
+      "name": "model",
+      "url": "https://platform.claude.com/docs/en/models/haiku-4-5/overview.md",
+      "resolvedUrl": "https://platform.claude.com/docs/en/models/haiku-4-5/overview.md",
+      "readAt": "2026-10-23T11:22:11.762Z",
+      "http": 200,
+      "bytes": 15229,
+      "sha256": "340157b9fb67fc3290e60ebea6a999fa933ecc662695a6d3e5307266196f2f03"
+    },
+    {
+      "name": "legacy-tokenizer",
+      "url": "https://raw.githubusercontent.com/anthropics/anthropic-tokenizer-typescript/main/README.md",
+      "resolvedUrl": "https://raw.githubusercontent.com/anthropics/anthropic-tokenizer-typescript/main/README.md",
+      "readAt": "2026-10-23T11:22:12.350Z",
+      "http": 200,
+      "bytes": 1400,
+      "sha256": "aec70d19fc41582d9726b9133d9d85b2c1a034e3e43217bfc62126208edbd91a"
+    }
+  ],
+  "accountApiCalls": 0,
+  "paidModelCalls": 0
+}

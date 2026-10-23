@@ -2934,3 +2934,18 @@ M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型�
 - 交付：AUTO_P2_A1_ARCHITECT_REVIEW.md、AUTO_P2_A1_MEASUREMENT.md、AUTO_P2_A1_PERMIT_DRAFT.md、regressions/auto-p2-a1/，提交後本機PILOT_PERMIT_PACKET_A1.json及CLOSURE。沒有私人Session／key／真正Human grant body；package-lock、Ruleset、管理員憑證及全域Agent設定未修改。
 - 真正審查仍需：Architect接受候選→Human決定4096規格→受審的可信activation／執行版本→另行EXE/H1–H9限定核准→本機專用key與exact帳戶model/API查驗→最終SHA／Goal／Run／source／quote／packet的Architect與兩筆Human direct grants歸檔→Human另一次明確單次付費Pilot授權及真實模型驗收。不是只差key或一句允許。
 - 狀態：Readiness技術候選完成待Architect Review，正式執行仍BLOCKED／HOLD；模型與帳戶API呼叫0，正式Authority寫入0。不進第二Agent／Git delivery／main。STOP FOR ARCHITECT REVIEW。
+
+## AUTO-P2-A2 Input Policy Resolution & Governed Activation（2026-10-23）
+
+- Base exact SHA `6fd9264bd1fef43977c3857e5ed0b57b722a6c90`；獨立分支 `work/auto-p2-a2-input-policy-activation`。重新查證 base CI #128 / 39942817361 成功，對應既有2148測試；main仍 `e7eb87b4b481c885bea8730f8498eb493dc38184`、protected=true，未修改。最終candidate SHA及push CI以本輪closure為準，不引用base CI冒充。
+- **Human A2-D1 已決定 A：嚴格4096 input tokens，不再是待選規格。** 新契約revision A2／decision A2_D1_STRICT_4096；proofStatus BLOCKED_NO_PROVIDER_GUARANTEE。保留INPUT_LIMIT_DECISION_REQUIRED原因碼，但中文說明改為「已選定，技術證明未完成」。未擅自放寬200000，也不再要求Human重選。
+- P0研究官方token-counting／Messages／count reference／versioning／固定Haiku模型／官方舊tokenizer。count_tokens是估計且未見數值誤差上限；舊tokenizer不準確適用於Claude3+；未找到固定4096的API輸入cap。API版本相容性不等於tokenizer／協定開銷不變。保守bytes+H需可驗證token／byte假設與H，現有契約不提供，故未建立可靠上界，不聲稱不可能。完整技術阻擋報告AUTO_P2_A2_INPUT_PROOF.md，公開來源時間與hash見research-sources.json。
+- 可精確量測system／user content／Goal／source／wire bytes、request與system hash；exactInputTokens／provenInputTokenUpperBound／protocolTokenOverhead明列null。Unicode、組合字、emoji、escape與特殊token文字保持原文；未配對surrogate拒絕，不默默修正。4095／4096／4097只用來測拒絕偽造估計，絕非實測provider邊界。README不截斷。
+- P1新增limitedActivationCandidate可信Host整合候選，注入既有AP1core及protected read model，沒有新增Archive writer／preserver factory／Controller holder／Runner或Workspace路由。從持久job推導target及完整packet，檢查clean exact SHA／compiled codeHash／Goal／source／store／price與A2policy，三份文件必須已由既有可信程序歸檔、exact record seal吻合且未被新版取代；再由原AP1推進PACKET_READY。不產生授權、不解除HOLD、不呼叫Driver或Worker。
+- 隔離E2E實際走Goal→GC1→RA1→暫存合成Archive→原AP1→Controller PACKET_READY；exact retry冪等；後續原Driver執行仍被input guard拒絕，Invocation／生成0。未歸檔、過期／未生效、錯Run／模型／工具／版本／來源／Goal、過期價格、Operational Record或被新版取代的舊grant均拒絕。這是OFFLINE_SYNTHETIC staging，不是正式Human核發或真實模型驗收；production composition尚未接此候選。
+- P2表單前景顯示工作／固定資料／Agent／單次及總USD1／300秒／單次生成零retry／成果，清楚說明嚴格4096已選、缺技術保證；IDs／hash／review packet仍由系統產生並收合。START前端LOCKED、後端403；不虛構Agent進度。
+- 既有2148測試保留，新增34項；完整build/npm test **58組／2182 passed／0 failed／0 skipped**，UTC2026-10-23T11:25:08.681Z完成，macOS Seatbelt實際執行無skip；瀏覽器及exact CI結果見regressions/auto-p2-a2與提交後closure。既有cancel／timeout／SIGKILL恢復／uncertain不重送、USD1預算與Journal成果一致性測試未移除。綠測試不代表4096技術問題已解決。
+- 1440／768／390／320px真實瀏覽器驗證新4877隔離預覽，實際建立Goal/Run/plan，advanced收合／polling，START403／偽造400，無overflow或pageerror。4873–4875修改前即ECONNREFUSED，未啟動修理，live回歸NOT RUN；4876仍可連線。舊worktree／設定／資料前後比對不變，未替換4873–4876。
+- 新未核發Permit草案AUTO_P2_A2_PERMIT_DRAFT.md；提交後本機PILOT_PERMIT_PACKET_A2.json綁exact新SHA／Run／quote／source／contract。issuedAt／expiresAt及三份authority均null，不能視為H1–H9或EXE授權。正式authority寫入0、帳戶API／付費模型0，不改憑證／Ruleset／全域Agent設定。
+- **是否具備第一次付費工作能力：尚未。** 精確阻礙：4096送出前硬保證仍無證據；可信production activation接線待review；另需Human對最終執行版本與EXE/H1–H9限定授權、可信Host專用憑證／exact帳戶model/API能力／新鮮價格、既有程序核發歸檔exact Architect packet與兩層Human grant，再經另次單次付費Pilot授權做真實驗收。不是只差Human按鈕或金鑰。
+- STOP FOR ARCHITECT REVIEW。不發布main，不啟動付費Pilot，不進下一slice。

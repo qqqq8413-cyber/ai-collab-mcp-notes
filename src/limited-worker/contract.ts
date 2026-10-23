@@ -23,13 +23,16 @@ const quoteSchema = z.strictObject({ model: z.literal(MODEL), apiVersion: z.lite
   sourceSha256: digest, checkedAt: z.iso.datetime(), validUntil: z.iso.datetime(),
   inputMicroUsdPerToken: z.literal(1), outputMicroUsdPerToken: z.literal(5), maxInputTokens: z.literal(200000), maxOutputTokens: z.literal(2048) });
 export type Quote = z.infer<typeof quoteSchema>;
-const inputPolicySchema = z.strictObject({ revision: z.literal('A1'), requestedHardLimitTokens: z.literal(4096),
+const legacyInputPolicySchema = z.strictObject({ revision: z.literal('A1'), requestedHardLimitTokens: z.literal(4096),
   hardLimitVerification: z.literal('UNVERIFIED'), decision: z.literal('PENDING_HUMAN_ARCHITECT_REVIEW'),
   estimatedInputTokens: z.null(), estimateMethod: z.literal('NOT_MEASURED'),
   sourceMaxBytes: z.literal(16384), goalMaxCharacters: z.literal(2000), requestMaxBytes: z.literal(131072),
   reservationInputTokenBound: z.literal(200000), outputMaxTokens: z.literal(2048) });
-export const inputPolicy = () => inputPolicySchema.parse({ revision:'A1',requestedHardLimitTokens:4096,hardLimitVerification:'UNVERIFIED',
-  decision:'PENDING_HUMAN_ARCHITECT_REVIEW',estimatedInputTokens:null,estimateMethod:'NOT_MEASURED',sourceMaxBytes:16384,
+const strictInputPolicySchema = legacyInputPolicySchema.extend({ revision:z.literal('A2'),
+  decision:z.literal('A2_D1_STRICT_4096'), proofStatus:z.literal('BLOCKED_NO_PROVIDER_GUARANTEE') });
+const inputPolicySchema=z.union([legacyInputPolicySchema,strictInputPolicySchema]);
+export const inputPolicy = () => strictInputPolicySchema.parse({ revision:'A2',requestedHardLimitTokens:4096,hardLimitVerification:'UNVERIFIED',
+  decision:'A2_D1_STRICT_4096',proofStatus:'BLOCKED_NO_PROVIDER_GUARANTEE',estimatedInputTokens:null,estimateMethod:'NOT_MEASURED',sourceMaxBytes:16384,
   goalMaxCharacters:2000,requestMaxBytes:131072,reservationInputTokenBound:200000,outputMaxTokens:2048 });
 const contractSchema = z.strictObject({ schemaVersion: z.literal(1), kind: z.literal('LIMITED_README_WORKER'),
   repository: z.literal(REPOSITORY), projectId: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/), goalId: z.string().regex(/^goal-[a-f0-9-]{36}$/),
@@ -78,11 +81,19 @@ export function assertInputReady(c: Contract) {
 export function inputFacts(c: Contract, objective: string, source: string) {
   const body = messageBody(c, objective, source);
   return { sourceBytes:Buffer.byteLength(source),goalCharacters:objective.length,goalUtf8Bytes:Buffer.byteLength(objective),
+    systemUtf8Bytes:Buffer.byteLength(body.system),messageContentUtf8Bytes:Buffer.byteLength(body.messages[0].content),
+    requestHash:hash(JSON.stringify(body)),systemPromptHash:hash(body.system),
     requestUtf8Bytes:Buffer.byteLength(JSON.stringify(body)),requestedHardLimitTokens:4096,
     hardLimitVerification:'UNVERIFIED',estimatedInputTokens:null,estimateMethod:'NOT_MEASURED',
+    exactInputTokens:null,provenInputTokenUpperBound:null,protocolTokenOverhead:null,
+    policyDecision:c.inputPolicy?.decision??'LEGACY_REPLAN_REQUIRED',
     reservationInputTokenBound:c.maxInputTokens,apiOutputTokenLimit:c.maxOutputTokens };
 }
 export function messageBody(c: Contract, objective: string, source: string) {
+  for (const text of [objective,source]) for (const scalar of text) {
+    const point=scalar.codePointAt(0)!;
+    if(point>=0xd800&&point<=0xdfff)throw new Error('INPUT_UNPAIRED_SURROGATE');
+  }
   if (hash(objective) !== c.objectiveHash || hash(Buffer.from(source)) !== c.sourceHash || Buffer.byteLength(source) !== c.sourceBytes) throw new Error('SOURCE_OR_GOAL_MISMATCH');
   if (Buffer.byteLength(source)>16384 || objective.length>2000) throw new Error('INPUT_BYTES_OR_GOAL_LIMIT');
   const body = { model: MODEL, max_tokens: c.maxOutputTokens, stream: false, service_tier: 'standard_only', thinking: { type: 'disabled' },

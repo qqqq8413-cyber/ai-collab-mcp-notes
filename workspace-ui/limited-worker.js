@@ -13,6 +13,8 @@ export function workerHTML(){return `<section id="limited-worker" class="ai-prep
     <label>可用資料<span class="worker-scope">CHIEF 的固定版本 README.md，最多 16KB</span></label>
     <label>指定 Agent<select name="agentId"><option value="limited-readme-worker">README 審查 Worker</option></select></label>
     <label>費用上限<span class="worker-scope">單次及累積最多 US$1</span></label>
+    <label>時間上限<span class="worker-scope">300 秒，最多一次模型請求、零重試</span></label>
+    <p class="worker-delivery">已選定嚴格 4,096 輸入 tokens；目前缺少可驗證保證，因此不送出模型請求，不截斷文件。</p>
     <p class="worker-delivery">交付：繁體中文 Markdown 問題清單。只讀文件，不修改程式、Git 或部署。</p>
     <button class="auto-button" type="submit">${readerIcon('add')} 建立工作與計畫</button></form>
   <details class="worker-existing"><summary>使用已建立的目標</summary><a data-worker-goal>查看工作清單</a>
@@ -36,7 +38,7 @@ export function jobsHTML(data){return `<dl class="auto-facts"><div><dt>持久化
     ${j.reason?`<p class="auto-error">工作停止，原因：${esc(messages[j.reason]??j.reason)}</p>`:''}
     <details data-evidence="${j.id}"><summary>進階證據與未核發審查封包</summary>
       <p>EXE HOLD。以下皆為操作紀錄與待審資料，不是 Human Authority。</p>
-      <p>原申請輸入上限 4,096 tokens：尚未證明可強制執行，等待 Human／Architect 決策。</p>
+      <p>A2-D1 已選擇嚴格 4,096 input tokens；尚缺技術保證，不是等待 Human 重選規格。</p>
       <p>輸入 token 估計：未量測。200,000 僅為模型及費用預留上界，不是已核准的輸入放寬。</p>
       <p>輸出上限 2,048 tokens，由 API max_tokens 限制；最多一次生成、零重試、300 秒。</p>
       <p>目前 Controller ${esc(j.driver.state)}；Journal ${esc(j.invocations.map(i=>i.state).join(', ')||'尚無 Invocation')}。</p>
@@ -69,7 +71,7 @@ export function attachWorker({projectId,source,root}){
   create.elements.objective.addEventListener('input',()=>{if(completedForm){interactionId=crypto.randomUUID();startedAt=null;startObservation=null;pendingGoal=null;completedForm=false;void begin();}});
   void(async()=>{try{const data=await source.limitedWorker(projectId),queue=await source.queue(projectId);if(!root.isConnected)return;
     show(data);form.elements.goalId.innerHTML=queue.goals.map(g=>`<option value="${esc(g.goalId)}">${esc(g.text)}</option>`).join('');form.hidden=!queue.goals.length;
-    message.textContent='準備模式：可保存工作與審查資料；4,096 輸入上限及正式許可尚待確認，不會呼叫模型。';
+    message.textContent='準備模式：可保存工作與審查資料；嚴格 4,096 輸入上限已選定，技術保證與正式許可尚缺，不會呼叫模型。';
     const key='chief.worker.setup.'+projectId;let id=sessionStorage.getItem(key);if(!id){id=crypto.randomUUID();sessionStorage.setItem(key,id);}await observe('SETUP_OPENED',id,id);
   }catch(e){message.textContent=explain(e);}})();
   const prepare=async goalId=>{const ms=startedAt===null?undefined:Math.round(performance.now()-startedAt);

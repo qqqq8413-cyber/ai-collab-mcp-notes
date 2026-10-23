@@ -1,0 +1,86 @@
+{
+  "at": "2026-10-23T11:24:18.460Z",
+  "files": [
+    {
+      "path": "outputs/src-c1/workspace.json",
+      "sha256": "0052ec07e1f92c1bf4418eb861a3331fb8e02df0ee7fb338f4d4d0a5b12dde3f"
+    },
+    {
+      "path": "outputs/src-c1/data/auto-p1/chief.json",
+      "sha256": "25704527e7d531441439d0c97da6f2bc59ef61cf03549b68359e19292407ec8c"
+    },
+    {
+      "path": "outputs/auto-p1-r1-auto-p2/host.json",
+      "sha256": "3ec719f4db0fe1c19655f17c483bd4bdd462a9bb34e65d8ee6a94409080a6d7a"
+    },
+    {
+      "path": "outputs/auto-p1-r1-auto-p2/preview-data/auto-p1/chief.json",
+      "sha256": "8e0853fae59314d7b9000045506798898cf63c3e5996c9194a8d46509c189648"
+    },
+    {
+      "path": "outputs/auto-p2-limited-worker/final/host.json",
+      "sha256": "aa23103d7add3329dc9e1cc8b63072903072979c7f282fa105aaf1dcad7a5577"
+    },
+    {
+      "path": "outputs/auto-p2-limited-worker/final/data/limited-worker/ledger.json",
+      "sha256": "f1d55772de10e5f45045eec51b29be01f6541c78a4f137a5f5f7d6483b67a300"
+    },
+    {
+      "path": "outputs/auto-p2-a1/final/host.json",
+      "sha256": "10f06c3d264da874f19a5f889b18ad413070ec83b948abbc92e9015ebf8baf3a"
+    }
+  ],
+  "services": [
+    {
+      "port": 4873,
+      "status": "UNREACHABLE",
+      "error": "ECONNREFUSED"
+    },
+    {
+      "port": 4874,
+      "status": "UNREACHABLE",
+      "error": "ECONNREFUSED"
+    },
+    {
+      "port": 4875,
+      "status": "UNREACHABLE",
+      "error": "ECONNREFUSED"
+    },
+    {
+      "port": 4876,
+      "status": "REACHABLE",
+      "http": 200
+    }
+  ],
+  "worktrees": [
+    {
+      "name": "chief-src-c1",
+      "sha": "913385b0e1b8f8c529152a091255f46cad67787a",
+      "status": ""
+    },
+    {
+      "name": "chief-auto-p1-r1-auto-p2",
+      "sha": "a3164fd12d6d3129978da32ea024854d6e9b5cdc",
+      "status": ""
+    },
+    {
+      "name": "chief-auto-p2-limited-worker",
+      "sha": "9a1579748c6764aa53cb2e0d2803d01cf28ee005",
+      "status": ""
+    },
+    {
+      "name": "chief-auto-p2-a1",
+      "sha": "6fd9264bd1fef43977c3857e5ed0b57b722a6c90",
+      "status": ""
+    }
+  ],
+  "a1LedgerShape": [
+    "schemaVersion",
+    "payload",
+    "checksum"
+  ],
+  "a1LedgerSeal": "d08acd48f28336d2aa3ce22fd15668982e16d056bedd31031c10331d08719db4",
+  "liveRegression": "HTTP_REACHABILITY_ONLY; unavailable services not restarted",
+  "actions": "No service start/stop/replacement or schedule changes",
+  "diskAndStateRegression": "PASS_UNCHANGED"
+}

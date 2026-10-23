@@ -19,6 +19,8 @@ import {activationCandidate,readiness,planConditions} from './dist/limited-worke
 import {efficiency} from './dist/limited-worker/efficiency.js';
 import {createLimitedWorkerService} from './dist/limited-worker/service.js';
 import {startWorkspaceServer} from './dist/workspace/server.js';
+import {limitedActivationCandidate} from './dist/limited-worker/governance.js';
+import {readGovernedModel} from './dist/automation/read-model/governed-read-model.js';
 
 // All authorities, model responses, sources and interaction measurements below are OFFLINE_SYNTHETIC.
 // Existing AP1 preserves these synthetic documents only inside a temporary directory, never a real Archive.
@@ -182,5 +184,81 @@ await test('a replacement report/file pair still cannot contradict the APPLIED j
 await test('paired comparison identity binds the same task/source/model/delivery without claiming a baseline',async dir=>{
   const w=await fixture(dir);const before=w.service.read('chief',HUMAN);assert.match(before.efficiency.tasks[0].comparisonKey,/^[a-f0-9]{64}$/);
   assert.equal(before.efficiency.tasks[0].comparisonKey,before.jobs[0].comparisonKey);assert.equal(before.efficiency.comparisonBaseline,null);
+});
+// A2 adds strict-decision and trusted staging checks to the same isolated fixture.
+function a2Gate(w, overrides={}) {
+  return limitedActivationCandidate({core:w.activation,store:w.store,readModel:()=>readGovernedModel(w.options,w.clock),
+    humanPrincipalRef:HUMAN.principalRef,architectPrincipalRef:ARCHITECT,now:w.clock.now,identity:w.options.currentImplementation,
+    readSource:()=>w.source,readGoal:()=>w.g.text,...overrides});
+}
+function archiveA2(w) {
+  const limited=w.document('AUTHORIZATION',w.limited);
+  for(const d of[w.bundle.implementationPacket,...w.bundle.liveCallAuthorizations,limited])w.preserver.preserve(d);
+  return limited;
+}
+await test('A2-D1 is selected strict 4096, not approval to use 200000 input tokens',async dir=>{
+  const w=await fixture(dir);assert.equal(w.c.inputPolicy.revision,'A2');assert.equal(w.c.inputPolicy.decision,'A2_D1_STRICT_4096');
+  assert.equal(w.c.inputPolicy.proofStatus,'BLOCKED_NO_PROVIDER_GUARANTEE');assert.throws(()=>assertInputReady(w.c),/INPUT_LIMIT_DECISION_REQUIRED/);
+  const f=inputFacts(w.c,w.g.text,w.source.text);for(const key of['exactInputTokens','provenInputTokenUpperBound','protocolTokenOverhead'])assert.equal(f[key],null);
+  assert.equal(f.systemPromptHash,hash(messageBody(w.c,w.g.text,w.source.text).system));assert.equal(f.requestHash,hash(JSON.stringify(messageBody(w.c,w.g.text,w.source.text))));
+});
+for(const estimate of[0,4095,4096,4097,200000])await test('A2 rejects unverified count '+estimate+' as a hard-limit certificate',async dir=>{
+  const w=await fixture(dir);assert.throws(()=>parseContract({...w.c,inputPolicy:{...w.c.inputPolicy,estimatedInputTokens:estimate,estimateMethod:'COUNT_TOKENS'}}));
+  assert.throws(()=>assertInputReady(w.c),/INPUT_LIMIT_DECISION_REQUIRED/);assert.equal(w.calls,0);
+});
+for(const text of['ASCII','繁體中文','e\u0301','é','👩🏽‍💻','<|endoftext|>','\u0000\n"\\'])await test('A2 preserves Unicode/escaping without claiming token equality: '+JSON.stringify(text),async dir=>{
+  const w=await fixture(dir),source=text.repeat(10),goal=text;
+  const c={...w.c,sourceHash:hash(source),sourceBytes:Buffer.byteLength(source),objectiveHash:hash(goal)};
+  const body=messageBody(c,goal,source),f=inputFacts(c,goal,source);
+  assert.equal(JSON.parse(body.messages[0].content).source.text,source);assert.equal(JSON.parse(body.messages[0].content).goal,goal);
+  assert.equal(f.sourceBytes,Buffer.byteLength(source));assert.equal(f.goalCharacters,goal.length);assert.equal(f.goalUtf8Bytes,Buffer.byteLength(goal));
+  assert.equal(f.requestUtf8Bytes,Buffer.byteLength(JSON.stringify(body)));assert.equal(f.provenInputTokenUpperBound,null);
+});
+for(const text of['\ud800','\udfff','abc\ud800z'])await test('A2 refuses unpaired Unicode surrogate '+JSON.stringify(text),async dir=>{
+  const w=await fixture(dir);assert.throws(()=>messageBody({...w.c,objectiveHash:hash(text)},text,w.source.text),/UNPAIRED_SURROGATE/);
+});
+await test('A2 does not truncate the 16384-byte source to fabricate a token guarantee',async dir=>{
+  const w=await fixture(dir),source='x'.repeat(16384),c={...w.c,sourceHash:hash(source),sourceBytes:16384};
+  assert.equal(JSON.parse(messageBody(c,w.g.text,source).messages[0].content).source.text.length,16384);
+  assert.throws(()=>assertInputReady(c),/INPUT_LIMIT_DECISION_REQUIRED/);
+});
+await test('A1 persisted policy is readable without rewriting but remains blocked',async dir=>{
+  const w=await fixture(dir),policy={...w.c.inputPolicy,revision:'A1',decision:'PENDING_HUMAN_ARCHITECT_REVIEW'};delete policy.proofStatus;
+  const c=parseContract({...w.c,inputPolicy:policy});assert.equal(c.inputPolicy.revision,'A1');assert.throws(()=>assertInputReady(c),/INPUT_LIMIT_DECISION_REQUIRED/);
+});
+await test('A2 trusted staging only accepts already archived documents and ends at Controller PACKET_READY',async dir=>{
+  const w=await fixture(dir,{activate:false}),limited=archiveA2(w),gate=a2Gate(w),before=readdirSync(join(w.options.authorityArchiveDirectory,'records'));
+  const result=gate.stage(hash(w.c),w.bundle,limited);assert.equal(result.stage.status,'ACTIVATED');assert.equal(result.executionEligible,false);assert.equal(w.controller.get(w.c.runId).state,'PACKET_READY');
+  assert.equal(gate.stage(hash(w.c),w.bundle,limited).stage.status,'ALREADY_ACTIVATED');assert.deepEqual(readdirSync(join(w.options.authorityArchiveDirectory,'records')),before);
+  await assert.rejects(w.runtime.execute(w.c),/INPUT_LIMIT_DECISION_REQUIRED/);assert.deepEqual(w.runtime.inspect(w.c).journal,[]);assert.equal(w.calls,0);
+  const at=process.argv.indexOf('--a2-evidence');if(at>=0)writeFileSync(process.argv[at+1],JSON.stringify({evidenceClass:'OFFLINE_SYNTHETIC',paidModelCalls:0,
+    route:'Goal -> GC1 -> RA1 -> trusted pre-archived documents -> existing AP1 -> Controller PACKET_READY -> Driver input-policy refusal',
+    stage:result,syntheticAuthorityDocuments:before.length,workerCalls:w.calls,journal:w.runtime.inspect(w.c).journal,productionWiring:'NOT_ENABLED'},null,2));
+});
+await test('A2 unarchived proposed grants cannot activate or write authority',async dir=>{
+  const w=await fixture(dir,{activate:false});assert.throws(()=>a2Gate(w).stage(hash(w.c),w.bundle,w.document('AUTHORIZATION',w.limited)),/NOT_CURRENTLY_ARCHIVED/);
+  assert.equal(w.controller.get(w.c.runId).state,'IDLE');assert.deepEqual(readdirSync(w.options.authorityArchiveDirectory),[]);
+});
+for(const field of['sha','codeHash','clean'])await test('A2 refuses changed implementation '+field+' before activation',async dir=>{
+  const w=await fixture(dir,{activate:false}),limited=archiveA2(w);
+  assert.throws(()=>a2Gate(w,{identity:()=>({...w.options.currentImplementation(),[field]:field==='clean'?false:'e'.repeat(field==='sha'?40:64)})}).stage(hash(w.c),w.bundle,limited),/IMPLEMENTATION_CHANGED/);
+  assert.equal(w.controller.get(w.c.runId).state,'IDLE');
+});
+for(const type of['expired','future','run','model','tool','source','goal','price','operational','superseded'])await test('A2 activation refuses '+type+' mismatch without model invocation',async dir=>{
+  const w=await fixture(dir,{activate:false});let bundle=structuredClone(w.bundle),limited;
+  if(type==='expired'){w.limited.issuedAt=new Date(Date.now()-1800000).toISOString();w.limited.expiresAt=new Date(Date.now()-1000).toISOString();}
+  if(type==='future')w.limited.issuedAt=new Date(Date.now()+60000).toISOString();
+  if(type==='run')w.limited.runId='other-run';
+  if(type==='model')w.limited.scope.model='different-model';
+  if(type==='tool')bundle.implementationPacket.body.forbiddenChanges=[];
+  limited=archiveA2(w);
+  if(type==='superseded'){const d={...limited,version:2,supersedes:{kind:limited.kind,authorityId:limited.authorityId,version:1,recordHash:readGovernedModel(w.options,w.clock).authority.find(f=>f.ref.authorityId===w.limited.authorizationId).ref.recordHash},body:{...limited.body,reason:'OFFLINE_SYNTHETIC revoked/superseded'}};w.preserver.preserve(d);}
+  const overrides=type==='source'?{readSource:()=>({...w.source,sha:'e'.repeat(40)})}:type==='goal'?{readGoal:()=> 'changed'}:type==='price'?{now:()=>w.c.quote.validUntil}:{};
+  if(type==='operational')limited={...limited,recordClass:'OPERATIONAL_RECORD'};
+  assert.throws(()=>a2Gate(w,overrides).stage(hash(w.c),bundle,limited));assert.equal(w.controller.get(w.c.runId).state,'IDLE');assert.equal(w.calls,0);
+});
+await test('A2 cancelled or uncertain jobs cannot be staged or replayed',async dir=>{
+  const w=await fixture(dir,{activate:false}),limited=archiveA2(w);w.store.change(hash(w.c),j=>{j.state='CANCELLED';});
+  assert.throws(()=>a2Gate(w).stage(hash(w.c),w.bundle,limited),/JOB_NOT_PREPARED/);assert.equal(w.controller.get(w.c.runId).state,'IDLE');
 });
 console.log(`\n${passed} passed, ${failed} failed`);process.exitCode=failed?1:0;

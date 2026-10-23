@@ -1,0 +1,60 @@
+{
+  "evidenceClass": "OFFLINE_SYNTHETIC",
+  "paidModelCalls": 0,
+  "route": "Goal -> GC1 -> RA1 -> trusted pre-archived documents -> existing AP1 -> Controller PACKET_READY -> Driver input-policy refusal",
+  "stage": {
+    "recordClass": "OPERATIONAL_RECORD",
+    "stage": {
+      "recordClass": "OPERATIONAL_RECORD",
+      "status": "ACTIVATED",
+      "target": {
+        "source": {
+          "kind": "WORKSPACE_GOAL",
+          "projectId": "chief",
+          "goalId": "goal-83257b11-e0a3-4780-9802-358e27895d9c"
+        },
+        "runId": "run-fce02c76fac3137e38783a892f980933723129c68ceb27747a85962b23fc929d"
+      },
+      "changeKey": "fce02c76fac3137e38783a892f980933723129c68ceb27747a85962b23fc929d",
+      "preSnapshotId": "55487d8e1038b2b44274cd6d96dcb2e3f98552497d420edb219d3ad871b9c4f9",
+      "preState": "IDLE",
+      "postSnapshotId": "68513097c7b2388e174ec466d1d7301db359b7a1a86905e0c2006be77e0498a9",
+      "state": "PACKET_READY",
+      "packet": {
+        "packetId": "limited-5729fc560dbaaa157bfdd10974e7df90ed4dd69b98c49a6e",
+        "packetVersion": 1,
+        "packetHash": "22f927a36e85d4276086e8fdf821a568677ef6f5e1330fd90c6a94e007756ccc"
+      },
+      "authority": {
+        "implementationPacket": {
+          "kind": "IMPLEMENTATION_PACKET",
+          "authorityId": "limited-5729fc560dbaaa157bfdd10974e7df90ed4dd69b98c49a6e",
+          "version": 1,
+          "recordHash": "17cdf54c687d0291e4b8085f326bdcee4c18e05860db856c3a36595dbebbca1e"
+        },
+        "liveCallAuthorizations": [
+          {
+            "actorKind": "IMPLEMENTATION",
+            "authority": {
+              "kind": "AUTHORIZATION",
+              "authorityId": "a1-synthetic-live",
+              "version": 1,
+              "recordHash": "5be513a2c1d8cde6e3b32fd815cb07b1133384faba41c44453ec2ad01c0987f1"
+            }
+          }
+        ]
+      }
+    },
+    "executionEligible": false,
+    "blockers": [
+      "EXE_HOLD",
+      "INPUT_LIMIT_DECISION_REQUIRED",
+      "H1_H9_NOT_GRANTED"
+    ],
+    "notice": "Staging archived documents is not execution authorization. No Driver or Worker was invoked."
+  },
+  "syntheticAuthorityDocuments": 3,
+  "workerCalls": 0,
+  "journal": [],
+  "productionWiring": "NOT_ENABLED"
+}
