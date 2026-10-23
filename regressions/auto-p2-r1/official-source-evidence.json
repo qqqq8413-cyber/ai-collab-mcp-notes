@@ -1,0 +1,144 @@
+{
+  "status": "BLOCKED_NO_PROVABLE_INPUT_BOUND",
+  "reviewedAt": "2026-10-23T15:39:48.784Z",
+  "sources": [
+    {
+      "id": "counting-guide",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/token-counting.md",
+      "resolvedUrl": "https://platform.claude.com/docs/en/build-with-claude/token-counting.md",
+      "retrievedAt": "2026-10-23T15:39:44.437Z",
+      "http": 200,
+      "bytes": 44259,
+      "sha256": "012ebe6155984b65d290bf4d16251f9fce90be46c00188928e6f727e9329aaba",
+      "applicability": "General active Claude models; no version-specific error bound",
+      "modelUnderReview": "claude-haiku-4-5-20251001",
+      "runtimeApiVersion": "2023-06-01",
+      "inferenceBackendAttested": false
+    },
+    {
+      "id": "count-reference",
+      "url": "https://platform.claude.com/docs/en/api/messages/count_tokens.md",
+      "resolvedUrl": "https://platform.claude.com/docs/en/api/messages/count_tokens.md",
+      "retrievedAt": "2026-10-23T15:39:44.956Z",
+      "http": 200,
+      "bytes": 99937,
+      "sha256": "2e9e136ee0f22c1e3129442cb3b70033c28aa7c9939f5271a7dd14a262330e6b",
+      "applicability": "Reference currently 2026-10-21; exact old-version parity unverified",
+      "modelUnderReview": "claude-haiku-4-5-20251001",
+      "runtimeApiVersion": "2023-06-01",
+      "inferenceBackendAttested": false
+    },
+    {
+      "id": "messages-reference",
+      "url": "https://platform.claude.com/docs/en/api/messages/create.md",
+      "resolvedUrl": "https://platform.claude.com/docs/en/api/messages/create.md",
+      "retrievedAt": "2026-10-23T15:39:45.566Z",
+      "http": 200,
+      "bytes": 142411,
+      "sha256": "5ed4512aa9516a3b22f59aac28e29f42585cd04aeaa74fa88a2da20ec3e8b64c",
+      "applicability": "Reference currently 2026-10-21; no hard input cap found in inspected fields",
+      "modelUnderReview": "claude-haiku-4-5-20251001",
+      "runtimeApiVersion": "2023-06-01",
+      "inferenceBackendAttested": false
+    },
+    {
+      "id": "models-reference",
+      "url": "https://platform.claude.com/docs/en/api/models/retrieve.md",
+      "resolvedUrl": "https://platform.claude.com/docs/en/api/models/retrieve.md",
+      "retrievedAt": "2026-10-23T15:39:45.991Z",
+      "http": 200,
+      "bytes": 9597,
+      "sha256": "20db10de7d96b30cff9e0b0150c80d64f2c26154237e3793d324946ffc34c3e0",
+      "applicability": "Model metadata, not request cap; no account API call",
+      "modelUnderReview": "claude-haiku-4-5-20251001",
+      "runtimeApiVersion": "2023-06-01",
+      "inferenceBackendAttested": false
+    },
+    {
+      "id": "context",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/context-windows.md",
+      "resolvedUrl": "https://platform.claude.com/docs/en/build-with-claude/context-windows.md",
+      "retrievedAt": "2026-10-23T15:39:46.448Z",
+      "http": 200,
+      "bytes": 16191,
+      "sha256": "7c53cf27aaad2ed8a7f0b8076e058b312d725949f22fbadb5d7f423b0d5f1d51",
+      "applicability": "General context accounting; not fixed-model framing bound",
+      "modelUnderReview": "claude-haiku-4-5-20251001",
+      "runtimeApiVersion": "2023-06-01",
+      "inferenceBackendAttested": false
+    },
+    {
+      "id": "versions",
+      "url": "https://platform.claude.com/docs/en/api/versioning.md",
+      "resolvedUrl": "https://platform.claude.com/docs/en/api/versioning.md",
+      "retrievedAt": "2026-10-23T15:39:46.795Z",
+      "http": 200,
+      "bytes": 4684,
+      "sha256": "f4a2cdd317587feac501351aca906c5b7375aac18e2cca969d7b31aa3ba2d0b2",
+      "applicability": "2023-06-01 appears in version history; parameter compatibility only",
+      "modelUnderReview": "claude-haiku-4-5-20251001",
+      "runtimeApiVersion": "2023-06-01",
+      "inferenceBackendAttested": false
+    },
+    {
+      "id": "haiku",
+      "url": "https://platform.claude.com/docs/en/models/haiku-4-5/overview.md",
+      "resolvedUrl": "https://platform.claude.com/docs/en/models/haiku-4-5/overview.md",
+      "retrievedAt": "2026-10-23T15:39:47.406Z",
+      "http": 200,
+      "bytes": 15229,
+      "sha256": "340157b9fb67fc3290e60ebea6a999fa933ecc662695a6d3e5307266196f2f03",
+      "applicability": "Pinned model claude-haiku-4-5-20251001; no account availability assertion",
+      "modelUnderReview": "claude-haiku-4-5-20251001",
+      "runtimeApiVersion": "2023-06-01",
+      "inferenceBackendAttested": false
+    },
+    {
+      "id": "task-budgets",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/task-budgets.md",
+      "resolvedUrl": "https://platform.claude.com/docs/en/build-with-claude/task-budgets.md",
+      "retrievedAt": "2026-10-23T15:39:48.626Z",
+      "http": 200,
+      "bytes": 28853,
+      "sha256": "9e3a53827df18eaf61fbe8f4243e57a45fdfa5f49effa48e1ef241e8a8615051",
+      "applicability": "Advisory beta, not a strict input cap; no feature enabled",
+      "modelUnderReview": "claude-haiku-4-5-20251001",
+      "runtimeApiVersion": "2023-06-01",
+      "inferenceBackendAttested": false
+    },
+    {
+      "id": "legacy-tokenizer",
+      "url": "https://raw.githubusercontent.com/anthropics/anthropic-tokenizer-typescript/main/README.md",
+      "resolvedUrl": "https://raw.githubusercontent.com/anthropics/anthropic-tokenizer-typescript/main/README.md",
+      "retrievedAt": "2026-10-23T15:39:48.784Z",
+      "http": 200,
+      "bytes": 1400,
+      "sha256": "aec70d19fc41582d9726b9133d9d85b2c1a034e3e43217bfc62126208edbd91a",
+      "applicability": "Official older tokenizer explicitly inaccurate for Claude 3 onward",
+      "modelUnderReview": "claude-haiku-4-5-20251001",
+      "runtimeApiVersion": "2023-06-01",
+      "inferenceBackendAttested": false
+    }
+  ],
+  "sdk": {
+    "package": "@anthropic-ai/sdk",
+    "version": "0.123.0",
+    "lockHash": "7575fd101b0e42f6cf2e5ac806d1ab02a0b84e43bdc942e02b9f0327b1e50d59",
+    "defaultApiVersion": "2023-06-01",
+    "types": {
+      "path": "node_modules/@anthropic-ai/sdk/resources/messages/messages.d.ts",
+      "sha256": "353dfa962b940ed17b26c7684755a935e07d70607b1c64fef63feeab749ac50a",
+      "inspection": "Manual declaration review, not an exhaustive server schema proof",
+      "reviewedInterface": "MessageCreateParamsBase"
+    },
+    "client": {
+      "path": "node_modules/@anthropic-ai/sdk/client.mjs",
+      "sha256": "ad78eefcf8592a175c1134814b2337ecb2fb4df328401a8c4644d258d3ffa8ce"
+    },
+    "limitation": "Official SDK request surface is corroborating evidence, not server completeness/tokenizer proof. Production uses native HTTPS, not this SDK."
+  },
+  "accountApiCalls": 0,
+  "countTokensCalls": 0,
+  "paidModelCalls": 0,
+  "rawSnapshots": "Local outputs only; committed manifest contains content seals, not full third-party documents"
+}

@@ -1,0 +1,70 @@
+{
+  "note": "Pre-commit seals; runtime source/UI/workflows/dependency lock unchanged from exact base",
+  "files": [
+    {
+      "path": "src/limited-worker/adapter.ts",
+      "sha256": "290403684c96c12d73062c90ed9756a56b00217caf8063b03275191fa9621bf6"
+    },
+    {
+      "path": "src/limited-worker/composition.ts",
+      "sha256": "eff0bd2067e65ff2433d330ae958187057214bc98f98dc142ccf0f2ea6caa1f7"
+    },
+    {
+      "path": "src/limited-worker/config.ts",
+      "sha256": "92988a09df8641209113cd92b9315574585b29ec3e52afac5eeaf264848420b0"
+    },
+    {
+      "path": "src/limited-worker/contract.ts",
+      "sha256": "ea37415e74ebb27653a4fffa12f5aa86e686ccc28a8092ea076165aeafef5e67"
+    },
+    {
+      "path": "src/limited-worker/efficiency.ts",
+      "sha256": "23a8d408dc479859fbc0766952ae22e9d86f2233d9cf5cca23e90165c950fd04"
+    },
+    {
+      "path": "src/limited-worker/governance.ts",
+      "sha256": "f94a45d38f9e637f762cc2d82d4f0d1bc6029157ed044b23f98c862a76f5db5d"
+    },
+    {
+      "path": "src/limited-worker/main.ts",
+      "sha256": "40de99b010079f5b4ddfd98ba5134bc35ee628d018ec4eaa40731eef94f956c8"
+    },
+    {
+      "path": "src/limited-worker/readiness.ts",
+      "sha256": "4eefe0030c319939b6db3e7aaea2358c918106d44d08fb9561024b6c8b12744a"
+    },
+    {
+      "path": "src/limited-worker/service.ts",
+      "sha256": "a6ed261c422639483bfc6120d4ef6e60eea9b7569b0469bcdf19485a8e26a4bc"
+    },
+    {
+      "path": "src/limited-worker/source.ts",
+      "sha256": "efcded9a9a86adfe6fd7eeef39d5ef1d21b12a189557234c58797528b8bfc87f"
+    },
+    {
+      "path": "src/limited-worker/store.ts",
+      "sha256": "e955d23fd85b7a32bd889b8a9f419bec2f35fe4928ef1116a5faccd32978448a"
+    },
+    {
+      "path": "src/limited-worker/transport.ts",
+      "sha256": "d547c692e95cf2c8f7a51df2343cc95673e247f210b8e2b73d1b8fe34f8fc18a"
+    },
+    {
+      "path": "package.json",
+      "sha256": "119bd61c9bb3796369da271fbf3721f3cc4f6aef935c456e39c5e906994d39ce"
+    },
+    {
+      "path": "scripts/audit-limited-input.mjs",
+      "sha256": "25e1bcf0da8d53c02a80f49685b2c86c41cde9fa688e833fbae16e5d3fdfa915"
+    },
+    {
+      "path": "test-auto-p2-r1-input-proof.mjs",
+      "sha256": "3eb00aad8f7496d997a34ed25c1cb7c34611b7cc29607a934f8906d1649b0126"
+    },
+    {
+      "path": "AUTO_P2_R1_STRICT_INPUT_PROOF.md",
+      "sha256": "c415eb86e46008230a9ff4da4ac26db6877f8016e6ac3839d37ea922f2f5cf75"
+    }
+  ],
+  "runtimeCodeChanged": false
+}

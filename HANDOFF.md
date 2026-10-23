@@ -2949,3 +2949,17 @@ M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型�
 - 新未核發Permit草案AUTO_P2_A2_PERMIT_DRAFT.md；提交後本機PILOT_PERMIT_PACKET_A2.json綁exact新SHA／Run／quote／source／contract。issuedAt／expiresAt及三份authority均null，不能視為H1–H9或EXE授權。正式authority寫入0、帳戶API／付費模型0，不改憑證／Ruleset／全域Agent設定。
 - **是否具備第一次付費工作能力：尚未。** 精確阻礙：4096送出前硬保證仍無證據；可信production activation接線待review；另需Human對最終執行版本與EXE/H1–H9限定授權、可信Host專用憑證／exact帳戶model/API能力／新鮮價格、既有程序核發歸檔exact Architect packet與兩層Human grant，再經另次單次付費Pilot授權做真實驗收。不是只差Human按鈕或金鑰。
 - STOP FOR ARCHITECT REVIEW。不發布main，不啟動付費Pilot，不進下一slice。
+
+## AUTO-P2-R1 Strict 4,096 Input Token Proof（2026-10-23）
+
+- Base exact SHA `05c05b4ff0b94382d2764df5e554b2fb9c30600c`；獨立分支 `work/auto-p2-r1-strict-input-proof`。重新查核基準對應2182測試及CI #129／39946080352。main未改，工作分支最終SHA及exact push CI見本輪closure，不以base CI代替候選驗收。
+- **本輪唯一驗收結論：BLOCKED_NO_PROVABLE_INPUT_BOUND。** 未建立指定Haiku snapshot／API2023-06-01完整輸入的可審核硬上界，不將研究／測試成功宣稱為PROVEN_AND_FAIL_CLOSED。Human A2-D1嚴格4096不變；EXE／H1–H9 HOLD，沒有任何正式授權。
+- 重新查核9項官方公開來源，逐項附URL／時間／hash／適用模型／版本與限制。count_tokens估計沒有可用數值誤差界線，也未見與生成原子綁定；舊官方tokenizer不準確適用Claude3+；未見per-request 4096 input cap。固定SDK0.123.0的2023-06-01 header／request declaration僅佐證，不當成服務端完整契約。
+- 本輪補充關鍵：官方Context windows明列Haiku4.5自動context-awareness服務端注入，未給完整token上界；Claude4.5+並非input+max_tokens超context就拒絕，所以不能靠調大output擠出4096輸入保證。Task budgets為advisory且Haiku4.5不支援。模型capacity、rate bucket、美元限制、事後usage及max_tokens=0也不是送出前的完整輸入保證。
+- `scripts/audit-limited-input.mjs`僅離線盤點，直接用原messageBody／inputFacts及完整公開README，沒有新admission或tokenizer。原文5568bytes，固定system318bytes，A2合成Goal67UTF16units／123bytes，user content5901bytes、完整request6539bytes，另存request/system hash；exact／estimated／protocol overhead／proven bound皆null。沒有截斷、偷偷正規化或假定bytes=tokens。
+- Runtime source／Workspace UI／Authority／workflows／dependency lock均未修改；原input guard維持INPUT_LIMIT_DECISION_REQUIRED，研究結論碼另為BLOCKED_NO_PROVABLE_INPUT_BOUND。USD1／一次生成／零retry／300秒、取消與崩潰不重送及Controller邊界原封保留；不因改研究碼觸發重綁或開放START。
+- 新增26項離線測試，保留原2182項；完整build／npm test **59組／2208 passed／0 failed／0 skipped**。Unicode／NFC-NFD／emoji／RTL／escape／特殊token文字／surrogate、完整request／system／16KB不截斷、拒絕估計與偽造上界、版本／成本／時限／calls及原HOLD-before-key callback通過；原START拒絕／恢復／Archive／Journal／macOS Seatbelt也由全套回歸驗證。4095／4096／4097是byte長度與不可信計數聲明，**真實token邊界仍UNVERIFIED，不能稱PASS**。
+- 未啟動、停止或替換任何既有服務；4873–4875查核時ECONNREFUSED，4876／4877可連線，既有設定／資料／worktree僅讀取seals作前後比較。不替Human修理或重啟舊服務，也不把HTTP可連線稱作完整功能回歸。
+- 交付AUTO_P2_R1_STRICT_INPUT_PROOF.md、離線盤點script／新tests、regressions/auto-p2-r1/；提交後本機closure包含exact CI與遠端一致性。公開完整文件快照只留本機，repo只存來源seals／自撰結論；不含key或私人Session，帳戶API／count_tokens／付費模型呼叫均0，Human Authority核發0。
+- 剩餘技術前提：指定模型與API的完整tokenizer／normalizer／framing／服務端注入界線，或官方可驗證硬input cap／有限誤差及count-to-generation保證。下一個Human決定不是重選放寬規格，而是是否透過供應商支援取得正式技術保證；在取得前暫停這條付費路徑。聯絡、付費研究或改換模型／平台都未執行、需另案授權。
+- STOP FOR ARCHITECT REVIEW。不發布main、不核發Authority、不啟動付費Pilot。

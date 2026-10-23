@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "status": "BLOCKED_NO_PROVABLE_INPUT_BOUND",
+  "evidenceClass": "OFFLINE_REQUEST_INVENTORY",
+  "model": "claude-haiku-4-5-20251001",
+  "apiVersion": "2023-06-01",
+  "requestedHardLimitTokens": 4096,
+  "runtimeReason": "INPUT_LIMIT_DECISION_REQUIRED",
+  "sourceBytes": 5568,
+  "goalCharacters": 67,
+  "goalUtf8Bytes": 123,
+  "systemUtf8Bytes": 318,
+  "messageContentUtf8Bytes": 5901,
+  "requestHash": "a48cf8022f37eec17e115dc4f75cf5d52e03b1b9756185f954ff50be80771965",
+  "systemPromptHash": "4b7fd644d63df1471547d6383d9684fe38ed9aa9584a7c2de2aeb5cffa798785",
+  "requestUtf8Bytes": 6539,
+  "hardLimitVerification": "UNVERIFIED",
+  "estimatedInputTokens": null,
+  "estimateMethod": "NOT_MEASURED",
+  "exactInputTokens": null,
+  "provenInputTokenUpperBound": null,
+  "protocolTokenOverhead": null,
+  "policyDecision": "A2_D1_STRICT_4096",
+  "reservationInputTokenBound": 200000,
+  "apiOutputTokenLimit": 2048,
+  "canDispatch": false,
+  "providerCalls": 0,
+  "requestShape": {
+    "keys": [
+      "max_tokens",
+      "messages",
+      "model",
+      "service_tier",
+      "stream",
+      "system",
+      "thinking"
+    ],
+    "messageCount": 1,
+    "roles": [
+      "user"
+    ],
+    "toolsPresent": false,
+    "cacheControlPresent": false,
+    "thinking": {
+      "type": "disabled"
+    },
+    "outputLimit": 2048,
+    "stream": false,
+    "serviceTier": "standard_only"
+  },
+  "missingProof": [
+    "Model-specific tokenizer and transformation bound",
+    "Complete role/framing/provider overhead bound",
+    "Count-to-generation consistency with a documented finite error bound, or provider-enforced input cap"
+  ],
+  "notice": "Bytes and hashes describe the exact local request. They are not token bounds. No content is truncated or normalized.",
+  "sourceSha": "a3164fd12d6d3129978da32ea024854d6e9b5cdc",
+  "sourceHash": "5a65327552f70506d0c68fe297f5202bf2a530f3cdc6e9c279ad6f74d8438d5d",
+  "fixture": "Committed A2 OFFLINE_SYNTHETIC objective plus complete real pinned public README",
+  "note": "This is the base request inventory, not a newly authorized R1 contract or live provider acceptance."
+}
