@@ -1,0 +1,573 @@
+{
+  "at": "2026-10-23T18:41:57.093Z",
+  "evidenceClass": "OFFLINE_SYNTHETIC",
+  "realModelAcceptance": false,
+  "paidModelCalls": 0,
+  "checks": [
+    {
+      "name": "Human objective only -> real Goal/GC1/RA1/IDLE + automatically bound proposal",
+      "result": "PASS"
+    },
+    {
+      "name": "Locked UI, direct START 403, forged authority/model 400, zero invocations",
+      "result": "PASS"
+    },
+    {
+      "name": "Advanced IDs hidden by default and expansion survives polling",
+      "result": "PASS"
+    },
+    {
+      "name": "viewport",
+      "width": 1440,
+      "result": "PASS",
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "textareaFont": "16px",
+      "outside": 0
+    },
+    {
+      "name": "viewport",
+      "width": 768,
+      "result": "PASS",
+      "viewport": 768,
+      "documentWidth": 768,
+      "textareaFont": "16px",
+      "outside": 0
+    },
+    {
+      "name": "viewport",
+      "width": 390,
+      "result": "PASS",
+      "viewport": 390,
+      "documentWidth": 390,
+      "textareaFont": "16px",
+      "outside": 0
+    },
+    {
+      "name": "viewport",
+      "width": 320,
+      "result": "PASS",
+      "viewport": 320,
+      "documentWidth": 320,
+      "textareaFont": "16px",
+      "outside": 0
+    }
+  ],
+  "errors": [],
+  "requestShapes": [
+    {
+      "url": "/api/v0/projects/chief/limited-worker",
+      "keys": [
+        "kind",
+        "requestId",
+        "event",
+        "interactionId"
+      ]
+    },
+    {
+      "url": "/api/v0/projects/chief/limited-worker",
+      "keys": [
+        "kind",
+        "requestId",
+        "event",
+        "interactionId"
+      ]
+    },
+    {
+      "url": "/api/v0/projects/chief/goals",
+      "keys": [
+        "text"
+      ]
+    },
+    {
+      "url": "/api/v0/projects/chief/limited-worker",
+      "keys": [
+        "requestId",
+        "goalId",
+        "agentId",
+        "interactionId",
+        "clientElapsedMs"
+      ]
+    },
+    {
+      "url": "/api/v0/projects/chief/limited-worker",
+      "keys": [
+        "kind",
+        "requestId",
+        "event",
+        "interactionId"
+      ]
+    },
+    {
+      "url": "/api/v0/projects/chief/limited-worker/0ecfe559965d2f237d8a94edd2acb241a065fd900d86def84165ec3266cdf2f0/actions",
+      "keys": [
+        "action",
+        "requestId"
+      ]
+    },
+    {
+      "url": "/api/v0/projects/chief/limited-worker",
+      "keys": [
+        "requestId",
+        "goalId",
+        "agentId",
+        "authority",
+        "model"
+      ]
+    },
+    {
+      "url": "/api/v0/projects/chief/limited-worker",
+      "keys": [
+        "kind",
+        "requestId",
+        "event",
+        "interactionId"
+      ]
+    }
+  ],
+  "worker": {
+    "exe": "HOLD",
+    "recordClass": "OPERATIONAL_RECORD",
+    "model": "claude-haiku-4-5-20251001",
+    "provider": "anthropic",
+    "apiVersion": "2023-06-01",
+    "agentId": "limited-readme-worker",
+    "quote": {
+      "model": "claude-haiku-4-5-20251001",
+      "apiVersion": "2023-06-01",
+      "sourceUrl": "https://platform.claude.com/docs/en/models/haiku-4-5/overview.md",
+      "sourceSha256": "340157b9fb67fc3290e60ebea6a999fa933ecc662695a6d3e5307266196f2f03",
+      "checkedAt": "2026-10-23T18:41:03.648Z",
+      "validUntil": "2026-10-23T19:41:03.648Z",
+      "inputMicroUsdPerToken": 1,
+      "outputMicroUsdPerToken": 5,
+      "maxInputTokens": 200000,
+      "maxOutputTokens": 2048
+    },
+    "accountAvailability": "UNVERIFIED",
+    "totalReservedMicroUsd": 0,
+    "totalCeilingMicroUsd": 1000000,
+    "efficiency": {
+      "recordClass": "OPERATIONAL_RECORD",
+      "coverage": "OBSERVED_WINDOW",
+      "dropped": 0,
+      "evidenceClasses": [
+        "OFFLINE_SYNTHETIC"
+      ],
+      "productEfficiencyProven": false,
+      "comparisonBaseline": null,
+      "setup": {
+        "firstOpenedAt": "2026-10-23T18:41:47.943Z",
+        "firstPlanReadyAt": "2026-10-23T18:41:48.350Z",
+        "firstPlanReadyMs": 407,
+        "fullyAuthorizedSetupMs": null,
+        "status": "INCOMPLETE_EXE_HOLD"
+      },
+      "recordedOperatorActions": 2,
+      "operatorIdentityClaim": "Observed local-session actions, not authenticated Human time or a complete intervention count",
+      "tasks": [
+        {
+          "jobId": "0ecfe559965d2f237d8a94edd2acb241a065fd900d86def84165ec3266cdf2f0",
+          "comparisonKey": "1117c2c93b0282768a47ff51f526dbc8b1c68dffc8b98932cb52de2400e0a8d5",
+          "evidenceClass": "OFFLINE_SYNTHETIC",
+          "formToPlanMs": 264,
+          "clientReportedFormMs": 83,
+          "clientTimingTrust": "BROWSER_REPORTED_NOT_AUTHORITY",
+          "goalToVerifiedResultMs": null,
+          "verifiedAt": null,
+          "state": "PREPARED",
+          "reason": null,
+          "blockedAttempts": [
+            {
+              "at": "2026-10-23T18:41:51.466Z",
+              "reason": "EXE_HOLD"
+            }
+          ],
+          "recoveries": 0
+        }
+      ],
+      "runtimeStarts": [
+        "2026-10-23T18:41:03.628Z"
+      ],
+      "comparisonDesign": {
+        "sameTaskRequired": true,
+        "sameSourceModelDeliveryRequired": true,
+        "setupSeparateFromTask": true,
+        "unobservedTime": null,
+        "directAiHumanTimeMs": null,
+        "qualityAndRework": "Not measured; require independently verified real outputs and paired observations"
+      }
+    },
+    "jobs": [
+      {
+        "id": "0ecfe559965d2f237d8a94edd2acb241a065fd900d86def84165ec3266cdf2f0",
+        "contract": {
+          "schemaVersion": 1,
+          "kind": "LIMITED_README_WORKER",
+          "repository": "qqqq8413-cyber/ai-collab-mcp-notes",
+          "projectId": "chief",
+          "goalId": "goal-469eb2cd-5281-4635-a318-c82c097a5900",
+          "objectiveHash": "7bbaa4c5ca7cb98cf189625951fa7810779e05de70f3088208a860972a034699",
+          "runId": "run-316b48e7520f9feac56937750ae39a13bf7d115a0e84881fe5bc643a376dc400",
+          "implementationSha": "3ab19000c42f68c9d85e690ce95a1b177a3208da",
+          "workerCodeHash": "c86cc24915773766ce09a634f21434da8666e6db687d9bc98c611d9cab192702",
+          "sourceSha": "a3164fd12d6d3129978da32ea024854d6e9b5cdc",
+          "sourcePath": "README.md",
+          "sourceHash": "5a65327552f70506d0c68fe297f5202bf2a530f3cdc6e9c279ad6f74d8438d5d",
+          "sourceBytes": 5568,
+          "agentId": "limited-readme-worker",
+          "provider": "anthropic",
+          "model": "claude-haiku-4-5-20251001",
+          "apiVersion": "2023-06-01",
+          "tools": [
+            "READ_PINNED_README",
+            "WRITE_ISOLATED_REPORT"
+          ],
+          "outputKey": "ca22968b3d998a0663d2cd71b6f34716caaafa08ff38538e3f6b9f28813ec2f7",
+          "storageIdentity": "a1f9f2aa2ff6a52d3ba645c7f667cd79bc8bc7dbb13a353d5d4c0242f4d8bec5",
+          "maxInputTokens": 200000,
+          "maxOutputTokens": 2048,
+          "maxCalls": 1,
+          "maxRetries": 0,
+          "maxCostMicroUsd": 1000000,
+          "totalCostMicroUsd": 1000000,
+          "timeoutSeconds": 300,
+          "quote": {
+            "model": "claude-haiku-4-5-20251001",
+            "apiVersion": "2023-06-01",
+            "sourceUrl": "https://platform.claude.com/docs/en/models/haiku-4-5/overview.md",
+            "sourceSha256": "340157b9fb67fc3290e60ebea6a999fa933ecc662695a6d3e5307266196f2f03",
+            "checkedAt": "2026-10-23T18:41:03.648Z",
+            "validUntil": "2026-10-23T19:41:03.648Z",
+            "inputMicroUsdPerToken": 1,
+            "outputMicroUsdPerToken": 5,
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 2048
+          },
+          "inputPolicy": {
+            "revision": "A3",
+            "decision": "A3_RESOURCE_LIMITS_HUMAN_SELECTED",
+            "requestedHardLimitTokens": null,
+            "hardLimitVerification": "NOT_CLAIMED",
+            "enforcement": "RUNTIME_BYTES_AND_UTF16",
+            "estimatedInputTokens": null,
+            "estimateMethod": "NOT_MEASURED",
+            "sourceMaxBytes": 16384,
+            "goalMaxCharacters": 2000,
+            "requestMaxBytes": 131072,
+            "reservationInputTokenBound": 200000,
+            "outputMaxTokens": 2048
+          }
+        },
+        "createdAt": "2026-10-23T18:41:48.330Z",
+        "state": "PREPARED",
+        "evidenceClass": "OFFLINE_SYNTHETIC",
+        "invocationId": null,
+        "reason": null,
+        "reservedMicroUsd": 0,
+        "generationClaimed": false,
+        "report": null,
+        "reportHash": null,
+        "actualCostMicroUsd": null,
+        "modelPreflight": null,
+        "providerMessageId": null,
+        "usage": null,
+        "events": [
+          {
+            "at": "2026-10-23T18:41:48.330Z",
+            "kind": "PREPARED_NO_EXECUTION"
+          }
+        ],
+        "objective": "OFFLINE_SYNTHETIC：審查 README 說明是否清楚，交付繁體中文 Markdown 問題清單，不修改程式或 Git。",
+        "conditions": [
+          "EXE_HOLD",
+          "H1_H9_NOT_GRANTED",
+          "ACCOUNT_MODEL_UNVERIFIED",
+          "IMPLEMENTATION_NOT_ACCEPTED_OR_CHANGED",
+          "LIMITED_PERMIT_MISSING_OR_INVALID",
+          "CONTROLLER_NOT_READY"
+        ],
+        "authorityStatus": "MISSING_OR_INVALID",
+        "authority": null,
+        "driver": {
+          "recordClass": "OPERATIONAL_RECORD",
+          "readiness": "WAITING_EXTERNAL_ACTOR",
+          "reason": "NOT_A_RUNNER_MOVE",
+          "target": {
+            "source": {
+              "kind": "WORKSPACE_GOAL",
+              "projectId": "chief",
+              "goalId": "goal-469eb2cd-5281-4635-a318-c82c097a5900"
+            },
+            "runId": "run-316b48e7520f9feac56937750ae39a13bf7d115a0e84881fe5bc643a376dc400"
+          },
+          "change": {
+            "kind": "SLICE",
+            "changeId": "goal-4f54539a0a0c660386152e829c8ad357557ad9462c3a6b5f01e215fb6564bdd6"
+          },
+          "changeKey": "316b48e7520f9feac56937750ae39a13bf7d115a0e84881fe5bc643a376dc400",
+          "repository": "qqqq8413-cyber/ai-collab-mcp-notes",
+          "snapshotId": "5df93033e707f2712e0ca9ec2a6225dbd945461a4c42a6068f2e6410f6009cd9",
+          "state": "IDLE",
+          "nextMoves": [
+            {
+              "action": "ENTER_ARCHITECTURE",
+              "role": "GPT_ARCHITECT"
+            }
+          ],
+          "conflicts": [],
+          "step": null
+        },
+        "invocations": [],
+        "comparisonKey": "1117c2c93b0282768a47ff51f526dbc8b1c68dffc8b98932cb52de2400e0a8d5",
+        "readiness": {
+          "recordClass": "OPERATIONAL_RECORD",
+          "state": "REVIEW_ONLY_PRODUCTION_HOLD",
+          "canStart": false,
+          "checks": [
+            {
+              "code": "EXE_HOLD",
+              "title": "正式執行尚未開放",
+              "nextStep": "先交 Architect 審查；本輪不解除執行鎖定。",
+              "owner": "Architect / Human"
+            },
+            {
+              "code": "H1_H9_NOT_GRANTED",
+              "title": "尚未取得正式執行許可",
+              "nextStep": "經既有治理流程核發限定許可；工作紀錄與按鈕點擊都不是授權。",
+              "owner": "Human"
+            },
+            {
+              "code": "ACCOUNT_MODEL_UNVERIFIED",
+              "title": "帳戶模型與 API 尚未查驗",
+              "nextStep": "正式許可後，由可信 Host 檢查指定帳戶；不要在工作表單貼入金鑰。",
+              "owner": "System / Human"
+            },
+            {
+              "code": "IMPLEMENTATION_NOT_ACCEPTED_OR_CHANGED",
+              "title": "版本已變更或尚未固定",
+              "nextStep": "待目前版本提交並完成審查後，建立新計畫，舊契約不得沿用。",
+              "owner": "Architect / System"
+            },
+            {
+              "code": "LIMITED_PERMIT_MISSING_OR_INVALID",
+              "title": "限定授權尚未核對通過",
+              "nextStep": "系統準備審查封包，由既有治理流程保存正式文件；使用者不必填寫雜湊。",
+              "owner": "Human / Architect"
+            },
+            {
+              "code": "CONTROLLER_NOT_READY",
+              "title": "尚待治理啟用",
+              "nextStep": "以同一份封包完成既有 activation，不能繞過 Controller。",
+              "owner": "Architect"
+            }
+          ]
+        },
+        "input": {
+          "sourceBytes": 5568,
+          "goalCharacters": 67,
+          "goalUtf8Bytes": 123,
+          "systemUtf8Bytes": 318,
+          "messageContentUtf8Bytes": 5901,
+          "requestHash": "a48cf8022f37eec17e115dc4f75cf5d52e03b1b9756185f954ff50be80771965",
+          "systemPromptHash": "4b7fd644d63df1471547d6383d9684fe38ed9aa9584a7c2de2aeb5cffa798785",
+          "requestUtf8Bytes": 6539,
+          "requestedHardLimitTokens": null,
+          "hardLimitVerification": "NOT_CLAIMED",
+          "estimatedInputTokens": null,
+          "estimateMethod": "NOT_MEASURED",
+          "exactInputTokens": null,
+          "provenInputTokenUpperBound": null,
+          "protocolTokenOverhead": null,
+          "policyDecision": "A3_RESOURCE_LIMITS_HUMAN_SELECTED",
+          "reservationInputTokenBound": 200000,
+          "apiOutputTokenLimit": 2048
+        },
+        "goalCreatedAt": "2026-10-23T18:41:48.127Z",
+        "verifiedAt": null,
+        "reviewPacket": {
+          "schemaVersion": 1,
+          "state": "UNISSUED_NOT_AUTHORITY",
+          "recordClass": "OPERATIONAL_RECORD",
+          "exe": "HOLD",
+          "summary": {
+            "objective": "OFFLINE_SYNTHETIC：審查 README 說明是否清楚，交付繁體中文 Markdown 問題清單，不修改程式或 Git。",
+            "source": "指定版本 README.md，最多 16KB",
+            "agent": "README Worker",
+            "delivery": "繁體中文 Markdown 文件審查報告，不修改程式",
+            "maximumCostMicroUsd": 1000000,
+            "totalCeilingMicroUsd": 1000000,
+            "reservationMicroUsd": 210240,
+            "inputDecision": "A3：README 16,384 bytes、Goal 2,000 UTF-16 units、完整 request 131,072 bytes；不宣稱精確輸入 token 上限",
+            "timeoutSeconds": 300,
+            "inputProofStatus": "ENFORCEABLE_RESOURCE_LIMITS_NOT_TOKEN_PROOF"
+          },
+          "contract": {
+            "schemaVersion": 1,
+            "kind": "LIMITED_README_WORKER",
+            "repository": "qqqq8413-cyber/ai-collab-mcp-notes",
+            "projectId": "chief",
+            "goalId": "goal-469eb2cd-5281-4635-a318-c82c097a5900",
+            "objectiveHash": "7bbaa4c5ca7cb98cf189625951fa7810779e05de70f3088208a860972a034699",
+            "runId": "run-316b48e7520f9feac56937750ae39a13bf7d115a0e84881fe5bc643a376dc400",
+            "implementationSha": "3ab19000c42f68c9d85e690ce95a1b177a3208da",
+            "workerCodeHash": "c86cc24915773766ce09a634f21434da8666e6db687d9bc98c611d9cab192702",
+            "sourceSha": "a3164fd12d6d3129978da32ea024854d6e9b5cdc",
+            "sourcePath": "README.md",
+            "sourceHash": "5a65327552f70506d0c68fe297f5202bf2a530f3cdc6e9c279ad6f74d8438d5d",
+            "sourceBytes": 5568,
+            "agentId": "limited-readme-worker",
+            "provider": "anthropic",
+            "model": "claude-haiku-4-5-20251001",
+            "apiVersion": "2023-06-01",
+            "tools": [
+              "READ_PINNED_README",
+              "WRITE_ISOLATED_REPORT"
+            ],
+            "outputKey": "ca22968b3d998a0663d2cd71b6f34716caaafa08ff38538e3f6b9f28813ec2f7",
+            "storageIdentity": "a1f9f2aa2ff6a52d3ba645c7f667cd79bc8bc7dbb13a353d5d4c0242f4d8bec5",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 2048,
+            "maxCalls": 1,
+            "maxRetries": 0,
+            "maxCostMicroUsd": 1000000,
+            "totalCostMicroUsd": 1000000,
+            "timeoutSeconds": 300,
+            "quote": {
+              "model": "claude-haiku-4-5-20251001",
+              "apiVersion": "2023-06-01",
+              "sourceUrl": "https://platform.claude.com/docs/en/models/haiku-4-5/overview.md",
+              "sourceSha256": "340157b9fb67fc3290e60ebea6a999fa933ecc662695a6d3e5307266196f2f03",
+              "checkedAt": "2026-10-23T18:41:03.648Z",
+              "validUntil": "2026-10-23T19:41:03.648Z",
+              "inputMicroUsdPerToken": 1,
+              "outputMicroUsdPerToken": 5,
+              "maxInputTokens": 200000,
+              "maxOutputTokens": 2048
+            },
+            "inputPolicy": {
+              "revision": "A3",
+              "decision": "A3_RESOURCE_LIMITS_HUMAN_SELECTED",
+              "requestedHardLimitTokens": null,
+              "hardLimitVerification": "NOT_CLAIMED",
+              "enforcement": "RUNTIME_BYTES_AND_UTF16",
+              "estimatedInputTokens": null,
+              "estimateMethod": "NOT_MEASURED",
+              "sourceMaxBytes": 16384,
+              "goalMaxCharacters": 2000,
+              "requestMaxBytes": 131072,
+              "reservationInputTokenBound": 200000,
+              "outputMaxTokens": 2048
+            }
+          },
+          "contractHash": "0ecfe559965d2f237d8a94edd2acb241a065fd900d86def84165ec3266cdf2f0",
+          "implementationPacket": {
+            "packetId": "limited-0ecfe559965d2f237d8a94edd2acb241a065fd900d86def8",
+            "packetVersion": 1,
+            "sliceId": "goal-4f54539a0a0c660386152e829c8ad357557ad9462c3a6b5f01e215fb6564bdd6",
+            "expectedBaseSha": "a3164fd12d6d3129978da32ea024854d6e9b5cdc",
+            "targetBranch": "work/limited-readme-no-delivery",
+            "objective": "{\"agentId\":\"limited-readme-worker\",\"apiVersion\":\"2023-06-01\",\"goalId\":\"goal-469eb2cd-5281-4635-a318-c82c097a5900\",\"implementationSha\":\"3ab19000c42f68c9d85e690ce95a1b177a3208da\",\"inputPolicy\":{\"decision\":\"A3_RESOURCE_LIMITS_HUMAN_SELECTED\",\"enforcement\":\"RUNTIME_BYTES_AND_UTF16\",\"estimateMethod\":\"NOT_MEASURED\",\"estimatedInputTokens\":null,\"goalMaxCharacters\":2000,\"hardLimitVerification\":\"NOT_CLAIMED\",\"outputMaxTokens\":2048,\"requestMaxBytes\":131072,\"requestedHardLimitTokens\":null,\"reservationInputTokenBound\":200000,\"revision\":\"A3\",\"sourceMaxBytes\":16384},\"kind\":\"LIMITED_README_WORKER\",\"maxCalls\":1,\"maxCostMicroUsd\":1000000,\"maxInputTokens\":200000,\"maxOutputTokens\":2048,\"maxRetries\":0,\"model\":\"claude-haiku-4-5-20251001\",\"objectiveHash\":\"7bbaa4c5ca7cb98cf189625951fa7810779e05de70f3088208a860972a034699\",\"outputKey\":\"ca22968b3d998a0663d2cd71b6f34716caaafa08ff38538e3f6b9f28813ec2f7\",\"projectId\":\"chief\",\"provider\":\"anthropic\",\"quote\":{\"apiVersion\":\"2023-06-01\",\"checkedAt\":\"2026-10-23T18:41:03.648Z\",\"inputMicroUsdPerToken\":1,\"maxInputTokens\":200000,\"maxOutputTokens\":2048,\"model\":\"claude-haiku-4-5-20251001\",\"outputMicroUsdPerToken\":5,\"sourceSha256\":\"340157b9fb67fc3290e60ebea6a999fa933ecc662695a6d3e5307266196f2f03\",\"sourceUrl\":\"https://platform.claude.com/docs/en/models/haiku-4-5/overview.md\",\"validUntil\":\"2026-10-23T19:41:03.648Z\"},\"repository\":\"qqqq8413-cyber/ai-collab-mcp-notes\",\"runId\":\"run-316b48e7520f9feac56937750ae39a13bf7d115a0e84881fe5bc643a376dc400\",\"schemaVersion\":1,\"sourceBytes\":5568,\"sourceHash\":\"5a65327552f70506d0c68fe297f5202bf2a530f3cdc6e9c279ad6f74d8438d5d\",\"sourcePath\":\"README.md\",\"sourceSha\":\"a3164fd12d6d3129978da32ea024854d6e9b5cdc\",\"storageIdentity\":\"a1f9f2aa2ff6a52d3ba645c7f667cd79bc8bc7dbb13a353d5d4c0242f4d8bec5\",\"timeoutSeconds\":300,\"tools\":[\"READ_PINNED_README\",\"WRITE_ISOLATED_REPORT\"],\"totalCostMicroUsd\":1000000,\"workerCodeHash\":\"c86cc24915773766ce09a634f21434da8666e6db687d9bc98c611d9cab192702\"}",
+            "allowedAreas": [
+              "README.md"
+            ],
+            "forbiddenChanges": [
+              "ALL_SOURCE_WRITES",
+              "GIT_WRITE",
+              "PUSH",
+              "DEPLOY",
+              "AUTHORITY_WRITE",
+              "SHELL",
+              "OTHER_AGENTS"
+            ],
+            "invariants": [
+              "READ_ONLY_SOURCE",
+              "ONE_MODEL_REQUEST",
+              "EXE_HOLD_UNTIL_SEPARATE_HUMAN_AUTHORITY"
+            ],
+            "acceptanceCriteria": [
+              "Persist a bounded report with source and usage evidence; no repository delivery"
+            ],
+            "validationCommands": [
+              {
+                "commandId": "verify-report",
+                "executable": "node",
+                "args": [
+                  "--version"
+                ],
+                "cwd": ".",
+                "classification": "OFFLINE_VALIDATION"
+              }
+            ],
+            "networkAuthorization": {
+              "level": "READ_EXTERNAL_API",
+              "destinations": [
+                "api.anthropic.com:443",
+                "platform.claude.com:443"
+              ],
+              "purpose": "One exact bounded document review",
+              "budget": 1
+            },
+            "providerCallAuthorization": {
+              "allowed": true,
+              "calls": [
+                {
+                  "actorKind": "IMPLEMENTATION",
+                  "provider": "anthropic",
+                  "model": "claude-haiku-4-5-20251001",
+                  "egressDestinations": [
+                    "api.anthropic.com:443",
+                    "platform.claude.com:443"
+                  ]
+                }
+              ],
+              "maxCalls": 1,
+              "budget": 1
+            },
+            "destructiveOperationAuthorization": {
+              "allowed": false
+            },
+            "iterationBudget": {
+              "maxImplementationIterationsPerSlice": 1,
+              "maxAcceptanceFailuresPerSlice": 1,
+              "maxRuntimeMinutesPerIteration": 5,
+              "maxParallelImplementationAgents": 1
+            }
+          },
+          "packetHash": "66bc4de6ef68bb0e7c56bea6177b1bbfabe66fe5176994d441ac21ff8c1a0ba8",
+          "authority": {
+            "implementationPacket": null,
+            "liveProviderGrant": null,
+            "limitedWorkerGrant": null
+          },
+          "issuedAt": null,
+          "expiresAt": null,
+          "maxValiditySeconds": 3600,
+          "requiredHumanOperations": [
+            "LIVE_PROVIDER_MODEL_CALL",
+            "LIMITED_README_WORKER"
+          ],
+          "limitedPermitTarget": "0ecfe559965d2f237d8a94edd2acb241a065fd900d86def84165ec3266cdf2f0",
+          "activationPath": "Existing governed activation core -> Authority Archive -> Controller PACKET_READY -> Execution Driver",
+          "constraint": "No Workspace issuance; trusted governance must preserve separately issued exact documents. Activation alone does not release HOLD."
+        },
+        "effectiveState": "PREPARED",
+        "resultApplied": false,
+        "exe": "HOLD",
+        "modelAccountAvailability": "UNVERIFIED_NO_ACCOUNT_CALL",
+        "maximumReservationMicroUsd": 210240,
+        "notice": "Operational evidence, not authority. OFFLINE_SYNTHETIC is not real AI acceptance."
+      }
+    ]
+  },
+  "startRefusal": {
+    "status": 403,
+    "data": {
+      "error": {
+        "code": "EXE_HOLD",
+        "message": "EXE_HOLD"
+      }
+    }
+  },
+  "source": "Real loopback Workspace UI, public README and pricing; automated test interactions only"
+}

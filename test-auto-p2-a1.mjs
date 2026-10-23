@@ -13,7 +13,7 @@ import {openDirectAuthorityPreserver} from './dist/automation/authority/preserve
 import {FileInvocationJournal} from './dist/automation/file-invocation-journal.js';
 import {composeLimitedWorker} from './dist/limited-worker/composition.js';
 import {WorkerStore} from './dist/limited-worker/store.js';
-import {MODEL,API_VERSION,REPOSITORY,SCOPE,EXE,hash,parseContract,inputPolicy,assertInputReady,inputFacts,messageBody,maximumCost,packetFor} from './dist/limited-worker/contract.js';
+import {MODEL,API_VERSION,REPOSITORY,SCOPE,EXE,hash,parseContract,inputPolicy,resourceInputPolicy,serializeRequest,assertInputReady,inputFacts,messageBody,maximumCost,packetFor} from './dist/limited-worker/contract.js';
 import {tariffFromMarkdown,nativeAnthropicTransport} from './dist/limited-worker/transport.js';
 import {activationCandidate,readiness,planConditions} from './dist/limited-worker/readiness.js';
 import {efficiency} from './dist/limited-worker/efficiency.js';
@@ -28,7 +28,7 @@ const HUMAN={schemaVersion:1,kind:'HUMAN',principalRef:'human:a1-offline-synthet
 const md=`### Model IDs\n| Platform | Model ID |\n|---|---|\n| Claude API | ${MODEL} |\n### Pricing\n| Feature | Value |\n|---|---|\n| Input | $1 / MTok |\n| Output | $5 / MTok |\n### Capabilities\n| Feature | Value |\n|---|---|\n| Context window | 200K tokens |\n### Availability\n| Feature | Value |\n|---|---|\n| Status | Active (legacy) |`;
 let passed=0,failed=0;
 async function test(name,fn){const dir=realpathSync(mkdtempSync(join(tmpdir(),'chief-a1-')));try{await fn(dir);passed++;console.log('  PASS '+name);}catch(e){failed++;console.error('  FAIL '+name+': '+e.stack);}finally{rmSync(dir,{recursive:true,force:true});}}
-async function fixture(dir,{legacy=false,kind='OFFLINE_SYNTHETIC',activate=true,editGrant,editPacket}={}){
+async function fixture(dir,{legacy=false,a3=false,deadlineMs,kind='OFFLINE_SYNTHETIC',activate=true,editGrant,editPacket}={}){
   const directory=name=>{const p=join(dir,name);mkdirSync(p,{mode:0o700});return p;};
   const clock={now:()=>new Date().toISOString()},registry=directory('registry'),controllerRoot=directory('controller'),authority=directory('authority');
   const config=parseWorkspaceConfig({schemaVersion:1,dataDirectory:join(dir,'goals'),humanPrincipal:{principalRef:HUMAN.principalRef},projects:[{projectId:'chief',displayName:'OFFLINE_SYNTHETIC',repository:REPOSITORY}]},dir);
@@ -41,7 +41,7 @@ async function fixture(dir,{legacy=false,kind='OFFLINE_SYNTHETIC',activate=true,
   const c=parseContract({schemaVersion:1,kind:'LIMITED_README_WORKER',repository:REPOSITORY,projectId:'chief',goalId:g.goalId,objectiveHash:hash(g.text),runId:admitted.runId,
     implementationSha:'b'.repeat(40),workerCodeHash:hash('OFFLINE_SYNTHETIC_CODE'),sourceSha:source.sha,sourcePath:source.path,sourceHash:source.hash,sourceBytes:source.bytes,
     agentId:'limited-readme-worker',provider:'anthropic',model:MODEL,apiVersion:API_VERSION,tools:['READ_PINNED_README','WRITE_ISOLATED_REPORT'],outputKey:hash(g.goalId),storageIdentity:store.identity(),
-    maxInputTokens:200000,maxOutputTokens:2048,maxCalls:1,maxRetries:0,maxCostMicroUsd:1000000,totalCostMicroUsd:1000000,timeoutSeconds:300,quote:tariffFromMarkdown(md,clock.now()),...(legacy?{}:{inputPolicy:inputPolicy()})});
+    maxInputTokens:200000,maxOutputTokens:2048,maxCalls:1,maxRetries:0,maxCostMicroUsd:1000000,totalCostMicroUsd:1000000,timeoutSeconds:300,quote:tariffFromMarkdown(md,clock.now()),...(legacy?{}:{inputPolicy:a3?resourceInputPolicy():inputPolicy()})});
   store.create(c,clock.now());const packet=packetFor(c,governed.change.changeId);editPacket?.(packet);
   const grant=(operation,target,id)=>({authorizationId:id,actorRole:'HUMAN',operation,target,runId:c.runId,packetId:packet.packetId,scope:structuredClone(SCOPE),issuedAt:clock.now(),expiresAt:new Date(Date.now()+1800000).toISOString(),reason:'OFFLINE_SYNTHETIC ONLY'});
   const live=grant('LIVE_PROVIDER_MODEL_CALL','live-provider-model-call','a1-synthetic-live'),limited=grant('LIMITED_README_WORKER',hash(c),'a1-synthetic-limited');editGrant?.(live,limited);
@@ -57,7 +57,7 @@ async function fixture(dir,{legacy=false,kind='OFFLINE_SYNTHETIC',activate=true,
   const transport={kind,async preflight(){preflights++;return{evidenceClass:kind,model:MODEL,apiVersion:API_VERSION,maxInputTokens:200000,maxOutputTokens:2048,priceSourceHash:c.quote.sourceSha256,observedAt:clock.now()};},
     async generate(){calls++;return{id:'OFFLINE_SYNTHETIC_MESSAGE',model:MODEL,stop_reason:'end_turn',content:[{type:'text',text:'# OFFLINE_SYNTHETIC\n非真實 AI 成果。'}],usage:{input_tokens:100,output_tokens:50,cache_creation_input_tokens:0,cache_read_input_tokens:0,service_tier:'standard'}};}};
   const options={...roots,authorityArchiveDirectory:authority,journalDirectory:join(dir,'journal'),resultDirectory:store.directory,architectPrincipalRef:ARCHITECT,humanPrincipalRef:HUMAN.principalRef,
-    implementationSha:c.implementationSha,workerCodeHash:c.workerCodeHash,currentImplementation:()=>({sha:c.implementationSha,codeHash:c.workerCodeHash,clean:true}),clock,transport,liveCallGrant:live,limitedGrant:limited,readSource:()=>source,readGoal:()=>g.text};
+    implementationSha:c.implementationSha,workerCodeHash:c.workerCodeHash,currentImplementation:()=>({sha:c.implementationSha,codeHash:c.workerCodeHash,clean:true}),clock,transport,liveCallGrant:live,limitedGrant:limited,readSource:()=>source,readGoal:()=>g.text,...(deadlineMs?{deadlineMs}:{})};
   const runtime=composeLimitedWorker(options),service=createLimitedWorkerService({goals:bridge.store,governance:bridge.governance,admission,projects:['chief'],store,quote:c.quote,source:()=>source,identity:options.currentImplementation,runtime,now:clock.now,measurementClass:'OFFLINE_SYNTHETIC'});
   return{c,packet,store,source,g,bridge,admission,roots,config,clock,options,runtime,service,activation,target,bundle,preserver,document,live,limited,controller,
     get calls(){return calls;},get preflights(){return preflights;},job:()=>store.read().jobs[0]};
@@ -260,5 +260,97 @@ for(const type of['expired','future','run','model','tool','source','goal','price
 await test('A2 cancelled or uncertain jobs cannot be staged or replayed',async dir=>{
   const w=await fixture(dir,{activate:false}),limited=archiveA2(w);w.store.change(hash(w.c),j=>{j.state='CANCELLED';});
   assert.throws(()=>a2Gate(w).stage(hash(w.c),w.bundle,limited),/JOB_NOT_PREPARED/);assert.equal(w.controller.get(w.c.runId).state,'IDLE');
+});
+await test('A3 resource policy is input-ready, has no token hard-cap claim, and still has production HOLD',async dir=>{
+  const w=await fixture(dir,{a3:true});assert.doesNotThrow(()=>assertInputReady(w.c));
+  const f=inputFacts(w.c,w.g.text,w.source.text);assert.equal(f.requestedHardLimitTokens,null);assert.equal(f.hardLimitVerification,'NOT_CLAIMED');
+  assert.equal(f.estimatedInputTokens,null);assert.equal(f.exactInputTokens,null);assert.equal(EXE,'HOLD');
+  const conditions=planConditions(w.c,w.clock.now(),w.options.currentImplementation(),0);assert.ok(!conditions.includes('INPUT_LIMIT_DECISION_REQUIRED'));assert.ok(conditions.includes('EXE_HOLD'));
+});
+for(const size of[16383,16384,16385])await test('A3 source UTF8 byte boundary '+size+' is enforced without truncation',async dir=>{
+  const w=await fixture(dir,{a3:true}),text='x'.repeat(size),c={...w.c,sourceBytes:size,sourceHash:hash(text)};
+  if(size>16384)assert.throws(()=>messageBody(c,w.g.text,text),/INPUT_BYTES/);
+  else assert.equal(JSON.parse(messageBody(c,w.g.text,text).messages[0].content).source.text,text);
+});
+for(const size of[1999,2000,2001])await test('A3 Goal UTF16 boundary '+size+' is enforced independently of UTF8 bytes',async dir=>{
+  const w=await fixture(dir,{a3:true}),g='é'.repeat(size),c={...w.c,objectiveHash:hash(g)};
+  if(size>2000)assert.throws(()=>messageBody(c,g,w.source.text),/INPUT_BYTES/);
+  else{assert.equal(JSON.parse(messageBody(c,g,w.source.text).messages[0].content).goal,g);assert.equal(inputFacts(c,g,w.source.text).goalUtf8Bytes,size*2);}
+});
+for(const size of[131071,131072,131073])await test('A3 shared wire encoder byte boundary '+size,()=>{
+  const text='x'.repeat(size-2);if(size>131072)assert.throws(()=>serializeRequest(text),/REQUEST_BYTES_LIMIT/);
+  else assert.equal(Buffer.byteLength(serializeRequest(text)),size);
+});
+for(const field of['sourceMaxBytes','goalMaxCharacters','requestMaxBytes','enforcement','decision','hardLimitVerification'])await test('A3 policy cannot be widened or self-certified: '+field,async dir=>{
+  const w=await fixture(dir,{a3:true});assert.throws(()=>parseContract({...w.c,inputPolicy:{...w.c.inputPolicy,[field]:'APPROVED'}}));
+  assert.throws(()=>assertInputReady({...w.c,inputPolicy:{...w.c.inputPolicy,[field]:'APPROVED'}}));
+});
+await test('A3 synthetic AP1 -> Controller -> Driver -> Worker -> Journal -> sealed report succeeds once',async dir=>{
+  const w=await fixture(dir,{a3:true,activate:false}),limited=archiveA2(w),staged=a2Gate(w).stage(hash(w.c),w.bundle,limited);
+  assert.ok(!staged.blockers.includes('INPUT_LIMIT_DECISION_REQUIRED'));assert.equal(staged.executionEligible,false);
+  await w.runtime.execute(w.c);const seen=w.runtime.inspect(w.c);
+  assert.equal(w.calls,1);assert.equal(w.preflights,1);assert.equal(seen.driver.state,'IMPLEMENTATION_COMPLETE');assert.equal(seen.journal[0].state,'APPLIED');
+  assert.equal(w.runtime.resultConsistency(w.c),true);assert.equal(w.job().actualCostMicroUsd,350);assert.equal(w.job().evidenceClass,'OFFLINE_SYNTHETIC');
+  assert.equal(w.job().reservedMicroUsd,210240);assert.equal(w.job().generationClaimed,true);
+  await assert.rejects(w.runtime.execute(w.c),/LIMITED_WORKER_NOT_AT_OWNED_STAGE/);assert.equal(w.calls,1);
+  const at=process.argv.indexOf('--a3-evidence');if(at>=0)writeFileSync(process.argv[at+1],JSON.stringify({evidenceClass:'OFFLINE_SYNTHETIC',realModelAcceptance:false,paidModelCalls:0,
+    inputPolicy:w.c.inputPolicy,staged,controller:seen.driver.state,journal:seen.journal,usage:w.job().usage,actualCostMicroUsd:w.job().actualCostMicroUsd,
+    reservedMicroUsd:w.job().reservedMicroUsd,syntheticModelCalls:w.calls,reportHash:w.job().reportHash,resultConsistent:true,productionExe:EXE},null,2));
+});
+await test('A3 may accept synthetic usage above 4096 without treating that former threshold as a cap',async dir=>{
+  const w=await fixture(dir,{a3:true}),generate=w.options.transport.generate;
+  w.options.transport.generate=async()=>{const r=await generate();r.usage.input_tokens=6000;return r;};
+  await w.runtime.execute(w.c);assert.equal(w.job().usage.inputTokens,6000);assert.equal(w.runtime.resultConsistency(w.c),true);
+});
+await test('A3 live composition and native transport remain HOLD before key reads, budget and invocation',async dir=>{
+  const w=await fixture(dir,{a3:true,kind:'LIVE_PROVIDER'});let keys=0;const native=nativeAnthropicTransport(()=>{keys++;throw new Error('NEVER_READ_KEY');});
+  await assert.rejects(w.runtime.execute(w.c),/EXE_HOLD/);await assert.rejects(native.preflight(w.c,new AbortController().signal),/EXE_HOLD/);
+  await assert.rejects(native.generate(w.c,w.g.text,w.source.text,new AbortController().signal),/EXE_HOLD/);
+  assert.equal(keys,0);assert.equal(w.calls,0);assert.equal(w.job().reservedMicroUsd,0);assert.deepEqual(w.runtime.inspect(w.c).journal,[]);
+});
+await test('A3 rejects missing archived limited grant even when a packet was activated',async dir=>{
+  const w=await fixture(dir,{a3:true,activate:false});w.activation.activate(w.target,w.bundle);
+  await w.runtime.execute(w.c);assert.equal(w.calls,0);assert.equal(w.preflights,0);assert.equal(w.controller.get(w.c.runId).state,'HUMAN_STOP');
+});
+await test('A3 expired Human grant refuses execution before provider preflight',async dir=>{
+  const w=await fixture(dir,{a3:true,editGrant:(_,limited)=>{limited.issuedAt=new Date(Date.now()-1800000).toISOString();limited.expiresAt=new Date(Date.now()-1000).toISOString();}});
+  await w.runtime.execute(w.c);assert.equal(w.calls,0);assert.equal(w.preflights,0);assert.equal(w.controller.get(w.c.runId).state,'HUMAN_STOP');
+});
+await test('A3 unknown model metadata or changed pricing fails closed before generation',async dir=>{
+  const w=await fixture(dir,{a3:true});w.options.transport.preflight=async()=>({model:'substitute'});
+  await w.runtime.execute(w.c);assert.equal(w.calls,0);assert.equal(w.job().state,'BLOCKED');assert.equal(w.controller.get(w.c.runId).state,'HUMAN_STOP');
+});
+await test('A3 timed out preflight aborts and records no generation claim',async dir=>{
+  const w=await fixture(dir,{a3:true,deadlineMs:10});w.options.transport.preflight=async()=>new Promise(r=>setTimeout(()=>r({}),30));
+  await w.runtime.execute(w.c);assert.equal(w.calls,0);assert.equal(w.job().generationClaimed,false);assert.equal(w.job().state,'TIMED_OUT');
+});
+await test('A3 cancellation after one synthetic send retains reservation and prohibits replay',async dir=>{
+  const w=await fixture(dir,{a3:true});let started;const ready=new Promise(r=>started=r);let sends=0;
+  w.options.transport.generate=async()=>{sends++;started();return new Promise(()=>{});};
+  const execution=w.runtime.execute(w.c);await ready;assert.equal(w.runtime.cancel(w.c),true);await execution;
+  assert.equal(w.job().state,'UNCERTAIN');assert.equal(w.job().reservedMicroUsd,210240);assert.equal(sends,1);
+  await assert.rejects(w.runtime.execute(w.c),/LIMITED_WORKER_NOT_AT_OWNED_STAGE/);assert.equal(sends,1);assert.equal(w.job().state,'UNCERTAIN');assert.equal(w.runtime.inspect(w.c).journal[0].state,'UNCERTAIN');
+});
+await test('A3 persistent USD1 ceiling retains worst-case reservations across recovery',async dir=>{
+  const w=await fixture(dir,{a3:true});
+  for(let i=0;i<5;i++){const c=parseContract({...w.c,runId:'a3-offline-budget-'+i,goalId:'goal-'+randomUUID(),outputKey:hash('a3-output-'+i)});w.store.create(c,w.clock.now());
+    if(i<4){w.store.reserve(hash(c),maximumCost(c),hash('invocation-'+i),w.clock.now(),true);w.store.recover(w.clock.now());}
+    else assert.throws(()=>w.store.reserve(hash(c),maximumCost(c),hash('invocation-'+i),w.clock.now(),true),/TOTAL_COST_LIMIT/);}
+  const restored=new WorkerStore(w.store.directory);assert.equal(restored.read().jobs.reduce((s,j)=>s+j.reservedMicroUsd,0),840960);assert.equal(w.calls,0);
+});
+await test('A3 old A1/A2/R1 plans are immutable and require new Goal/Run, not an in-place permit upgrade',async dir=>{
+  const w=await fixture(dir),before=readFileSync(join(w.store.directory,'ledger.json'));
+  const historical=await w.service.prepare('chief',{requestId:randomUUID(),goalId:w.g.goalId,agentId:'limited-readme-worker'},HUMAN);
+  assert.equal(historical.jobs[0].contract.inputPolicy.revision,'A2');assert.ok(historical.jobs[0].conditions.includes('INPUT_POLICY_LEGACY_REQUIRES_REPLAN'));
+  assert.deepEqual(readFileSync(join(w.store.directory,'ledger.json')),before);assert.throws(()=>assertInputReady(w.c),/INPUT_LIMIT_DECISION_REQUIRED/);
+  const changed=parseContract({...w.c,inputPolicy:resourceInputPolicy()});assert.notEqual(hash(changed),hash(w.c));assert.notEqual(packetFor(changed,w.packet.sliceId).packetId,w.packet.packetId);
+  assert.throws(()=>w.runtime.permit(changed));assert.equal(w.calls,0);
+});
+await test('A3 service creates new system-bound contracts and UNISSUED packets without granting authority',async dir=>{
+  const w=await fixture(dir,{activate:false}),g=w.bridge.store.addGoal('chief','OFFLINE_SYNTHETIC A3新工作',HUMAN).queue.goals.at(-1);
+  const view=await w.service.prepare('chief',{requestId:randomUUID(),goalId:g.goalId,agentId:'limited-readme-worker'},HUMAN),j=view.jobs.at(-1);
+  assert.equal(j.contract.inputPolicy.revision,'A3');assert.ok(!j.conditions.includes('INPUT_LIMIT_DECISION_REQUIRED'));assert.equal(j.readiness.canStart,false);
+  assert.equal(j.reviewPacket.state,'UNISSUED_NOT_AUTHORITY');assert.equal(j.reviewPacket.issuedAt,null);assert.equal(j.input.requestedHardLimitTokens,null);
+  await assert.rejects(w.service.action('chief',j.id,{requestId:randomUUID(),action:'START'},HUMAN),/EXE_HOLD/);assert.deepEqual(readdirSync(w.options.authorityArchiveDirectory),[]);assert.equal(w.calls,0);
 });
 console.log(`\n${passed} passed, ${failed} failed`);process.exitCode=failed?1:0;

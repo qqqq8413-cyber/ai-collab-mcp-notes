@@ -53,7 +53,7 @@ export function limitedActivationCandidate(options: {
     if(!job||job.state!=='PREPARED'||job.generationClaimed||job.reservedMicroUsd)throw new Error('ACTIVATION_JOB_NOT_PREPARED');
     const c=parseContract(job.contract),identity=options.identity();
     if(!identity.clean||identity.sha!==c.implementationSha||identity.codeHash!==c.workerCodeHash)throw new Error('ACTIVATION_IMPLEMENTATION_CHANGED');
-    if(c.inputPolicy?.revision!=='A2'||c.inputPolicy.decision!=='A2_D1_STRICT_4096')throw new Error('ACTIVATION_POLICY_REPLAN_REQUIRED');
+    if(c.inputPolicy?.revision!=='A2'&&c.inputPolicy?.revision!=='A3')throw new Error('ACTIVATION_POLICY_REPLAN_REQUIRED');
     const source=options.readSource(c);
     if(source.sha!==c.sourceSha||source.path!==c.sourcePath||options.store.identity()!==c.storageIdentity)throw new Error('ACTIVATION_SOURCE_OR_STORAGE_CHANGED');
     inputFacts(c,options.readGoal(c),source.text);checkQuote(c.quote,options.now());
@@ -75,7 +75,7 @@ export function limitedActivationCandidate(options: {
     const result=options.core.activate(target,{implementationPacket:packetDocument,liveCallAuthorizations:[liveDocument]});
     if(result.packet.packetHash!==packetHash(packet)||result.state!=='PACKET_READY')throw new Error('ACTIVATION_RESULT_MISMATCH');
     return {recordClass:'OPERATIONAL_RECORD' as const,stage:result,executionEligible:false as const,
-      blockers:['EXE_HOLD','INPUT_LIMIT_DECISION_REQUIRED','H1_H9_NOT_GRANTED'],
+      blockers:['EXE_HOLD',...(c.inputPolicy?.revision==='A3'?[]:['INPUT_LIMIT_DECISION_REQUIRED']),'H1_H9_NOT_GRANTED'],
       notice:'Staging archived documents is not execution authorization. No Driver or Worker was invoked.'};
   }});
 }

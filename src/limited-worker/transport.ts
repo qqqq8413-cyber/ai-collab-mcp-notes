@@ -1,7 +1,7 @@
 import { request } from 'node:https';
 import { createRequire } from 'node:module';
 import { z } from 'zod';
-import { API_VERSION, MODEL, PRICE_URL, EXE, checkQuote, hash, messageBody, assertInputReady, type Contract, type Quote } from './contract.js';
+import { API_VERSION, MODEL, PRICE_URL, EXE, checkQuote, hash, messageBody, serializeRequest, assertInputReady, type Contract, type Quote } from './contract.js';
 
 type Token = { type: string; content: string; children?: Token[] };
 const MarkdownIt = createRequire(import.meta.url)('markdown-it') as new (options: object) => { parse(text: string, env: object): Token[] };
@@ -80,7 +80,7 @@ export function nativeAnthropicTransport(apiKey: () => string): WorkerTransport 
     async generate(c: Contract, objective: string, source: string, signal: AbortSignal) {
       if (EXE === 'HOLD') throw new Error('EXE_HOLD');
       assertInputReady(c);
-      return JSON.parse(await boundedHttps('https://api.anthropic.com/v1/messages', { method: 'POST', signal, headers: headers(), body: JSON.stringify(messageBody(c, objective, source)) })) as ProviderReply;
+      return JSON.parse(await boundedHttps('https://api.anthropic.com/v1/messages', { method: 'POST', signal, headers: headers(), body: serializeRequest(messageBody(c, objective, source)) })) as ProviderReply;
     },
   });
 }

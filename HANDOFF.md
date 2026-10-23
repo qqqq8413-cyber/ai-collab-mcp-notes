@@ -2964,3 +2964,21 @@ M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型�
 - 剩餘技術前提：指定模型與API的完整tokenizer／normalizer／framing／服務端注入界線，或官方可驗證硬input cap／有限誤差及count-to-generation保證。下一個Human決定不是重選放寬規格，而是是否透過供應商支援取得正式技術保證；在取得前暫停這條付費路徑。聯絡、付費研究或改換模型／平台都未執行、需另案授權。
 - STOP FOR ARCHITECT REVIEW。不發布main、不核發Authority、不啟動付費Pilot。
 - R1 CI修正紀錄：首次候選 `1bdc50d5325cedd8ba9c91fe5cee842d2389eb99` 的CI #130／39980716439，Ubuntu因shallow checkout沒有a3164fd歷史commit而在新增測試初始化失敗，macOS成功。修正僅為完整公開README快照＋exact來源hash／bytes核驗，另以無.git隔離目錄重現驗證；不改production source reader、checkout workflow或input guard。首次失敗保留，最終成功CI必須對應後續修正的exact SHA。
+
+## AUTO-P2-A3 Enforceable Resource Limits（2026-10-24）
+
+- Base exact SHA `3ab19000c42f68c9d85e690ce95a1b177a3208da`；獨立分支 `work/auto-p2-a3-resource-limits`。base CI #131／39981652536及2208測試重新核對；main未改／protected=true，候選exact SHA及push CI見本輪closure。
+- **Human正式取消嚴格4096 input-token要求，A3改採可強制資源限制。** 先前R1 BLOCKED_NO_PROVABLE_INPUT_BOUND仍是歷史研究結果，不再阻擋新A3工作；沒有聲稱已證明token上界。本輪只是規格／技術候選授權，不是EXE／H1–H9或付費Pilot許可。
+- 新policy revision=A3／decision=A3_RESOURCE_LIMITS_HUMAN_SELECTED，requestedHardLimitTokens=null、hardLimitVerification=NOT_CLAIMED、enforcement=RUNTIME_BYTES_AND_UTF16。README≤16384 UTF8 bytes、Goal≤2000 UTF16 units、完整序列化JSON body≤131072 bytes；不含HTTP credential headers／TLS，不截斷或正規化README。
+- serializeRequest由inputFacts、messageBody與native send共用，實際送出wire接受同一大小檢查；未知token估計／exact count／token上界皆null。200000僅保留為模型／費用預留基礎，output max_tokens2048；固定Anthropic／claude-haiku-4-5-20251001／API2023-06-01，不換模型或SDK。
+- 新Goal自動產生新Run與A3契約；舊A1／A2／R1 ledger仍可唯讀、checksum不改寫，prepare讀回歷史計畫不升級、不新增資格，並提示另建新工作。政策變更使contractHash／packetId／hash不同，舊grants不能綁新契約，不轉移預算或刪歷史。完整回歸曾指出舊HTTP prepare=201相容性，已保留歷史讀取而非改成409；原測試不刪除。
+- 舊inputPolicy factory保留歷史測試用途，產品改用resourceInputPolicy。assertInputReady只放行經完整schema驗證的A3輸入政策；這不代表execution-ready。Workspace START仍LOCKED／403，live composition／adapter／native均保留HOLD-before-key；不新增authority writer／route，不核發正式文件。
+- trusted staging候選支援A3，仍需事先在可信Archive保存exact Architect packet＋Human LIVE_PROVIDER_MODEL_CALL＋LIMITED_README_WORKER，核對source／Goal／Run／SHA/codeHash／storage／model／tools／quote／期限與未被新版取代；經原AP1→Controller PACKET_READY。不繞過Driver或Journal。
+- **A3完整離線E2E已通過**：Goal→GC1→RA1→合成暫存Archive→AP1→Controller→Driver→Worker一次合成生成→Journal APPLIED→report hash／usage／Controller IMPLEMENTATION_COMPLETE一致；重送拒絕。不是只用legacy無政策校正，也不是正式Human核發或真實AI驗收，全部OFFLINE_SYNTHETIC／paidModelCalls=0。
+- 單次／同store累積US$1，210240microUSD最壞預留持久化；成功／uncertain不自動退款。一次生成、零retry／fallback、300秒或更早grant／quote到期；取消／逾時中止、send後UNCERTAIN，重啟不重送。來源普通Git blob≤16KB唯讀、隔離report≤64KB，無Git寫入／push／部署／任意shell／其他Agent。
+- 公開model／最新標準價已重取、parser驗證、hash綁quote／最長1小時，見model-price-check.json；**實際帳戶可用性、pinned API相容性與live provider schema仍UNVERIFIED**。本輪不提供／讀取key，不呼叫帳戶Model API或付費模型；不能把公開文件當作帳戶查驗。未知／過期／不符仍須拒絕。
+- 完整build/npm test **59組／2235 passed／0 failed／0 skipped**，新增27、保留2208；本機macOS Seatbelt實際執行。包含三組資源邊界、原文保留、篡改拒絕、A3 E2E、舊4K不再限制合成usage、無授權／過期／未知metadata、取消與逾時、持久預算、不確定不重送、舊契約不升級與新A3準備。exact遠端CI另驗，不以base CI代替。
+- 新隔離4878桌面1440／768、手機390／320px通過，真實本機Goal／Run／A3 plan／UNISSUED packet、START403／偽造400、無overflow／pageerror；synthetic操作不冒充真實模型成果或省時證據。4873–4877未啟停／替換／改設定；4873–4875原先ECONNREFUSED，4876／4877HTTP200，僅讀連線及seals比對，不稱完整舊服務功能回歸。
+- 交付AUTO_P2_A3_ARCHITECT_REVIEW.md、AUTO_P2_A3_PERMIT_DRAFT.md、regressions/auto-p2-a3/；提交後在乾淨exact SHA另建Goal／Run／契約與PILOT_PERMIT_PACKET_A3.json，三份Authority與issuedAt/expiresAt皆null。重啟保存／final CI／remote exact與clean狀態記於本機closure。
+- 首次真實Pilot仍需：Architect接受候選；另案可信production activation／execution接線及EXE/H1–H9限定決策；Human另次單次付費授權；可信Host專用key與帳戶exact model/API能力／新鮮價格查驗；最終版本新契約的Architect及兩筆Human grants正式核發歸檔；才可做真實usage／成果／Journal驗收。**本輪不自行啟動，也不再要求4096上界證明。**
+- STOP FOR ARCHITECT REVIEW。不合併main、不改Ruleset／憑證／全域Agent設定、不替換現有服務、不進下一slice。

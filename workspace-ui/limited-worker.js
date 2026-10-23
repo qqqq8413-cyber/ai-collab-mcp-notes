@@ -5,7 +5,7 @@ const duration=v=>v===null||v===undefined?'尚未量得':(v/1000).toFixed(1)+' �
 const labels={PREPARED:'計畫已保存，尚未執行',RUNNING:'請求進行中',COMPLETED:'成果已保存',CANCELLED:'已取消',TIMED_OUT:'送出前已逾時',
   BLOCKED:'條件不符合',UNCERTAIN:'結果不確定，禁止重送',FAILED:'執行失敗',RESULT_REQUIRES_RECONCILIATION:'成果待人工核對'};
 const messages={EXE_HOLD:'目前未開放正式執行，沒有送出模型請求。',PRICE_QUOTE_EXPIRED:'價格證據已過期，請待系統更新後重新準備。',
-  PRICE_NOT_VERIFIED:'目前無法確認價格，不能準備執行。',OBSERVATION_ID_CONFLICT:'操作識別衝突，請重新開啟準備畫面。'};
+  PRICE_NOT_VERIFIED:'目前無法確認價格，不能準備執行。',INPUT_POLICY_LEGACY_REQUIRES_REPLAN:'舊計畫不會自動升級。請建立新工作，產生新的 A3 計畫與未核發許可。',OBSERVATION_ID_CONFLICT:'操作識別衝突，請重新開啟準備畫面。'};
 export function workerHTML(){return `<section id="limited-worker" class="ai-preparation" aria-label="限定 AI Worker">
   <header class="auto-head"><h2>交付 README 審查</h2><span class="auto-lock">執行尚未開放</span></header>
   <p class="worker-message" role="status" aria-live="polite">讀取準備條件…</p>
@@ -14,7 +14,7 @@ export function workerHTML(){return `<section id="limited-worker" class="ai-prep
     <label>指定 Agent<select name="agentId"><option value="limited-readme-worker">README 審查 Worker</option></select></label>
     <label>費用上限<span class="worker-scope">單次及累積最多 US$1</span></label>
     <label>時間上限<span class="worker-scope">300 秒，最多一次模型請求、零重試</span></label>
-    <p class="worker-delivery">已選定嚴格 4,096 輸入 tokens；目前缺少可驗證保證，因此不送出模型請求，不截斷文件。</p>
+    <p class="worker-delivery">資料上限：README 16,384 bytes、工作內容 2,000 UTF-16 units、完整請求 131,072 bytes。超限拒絕，不截斷文件。</p>
     <p class="worker-delivery">交付：繁體中文 Markdown 問題清單。只讀文件，不修改程式、Git 或部署。</p>
     <button class="auto-button" type="submit">${readerIcon('add')} 建立工作與計畫</button></form>
   <details class="worker-existing"><summary>使用已建立的目標</summary><a data-worker-goal>查看工作清單</a>
@@ -38,8 +38,8 @@ export function jobsHTML(data){return `<dl class="auto-facts"><div><dt>持久化
     ${j.reason?`<p class="auto-error">工作停止，原因：${esc(messages[j.reason]??j.reason)}</p>`:''}
     <details data-evidence="${j.id}"><summary>進階證據與未核發審查封包</summary>
       <p>EXE HOLD。以下皆為操作紀錄與待審資料，不是 Human Authority。</p>
-      <p>A2-D1 已選擇嚴格 4,096 input tokens；尚缺技術保證，不是等待 Human 重選規格。</p>
-      <p>輸入 token 估計：未量測。200,000 僅為模型及費用預留上界，不是已核准的輸入放寬。</p>
+      <p>${j.contract.inputPolicy?.revision==='A3'?'A3 使用位元組與字數資源限制，已取消嚴格 4,096 input token 要求。':'歷史契約仍保留原輸入政策，不會自動取得 A3 資格；請建立新工作。'}</p>
+      <p>輸入 token 估計：未量測。200,000 僅用作模型及費用預留，不是精確輸入 token 保證。</p>
       <p>輸出上限 2,048 tokens，由 API max_tokens 限制；最多一次生成、零重試、300 秒。</p>
       <p>目前 Controller ${esc(j.driver.state)}；Journal ${esc(j.invocations.map(i=>i.state).join(', ')||'尚無 Invocation')}。</p>
       <p>帳戶模型 ${esc(j.modelAccountAvailability)}；來源與版本由系統綁定，不需手動填寫。</p>
@@ -71,7 +71,7 @@ export function attachWorker({projectId,source,root}){
   create.elements.objective.addEventListener('input',()=>{if(completedForm){interactionId=crypto.randomUUID();startedAt=null;startObservation=null;pendingGoal=null;completedForm=false;void begin();}});
   void(async()=>{try{const data=await source.limitedWorker(projectId),queue=await source.queue(projectId);if(!root.isConnected)return;
     show(data);form.elements.goalId.innerHTML=queue.goals.map(g=>`<option value="${esc(g.goalId)}">${esc(g.text)}</option>`).join('');form.hidden=!queue.goals.length;
-    message.textContent='準備模式：可保存工作與審查資料；嚴格 4,096 輸入上限已選定，技術保證與正式許可尚缺，不會呼叫模型。';
+    message.textContent='A3 準備模式：採位元組與字數限制，工作與審查資料可保存；正式執行仍鎖定，不會呼叫模型。';
     const key='chief.worker.setup.'+projectId;let id=sessionStorage.getItem(key);if(!id){id=crypto.randomUUID();sessionStorage.setItem(key,id);}await observe('SETUP_OPENED',id,id);
   }catch(e){message.textContent=explain(e);}})();
   const prepare=async goalId=>{const ms=startedAt===null?undefined:Math.round(performance.now()-startedAt);
@@ -83,7 +83,8 @@ export function attachWorker({projectId,source,root}){
       if(liveRoot?.dataset.projectId===projectId&&job)liveRoot.dispatchEvent(new CustomEvent('worker-plan-saved',{detail:{data,jobId:job.id}}));
     }catch(e){message.textContent=explain(e);}finally{button.disabled=false;}});
   form.addEventListener('submit',async e=>{e.preventDefault();e.stopPropagation();const button=form.querySelector('button');button.disabled=true;
-    try{await begin();show(await prepare(form.elements.goalId.value));message.textContent='計畫已保存，尚未授權或執行。';}catch(e){message.textContent=explain(e);}finally{button.disabled=false;}});
+    try{await begin();const data=await prepare(form.elements.goalId.value);show(data);const j=data.jobs.find(j=>j.contract.goalId===form.elements.goalId.value);
+      message.textContent=j?.contract.inputPolicy?.revision==='A3'?'計畫已保存，尚未授權或執行。':'這是歷史計畫，未升級或執行。請建立新工作以準備 A3 計畫。';}catch(e){message.textContent=explain(e);}finally{button.disabled=false;}});
   root.addEventListener('click',async e=>{const b=e.target.closest('[data-worker-act]');if(!b||b.disabled)return;b.disabled=true;
     try{show(await source.workerAction(projectId,b.dataset.id,{action:b.dataset.workerAct,requestId:crypto.randomUUID()}));message.textContent=b.dataset.workerAct==='RECONCILE'?'已登記人工核對需求；未重送請求或退回預留。':'操作已保存，未取得執行授權。';}
     catch(e){message.textContent=explain(e);}finally{b.disabled=false;}});

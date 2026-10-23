@@ -1,0 +1,27 @@
+{
+  "checkedAt": "2026-10-23T18:44:06.540Z",
+  "clientDate": "2026-10-24",
+  "clientTimezone": "Asia/Taipei",
+  "evidenceClass": "PUBLIC_DOCUMENT_READ_ONLY",
+  "quote": {
+    "model": "claude-haiku-4-5-20251001",
+    "apiVersion": "2023-06-01",
+    "sourceUrl": "https://platform.claude.com/docs/en/models/haiku-4-5/overview.md",
+    "sourceSha256": "340157b9fb67fc3290e60ebea6a999fa933ecc662695a6d3e5307266196f2f03",
+    "checkedAt": "2026-10-23T18:44:06.067Z",
+    "validUntil": "2026-10-23T19:44:06.067Z",
+    "inputMicroUsdPerToken": 1,
+    "outputMicroUsdPerToken": 5,
+    "maxInputTokens": 200000,
+    "maxOutputTokens": 2048
+  },
+  "publicAvailability": "ACTIVE_LEGACY_DOCUMENT_ONLY",
+  "accountAvailability": "UNVERIFIED_NO_KEY_READ",
+  "pinnedApiAccountCompatibility": "UNVERIFIED",
+  "accountApiCalls": 0,
+  "keyReads": 0,
+  "paidModelCalls": 0,
+  "actualUsage": null,
+  "actualCostMicroUsd": null,
+  "note": "Public price/model evidence does not establish account availability. Native account preflight remains blocked by production HOLD."
+}

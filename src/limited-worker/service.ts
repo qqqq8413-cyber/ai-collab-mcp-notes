@@ -4,7 +4,7 @@ import type { GoalGovernancePort } from '../workspace/goal-governance-port.js';
 import type { GoalRunAdmissionPort } from '../workspace/goal-run-admission-port.js';
 import type { HumanPrincipalV1 } from '../identity/canonical.js';
 import { LimitedWorkerRequestError, type LimitedWorkerPort } from '../workspace/limited-worker-port.js';
-import { EXE, MODEL, API_VERSION, REPOSITORY, SYSTEM_PROMPT, hash, parseContract, maximumCost, checkQuote, inputPolicy, inputFacts, type Quote } from './contract.js';
+import { EXE, MODEL, API_VERSION, REPOSITORY, SYSTEM_PROMPT, hash, parseContract, maximumCost, checkQuote, resourceInputPolicy, inputFacts, type Quote } from './contract.js';
 import { activationCandidate, planConditions, readiness } from './readiness.js';
 import { efficiency } from './efficiency.js';
 import { WorkerStore, type Job } from './store.js';
@@ -78,6 +78,7 @@ export function createLimitedWorkerService(options: LimitedServiceOptions): Limi
       const g = goal(projectId, parsed.data.goalId, human);
       const prior = options.store.read().jobs.find(j => j.contract.projectId === projectId && j.contract.goalId === g.goalId);
       if (prior) {
+        if(prior.contract.inputPolicy?.revision!=='A3')return read(projectId,human);
         const saved=options.store.read().observations?.find(o=>o.id===parsed.data.requestId);
         if(!(saved?.kind==='PLAN_READY'&&saved.jobId===prior.id&&saved.projectId===projectId&&saved.interactionId===(parsed.data.interactionId??null)&&saved.clientElapsedMs===(parsed.data.clientElapsedMs??null)))
           observe(projectId,parsed.data.requestId,'PLAN_REUSED',prior.id,null,parsed.data.interactionId??null,parsed.data.clientElapsedMs??null);
@@ -93,7 +94,7 @@ export function createLimitedWorkerService(options: LimitedServiceOptions): Limi
         sourceSha: source.sha, sourcePath: 'README.md', sourceHash: source.hash, sourceBytes: source.bytes,
         agentId: 'limited-readme-worker', provider: 'anthropic', model: MODEL, apiVersion: API_VERSION,
         tools: ['READ_PINNED_README', 'WRITE_ISOLATED_REPORT'], outputKey: hash([projectId, g.goalId, admitted.runId]), storageIdentity: options.store.identity(),
-        maxInputTokens: 200000, maxOutputTokens: 2048, maxCalls: 1, maxRetries: 0, maxCostMicroUsd: 1000000, totalCostMicroUsd: 1000000, timeoutSeconds: 300, quote,inputPolicy:inputPolicy() });
+        maxInputTokens: 200000, maxOutputTokens: 2048, maxCalls: 1, maxRetries: 0, maxCostMicroUsd: 1000000, totalCostMicroUsd: 1000000, timeoutSeconds: 300, quote,inputPolicy:resourceInputPolicy() });
       maximumCost(c);inputFacts(c,g.text,source.text);
       options.store.create(c, options.now());
       if(options.measurementClass==='OFFLINE_SYNTHETIC')options.store.change(hash(c),j=>{j.evidenceClass='OFFLINE_SYNTHETIC';});

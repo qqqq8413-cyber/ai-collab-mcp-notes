@@ -3,7 +3,7 @@ import { packetHash } from '../automation/packet.js';
 
 const guidance: Record<string,{title:string;nextStep:string;owner:string}> = {
   EXE_HOLD:{title:'正式執行尚未開放',nextStep:'先交 Architect 審查；本輪不解除執行鎖定。',owner:'Architect / Human'},
-  INPUT_LIMIT_DECISION_REQUIRED:{title:'已選定嚴格 4,096 上限，技術證明尚未完成',nextStep:'A2-D1 已決定維持上限。等待可驗證的完整輸入 token 保證；不以估計、截斷或 200,000 預留值取代。',owner:'Architect / System'},
+  INPUT_LIMIT_DECISION_REQUIRED:{title:'歷史契約仍保留舊輸入政策，不能直接執行',nextStep:'請建立新工作，由系統產生 A3 計畫與許可草案。舊許可不會自動取得新資格。',owner:'Human / System'},
   INPUT_POLICY_LEGACY_REQUIRES_REPLAN:{title:'舊計畫需重新準備',nextStep:'保留舊證據，從目前版本建立新目標與計畫。',owner:'Human'},
   H1_H9_NOT_GRANTED:{title:'尚未取得正式執行許可',nextStep:'經既有治理流程核發限定許可；工作紀錄與按鈕點擊都不是授權。',owner:'Human'},
   ACCOUNT_MODEL_UNVERIFIED:{title:'帳戶模型與 API 尚未查驗',nextStep:'正式許可後，由可信 Host 檢查指定帳戶；不要在工作表單貼入金鑰。',owner:'System / Human'},
@@ -25,8 +25,8 @@ export function activationCandidate(c:Contract,sliceId:string,objective:string) 
   return {schemaVersion:1,state:'UNISSUED_NOT_AUTHORITY',recordClass:'OPERATIONAL_RECORD',exe:EXE,
     summary:{objective,source:'指定版本 README.md，最多 16KB',agent:'README Worker',delivery:'繁體中文 Markdown 文件審查報告，不修改程式',
       maximumCostMicroUsd:c.maxCostMicroUsd,totalCeilingMicroUsd:c.totalCostMicroUsd,reservationMicroUsd:maximumCost(c),
-      inputDecision:'A2-D1：維持嚴格 4,096 input tokens；技術保證尚未成立。200,000 僅用作費用預留，禁止當作輸入放寬',
-      timeoutSeconds:c.timeoutSeconds,inputProofStatus:'BLOCKED_NO_PROVIDER_GUARANTEE'},
+      inputDecision:c.inputPolicy?.revision==='A3'?'A3：README 16,384 bytes、Goal 2,000 UTF-16 units、完整 request 131,072 bytes；不宣稱精確輸入 token 上限':'歷史嚴格 4,096 契約未升級；需建立新 Goal／Run／A3 契約及許可',
+      timeoutSeconds:c.timeoutSeconds,inputProofStatus:c.inputPolicy?.revision==='A3'?'ENFORCEABLE_RESOURCE_LIMITS_NOT_TOKEN_PROOF':'BLOCKED_NO_PROVIDER_GUARANTEE'},
     contract:c,contractHash:hash(c),implementationPacket:packet,packetHash:packetHash(packet),
     authority:{implementationPacket:null,liveProviderGrant:null,limitedWorkerGrant:null},issuedAt:null,expiresAt:null,maxValiditySeconds:3600,
     requiredHumanOperations:['LIVE_PROVIDER_MODEL_CALL','LIMITED_README_WORKER'],limitedPermitTarget:hash(c),
@@ -34,7 +34,9 @@ export function activationCandidate(c:Contract,sliceId:string,objective:string) 
     constraint:'No Workspace issuance; trusted governance must preserve separately issued exact documents. Activation alone does not release HOLD.'};
 }
 export function planConditions(c:Contract,now:string,identity:{sha:string;codeHash:string;clean:boolean},reserved:number) {
-  const conditions=['EXE_HOLD','H1_H9_NOT_GRANTED','ACCOUNT_MODEL_UNVERIFIED',c.inputPolicy?'INPUT_LIMIT_DECISION_REQUIRED':'INPUT_POLICY_LEGACY_REQUIRES_REPLAN'];
+  const conditions=['EXE_HOLD','H1_H9_NOT_GRANTED','ACCOUNT_MODEL_UNVERIFIED'];
+  if(c.inputPolicy?.revision!=='A3')conditions.push(c.inputPolicy?'INPUT_LIMIT_DECISION_REQUIRED':'INPUT_POLICY_LEGACY_REQUIRES_REPLAN');
+  if(c.inputPolicy&&c.inputPolicy.revision!=='A3')conditions.push('INPUT_POLICY_LEGACY_REQUIRES_REPLAN');
   try{checkQuote(c.quote,now);}catch{conditions.push('PRICE_QUOTE_EXPIRED');}
   if(!identity.clean||identity.sha!==c.implementationSha||identity.codeHash!==c.workerCodeHash)conditions.push('IMPLEMENTATION_NOT_ACCEPTED_OR_CHANGED');
   if(reserved+maximumCost(c)>c.totalCostMicroUsd)conditions.push('TOTAL_COST_LIMIT');

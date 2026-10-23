@@ -1,0 +1,87 @@
+{
+  "evidenceClass": "OFFLINE_SYNTHETIC",
+  "realModelAcceptance": false,
+  "paidModelCalls": 0,
+  "inputPolicy": {
+    "revision": "A3",
+    "decision": "A3_RESOURCE_LIMITS_HUMAN_SELECTED",
+    "requestedHardLimitTokens": null,
+    "hardLimitVerification": "NOT_CLAIMED",
+    "enforcement": "RUNTIME_BYTES_AND_UTF16",
+    "estimatedInputTokens": null,
+    "estimateMethod": "NOT_MEASURED",
+    "sourceMaxBytes": 16384,
+    "goalMaxCharacters": 2000,
+    "requestMaxBytes": 131072,
+    "reservationInputTokenBound": 200000,
+    "outputMaxTokens": 2048
+  },
+  "staged": {
+    "recordClass": "OPERATIONAL_RECORD",
+    "stage": {
+      "recordClass": "OPERATIONAL_RECORD",
+      "status": "ACTIVATED",
+      "target": {
+        "source": {
+          "kind": "WORKSPACE_GOAL",
+          "projectId": "chief",
+          "goalId": "goal-9de6e371-2fa6-4c5b-92a5-3a9d51a4fea6"
+        },
+        "runId": "run-10905c09406c56149b91a9f9d708a525d52ed7b12998bcc02606c2e7c6b581c4"
+      },
+      "changeKey": "10905c09406c56149b91a9f9d708a525d52ed7b12998bcc02606c2e7c6b581c4",
+      "preSnapshotId": "ad3ec580c3acc3726e8374c17c336ef138e417d4fc2d466a2b52b53d46463f5f",
+      "preState": "IDLE",
+      "postSnapshotId": "c6d2061c3585cdf7604d6af7d0d1b06741cc40692f0121d325cec05c41f1d05f",
+      "state": "PACKET_READY",
+      "packet": {
+        "packetId": "limited-3dc10f7ad949cdd9f433c5de3d741fb635b75839fc84bebe",
+        "packetVersion": 1,
+        "packetHash": "04bdca2f8e8310efdca10225c6330793564655f81e2ce3ce52c4e719c58d24b6"
+      },
+      "authority": {
+        "implementationPacket": {
+          "kind": "IMPLEMENTATION_PACKET",
+          "authorityId": "limited-3dc10f7ad949cdd9f433c5de3d741fb635b75839fc84bebe",
+          "version": 1,
+          "recordHash": "7b0881204b07dc5c3af97447ec672396d33f855c7d92f2e0c642d62c504f6687"
+        },
+        "liveCallAuthorizations": [
+          {
+            "actorKind": "IMPLEMENTATION",
+            "authority": {
+              "kind": "AUTHORIZATION",
+              "authorityId": "a1-synthetic-live",
+              "version": 1,
+              "recordHash": "5b96f4e539fbec21a8fa71cc35f38a93171a308a3bc99c1c7225b094131ad9f6"
+            }
+          }
+        ]
+      }
+    },
+    "executionEligible": false,
+    "blockers": [
+      "EXE_HOLD",
+      "H1_H9_NOT_GRANTED"
+    ],
+    "notice": "Staging archived documents is not execution authorization. No Driver or Worker was invoked."
+  },
+  "controller": "IMPLEMENTATION_COMPLETE",
+  "journal": [
+    {
+      "invocationId": "5837e88fd4735c6d3464e6ebab8b86cca4a3eea81379ed733d13cd8e57a19ee1",
+      "state": "APPLIED",
+      "appliedAt": "2026-10-23T18:42:54.946Z"
+    }
+  ],
+  "usage": {
+    "inputTokens": 100,
+    "outputTokens": 50
+  },
+  "actualCostMicroUsd": 350,
+  "reservedMicroUsd": 210240,
+  "syntheticModelCalls": 1,
+  "reportHash": "3e89deed44bd66091c9f7dfd2b8d12ebb9343274fa85a61016ed5c9564f792eb",
+  "resultConsistent": true,
+  "productionExe": "HOLD"
+}

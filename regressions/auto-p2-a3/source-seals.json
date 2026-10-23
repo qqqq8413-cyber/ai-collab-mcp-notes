@@ -1,0 +1,82 @@
+{
+  "baseSha": "3ab19000c42f68c9d85e690ce95a1b177a3208da",
+  "note": "Pre-commit content seals; final exact SHA and CI recorded after commit in closure.",
+  "files": [
+    {
+      "path": "AUTO_P2_A3_ARCHITECT_REVIEW.md",
+      "sha256": "453e3525a70f50a8827894b2f0bbcf4652422e861eb234eaa7f4382e23954408"
+    },
+    {
+      "path": "AUTO_P2_A3_PERMIT_DRAFT.md",
+      "sha256": "9d0d0e93aff7d0df76c74734b8d7213ee197d3a74b3417b1f74fe7407179d870"
+    },
+    {
+      "path": "package.json",
+      "sha256": "119bd61c9bb3796369da271fbf3721f3cc4f6aef935c456e39c5e906994d39ce"
+    },
+    {
+      "path": "src/limited-worker/adapter.ts",
+      "sha256": "290403684c96c12d73062c90ed9756a56b00217caf8063b03275191fa9621bf6"
+    },
+    {
+      "path": "src/limited-worker/composition.ts",
+      "sha256": "eff0bd2067e65ff2433d330ae958187057214bc98f98dc142ccf0f2ea6caa1f7"
+    },
+    {
+      "path": "src/limited-worker/config.ts",
+      "sha256": "92988a09df8641209113cd92b9315574585b29ec3e52afac5eeaf264848420b0"
+    },
+    {
+      "path": "src/limited-worker/contract.ts",
+      "sha256": "2e4f81522b140b0a94970014d3861e09ca56c6c62d708b13484cff29eece06e6"
+    },
+    {
+      "path": "src/limited-worker/efficiency.ts",
+      "sha256": "23a8d408dc479859fbc0766952ae22e9d86f2233d9cf5cca23e90165c950fd04"
+    },
+    {
+      "path": "src/limited-worker/governance.ts",
+      "sha256": "0688ccdbeca0982a4846592e9df32352f0a5f62eb046676914f994fc540485d6"
+    },
+    {
+      "path": "src/limited-worker/main.ts",
+      "sha256": "40de99b010079f5b4ddfd98ba5134bc35ee628d018ec4eaa40731eef94f956c8"
+    },
+    {
+      "path": "src/limited-worker/readiness.ts",
+      "sha256": "4e03c21d0f945f5fb607f2cfa0ea95871939c88fdaa0320f006f87d78895d768"
+    },
+    {
+      "path": "src/limited-worker/service.ts",
+      "sha256": "a6214561eb3dcdb83cab093c4290117a5c76387ba24875d03a7a11fd97b49da2"
+    },
+    {
+      "path": "src/limited-worker/source.ts",
+      "sha256": "efcded9a9a86adfe6fd7eeef39d5ef1d21b12a189557234c58797528b8bfc87f"
+    },
+    {
+      "path": "src/limited-worker/store.ts",
+      "sha256": "e955d23fd85b7a32bd889b8a9f419bec2f35fe4928ef1116a5faccd32978448a"
+    },
+    {
+      "path": "src/limited-worker/transport.ts",
+      "sha256": "25230aba334f992329aa46917bffee7a2dd87ff1b24d50fcbc40f5d42a4ee84f"
+    },
+    {
+      "path": "test-auto-p2-a1.mjs",
+      "sha256": "24ba04a60b0953cfbdea83ffb814e03eb1725361a40cf37715017169059a66e8"
+    },
+    {
+      "path": "test-auto-p2-r1-input-proof.mjs",
+      "sha256": "d640d244a196efe159c5e9c5613c5c59b7a91e74b521ccb9f53ac3b9082022de"
+    },
+    {
+      "path": "test-limited-worker.mjs",
+      "sha256": "02b29ec94b95b2c0658494ba78efb9af879239034923ce5b0fec668c30ff6b18"
+    },
+    {
+      "path": "workspace-ui/limited-worker.js",
+      "sha256": "26064dc2cf4423972b38f3918a5e1e3de3eab9763763b608c00e6278b9442f6b"
+    }
+  ]
+}
