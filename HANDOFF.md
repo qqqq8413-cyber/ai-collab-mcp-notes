@@ -2912,3 +2912,25 @@ M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型�
 - 正式Pilot還需要：Architect接受此候選及保守預留策略；Human另外核准限定activation／EXE與必要H1–H9；在最終執行SHA上重新準備Goal/Run／新鮮quote及兩層Archivegrants；本機專用provider憑證及帳戶metadata查驗；一次明確付費Pilot授權與live驗收。**這版硬HOLD，普通「允許」、grant copies或改設定都不能啟動。若另修改activation版本，舊contract的SHA/codeHash不可重用。**
 - 交付：AUTO_P2_LIMITED_WORKER_REVIEW.md、AUTO_P2_LIMITED_WORKER_PERMIT.md、regressions/auto-p2-limited-worker/；提交後另產生綁exact候選的本機PILOT_PERMIT_PACKET.json與closure，避免自引用commit。Permit為UNISSUED_NOT_AUTHORITY，issuedAt／expiresAt=null，無本輪正式Authority寫入。未處理既有依賴警示，不宣稱最新安全審查已完成。
 - 狀態：限定Worker技術候選待Architect Review，EXE/H1–H9 HOLD不變。真實模型呼叫0，不開始下一slice，不自行執行Pilot或發布main。STOP FOR ARCHITECT REVIEW。
+
+## AUTO-P2-A1 First Real Delegation Readiness（2026-10-23）
+
+- Base exact SHA `9a1579748c6764aa53cb2e0d2803d01cf28ee005`；工作分支 `work/auto-p2-a1-delegation-readiness`。main／origin/main `e7eb87b4b481c885bea8730f8498eb493dc38184`，protected=true，未修改／合併。Final SHA及exact push CI見本輪closure，不用base CI代替。
+- Phase0實讀contract／adapter／transport／store／composition／service／Workspace及既有AP1core；重新查證base 2116項對應CI#127／39467143570 exact SHA，Ubuntu／macOS成功。
+- **既有4873／4874／4875在實作前即ECONNREFUSED。** 未擅自啟動、重啟、替換或修理。原工作樹clean、SHA保持913385b／a3164fd／9a15797；設定與資料hash驗收前後一致。磁碟／狀態回歸PASS；live舊服務回歸NOT RUN，不宣稱成功。新預覽僅4876，獨立資料及protected roots。
+- 新只讀readiness／reviewPacket由真實Goal／Run／source／版本／預算／Driver自動產生所有識別、hash與待審封包，不讓Human手填。proposal為OPERATIONAL_RECORD／UNISSUED_NOT_AUTHORITY，issuedAt/expiresAt與三個Authority欄位null；不是可載入的grant copies，也不核發或匯入Archive。
+- 正式limited composition仍沒有可用的activation產品入口。本輪隔離測試實用既有AP1 core＋既有preserver對暫存合成文件進行preserve→PACKET_READY與exact retry，沒有新增production writer／preserver holder、Workspace activation route或旁路Runner。proposal被AP1拒絕為非AuthorityDocument。
+- A1 contract保留requested input hard limit=4096、verification=UNVERIFIED、decision=PENDING_HUMAN_ARCHITECT_REVIEW；schema不接受APPROVED。200000只保留為模型／費用預留上界，絕非4096已enforce或已批准放寬。token估計null／NOT_MEASURED，不猜bytes/token。
+- 本機真實限制：README普通Git blob≤16384bytes、Goal≤2000 UTF-16 code units、serialized request≤131072bytes；output API max_tokens=2048。request byte防線不是token保證。來源、Goal及request bytes可核對保存／投影。
+- composition／adapter／native transport在執行路徑加入input decision guard；當前A1即使在合成AP1 staging後也不能進Driver生成。舊contract仍可唯讀驗證checksum，但live-ready需replan。Human仍需選擇保留嚴格4096並提供可證明enforcement，或另行授權規格變更；本輪沒有替Human決定或降低限制。
+- model仍anthropic／claude-haiku-4-5-20251001／API2023-06-01，不因官方reference顯示新版API就默默遷移。帳戶、pinned API及metadata schema實際相容性未探測。公開價格來源重新解析／hash／最長1小時有效，未知或不符拒絕；保留210240microUSD最壞預留、單次與同store累積USD1、一次生成、零retry、300秒／較早grant/quote期限、durable claim／lease及UNCERTAIN不重送。
+- Workspace可直接填工作內容→實際Goal Queue／GC1／RA1 ROOT/IDLE→自動限定計畫；顯示資料／Agent／成本／成果、中文缺口及下一步。內部識別放進階區預設收合，polling保留開啟狀態；手機單欄、textarea16px／1.7。START前後端HOLD；偽造Authority／model／scope拒絕，無虛構進度。
+- 取消保留既有能力；不確定／矛盾結果可提出人工核對，僅保存需求，不退款、不重送、不改Authority或宣稱核對成功。前置檢查失敗也保存BLOCKED／reason，不因尚未reserve而遺失原因。
+- 成果一致性補強：ledger顯示文字與report檔案hash相同，Journal exact packet/Run/occurrence/APPLIED application對應Controller，outcome含一致Worker ID/report hash/evidence class才投影成功。替換ledger/file但不符原Journal時拒絕；仍只到IMPLEMENTATION_COMPLETE，不是CLOSED，不進Git／第二Agent。
+- 效率觀察持久化且去重：setup opened、form start、plan ready/reuse、check／HOLD拒絕／cancel／核對需求／runtime start。server span與browser-reported span分開，完整授權setup仍null。只計已收到操作，非強認證Human總工時。最多2000筆且明列dropped／bounded-window，不重設預算或Invocation。
+- Goal→可驗證成果耗時只在報告／Journal／Controller一致時產生；否則null。comparisonKey綁同Goal/source/model/API/system prompt/delivery；直接AI baseline、品質／返工／未觀察時間仍未知，沒有省時或產品優勢主張。本輪preview／fixtures全部OFFLINE_SYNTHETIC，不是產品效率或live模型證據。
+- 最終完整build/npm test **58組／2148 passed／0 failed／0 skipped**，UTC2026-10-23T10:53:23.737Z完成；其中新增32。既有48仍涵蓋scope/model/price、token/cost、cancel/timeout、真實子程序SIGKILL／restart及無重送。既有macOS Seatbelt／isolation實際執行，無skip；候選遠端CI另在push後核對。
+- 瀏覽器1440／768／390／320px：真正建立Goal／IDLE及自動reviewPacket、START403／偽造400、刷新保存、進階證據收合與polling、無overflow/pageerror。效率數字明確synthetic，完整正式setup／真正成果仍未觀察。提交前證據不是final SHA runtime證明，提交後另建fresh preview綁exact SHA與新UNISSUED packet，避免自引用commit。
+- 交付：AUTO_P2_A1_ARCHITECT_REVIEW.md、AUTO_P2_A1_MEASUREMENT.md、AUTO_P2_A1_PERMIT_DRAFT.md、regressions/auto-p2-a1/，提交後本機PILOT_PERMIT_PACKET_A1.json及CLOSURE。沒有私人Session／key／真正Human grant body；package-lock、Ruleset、管理員憑證及全域Agent設定未修改。
+- 真正審查仍需：Architect接受候選→Human決定4096規格→受審的可信activation／執行版本→另行EXE/H1–H9限定核准→本機專用key與exact帳戶model/API查驗→最終SHA／Goal／Run／source／quote／packet的Architect與兩筆Human direct grants歸檔→Human另一次明確單次付費Pilot授權及真實模型驗收。不是只差key或一句允許。
+- 狀態：Readiness技術候選完成待Architect Review，正式執行仍BLOCKED／HOLD；模型與帳戶API呼叫0，正式Authority寫入0。不進第二Agent／Git delivery／main。STOP FOR ARCHITECT REVIEW。

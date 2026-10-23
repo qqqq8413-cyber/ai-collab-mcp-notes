@@ -590,6 +590,14 @@ ol,ul{margin:0;padding:0;list-style:none}
 .worker-form[hidden] { display: none; }
 .worker-report { padding: 18px 0; font-size: 16px; line-height: 1.7; overflow-wrap: anywhere; }
 .worker-report pre { white-space: pre-wrap; }
+.worker-objective, .worker-delivery { grid-column: 1 / -1; }
+.worker-create textarea { width: 100%; min-height: 110px; resize: vertical; background: var(--card); color: var(--fg); border: 1px solid var(--ctl); border-radius: 4px; padding: 10px; font: inherit; font-size: 16px; line-height: 1.7; }
+.worker-checks { padding-left: 22px; font-size: 16px; line-height: 1.7; }
+.worker-checks p { margin: 2px 0 12px; }
+.worker-jobs pre { max-height: 420px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.7; }
+.worker-existing, .worker-efficiency { padding: 16px 0; }
+.worker-scope { padding: 8px 0; font-size: 16px; line-height: 1.7; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .auto-form.worker-create { grid-template-columns: minmax(0, 1fr); } }
 .auto-facts { display: flex; gap: 12px 28px; flex-wrap: wrap; margin: 12px 0; }
 .auto-facts div { display: grid; }
 .auto-facts dt { color: var(--muted); }

@@ -7,11 +7,14 @@ import { readGovernedModel } from '../automation/read-model/governed-read-model.
 import { GovernanceStoreIsolation } from '../automation/governance-store-isolation.js';
 import type { Clock } from '../automation/types.js';
 import { LimitedReadmeWorker } from './adapter.js';
-import { SCOPE, EXE, hash, type Contract } from './contract.js';
+import { SCOPE, EXE, hash, assertInputReady, type Contract } from './contract.js';
 import { WorkerStore } from './store.js';
 import type { WorkerTransport } from './transport.js';
 import { packetFor } from './contract.js';
 import { verifyPermit } from './governance.js';
+import { readStoredOutcome } from '../automation/invocation-journal.js';
+import { parseImplementationResult } from '../automation/bridge.js';
+import { packetHash } from '../automation/packet.js';
 
 export function composeLimitedWorker(options: {
   controllerStoreDirectory: string; authorityArchiveDirectory: string; changeRegistryDirectory: string;
@@ -38,7 +41,23 @@ export function composeLimitedWorker(options: {
   const driver = openGovernedExecutionDriver({ ...options, runner, liveCallAuthorizations: { IMPLEMENTATION: options.liveCallGrant }, scopes });
   const target = (c: Contract) => ({ source: { kind: 'WORKSPACE_GOAL' as const, projectId: c.projectId, goalId: c.goalId }, runId: c.runId });
   return Object.freeze({
-    inspect: (c: Contract) => ({ driver: driver.inspect(target(c)), journal: journal.list(c.runId).map(r => ({ invocationId: r.invocationId, state: r.state })),
+    resultConsistency(c:Contract) {
+      try {
+        const job=store.read().jobs.find(j=>j.id===hash(c)),run=controller.get(c.runId);
+        if(!job||!store.reportIsValid(job)||run.state!=='IMPLEMENTATION_COMPLETE')return false;
+        const record=job.invocationId?journal.get(job.invocationId):undefined;
+        if(!record||record.state!=='APPLIED'||record.identity.runId!==c.runId||record.identity.actorKind!=='IMPLEMENTATION'||
+          record.identity.packetHash!==packetHash(packetFor(c,run.sliceId))||run.activePacketHash!==record.identity.packetHash)return false;
+        const begin=run.audit[record.identity.occurrence.sequence-1],applied=run.audit[(record.application?.sequence??0)-1];
+        if(!begin||begin.action!=='BEGIN_IMPLEMENTATION'||begin.timestamp!==record.identity.occurrence.timestamp||
+          record.application?.sequence!==begin.sequence+1||record.application.action!=='REPORT_IMPLEMENTATION_COMPLETE'||applied?.action!==record.application.action)return false;
+        const outcome=readStoredOutcome(record);if(!outcome.ok)return false;
+        const result=parseImplementationResult(outcome.value);
+        return result.status==='COMPLETED'&&[`limited-worker:${job.id}`,`report-sha256:${job.reportHash}`,`evidence-class:${job.evidenceClass}`].every(e=>result.validationEvidence.includes(e));
+      }catch{return false;}
+    },
+    inspect: (c: Contract) => ({ driver: driver.inspect(target(c)), journal: journal.list(c.runId).map(r => ({ invocationId: r.invocationId, state: r.state,
+      appliedAt:r.history.find(e=>e.state==='APPLIED')?.at??null })),
       job: store.read().jobs.find(j => j.id === hash(c)) ?? null }),
     permit(c: Contract) {
       const model = readModel(), run = model.runs.find(r => r.runId === c.runId);
@@ -48,6 +67,7 @@ export function composeLimitedWorker(options: {
     },
     async execute(c: Contract) {
       if (options.transport.kind === 'LIVE_PROVIDER' && EXE === 'HOLD') throw new Error('EXE_HOLD');
+      if (c.inputPolicy || options.transport.kind === 'LIVE_PROVIDER') assertInputReady(c);
       const position = driver.inspect(target(c));
       if (!['PACKET_READY', 'IMPLEMENTING'].includes(position.state ?? '')) throw new Error('LIMITED_WORKER_NOT_AT_OWNED_STAGE');
       // Exactly two protocol steps, never Runner.drive: no remote-SHA, review, Git delivery or promotion step exists here.

@@ -1,0 +1,16 @@
+{
+  "evidenceClass": "OFFLINE_SYNTHETIC",
+  "purpose": "Existing governed activation and legacy-result calibration only; not A1 input-policy or live-provider acceptance",
+  "paidModelCalls": 0,
+  "syntheticGenerationCalls": 1,
+  "controller": "IMPLEMENTATION_COMPLETE",
+  "journal": [
+    {
+      "invocationId": "62ccac2d65750edd8751ef90b7577febbebc2af14d17c59537c98cf83e63e447",
+      "state": "APPLIED",
+      "appliedAt": "2026-10-23T10:48:52.393Z"
+    }
+  ],
+  "reportHash": "3e89deed44bd66091c9f7dfd2b8d12ebb9343274fa85a61016ed5c9564f792eb",
+  "archiveSyntheticRecords": 3
+}

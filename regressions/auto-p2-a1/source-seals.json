@@ -1,0 +1,75 @@
+{
+  "at": "2026-10-23T10:57:01.484Z",
+  "baseSha": "9a1579748c6764aa53cb2e0d2803d01cf28ee005",
+  "note": "Pre-commit source seals, not a final commit assertion. Post-commit preview/CI are separately sealed.",
+  "files": [
+    {
+      "path": "package.json",
+      "sha256": "8af50377fa455f3b0f5dab43823bb7b3f11dd39825f13608b75af92906e233cb"
+    },
+    {
+      "path": "src/limited-worker/adapter.ts",
+      "sha256": "290403684c96c12d73062c90ed9756a56b00217caf8063b03275191fa9621bf6"
+    },
+    {
+      "path": "src/limited-worker/composition.ts",
+      "sha256": "eff0bd2067e65ff2433d330ae958187057214bc98f98dc142ccf0f2ea6caa1f7"
+    },
+    {
+      "path": "src/limited-worker/config.ts",
+      "sha256": "92988a09df8641209113cd92b9315574585b29ec3e52afac5eeaf264848420b0"
+    },
+    {
+      "path": "src/limited-worker/contract.ts",
+      "sha256": "589766cb46fe2b32e7fc80f877455eba5a3d1366cfc8b636fdf6df0d9bd36c67"
+    },
+    {
+      "path": "src/limited-worker/efficiency.ts",
+      "sha256": "23a8d408dc479859fbc0766952ae22e9d86f2233d9cf5cca23e90165c950fd04"
+    },
+    {
+      "path": "src/limited-worker/governance.ts",
+      "sha256": "34742e05e8f5467daee0c81b12b5e911d095e854e3220cb704210eb9173ae2a4"
+    },
+    {
+      "path": "src/limited-worker/main.ts",
+      "sha256": "40de99b010079f5b4ddfd98ba5134bc35ee628d018ec4eaa40731eef94f956c8"
+    },
+    {
+      "path": "src/limited-worker/readiness.ts",
+      "sha256": "fb58e7f88583a5ec0c867607e44f165065d34c82e80cc678a0ac80269cff4deb"
+    },
+    {
+      "path": "src/limited-worker/service.ts",
+      "sha256": "a6ed261c422639483bfc6120d4ef6e60eea9b7569b0469bcdf19485a8e26a4bc"
+    },
+    {
+      "path": "src/limited-worker/source.ts",
+      "sha256": "efcded9a9a86adfe6fd7eeef39d5ef1d21b12a189557234c58797528b8bfc87f"
+    },
+    {
+      "path": "src/limited-worker/store.ts",
+      "sha256": "e955d23fd85b7a32bd889b8a9f419bec2f35fe4928ef1116a5faccd32978448a"
+    },
+    {
+      "path": "src/limited-worker/transport.ts",
+      "sha256": "d547c692e95cf2c8f7a51df2343cc95673e247f210b8e2b73d1b8fe34f8fc18a"
+    },
+    {
+      "path": "test-auto-p2-a1.mjs",
+      "sha256": "ba4fa5a1eadaae6fb4a97cb84920800b79fea1528b753d1617fff4957db58334"
+    },
+    {
+      "path": "test-limited-worker.mjs",
+      "sha256": "02b29ec94b95b2c0658494ba78efb9af879239034923ce5b0fec668c30ff6b18"
+    },
+    {
+      "path": "workspace-ui/limited-worker.js",
+      "sha256": "8b289aa61e1fe89bc384d94282fe0d4a3201fe94b0e31b67139a24743489a5e0"
+    },
+    {
+      "path": "workspace-ui/styles.css",
+      "sha256": "32ced1771f36f4c5fba3672da5e525571fed4027929c523a8b677d7085228410"
+    }
+  ]
+}

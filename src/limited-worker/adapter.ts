@@ -3,7 +3,7 @@ import type { ImplementationAgentPort, ImplementationInput, ImplementationResult
 import type { ControllerRun } from '../automation/types.js';
 import type { InvocationJournal } from '../automation/invocation-journal.js';
 import type { GovernedReadModelV1 } from '../automation/read-model/governed-read-model.js';
-import { EXE, MODEL, contractOf, hash, maximumCost, checkQuote, type Contract } from './contract.js';
+import { EXE, MODEL, contractOf, hash, maximumCost, checkQuote, assertInputReady, messageBody, type Contract } from './contract.js';
 import { verifyInvocation, verifyPermit } from './governance.js';
 import { WorkerStore } from './store.js';
 import { parsePreflight, type WorkerTransport } from './transport.js';
@@ -37,6 +37,7 @@ export class LimitedReadmeWorker implements ImplementationAgentPort {
     const d = this.#d, c = contractOf(input.packet), id = hash(c);
     if (d.transport.kind === 'LIVE_PROVIDER' && EXE === 'HOLD') return { status: 'HUMAN_STOP', reason: 'EXE_HOLD_NO_PROVIDER_REQUEST' };
     const check = () => {
+      if (c.inputPolicy || d.transport.kind === 'LIVE_PROVIDER') assertInputReady(c);
       const identity = d.currentImplementation();
       if (!identity.clean || identity.sha !== c.implementationSha || identity.codeHash !== c.workerCodeHash) throw new Error('IMPLEMENTATION_CHANGED');
       if (c.implementationSha !== d.implementationSha || c.workerCodeHash !== d.workerCodeHash || c.storageIdentity !== d.store.identity() || input.runId !== c.runId || input.implementationIteration !== 1 || input.correction) throw new Error('IMPLEMENTATION_BINDING_MISMATCH');
@@ -46,6 +47,7 @@ export class LimitedReadmeWorker implements ImplementationAgentPort {
       verifyInvocation(c, input.packet, d.readRun(c.runId), record);
       const source = d.readSource(c), objective = d.readGoal(c);
       if (source.sha !== c.sourceSha || source.path !== 'README.md' || source.bytes !== c.sourceBytes || Buffer.byteLength(source.text) !== c.sourceBytes || source.hash !== c.sourceHash || hash(Buffer.from(source.text)) !== c.sourceHash || hash(objective) !== c.objectiveHash) throw new Error('SOURCE_OR_GOAL_MISMATCH');
+      messageBody(c, objective, source.text);
       return { source, objective };
     };
     let reserved = false, claimed = false;
@@ -88,6 +90,7 @@ export class LimitedReadmeWorker implements ImplementationAgentPort {
       const reason = safeReason(abort.signal.aborted ? abort.signal.reason : error);
       if (reserved) d.store.change(id, j => { j.state = claimed ? 'UNCERTAIN' : reason === 'USER_CANCEL' ? 'CANCELLED' : reason === 'WORKER_TIMEOUT' ? 'TIMED_OUT' : 'BLOCKED';
         j.reason = reason; j.events.push({ at: d.now(), kind: claimed ? 'UNCERTAIN_NO_REPLAY_RESERVATION_RETAINED' : 'STOPPED_BEFORE_GENERATION' }); });
+      else d.store.change(id, j => { if (j.state === 'PREPARED' && !j.invocationId) { j.state='BLOCKED';j.reason=reason;j.events.push({at:d.now(),kind:'REFUSED_BEFORE_RESERVATION'}); } });
       if (claimed) throw new Error(reason);
       return { status: 'HUMAN_STOP', reason };
     } finally { clearTimeout(timer); this.#active.delete(id); }

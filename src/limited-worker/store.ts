@@ -15,7 +15,13 @@ const jobSchema = z.strictObject({ id: digest, contract: z.unknown().transform(p
   usage: z.strictObject({ inputTokens: z.number().int().nonnegative(), outputTokens: z.number().int().nonnegative() }).nullable(),
   events: z.array(z.strictObject({ at: instant, kind: z.string().max(100) })).max(100) });
 export type Job = z.infer<typeof jobSchema>;
-const payload = z.strictObject({ jobs: z.array(jobSchema).max(100), ceilingMicroUsd: z.literal(1000000) });
+const observationSchema=z.strictObject({id:z.string().uuid(),projectId:z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),at:instant,
+  kind:z.enum(['SETUP_OPENED','TASK_FORM_STARTED','PLAN_READY','PLAN_REUSED','CHECK','START_REFUSED','CANCEL','RECONCILIATION_REQUESTED','RUNTIME_START']),
+  interactionId:z.string().uuid().nullable(),jobId:digest.nullable(),reason:z.string().regex(/^[A-Z0-9_]{1,100}$/).nullable(),
+  evidenceClass:z.enum(['LOCAL_OBSERVATION','OFFLINE_SYNTHETIC']),clientElapsedMs:z.number().int().min(0).max(86400000).nullable()});
+export type Observation=z.infer<typeof observationSchema>;
+const payload = z.strictObject({ jobs: z.array(jobSchema).max(100), ceilingMicroUsd: z.literal(1000000),
+  observations:z.array(observationSchema).max(2000).optional(),observationsDropped:z.number().int().nonnegative().optional() });
 const envelope = z.strictObject({ schemaVersion: z.literal(1), payload, checksum: digest });
 
 export class WorkerStore {
@@ -52,7 +58,7 @@ export class WorkerStore {
     return hash(report);
   }
   reportIsValid(job: Job): boolean {
-    if (!job.reportHash || job.contract.storageIdentity !== this.identity()) return false;
+    if (!job.reportHash || typeof job.report!=='string' || hash(job.report)!==job.reportHash || job.contract.storageIdentity !== this.identity()) return false;
     let fd: number | undefined;
     try {
       const dir = join(this.directory, job.contract.outputKey), st = lstatSync(dir);
@@ -61,7 +67,7 @@ export class WorkerStore {
       const file = fstatSync(fd); return file.isFile() && file.size <= 65536 && hash(readFileSync(fd)) === job.reportHash;
     } catch { return false; } finally { if (fd !== undefined) closeSync(fd); }
   }
-  read() {
+  read():z.infer<typeof payload> {
     this.#check(); let fd: number | undefined;
     try {
       fd = openSync(join(this.directory, 'ledger.json'), constants.O_RDONLY | constants.O_NOFOLLOW);
@@ -70,7 +76,7 @@ export class WorkerStore {
       if (hash(v.payload) !== v.checksum || new Set(v.payload.jobs.map(j => j.id)).size !== v.payload.jobs.length ||
         v.payload.jobs.some(j => hash(j.contract) !== j.id) || v.payload.jobs.reduce((sum, j) => sum + j.reservedMicroUsd, 0) > 1000000) throw new Error('WORKER_STORAGE_INTEGRITY');
       return v.payload;
-    } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { jobs: [] as Job[], ceilingMicroUsd: 1000000 as const }; throw new Error('WORKER_STORAGE_INTEGRITY'); }
+    } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { jobs: [], ceilingMicroUsd: 1000000 }; throw new Error('WORKER_STORAGE_INTEGRITY'); }
     finally { if (fd !== undefined) closeSync(fd); }
   }
   update<T>(fn: (data: ReturnType<WorkerStore['read']>) => T): T {
@@ -97,6 +103,14 @@ export class WorkerStore {
     });
   }
   change(id: string, fn: (job: Job) => void) { return this.update(d => { const j = d.jobs.find(j => j.id === id); if (!j) throw new Error('UNKNOWN_JOB'); fn(j); return structuredClone(j); }); }
+  observe(input:Observation) {
+    const item=observationSchema.parse(input);
+    return this.update(d=>{const observations=d.observations??=[];const prior=observations.find(o=>o.id===item.id);
+      if(prior){const {at:_,...left}=prior,{at:__,...right}=item;if(hash(left)!==hash(right))throw new Error('OBSERVATION_ID_CONFLICT');return structuredClone(prior);}
+      if(observations.length===2000){observations.shift();d.observationsDropped=(d.observationsDropped??0)+1;}
+      observations.push(item);return structuredClone(item);
+    });
+  }
   reserve(id: string, amount: number, invocationId: string, at: string, synthetic: boolean) {
     return this.update(d => {
       const j = d.jobs.find(j => j.id === id); if (!j || j.state !== 'PREPARED' || j.invocationId || j.reservedMicroUsd) throw new Error('REQUEST_NOT_REPLAYABLE');

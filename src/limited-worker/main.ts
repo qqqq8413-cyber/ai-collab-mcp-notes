@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
@@ -19,12 +20,14 @@ import { readPinnedReadme } from './source.js';
 import { loadGrantCopies } from './config.js';
 
 async function main() {
-  const args = process.argv.slice(2), allowed = ['--host-config','--port','--permit-config'];
+  const args = process.argv.slice(2), allowed = ['--host-config','--port','--permit-config','--measurement-mode'];
   if (args.length % 2 || new Set(args.filter((_,i)=>i%2===0)).size !== args.length/2) throw new Error('INVALID_ARGS');
   for(let i=0;i<args.length;i+=2) if(!allowed.includes(args[i])||!args[i+1])throw new Error('INVALID_ARGS');
   const arg=(name:string)=>{const i=args.indexOf(name);return i<0?undefined:args[i+1];};
   const path=arg('--host-config');if(!path)throw new Error('MISSING_CONFIG');
-  const port=Number(arg('--port')??'4875');if(!Number.isInteger(port)||port<1||port>65535)throw new Error('INVALID_PORT');
+  const port=Number(arg('--port')??'4876');if(!Number.isInteger(port)||port<1||port>65535)throw new Error('INVALID_PORT');
+  const mode=arg('--measurement-mode');if(mode!==undefined&&mode!=='OFFLINE_SYNTHETIC')throw new Error('INVALID_MEASUREMENT_MODE');
+  const measurementClass=mode??'LOCAL_OBSERVATION';
   const config=loadTrustedWorkspaceHostConfig(path);if(!config.executionStatus)throw new Error('AUTHORITY_STATUS_REQUIRED');
   const grantCopies=loadGrantCopies(arg('--permit-config'));
   const root=join(dirname(fileURLToPath(import.meta.url)),'../..'), uiDirectory=join(root,'workspace-ui');
@@ -37,6 +40,8 @@ async function main() {
   isolation.assertDisjoint('limited results',workerDirectory);isolation.assertDisjoint('limited journal',journalDirectory);
   const workerStore=new WorkerStore(workerDirectory), release=workerStore.lease();
   const clock={now:()=>new Date().toISOString()}; workerStore.recover(clock.now());
+  for(const projectId of projects)workerStore.observe({id:randomUUID(),projectId,at:clock.now(),kind:'RUNTIME_START',
+    interactionId:null,jobId:null,reason:null,clientElapsedMs:null,evidenceClass:measurementClass});
   const identity=()=>{
     const git=(...a:string[])=>execFileSync('/usr/bin/git',['--no-replace-objects','-c','core.fsmonitor=false','-c','core.hooksPath=/dev/null','-C',root,...a],{
       encoding:'utf8',timeout:5000,stdio:['ignore','pipe','pipe'],
@@ -64,7 +69,7 @@ async function main() {
             if(!g||g.submittedBy?.principalRef!==config.workspace.humanPrincipal.principalRef)throw new Error('GOAL_BINDING_MISMATCH');return g.text;
           }});
         return createLimitedWorkerService({goals:ports.store,governance:ports.governance,admission:ports.runAdmission,
-          projects,store:workerStore,quote,source,identity,runtime,now:clock.now});
+          projects,store:workerStore,quote,source,identity,runtime,now:clock.now,measurementClass});
       }});
     engine.start();console.log(`CHIEF limited worker: ${server.url} | EXE HOLD | account/model not called`);
     let stopping=false;const stop=()=>{if(stopping)return;stopping=true;void engine.close().then(()=>server.close()).then(()=>{release();process.exit(0);}).catch(()=>process.exit(1));};

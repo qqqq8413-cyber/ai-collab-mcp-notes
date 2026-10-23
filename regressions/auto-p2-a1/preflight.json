@@ -1,0 +1,73 @@
+{
+  "at": "2026-10-23T10:28:10.738Z",
+  "base": "9a1579748c6764aa53cb2e0d2803d01cf28ee005",
+  "main": "e7eb87b4b481c885bea8730f8498eb493dc38184",
+  "branch": "work/auto-p2-a1-delegation-readiness",
+  "baseTests": {
+    "startedAt": "2026-10-20T17:29:02.946Z",
+    "endedAt": "2026-10-20T17:31:57.056Z",
+    "command": "npm test",
+    "exitCode": 0,
+    "suites": 57,
+    "totals": {
+      "passed": 2116,
+      "failed": 0,
+      "skipped": 0
+    },
+    "failures": [],
+    "skipLines": []
+  },
+  "ci": {
+    "id": 39467143570,
+    "headSha": "9a1579748c6764aa53cb2e0d2803d01cf28ee005",
+    "conclusion": "success",
+    "url": "https://github.com/qqqq8413-cyber/ai-collab-mcp-notes/actions/runs/39467143570",
+    "jobs": [
+      {
+        "name": "test",
+        "conclusion": "success"
+      },
+      {
+        "name": "r4t-macos",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "services": [
+    {
+      "port": 4873,
+      "status": "UNREACHABLE",
+      "error": "ECONNREFUSED",
+      "configSha256": "0052ec07e1f92c1bf4418eb861a3331fb8e02df0ee7fb338f4d4d0a5b12dde3f",
+      "note": "Observed before implementation. Not restarted, replaced or repaired."
+    },
+    {
+      "port": 4874,
+      "status": "UNREACHABLE",
+      "error": "ECONNREFUSED",
+      "configSha256": "3ec719f4db0fe1c19655f17c483bd4bdd462a9bb34e65d8ee6a94409080a6d7a",
+      "note": "Observed before implementation. Not restarted, replaced or repaired."
+    },
+    {
+      "port": 4875,
+      "status": "UNREACHABLE",
+      "error": "ECONNREFUSED",
+      "configSha256": "aa23103d7add3329dc9e1cc8b63072903072979c7f282fa105aaf1dcad7a5577",
+      "note": "Observed before implementation. Not restarted, replaced or repaired."
+    }
+  ],
+  "sourceReality": {
+    "hold": "hard constant at Workspace/composition/adapter/native transport",
+    "activation": "No production activation caller in limited composition; only existing governed core is available",
+    "requestedInput4096": "older draft, not runtime guaranteed",
+    "input200000": "provider-context and cost reservation bound, not a 4096 cap",
+    "unknown": [
+      "account model/API compatibility",
+      "strict 4096 input-token enforcement",
+      "Human grants and activation",
+      "live provider cancellation, usage and result"
+    ]
+  },
+  "paidModelCalls": 0,
+  "note": "Only GET to existing services. No private goal or session text is saved. Live run counts may naturally change."
+}

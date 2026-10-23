@@ -18,7 +18,7 @@
     "workspace:pilot": "node dist/pilot/main.js",
     "workspace:ai-preparation": "node dist/ai-pilot/main.js",
     "workspace:limited-worker": "node dist/limited-worker/main.js",
-    "test:pilot": "npm run build && node test-auto-p1.mjs && node test-auto-p1-r1.mjs && node test-auto-p2-preparation.mjs && node test-limited-worker.mjs",
+    "test:pilot": "npm run build && node test-auto-p1.mjs && node test-auto-p1-r1.mjs && node test-auto-p2-preparation.mjs && node test-limited-worker.mjs && node test-auto-p2-a1.mjs",
     "events:import": "node dist/event-source/main.js",
     "test:events": "npm run build && node test-event-source.mjs",
     "test": "npm run test:pilot && npm run test:core",
