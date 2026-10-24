@@ -1,0 +1,16 @@
+{
+  "startedAt": "2026-10-24T17:29:40.018Z",
+  "endedAt": "2026-10-24T17:31:56.815Z",
+  "command": "npm test",
+  "exitCode": 1,
+  "suites": 51,
+  "totals": {
+    "passed": 2084,
+    "failed": 1,
+    "skipped": 0
+  },
+  "failures": [
+    "  FAIL AC-AD-AE. the driver exposes inspect and step only: no Controller, runner, store, loop or drive: AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:"
+  ],
+  "skipLines": []
+}

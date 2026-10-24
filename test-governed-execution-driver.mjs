@@ -738,7 +738,8 @@ check('AC-AD-AE. the driver exposes inspect and step only: no Controller, runner
   for (const name of ['drive', 'runUntilDone', 'startAutonomous', 'loop', 'resumeAutomatically', 'controller', 'runner', 'journal', 'store',
     'registry', 'reality', 'admit', 'mint']) assert.equal(w.driver[name], undefined, name);
   assert.deepEqual(Object.keys(driverModule).sort(), ['EXECUTION_READINESS', 'openGovernedExecutionDriver']);
-  assert.deepEqual(Object.keys(liveModule), ['createGovernedLiveAutomation']);
+  // A4 adds one trusted Host composition, without exporting its preserver or Controller.
+  assert.deepEqual(Object.keys(liveModule).sort(), ['createGovernedLimitedWorker', 'createGovernedLiveAutomation']);
   packetReady(w);
   archiveGrants(w);
   const result = await w.driver.step(w.target());

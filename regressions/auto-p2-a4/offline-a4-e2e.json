@@ -1,0 +1,88 @@
+{
+  "evidenceClass": "OFFLINE_SYNTHETIC",
+  "paidModelCalls": 0,
+  "accountApiCalls": 0,
+  "keyReads": 0,
+  "factory": "createGovernedLimitedWorker",
+  "externallyIssuedSyntheticDocuments": 3,
+  "staged": {
+    "recordClass": "OPERATIONAL_RECORD",
+    "stage": {
+      "recordClass": "OPERATIONAL_RECORD",
+      "status": "ACTIVATED",
+      "target": {
+        "source": {
+          "kind": "WORKSPACE_GOAL",
+          "projectId": "chief",
+          "goalId": "goal-7f2d4cca-71c8-484a-a7e5-14f0337d4b2e"
+        },
+        "runId": "run-34fe80953a66e0adf8f29212cf30de9cf27cda1e73c5e0ea341554d188e6ca75"
+      },
+      "changeKey": "34fe80953a66e0adf8f29212cf30de9cf27cda1e73c5e0ea341554d188e6ca75",
+      "preSnapshotId": "e5794c75e7a3c9f3bc1cd2c93a58bbd88a31b9e7c30628991c649f152a2822a2",
+      "preState": "IDLE",
+      "postSnapshotId": "4220a5c1c6c3972051e1f850e6c51ae073ec218c2e55e29140395a245a1392c8",
+      "state": "PACKET_READY",
+      "packet": {
+        "packetId": "limited-b4e5a31509092e2953fa1cf06c7eaa7a9d0d23bb1d929d54",
+        "packetVersion": 1,
+        "packetHash": "d7da88c5c78f000571db2b347fa6dd243e6064b19bb6237493800dbd4a573c67"
+      },
+      "authority": {
+        "implementationPacket": {
+          "kind": "IMPLEMENTATION_PACKET",
+          "authorityId": "limited-b4e5a31509092e2953fa1cf06c7eaa7a9d0d23bb1d929d54",
+          "version": 1,
+          "recordHash": "f446273dd7fdfd9572860deb7185e9b1b8b2c8006e74074ab8d642ef67ceafd4"
+        },
+        "liveCallAuthorizations": [
+          {
+            "actorKind": "IMPLEMENTATION",
+            "authority": {
+              "kind": "AUTHORIZATION",
+              "authorityId": "a1-synthetic-live",
+              "version": 1,
+              "recordHash": "ea9ed2dc08f51a2c67b7423b9ea2327329bd3223e27d772fe363b5e0d5af5774"
+            }
+          }
+        ]
+      }
+    },
+    "executionEligible": false,
+    "blockers": [
+      "EXE_HOLD",
+      "H1_H9_NOT_GRANTED"
+    ],
+    "notice": "Staging archived documents is not execution authorization. No Driver or Worker was invoked."
+  },
+  "preflight": {
+    "evidenceClass": "OFFLINE_SYNTHETIC",
+    "model": "claude-haiku-4-5-20251001",
+    "apiVersion": "2023-06-01",
+    "maxInputTokens": 200000,
+    "maxOutputTokens": 2048,
+    "priceSourceHash": "4eb30f9ee151d3091eae641f8b871afb3c8ec6ad65fde911ecfb6950dafc8c09",
+    "observedAt": "2026-10-24T17:29:18.321Z",
+    "requestHash": "88ac3bb9395b2a8afecf67b442deea6916b453d28d3b9da7475e0d159b13c41c",
+    "contractHash": "b4e5a31509092e2953fa1cf06c7eaa7a9d0d23bb1d929d5420cc4ddcc9d5333b"
+  },
+  "claimPersistedBeforeSend": true,
+  "syntheticGenerationCalls": 1,
+  "controller": "IMPLEMENTATION_COMPLETE",
+  "journal": [
+    {
+      "invocationId": "ee545a4578f3c1fe76576a3e0b43740b1b175b46f6810a5beb8fdc76501ba338",
+      "state": "APPLIED",
+      "appliedAt": "2026-10-24T17:29:18.391Z"
+    }
+  ],
+  "reportHash": "3e89deed44bd66091c9f7dfd2b8d12ebb9343274fa85a61016ed5c9564f792eb",
+  "resultConsistent": true,
+  "usage": {
+    "inputTokens": 100,
+    "outputTokens": 50
+  },
+  "reservedMicroUsd": 210240,
+  "exe": "HOLD",
+  "productionExecutionAuthorized": false
+}

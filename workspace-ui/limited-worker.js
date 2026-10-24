@@ -30,6 +30,7 @@ export function jobsHTML(data){return `<dl class="auto-facts"><div><dt>持久化
       <div><dt>最壞費用預留，非實際費用</dt><dd>${usd(j.maximumReservationMicroUsd)}</dd></div>
       <div><dt>實際 usage 計算費用，非帳單</dt><dd>${usd(j.actualCostMicroUsd)}</dd></div>
       <div><dt>正式授權</dt><dd>${j.authorityStatus==='ARCHIVED_BINDING_VALID'?'限定文件綁定有效，仍需完整許可':'尚未取得有效限定授權'}</dd></div></dl>
+    <p class="auto-deferred">可信執行 Host：候選待審查，尚未開放執行。帳戶模型尚未驗證。</p>
     <h4>啟動前檢查：尚未符合</h4><ul class="worker-checks">${(j.readiness?.checks??[]).map(c=>`<li><strong>${esc(c.title)}</strong><p>${esc(c.nextStep)}</p></li>`).join('')}</ul>
     <div class="auto-actions"><button class="auto-button" data-worker-act="CHECK" data-id="${j.id}">${readerIcon('refresh')} 檢查準備狀態</button>
       <button class="auto-button" disabled title="EXE HOLD；本輪沒有付費執行授權">${readerIcon('play')} 啟動執行 · LOCKED</button>

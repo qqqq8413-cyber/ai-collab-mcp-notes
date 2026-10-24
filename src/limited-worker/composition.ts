@@ -11,7 +11,8 @@ import { SCOPE, EXE, hash, assertInputReady, type Contract } from './contract.js
 import { WorkerStore } from './store.js';
 import type { WorkerTransport } from './transport.js';
 import { packetFor } from './contract.js';
-import { verifyPermit } from './governance.js';
+import { verifyPermit, limitedActivationCandidate } from './governance.js';
+import type { GovernedActivationCore } from '../automation/activation-core.js';
 import { readStoredOutcome } from '../automation/invocation-journal.js';
 import { parseImplementationResult } from '../automation/bridge.js';
 import { packetHash } from '../automation/packet.js';
@@ -23,7 +24,8 @@ export function composeLimitedWorker(options: {
   currentImplementation(): { sha: string; codeHash: string; clean: boolean };
   liveCallGrant: unknown; limitedGrant: unknown; readSource(c: Contract): { text: string; sha: string; path: string; bytes: number; hash: string };
   readGoal(c: Contract): string; deadlineMs?: number;
-}) {
+}, trusted?: {createActivation(controller:AutomationController):GovernedActivationCore;
+  preserveIssued:NonNullable<Parameters<typeof limitedActivationCandidate>[0]['preserveIssued']>}) {
   options = { ...options, liveCallGrant: structuredClone(options.liveCallGrant), limitedGrant: structuredClone(options.limitedGrant) };
   const isolation = GovernanceStoreIsolation.forLiveRoots(options);
   isolation.assertDisjoint('limited worker journal', options.journalDirectory);
@@ -40,7 +42,14 @@ export function composeLimitedWorker(options: {
     { journal, clock: options.clock, authorizations: { IMPLEMENTATION: options.liveCallGrant }, scopes });
   const driver = openGovernedExecutionDriver({ ...options, runner, liveCallAuthorizations: { IMPLEMENTATION: options.liveCallGrant }, scopes });
   const target = (c: Contract) => ({ source: { kind: 'WORKSPACE_GOAL' as const, projectId: c.projectId, goalId: c.goalId }, runId: c.runId });
+  const activation=trusted?limitedActivationCandidate({core:trusted.createActivation(controller),store,readModel,
+    humanPrincipalRef:options.humanPrincipalRef,architectPrincipalRef:options.architectPrincipalRef,now:()=>options.clock.now(),
+    identity:options.currentImplementation,readSource:options.readSource,readGoal:options.readGoal,preserveIssued:trusted.preserveIssued}):null;
   return Object.freeze({
+    activateIssued(c:Contract,bundle:unknown,limitedDocument:unknown){
+      if(!activation)throw new Error('TRUSTED_ACTIVATION_NOT_COMPOSED');
+      return activation.stage(hash(c),bundle,limitedDocument);
+    },
     resultConsistency(c:Contract) {
       try {
         const job=store.read().jobs.find(j=>j.id===hash(c)),run=controller.get(c.runId);
@@ -63,7 +72,7 @@ export function composeLimitedWorker(options: {
       const model = readModel(), run = model.runs.find(r => r.runId === c.runId);
       if (!run) throw new Error('RUN_BINDING_MISMATCH');
       return verifyPermit(c, { grant: options.limitedGrant, liveGrant: options.liveCallGrant, model, packet: packetFor(c, run.sliceId),
-        humanPrincipalRef: options.humanPrincipalRef, now: options.clock.now() });
+        humanPrincipalRef: options.humanPrincipalRef,architectPrincipalRef:options.architectPrincipalRef, now: options.clock.now() });
     },
     async execute(c: Contract) {
       if (options.transport.kind === 'LIVE_PROVIDER' && EXE === 'HOLD') throw new Error('EXE_HOLD');

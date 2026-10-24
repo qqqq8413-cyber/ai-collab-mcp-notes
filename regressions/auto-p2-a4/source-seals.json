@@ -1,0 +1,82 @@
+{
+  "baseSha": "aa44f36e02cd726724cf14f77818ce25ecef64e1",
+  "note": "Pre-commit content seals; final exact SHA/CI recorded in post-commit local closure.",
+  "files": [
+    {
+      "path": "AUTO_P2_A4_ARCHITECT_REVIEW.md",
+      "sha256": "50b05bf4be0aca335a8e4db3f93b5767cb9222df5a586f51d20a83d54840606e"
+    },
+    {
+      "path": "AUTO_P2_A4_PERMIT_DRAFT.md",
+      "sha256": "487fde46bc3fd67b744f192ab652eb37db7b24895b81ea98b1d87695b5b01b56"
+    },
+    {
+      "path": "package.json",
+      "sha256": "119bd61c9bb3796369da271fbf3721f3cc4f6aef935c456e39c5e906994d39ce"
+    },
+    {
+      "path": "src/automation/live/governed-execution.ts",
+      "sha256": "756732047f0f79f452b269e17e68f12b03249e601c9006cf89f955afebdd8209"
+    },
+    {
+      "path": "src/limited-worker/adapter.ts",
+      "sha256": "3a357acb7bbfdb00526d5ecf285f497593864d291ac1ad6ed99a361689992afe"
+    },
+    {
+      "path": "src/limited-worker/composition.ts",
+      "sha256": "33b6c0832d902c14dc3d52c358ff9fd24301787e473f6f9f5f27406089492312"
+    },
+    {
+      "path": "src/limited-worker/config.ts",
+      "sha256": "92988a09df8641209113cd92b9315574585b29ec3e52afac5eeaf264848420b0"
+    },
+    {
+      "path": "src/limited-worker/contract.ts",
+      "sha256": "2e4f81522b140b0a94970014d3861e09ca56c6c62d708b13484cff29eece06e6"
+    },
+    {
+      "path": "src/limited-worker/efficiency.ts",
+      "sha256": "23a8d408dc479859fbc0766952ae22e9d86f2233d9cf5cca23e90165c950fd04"
+    },
+    {
+      "path": "src/limited-worker/governance.ts",
+      "sha256": "02e406e416e75c379893e90fd2c84f80a72872b012132a69461bf4affd44ca92"
+    },
+    {
+      "path": "src/limited-worker/main.ts",
+      "sha256": "40de99b010079f5b4ddfd98ba5134bc35ee628d018ec4eaa40731eef94f956c8"
+    },
+    {
+      "path": "src/limited-worker/readiness.ts",
+      "sha256": "fde1e45382d1273c347d6a63cfc9d62b038e0da267b21417d8e968b399042bec"
+    },
+    {
+      "path": "src/limited-worker/service.ts",
+      "sha256": "a6214561eb3dcdb83cab093c4290117a5c76387ba24875d03a7a11fd97b49da2"
+    },
+    {
+      "path": "src/limited-worker/source.ts",
+      "sha256": "efcded9a9a86adfe6fd7eeef39d5ef1d21b12a189557234c58797528b8bfc87f"
+    },
+    {
+      "path": "src/limited-worker/store.ts",
+      "sha256": "e955d23fd85b7a32bd889b8a9f419bec2f35fe4928ef1116a5faccd32978448a"
+    },
+    {
+      "path": "src/limited-worker/transport.ts",
+      "sha256": "2c0c2da340b8a886ca89ab27454e944e7a3af3a0b60b15cadd92d674567afb3a"
+    },
+    {
+      "path": "test-auto-p2-a1.mjs",
+      "sha256": "9b59ef270754ba67d10c8a3efaa28e19c767c618a5f083a714b8df3b76ada306"
+    },
+    {
+      "path": "test-governed-execution-driver.mjs",
+      "sha256": "fc0e1c9fac01773e1ed1b30acbc64761b72804526ef691b1c1e2a5e8db5aa7c2"
+    },
+    {
+      "path": "workspace-ui/limited-worker.js",
+      "sha256": "752fefc0a173f5f48b77d6f963e3f45c85162b51bc1cbd860f9f8129e1afdda4"
+    }
+  ]
+}

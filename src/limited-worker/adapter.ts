@@ -3,7 +3,7 @@ import type { ImplementationAgentPort, ImplementationInput, ImplementationResult
 import type { ControllerRun } from '../automation/types.js';
 import type { InvocationJournal } from '../automation/invocation-journal.js';
 import type { GovernedReadModelV1 } from '../automation/read-model/governed-read-model.js';
-import { EXE, MODEL, contractOf, hash, maximumCost, checkQuote, assertInputReady, messageBody, type Contract } from './contract.js';
+import { EXE, MODEL, contractOf, hash, maximumCost, checkQuote, assertInputReady, messageBody,serializeRequest, type Contract } from './contract.js';
 import { verifyInvocation, verifyPermit } from './governance.js';
 import { WorkerStore } from './store.js';
 import { parsePreflight, type WorkerTransport } from './transport.js';
@@ -15,7 +15,7 @@ const replySchema = z.object({ id: z.string().min(1).max(200), model: z.literal(
 const safeReason = (e: unknown) => e instanceof Error && /^[A-Z0-9_]{1,100}$/.test(e.message) ? e.message : 'WORKER_FAILED_CLOSED';
 export interface WorkerDependencies {
   store: WorkerStore; journal: InvocationJournal; transport: WorkerTransport; humanGrant: unknown; liveGrant: unknown;
-  humanPrincipalRef: string; now(): string;
+  humanPrincipalRef: string; architectPrincipalRef:string; now(): string;
   readModel(): GovernedReadModelV1;
   readRun(runId: string): ControllerRun;
   readSource(c: Contract): { text: string; sha: string; path: string; bytes: number; hash: string };
@@ -42,7 +42,7 @@ export class LimitedReadmeWorker implements ImplementationAgentPort {
       if (!identity.clean || identity.sha !== c.implementationSha || identity.codeHash !== c.workerCodeHash) throw new Error('IMPLEMENTATION_CHANGED');
       if (c.implementationSha !== d.implementationSha || c.workerCodeHash !== d.workerCodeHash || c.storageIdentity !== d.store.identity() || input.runId !== c.runId || input.implementationIteration !== 1 || input.correction) throw new Error('IMPLEMENTATION_BINDING_MISMATCH');
       checkQuote(c.quote, d.now());
-      verifyPermit(c, { grant: d.humanGrant, liveGrant: d.liveGrant, model: d.readModel(), packet: input.packet, humanPrincipalRef: d.humanPrincipalRef, now: d.now() });
+      verifyPermit(c, { grant: d.humanGrant, liveGrant: d.liveGrant, model: d.readModel(), packet: input.packet, humanPrincipalRef: d.humanPrincipalRef,architectPrincipalRef:d.architectPrincipalRef, now: d.now() });
       const record = input.invocationId ? d.journal.get(input.invocationId) : undefined;
       verifyInvocation(c, input.packet, d.readRun(c.runId), record);
       const source = d.readSource(c), objective = d.readGoal(c);
@@ -65,8 +65,11 @@ export class LimitedReadmeWorker implements ImplementationAgentPort {
       const { source, objective } = check();
       d.store.reserve(id, maximumCost(c), input.invocationId!, d.now(), d.transport.kind === 'OFFLINE_SYNTHETIC'); reserved = true;
       this.#active.set(id, abort);
-      const preflight = parsePreflight(await bounded(d.transport.preflight(c, abort.signal)));
-      if (preflight.priceSourceHash !== c.quote.sourceSha256 || preflight.evidenceClass !== d.transport.kind ||
+      const preflight = parsePreflight(await bounded(d.transport.preflight(c, abort.signal,{objective,source:source.text})));
+      if ((preflight.requestHash&&preflight.requestHash!==hash(serializeRequest(messageBody(c,objective,source.text))))||
+        (preflight.contractHash&&preflight.contractHash!==hash(c))||
+        (d.transport.kind==='LIVE_PROVIDER'&&(!preflight.requestHash||!preflight.contractHash))||
+        preflight.priceSourceHash !== c.quote.sourceSha256 || preflight.evidenceClass !== d.transport.kind ||
         Date.parse(preflight.observedAt) > Date.parse(d.now()) || Date.parse(d.now()) - Date.parse(preflight.observedAt) > 300000) throw new Error('PREFLIGHT_NOT_BOUND');
       d.store.change(id, j => { j.modelPreflight = preflight; j.events.push({ at: d.now(), kind: 'MODEL_PRICE_PREFLIGHT_VERIFIED' }); });
       check();
@@ -74,7 +77,15 @@ export class LimitedReadmeWorker implements ImplementationAgentPort {
       if (abort.signal.aborted) throw abort.signal.reason;
       d.store.change(id, j => { if (j.generationClaimed) throw new Error('REQUEST_NOT_REPLAYABLE'); j.generationClaimed = true; j.events.push({ at: d.now(), kind: 'ONE_GENERATION_CLAIMED_BEFORE_SEND' }); });
       claimed = true;
-      const response = replySchema.parse(await bounded(d.transport.generate(c, objective, source.text, abort.signal)));
+      const beforeSend=()=>{
+        check();
+        const job=d.store.read().jobs.find(j=>j.id===id);
+        if(!job||job.state!=='RUNNING'||!job.generationClaimed||job.invocationId!==input.invocationId||job.reservedMicroUsd!==maximumCost(c))throw new Error('FINAL_SEND_CLAIM_NOT_BOUND');
+        if(performance.now()-started>=duration)abort.abort(new Error('WORKER_TIMEOUT'));
+        if(abort.signal.aborted)throw abort.signal.reason;
+      };
+      beforeSend();
+      const response = replySchema.parse(await bounded(d.transport.generate(c, objective, source.text, abort.signal,beforeSend)));
       if (abort.signal.aborted) throw abort.signal.reason;
       const report = response.content.map(b => b.text).join('\n');
       if (!report.trim() || Buffer.byteLength(report) > 65536) throw new Error('REPORT_BYTES_LIMIT');

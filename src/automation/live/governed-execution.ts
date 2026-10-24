@@ -5,6 +5,8 @@ import { openDirectAuthorityPreserver } from '../authority/preserver.js';
 import { openGovernedExecutionDriver, type GovernedExecutionDriver } from '../execution-driver.js';
 import type { ActorKind, ProviderCallScope } from '../types.js';
 import { createLiveAutomation, type LiveAutomationConfig } from './composition.js';
+import { composeLimitedWorker } from '../../limited-worker/composition.js';
+import { WorkerStore } from '../../limited-worker/store.js';
 
 // G1-LD1 / G1-AP1: the trusted governed live composition. It is the one production path that
 // composes the live automation and the one that opens the direct authority preserver, and it
@@ -31,6 +33,21 @@ export interface GovernedLiveAutomation {
   execution: GovernedExecutionDriver;
   activation: GovernedActivationCore;
 }
+const trustedPreserver=(directory:string)=>openDirectAuthorityPreserver(directory);
+
+/** Trusted Host candidate only: accepts externally issued documents; never constructs or signs authority. */
+export function createGovernedLimitedWorker(options:Parameters<typeof composeLimitedWorker>[0]) {
+  const preserver=trustedPreserver(options.authorityArchiveDirectory);
+  const runtime=composeLimitedWorker(options,{
+    createActivation:controller=>openGovernedActivationCore({...options,controller,preserver}),
+    preserveIssued:documents=>{for(const document of documents)preserver.preserve(document);},
+  });
+  const store=new WorkerStore(options.resultDirectory);
+  return Object.freeze({...runtime,
+    activateIssued(...args:Parameters<typeof runtime.activateIssued>){const release=store.lease();try{store.recover(options.clock.now());return runtime.activateIssued(...args);}finally{release();}},
+    async execute(...args:Parameters<typeof runtime.execute>){const release=store.lease();try{store.recover(options.clock.now());return await runtime.execute(...args);}finally{release();}},
+  });
+}
 
 /** The exact scope each live adapter calls, as the adapters state it from the same configuration. */
 function scopeOf(actorKind: ActorKind, actor: { provider: string; model: string; egressDestinations: string[] }): ProviderCallScope {
@@ -44,7 +61,7 @@ export function createGovernedLiveAutomation(input: unknown, dependencies: Omit<
   if (!copy || typeof copy !== 'object') throw new TypeError('A governed live configuration is required');
   const { architectPrincipalRef, ...config } = copy;
   if (!isAuthorityPrincipalRef(architectPrincipalRef)) throw new TypeError('architectPrincipalRef must be an exact principal reference');
-  const preserver = openDirectAuthorityPreserver(config.authorityArchiveDirectory);
+  const preserver = trustedPreserver(config.authorityArchiveDirectory);
   const live = createLiveAutomation(config, { ...dependencies,
     architectAuthority: architectReviewAuthority(preserver, architectPrincipalRef) });
   const roots = { controllerStoreDirectory: config.controllerStoreDirectory, authorityArchiveDirectory: config.authorityArchiveDirectory,

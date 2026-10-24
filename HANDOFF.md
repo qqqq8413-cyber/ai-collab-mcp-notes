@@ -2982,3 +2982,17 @@ M2-A 比 baseline 好、peer challenge 提升品質、多模型優於單模型�
 - 交付AUTO_P2_A3_ARCHITECT_REVIEW.md、AUTO_P2_A3_PERMIT_DRAFT.md、regressions/auto-p2-a3/；提交後在乾淨exact SHA另建Goal／Run／契約與PILOT_PERMIT_PACKET_A3.json，三份Authority與issuedAt/expiresAt皆null。重啟保存／final CI／remote exact與clean狀態記於本機closure。
 - 首次真實Pilot仍需：Architect接受候選；另案可信production activation／execution接線及EXE/H1–H9限定決策；Human另次單次付費授權；可信Host專用key與帳戶exact model/API能力／新鮮價格查驗；最終版本新契約的Architect及兩筆Human grants正式核發歸檔；才可做真實usage／成果／Journal驗收。**本輪不自行啟動，也不再要求4096上界證明。**
 - STOP FOR ARCHITECT REVIEW。不合併main、不改Ruleset／憑證／全域Agent設定、不替換現有服務、不進下一slice。
+
+## AUTO-P2-A4 Governed First Live Pilot Activation Readiness（2026-10-25）
+
+- Base exact SHA `aa44f36e02cd726724cf14f77818ce25ecef64e1`；新分支 `work/auto-p2-a4-governed-host-readiness`。A3 base CI #132／40006597055及2235測試重新核對。main未改，候選exact SHA與CI見提交後本輪closure。
+- 既有唯一可信preserver持有模組新增 `createGovernedLimitedWorker`：驗證外部已核發Architect packet＋兩筆獨立Human grant，先驗證完整文件、保存Archive並重讀，經同一私有Controller的AP1進PACKET_READY，再Driver／Worker／Journal。不核發、不簽署Authority。普通Workspace沒有可信activation注入與授權HTTP入口；Host候選未接到正式CLI／UI／scheduler，EXE／H1–H9仍HOLD。
+- 綁exact SHA／codeHash／Goal／Run／packet／contract／source／storage／provider／model／scope／期限／principal／current版本；新加入Architect packet當前版本核對，不能以被新版取代的packet繼續執行。Operational Record不是Direct Authority。三文件保存非原子交易，崩潰可能留部分有效Archive但不得開始執行；上游來源身分及保護目錄仍需可信部署審查，principal字串不是新簽章驗證。
+- 純provider preflight與OFFLINE_SYNTHETIC transport驗證固定model/API、active metadata／context／output／disabled-thinking、官方價格hash與1小時quote、完整request資源，並綁requestHash＋contractHash；LIVE_PROVIDER缺少hash拒絕，舊ledger不改checksum。真實帳戶／metadata schema／API相容性仍UNVERIFIED，unknown fail closed。公開價格查驗不是帳戶驗證。
+- 送出前先持久化generation claim及預留；新同步guard在socket secureConnect後、write/end前重查Archive／Controller／Journal／source／Goal／code／claim／期限／cancel，沒有await；mock socket驗證0或1次寫入。**不宣稱跨程序撤銷與HTTPS送出原子化**：最後讀取後或送出後變更仍是剩餘TOCTOU邊界，需Architect接受或另案調停。claim後即使0bytes送出也保守UNCERTAIN／不退款／不重送。
+- Host排他lease阻擋平行dispatch；恢復先將中斷RUNNING改UNCERTAIN、不清預算，取消仍可用。原A3 README16384bytes／Goal2000UTF16／JSON131072bytes、完整原文、USD1／210240microUSD預留、一次生成／零retry／300秒與來源唯讀／隔離成果限制不變。
+- 新增40項A4測試；專項133通過。完整build／npm test **59組／2275 passed／0 failed／0 skipped**，本機macOS Seatbelt必跑隔離已執行；桌面1440／768與手機390／320、重啟／取消／不重送、欄位篡改／supersession／replay及Archive→Controller→Driver→Worker→Journal→report一致性證據見 `regressions/auto-p2-a4/`。首次full run因新增Host export使舊精確名單過時失敗，更新為兩個明確factory後完整重跑成功；失敗證據保留。所有模型與Authority E2E為OFFLINE_SYNTHETIC，沒有真實Pilot驗收。
+- 獨立4879預覽，建立工作只需目標，內部hash收合，新增可信Host待審查／帳戶未驗證提示，START LOCKED／後端403。4873–4878本輪皆ECONNREFUSED，未替換／重啟；前後比對資料／設定／worktree／連線狀態，不冒稱舊服務完整功能回歸。
+- 交付 `AUTO_P2_A4_ARCHITECT_REVIEW.md`、`AUTO_P2_A4_PERMIT_DRAFT.md`；乾淨最終SHA另建全新Goal／Run／契約與 `outputs/auto-p2-a4/PILOT_PERMIT_PACKET_A4.json`，UNISSUED_NOT_AUTHORITY，三Authority欄及issued/expires皆null，不沿用A3草案。exact CI與重啟closure另存本機，避免自參照SHA。
+- 尚缺：Architect接受可信Host及剩餘競態／上游來源界線；另案正式接線部署與EXE/H1–H9限定決策；可信Host專用憑證／帳戶exact model/API／fresh價格查驗；最終版本新契約的Architect文件與兩項Human正式grants核發歸檔；Human另次單次付費Pilot與真實usage／成果驗收。本輪帳戶API／key讀取／付費生成／正式Authority核發均0。
+- **工程接線候選不等於正式付費能力。STOP FOR ARCHITECT REVIEW，不啟動Pilot、不發布main。**

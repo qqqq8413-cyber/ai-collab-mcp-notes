@@ -1,4 +1,4 @@
-import { authorityBodyHash, parseAuthorityDocument, sealAuthorityRecord, type JsonObject } from '../automation/authority/document.js';
+import { authorityBodyHash, parseAuthorityDocument, sealAuthorityRecord, type AuthorityDocumentV1, type JsonObject } from '../automation/authority/document.js';
 import { contractOf, hash, SCOPE, checkQuote, packetFor, parseContract, inputFacts, type Contract } from './contract.js';
 import type { GovernedActivationCore } from '../automation/activation-core.js';
 import { packetHash } from '../automation/packet.js';
@@ -8,16 +8,25 @@ import type { GovernedReadModelV1 } from '../automation/read-model/governed-read
 import type { ControllerRun, ImplementationPacket } from '../automation/types.js';
 import type { InvocationRecord } from '../automation/invocation-journal.js';
 
+function boundGrant(raw:unknown,c:Contract,packet:ImplementationPacket,operation:string,target:string,now:string) {
+  const grant=parseAuthorization(raw),at=Date.parse(now);
+  if(!Number.isFinite(at)||!grant||!authorizationBinds(grant,{role:'HUMAN',operation,target,runId:c.runId,packetId:packet.packetId,scope:SCOPE})||
+    !grant.expiresAt||Date.parse(grant.issuedAt)>at||Date.parse(grant.expiresAt)<=at||Date.parse(grant.expiresAt)-Date.parse(grant.issuedAt)>3600000)
+    throw new Error('LIMITED_PERMIT_NOT_BOUND_OR_EXPIRED');
+  return grant;
+}
 export function verifyPermit(c: Contract, input: { grant: unknown; liveGrant: unknown; model: GovernedReadModelV1; packet: ImplementationPacket;
-  humanPrincipalRef: string; now: string }) {
-  const { packet, model } = input, grant = parseAuthorization(input.grant), now = Date.parse(input.now);
+  humanPrincipalRef: string; architectPrincipalRef:string; now: string }) {
+  const { packet, model } = input, grant = parseAuthorization(input.grant);
   if (hash(contractOf(packet)) !== hash(c)) throw new Error('CONTRACT_PACKET_MISMATCH');
   const run = model.runs.find(r => r.runId === c.runId);
   if (!run || run.repository !== c.repository || run.sliceId !== packet.sliceId || run.anomalies.length || model.anomalies.length) throw new Error('RUN_BINDING_MISMATCH');
+  const packets=model.authority.filter(f=>f.ref.kind==='IMPLEMENTATION_PACKET'&&f.ref.authorityId===packet.packetId),
+    exact=packets.filter(f=>f.bodyHash===authorityBodyHash(packet as unknown as JsonObject));
+  if(exact.length!==1||exact[0].issuer.role!=='GPT_ARCHITECT'||exact[0].issuer.principalRef!==input.architectPrincipalRef||
+    packets.some(f=>f.ref.version>exact[0].ref.version))throw new Error('PACKET_AUTHORITY_NOT_CURRENT');
   const verify = (raw: unknown, operation: string, target: string) => {
-    const parsed = parseAuthorization(raw);
-    if (!parsed || !authorizationBinds(parsed, { role: 'HUMAN', operation, target, runId: c.runId, packetId: packet.packetId, scope: SCOPE }) ||
-      !parsed.expiresAt || Date.parse(parsed.issuedAt) > now || Date.parse(parsed.expiresAt) <= now || Date.parse(parsed.expiresAt) - Date.parse(parsed.issuedAt) > 3600000) throw new Error('LIMITED_PERMIT_NOT_BOUND_OR_EXPIRED');
+    const parsed = boundGrant(raw,c,packet,operation,target,input.now);
     const versions = model.authority.filter(f => f.ref.kind === 'AUTHORIZATION' && f.ref.authorityId === parsed.authorizationId);
     const facts = versions.filter(f => f.bodyHash === authorityBodyHash(parsed as unknown as JsonObject));
     if (facts.length !== 1 || facts[0].issuer.role !== 'HUMAN' || facts[0].issuer.principalRef !== input.humanPrincipalRef ||
@@ -47,6 +56,7 @@ export function limitedActivationCandidate(options: {
   identity(): { sha: string; codeHash: string; clean: boolean };
   readSource(c: Contract): { sha: string; path: string; text: string };
   readGoal(c: Contract): string;
+  preserveIssued?:(documents:readonly AuthorityDocumentV1[])=>void;
 }) {
   return Object.freeze({ stage(id: string, rawBundle: unknown, rawLimitedDocument: unknown) {
     const job=options.store.read().jobs.find(j=>j.id===id);
@@ -66,12 +76,29 @@ export function limitedActivationCandidate(options: {
     if(position.repository!==c.repository||position.humanPrincipalRef!==options.humanPrincipalRef)throw new Error('ACTIVATION_TARGET_MISMATCH');
     if(packetDocument.kind!=='IMPLEMENTATION_PACKET'||packetDocument.issuer.role!=='GPT_ARCHITECT'||packetDocument.issuer.principalRef!==options.architectPrincipalRef||
       hash(packetDocument.body)!==hash(packet)||liveDocument.kind!=='AUTHORIZATION'||limitedDocument.kind!=='AUTHORIZATION')throw new Error('ACTIVATION_DOCUMENT_MISMATCH');
+    if(options.preserveIssued){
+      if(c.inputPolicy?.revision!=='A3')throw new Error('ACTIVATION_POLICY_REPLAN_REQUIRED');
+      boundGrant(liveDocument.body,c,packet,'LIVE_PROVIDER_MODEL_CALL','live-provider-model-call',options.now());
+      boundGrant(limitedDocument.body,c,packet,'LIMITED_README_WORKER',hash(c),options.now());
+      for(const doc of[packetDocument,liveDocument,limitedDocument]){
+        const versions=model.authority.filter(f=>f.ref.kind===doc.kind&&f.ref.authorityId===doc.authorityId),latest=versions.sort((a,b)=>b.ref.version-a.ref.version)[0];
+        const sealed=sealAuthorityRecord(doc);
+        if(doc.subject.repository!==c.repository||doc.subject.sliceId!==packet.sliceId||Date.parse(doc.issuedAt)>Date.parse(options.now())||
+          (doc.kind==='AUTHORIZATION'&&(doc.issuer.role!=='HUMAN'||doc.issuer.principalRef!==position.humanPrincipalRef))||
+          (!latest&&(doc.version!==1||doc.supersedes!==null))||
+          (latest&&!(latest.ref.recordHash===sealed.recordHash||doc.version===latest.ref.version+1&&hash(doc.supersedes)===hash(latest.ref))))
+          throw new Error('ACTIVATION_ISSUED_DOCUMENT_INVALID');
+      }
+      // Complete incoming documents were validated first. Existing trusted preservation, never issuance.
+      options.preserveIssued([packetDocument,liveDocument,limitedDocument]);
+    }
+    const current=options.readModel();
     // Only previously preserved, exact, current documents can reach the existing core.
     for(const doc of[packetDocument,liveDocument,limitedDocument]){
-      const record=sealAuthorityRecord(doc),versions=model.authority.filter(f=>f.ref.kind===doc.kind&&f.ref.authorityId===doc.authorityId);
+      const record=sealAuthorityRecord(doc),versions=current.authority.filter(f=>f.ref.kind===doc.kind&&f.ref.authorityId===doc.authorityId);
       if(!versions.some(f=>f.ref.recordHash===record.recordHash)||versions.some(f=>f.ref.version>doc.version)||Date.parse(doc.issuedAt)>Date.parse(options.now()))throw new Error('ACTIVATION_DOCUMENT_NOT_CURRENTLY_ARCHIVED');
     }
-    verifyPermit(c,{grant:limitedDocument.body,liveGrant:liveDocument.body,model,packet,humanPrincipalRef:options.humanPrincipalRef,now:options.now()});
+    verifyPermit(c,{grant:limitedDocument.body,liveGrant:liveDocument.body,model:current,packet,humanPrincipalRef:options.humanPrincipalRef,architectPrincipalRef:options.architectPrincipalRef,now:options.now()});
     const result=options.core.activate(target,{implementationPacket:packetDocument,liveCallAuthorizations:[liveDocument]});
     if(result.packet.packetHash!==packetHash(packet)||result.state!=='PACKET_READY')throw new Error('ACTIVATION_RESULT_MISMATCH');
     return {recordClass:'OPERATIONAL_RECORD' as const,stage:result,executionEligible:false as const,

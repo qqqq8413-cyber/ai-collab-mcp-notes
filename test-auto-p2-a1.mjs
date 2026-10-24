@@ -3,6 +3,7 @@ import {randomUUID} from 'node:crypto';
 import {mkdtempSync,mkdirSync,readFileSync,readdirSync,writeFileSync,rmSync,realpathSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
+import {EventEmitter} from 'node:events';
 import {parseWorkspaceConfig} from './dist/workspace/config.js';
 import {createGoalChangeBridge} from './dist/intake/goal-change-bridge.js';
 import {createGoalRunAdmissionBridge} from './dist/intake/goal-run-admission-bridge.js';
@@ -14,7 +15,8 @@ import {FileInvocationJournal} from './dist/automation/file-invocation-journal.j
 import {composeLimitedWorker} from './dist/limited-worker/composition.js';
 import {WorkerStore} from './dist/limited-worker/store.js';
 import {MODEL,API_VERSION,REPOSITORY,SCOPE,EXE,hash,parseContract,inputPolicy,resourceInputPolicy,serializeRequest,assertInputReady,inputFacts,messageBody,maximumCost,packetFor} from './dist/limited-worker/contract.js';
-import {tariffFromMarkdown,nativeAnthropicTransport} from './dist/limited-worker/transport.js';
+import {tariffFromMarkdown,nativeAnthropicTransport,offlineAnthropicTransport,verifyAnthropicPreflight,dispatchGuarded,boundedHttps} from './dist/limited-worker/transport.js';
+import {createGovernedLimitedWorker} from './dist/automation/live/governed-execution.js';
 import {activationCandidate,readiness,planConditions} from './dist/limited-worker/readiness.js';
 import {efficiency} from './dist/limited-worker/efficiency.js';
 import {createLimitedWorkerService} from './dist/limited-worker/service.js';
@@ -28,7 +30,7 @@ const HUMAN={schemaVersion:1,kind:'HUMAN',principalRef:'human:a1-offline-synthet
 const md=`### Model IDs\n| Platform | Model ID |\n|---|---|\n| Claude API | ${MODEL} |\n### Pricing\n| Feature | Value |\n|---|---|\n| Input | $1 / MTok |\n| Output | $5 / MTok |\n### Capabilities\n| Feature | Value |\n|---|---|\n| Context window | 200K tokens |\n### Availability\n| Feature | Value |\n|---|---|\n| Status | Active (legacy) |`;
 let passed=0,failed=0;
 async function test(name,fn){const dir=realpathSync(mkdtempSync(join(tmpdir(),'chief-a1-')));try{await fn(dir);passed++;console.log('  PASS '+name);}catch(e){failed++;console.error('  FAIL '+name+': '+e.stack);}finally{rmSync(dir,{recursive:true,force:true});}}
-async function fixture(dir,{legacy=false,a3=false,deadlineMs,kind='OFFLINE_SYNTHETIC',activate=true,editGrant,editPacket}={}){
+async function fixture(dir,{legacy=false,a3=false,a4=false,deadlineMs,kind='OFFLINE_SYNTHETIC',activate=true,editGrant,editPacket}={}){
   const directory=name=>{const p=join(dir,name);mkdirSync(p,{mode:0o700});return p;};
   const clock={now:()=>new Date().toISOString()},registry=directory('registry'),controllerRoot=directory('controller'),authority=directory('authority');
   const config=parseWorkspaceConfig({schemaVersion:1,dataDirectory:join(dir,'goals'),humanPrincipal:{principalRef:HUMAN.principalRef},projects:[{projectId:'chief',displayName:'OFFLINE_SYNTHETIC',repository:REPOSITORY}]},dir);
@@ -54,13 +56,14 @@ async function fixture(dir,{legacy=false,a3=false,deadlineMs,kind='OFFLINE_SYNTH
   const bundle={implementationPacket:document('IMPLEMENTATION_PACKET',packet),liveCallAuthorizations:[document('AUTHORIZATION',live)]};
   if(activate){preserver.preserve(document('AUTHORIZATION',limited));activation.activate(target,bundle);}
   let calls=0,preflights=0;
-  const transport={kind,async preflight(){preflights++;return{evidenceClass:kind,model:MODEL,apiVersion:API_VERSION,maxInputTokens:200000,maxOutputTokens:2048,priceSourceHash:c.quote.sourceSha256,observedAt:clock.now()};},
-    async generate(){calls++;return{id:'OFFLINE_SYNTHETIC_MESSAGE',model:MODEL,stop_reason:'end_turn',content:[{type:'text',text:'# OFFLINE_SYNTHETIC\n非真實 AI 成果。'}],usage:{input_tokens:100,output_tokens:50,cache_creation_input_tokens:0,cache_read_input_tokens:0,service_tier:'standard'}};}};
+  const generate=async()=>{calls++;return{id:'OFFLINE_SYNTHETIC_MESSAGE',model:MODEL,stop_reason:'end_turn',content:[{type:'text',text:'# OFFLINE_SYNTHETIC\n非真實 AI 成果。'}],usage:{input_tokens:100,output_tokens:50,cache_creation_input_tokens:0,cache_read_input_tokens:0,service_tier:'standard'}};};
+  const providerIO={price:async()=>md,model:async()=>{preflights++;return{id:MODEL,type:'model',lifecycle:'active',max_input_tokens:200000,max_tokens:64000,capabilities:{thinking:{types:{disabled:{supported:true}}}}};},send:generate,now:clock.now};
+  const transport=a4?offlineAnthropicTransport(providerIO):{kind,async preflight(){preflights++;return{evidenceClass:kind,model:MODEL,apiVersion:API_VERSION,maxInputTokens:200000,maxOutputTokens:2048,priceSourceHash:c.quote.sourceSha256,observedAt:clock.now()};},generate};
   const options={...roots,authorityArchiveDirectory:authority,journalDirectory:join(dir,'journal'),resultDirectory:store.directory,architectPrincipalRef:ARCHITECT,humanPrincipalRef:HUMAN.principalRef,
     implementationSha:c.implementationSha,workerCodeHash:c.workerCodeHash,currentImplementation:()=>({sha:c.implementationSha,codeHash:c.workerCodeHash,clean:true}),clock,transport,liveCallGrant:live,limitedGrant:limited,readSource:()=>source,readGoal:()=>g.text,...(deadlineMs?{deadlineMs}:{})};
-  const runtime=composeLimitedWorker(options),service=createLimitedWorkerService({goals:bridge.store,governance:bridge.governance,admission,projects:['chief'],store,quote:c.quote,source:()=>source,identity:options.currentImplementation,runtime,now:clock.now,measurementClass:'OFFLINE_SYNTHETIC'});
+  const runtime=a4?createGovernedLimitedWorker(options):composeLimitedWorker(options),service=createLimitedWorkerService({goals:bridge.store,governance:bridge.governance,admission,projects:['chief'],store,quote:c.quote,source:()=>source,identity:options.currentImplementation,runtime,now:clock.now,measurementClass:'OFFLINE_SYNTHETIC'});
   return{c,packet,store,source,g,bridge,admission,roots,config,clock,options,runtime,service,activation,target,bundle,preserver,document,live,limited,controller,
-    get calls(){return calls;},get preflights(){return preflights;},job:()=>store.read().jobs[0]};
+    providerIO,get calls(){return calls;},get preflights(){return preflights;},job:()=>store.read().jobs[0]};
 }
 await test('A1 keeps requested 4096 distinct from unmeasured estimates, byte limits, output cap and reservation',async dir=>{
   const w=await fixture(dir);const f=inputFacts(w.c,w.g.text,w.source.text);
@@ -352,5 +355,107 @@ await test('A3 service creates new system-bound contracts and UNISSUED packets w
   assert.equal(j.contract.inputPolicy.revision,'A3');assert.ok(!j.conditions.includes('INPUT_LIMIT_DECISION_REQUIRED'));assert.equal(j.readiness.canStart,false);
   assert.equal(j.reviewPacket.state,'UNISSUED_NOT_AUTHORITY');assert.equal(j.reviewPacket.issuedAt,null);assert.equal(j.input.requestedHardLimitTokens,null);
   await assert.rejects(w.service.action('chief',j.id,{requestId:randomUUID(),action:'START'},HUMAN),/EXE_HOLD/);assert.deepEqual(readdirSync(w.options.authorityArchiveDirectory),[]);assert.equal(w.calls,0);
+});
+const a4Fixture=(dir,options={})=>fixture(dir,{a3:true,a4:true,activate:false,...options});
+const issuedLimited=w=>w.document('AUTHORIZATION',w.limited);
+const activateA4=w=>w.runtime.activateIssued(w.c,w.bundle,issuedLimited(w));
+function supersede(w,doc) {
+  const prior=readGovernedModel(w.options,w.clock).authority.find(f=>f.ref.kind===doc.kind&&f.ref.authorityId===doc.authorityId);
+  w.preserver.preserve({...doc,version:2,supersedes:prior.ref,body:doc.kind==='IMPLEMENTATION_PACKET'?{...doc.body,packetVersion:2}:{...doc.body,reason:'OFFLINE_SYNTHETIC superseded'}});
+}
+await test('A4 trusted Host validates and preserves separately issued documents, activates shared Controller, and completes offline once',async dir=>{
+  const w=await a4Fixture(dir),staged=activateA4(w);assert.equal(staged.stage.state,'PACKET_READY');assert.equal(w.calls,0);
+  assert.equal(w.runtime.activateIssued(w.c,w.bundle,issuedLimited(w)).stage.status,'ALREADY_ACTIVATED');
+  const send=w.providerIO.send;let claimBeforeSend=false;
+  w.providerIO.send=async(...args)=>{claimBeforeSend=w.job().generationClaimed&&w.job().reservedMicroUsd===210240&&w.runtime.inspect(w.c).journal[0].state==='STARTED';return send(...args);};
+  await w.runtime.execute(w.c);assert.equal(claimBeforeSend,true);assert.equal(w.calls,1);assert.equal(w.preflights,1);assert.equal(w.runtime.resultConsistency(w.c),true);
+  const j=w.job();assert.equal(j.modelPreflight.contractHash,hash(w.c));assert.equal(j.modelPreflight.requestHash,inputFacts(w.c,w.g.text,w.source.text).requestHash);
+  await assert.rejects(w.runtime.execute(w.c));assert.equal(w.calls,1);
+  const at=process.argv.indexOf('--a4-evidence');if(at>=0)writeFileSync(process.argv[at+1],JSON.stringify({evidenceClass:'OFFLINE_SYNTHETIC',paidModelCalls:0,accountApiCalls:0,keyReads:0,
+    factory:'createGovernedLimitedWorker',externallyIssuedSyntheticDocuments:3,staged,preflight:j.modelPreflight,claimPersistedBeforeSend:claimBeforeSend,
+    syntheticGenerationCalls:w.calls,controller:w.runtime.inspect(w.c).driver.state,journal:w.runtime.inspect(w.c).journal,reportHash:j.reportHash,resultConsistent:true,
+    usage:j.usage,reservedMicroUsd:j.reservedMicroUsd,exe:EXE,productionExecutionAuthorized:false},null,2));
+});
+await test('A4 ordinary Workspace composition has no trusted activation capability',async dir=>{
+  const w=await fixture(dir,{a3:true,activate:false});assert.throws(()=>w.runtime.activateIssued(w.c,w.bundle,issuedLimited(w)),/TRUSTED_ACTIVATION_NOT_COMPOSED/);
+  assert.deepEqual(readdirSync(w.options.authorityArchiveDirectory),[]);assert.equal(w.controller.get(w.c.runId).state,'IDLE');
+});
+for(const field of['implementationSha','runId','packet','provider','model','scope','expires','principal','recordClass'])await test('A4 tampered '+field+' cannot be preserved or activated',async dir=>{
+  const w=await a4Fixture(dir),bundle=structuredClone(w.bundle),limited=issuedLimited(w);
+  if(field==='implementationSha'){const c=JSON.parse(bundle.implementationPacket.body.objective);c.implementationSha='f'.repeat(40);bundle.implementationPacket.body.objective=JSON.stringify(c);}
+  if(field==='runId')limited.body.runId='other-run';
+  if(field==='packet')limited.body.packetId='other-packet';
+  if(field==='provider')limited.body.scope.provider='other-provider';
+  if(field==='model')limited.body.scope.model='other-model';
+  if(field==='scope')limited.body.scope.egressDestinations=['example.invalid:443'];
+  if(field==='expires'){limited.body.issuedAt=new Date(Date.now()-1800000).toISOString();limited.issuedAt=limited.body.issuedAt;limited.body.expiresAt=new Date(Date.now()-1000).toISOString();}
+  if(field==='principal')limited.issuer.principalRef='human:forged';
+  if(field==='recordClass')limited.recordClass='OPERATIONAL_RECORD';
+  assert.throws(()=>w.runtime.activateIssued(w.c,bundle,limited));assert.deepEqual(readdirSync(w.options.authorityArchiveDirectory),[]);assert.equal(w.controller.get(w.c.runId).state,'IDLE');assert.equal(w.calls,0);
+});
+for(const change of['model','lifecycle','missingLifecycle','inputContext','outputCapability','thinking','price','quoteExpired','source','goal'])await test('A4 provider preflight refuses '+change+' with zero inference',async dir=>{
+  const w=await a4Fixture(dir);activateA4(w);const model=w.providerIO.model;
+  w.providerIO.model=async()=>{const m=await model();if(change==='model')m.id='alias';if(change==='lifecycle')m.lifecycle='retired';if(change==='missingLifecycle')delete m.lifecycle;
+    if(change==='inputContext')m.max_input_tokens=199999;if(change==='outputCapability')m.max_tokens=2047;if(change==='thinking')m.capabilities.thinking.types.disabled.supported=false;return m;};
+  if(change==='price')w.providerIO.price=async()=>md.replace('$1 / MTok','$2 / MTok');
+  if(change==='quoteExpired')w.providerIO.now=()=>w.c.quote.validUntil;
+  if(change==='source')w.source.text+='changed';
+  if(change==='goal')w.g.text+='changed';
+  await w.runtime.execute(w.c);assert.equal(w.calls,0);assert.notEqual(w.job().state,'COMPLETED');assert.equal(w.job().generationClaimed,false);
+});
+for(const authority of['limited','live','architect'])await test('A4 '+authority+' superseded after claim but before simulated socket-ready prevents send',async dir=>{
+  const w=await a4Fixture(dir);activateA4(w);
+  w.providerIO.ready=async()=>supersede(w,authority==='limited'?issuedLimited(w):authority==='live'?w.bundle.liveCallAuthorizations[0]:w.bundle.implementationPacket);
+  await w.runtime.execute(w.c);assert.equal(w.calls,0);assert.equal(w.job().generationClaimed,true);assert.equal(w.job().state,'UNCERTAIN');assert.equal(w.job().reservedMicroUsd,210240);
+});
+for(const point of['source','goal','code','expiry','claim','cancel'])await test('A4 TOCTOU '+point+' at final asynchronous handoff refuses the model write',async dir=>{
+  const w=await a4Fixture(dir);activateA4(w);
+  w.providerIO.ready=async()=>{if(point==='source')w.source.text+='changed';if(point==='goal')w.g.text+='changed';if(point==='code')w.c.implementationSha='e'.repeat(40);
+    if(point==='expiry')w.clock.now=()=>w.c.quote.validUntil;if(point==='claim')w.store.change(hash(w.c),j=>{j.generationClaimed=false;});if(point==='cancel')w.runtime.cancel(w.c);};
+  await w.runtime.execute(w.c);assert.equal(w.calls,0);assert.equal(w.job().state,'UNCERTAIN');assert.equal(w.job().reservedMicroUsd,210240);
+});
+await test('A4 post-send network interruption remains uncertain and cannot replay after recovery',async dir=>{
+  const w=await a4Fixture(dir);activateA4(w);let sends=0;w.providerIO.send=async()=>{sends++;throw new Error('NETWORK_INTERRUPTED');};
+  await w.runtime.execute(w.c);new WorkerStore(w.store.directory).recover(w.clock.now());
+  await assert.rejects(w.runtime.execute(w.c));assert.equal(sends,1);assert.equal(w.job().state,'UNCERTAIN');assert.equal(w.job().reservedMicroUsd,210240);assert.equal(w.job().report,null);
+});
+await test('A4 successful report cannot be forged independently of Journal and Controller',async dir=>{
+  const w=await a4Fixture(dir);activateA4(w);await w.runtime.execute(w.c);assert.equal(w.runtime.resultConsistency(w.c),true);
+  w.store.change(hash(w.c),j=>{j.report='forged';});assert.equal(w.runtime.resultConsistency(w.c),false);
+});
+await test('A4 replay with a stale limited authority version cannot start a new invocation',async dir=>{
+  const w=await a4Fixture(dir);activateA4(w);supersede(w,issuedLimited(w));assert.throws(()=>w.runtime.activateIssued(w.c,w.bundle,issuedLimited(w)));
+  await w.runtime.execute(w.c);assert.equal(w.calls,0);assert.equal(w.preflights,0);
+});
+await test('A4 dispatch guard is synchronous, after simulated TLS-ready, before any write',()=>{
+  const order=[],abort=new AbortController();dispatchGuarded(abort.signal,()=>order.push('GUARD'),()=>order.push('WRITE'));assert.deepEqual(order,['GUARD','WRITE']);
+  let writes=0;assert.throws(()=>dispatchGuarded(abort.signal,()=>{throw new Error('REVOKED');},()=>writes++));assert.equal(writes,0);
+  assert.throws(()=>dispatchGuarded(abort.signal,()=>abort.abort(),()=>writes++));assert.equal(writes,0);
+});
+await test('A4 live Host still refuses before credential lookup, account API or generation',async dir=>{
+  const w=await a4Fixture(dir);activateA4(w);let keys=0;const native=nativeAnthropicTransport(()=>{keys++;throw new Error('NO_KEY_ALLOWED');});
+  await assert.rejects(native.preflight(w.c,new AbortController().signal,{objective:w.g.text,source:w.source.text}),/EXE_HOLD/);
+  await assert.rejects(native.generate(w.c,w.g.text,w.source.text,new AbortController().signal,()=>{}),/EXE_HOLD/);assert.equal(keys,0);
+});
+for(const revoke of[false,true])await test('A4 actual HTTPS adapter with synthetic socket '+(revoke?'revocation before secureConnect refuses writes':'writes only after secureConnect and last guard'),async()=>{
+  const socket=new EventEmitter();socket.connecting=true;let checks=0,writes=0,ends=0,valid=true;
+  const requester=(_url,_options,respond)=>{const req=new EventEmitter();req.write=()=>{writes++;};req.end=()=>{ends++;const res=new EventEmitter();res.statusCode=200;res.resume=()=>{};respond(res);res.emit('data',Buffer.from('{}'));res.emit('end');};
+    req.destroy=e=>{req.emit('error',e);return req;};queueMicrotask(()=>req.emit('socket',socket));return req;};
+  const response=boundedHttps('https://api.anthropic.com/v1/messages',{method:'POST',signal:new AbortController().signal,body:'{}',beforeSend:()=>{checks++;if(!valid)throw new Error('REVOKED');}},requester);
+  await Promise.resolve();assert.equal(writes,0);assert.equal(ends,0);valid=!revoke;socket.emit('secureConnect');
+  if(revoke){await assert.rejects(response);assert.equal(writes,0);assert.equal(ends,0);}else{assert.equal(await response,'{}');assert.equal(writes,1);assert.equal(ends,1);}
+  assert.equal(checks,2);
+});
+await test('A4 asynchronous final guard cannot authorize a wire write',()=>{
+  let writes=0;assert.throws(()=>dispatchGuarded(new AbortController().signal,()=>Promise.resolve(),()=>writes++),/ASYNC_SEND_GUARD_FORBIDDEN/);assert.equal(writes,0);
+});
+await test('A4 Host lease rejects a parallel dispatch without a second model send',async dir=>{
+  const w=await a4Fixture(dir);activateA4(w);let entered;const ready=new Promise(r=>entered=r);let finish;const wait=new Promise(r=>finish=r),send=w.providerIO.send;
+  w.providerIO.ready=async()=>{entered();await wait;};const first=w.runtime.execute(w.c);await ready;
+  await assert.rejects(w.runtime.execute(w.c),/WORKER_LEASE_BUSY/);finish();await first;assert.equal(w.calls,1);assert.equal(w.runtime.resultConsistency(w.c),true);
+});
+await test('A4 Host recovery preserves prior reservation and refuses an interrupted job',async dir=>{
+  const w=await a4Fixture(dir);activateA4(w);w.store.reserve(hash(w.c),210240,hash('OFFLINE_INTERRUPTED'),w.clock.now(),true);
+  const restarted=createGovernedLimitedWorker(w.options);await restarted.execute(w.c);assert.equal(w.calls,0);assert.equal(w.job().state,'UNCERTAIN');assert.equal(w.job().reservedMicroUsd,210240);
 });
 console.log(`\n${passed} passed, ${failed} failed`);process.exitCode=failed?1:0;

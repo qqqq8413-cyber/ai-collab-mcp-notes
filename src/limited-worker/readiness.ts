@@ -29,6 +29,8 @@ export function activationCandidate(c:Contract,sliceId:string,objective:string) 
       timeoutSeconds:c.timeoutSeconds,inputProofStatus:c.inputPolicy?.revision==='A3'?'ENFORCEABLE_RESOURCE_LIMITS_NOT_TOKEN_PROOF':'BLOCKED_NO_PROVIDER_GUARANTEE'},
     contract:c,contractHash:hash(c),implementationPacket:packet,packetHash:packetHash(packet),
     authority:{implementationPacket:null,liveProviderGrant:null,limitedWorkerGrant:null},issuedAt:null,expiresAt:null,maxValiditySeconds:3600,
+    hostReadiness:{state:'TRUSTED_HOST_CANDIDATE_REQUIRES_ARCHITECT_REVIEW',productionExecution:'HOLD',providerAccount:'UNVERIFIED_NO_ACCOUNT_REQUEST',
+      authorityOrigin:'EXTERNALLY_ISSUED_DOCUMENTS_ONLY',canIssueAuthority:false,lastLocalGuard:'AFTER_SOCKET_READY_BEFORE_WRITE'},
     requiredHumanOperations:['LIVE_PROVIDER_MODEL_CALL','LIMITED_README_WORKER'],limitedPermitTarget:hash(c),
     activationPath:'Existing governed activation core -> Authority Archive -> Controller PACKET_READY -> Execution Driver',
     constraint:'No Workspace issuance; trusted governance must preserve separately issued exact documents. Activation alone does not release HOLD.'};
