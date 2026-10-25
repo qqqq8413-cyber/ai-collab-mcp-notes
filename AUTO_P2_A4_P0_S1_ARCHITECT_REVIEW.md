@@ -1,5 +1,7 @@
 # AUTO-P2-A4-P0-S1：Lease 安全與 ACTIVATION_SET
 
+> **R1 更新（2026-10-26）**：集合檔案層檢查、提交持久性與 S2 簽章前像契約見 `AUTO_P2_A4_P0_S1_R1_ARCHITECT_REVIEW.md`。本檔中「斷電」相關測試是 SIGKILL 與人工建構的殘留狀態，不是實測斷電；符號連結現在回報 `ACTIVATION_SET_FILE_UNSAFE`。
+
 ## 決策與範圍
 
 日期：2026-10-25（Asia/Taipei）。Base `cfd0e621f8fd4c9035ac2946fcb5e8f31666b384`。

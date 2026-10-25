@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { closeSync, constants, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { closeSync, constants, fchmodSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, unlinkSync,
+  writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import { authorityBodyHash, type JsonObject } from '../automation/authority/document.js';
 import { canonicalJson } from '../automation/invocation-journal.js';
@@ -92,55 +93,94 @@ export function expectedActivationSet(input: ActivationSetInput): ActivationSetV
 }
 
 const runKey = (runId: string) => sha256(`chief-activation-set-run\n${runId}`);
-function directoryOf(root: string, runId: string, create: boolean): string {
+const uid = () => process.getuid?.();
+/** A protected directory: a real directory (not a link), owned by this user, no group or other access. */
+function assertSafeDirectory(path: string) {
+  let st;
+  try { st = lstatSync(path); } catch { return refuse('ACTIVATION_SET_MISSING'); }
+  if (!st.isDirectory() || st.isSymbolicLink() || (st.mode & 0o077) || (uid() !== undefined && st.uid !== uid())) refuse('ACTIVATION_SET_STORAGE_UNSAFE');
+}
+function fsyncDirectory(path: string) { const fd = openSync(path, 'r'); try { fsyncSync(fd); } finally { closeSync(fd); } }
+/**
+ * R1: the publisher's directories. Each one is created if missing, checked, and its parent is fsynced every time
+ * (not only when this call created it), so a directory entry left unsynced by a publisher that crashed is made
+ * durable before anything is committed beneath it.
+ */
+function ensureSetDirectory(root: string, runId: string): string {
   const base = join(root, 'activation-sets'), dir = join(base, runKey(runId));
-  for (const path of [base, dir]) {
-    if (create) { try { mkdirSync(path, { mode: 0o700 }); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; } }
-    let st;
-    try { st = lstatSync(path); } catch { return refuse('ACTIVATION_SET_MISSING'); }
-    if (!st.isDirectory() || st.isSymbolicLink() || (st.mode & 0o077)) refuse('ACTIVATION_SET_STORAGE_UNSAFE');
+  for (const [parent, path] of [[root, base], [base, dir]] as const) {
+    try { mkdirSync(path, { mode: 0o700 }); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
+    assertSafeDirectory(path);
+    fsyncDirectory(parent);
   }
   return dir;
 }
+function existingSetDirectory(root: string, runId: string): string {
+  const base = join(root, 'activation-sets'), dir = join(base, runKey(runId));
+  assertSafeDirectory(base); assertSafeDirectory(dir);
+  return dir;
+}
+const TEMP_NAME = /^\.[0-9a-f-]{36}\.tmp$/;
+/**
+ * R1 (Fix 1): the set file itself must be a regular file (opened without following a link and without blocking on a
+ * FIFO), owned by this user, mode exactly 0600, at most 64KB. Its only other names may be this publisher's own
+ * temp names in the same protected directory (the link(2) window); any other hard link fails closed.
+ */
 function readSetFile(path: string): z.infer<typeof fileSchema> {
   let fd: number | undefined;
   try {
-    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    try { fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK); }
+    catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT') return refuse('ACTIVATION_SET_MISSING');
+      return refuse(code === 'ELOOP' || code === 'EMLINK' ? 'ACTIVATION_SET_FILE_UNSAFE' : 'ACTIVATION_SET_CORRUPT');
+    }
     const st = fstatSync(fd);
-    if (!st.isFile() || st.size > 64 * 1024) return refuse('ACTIVATION_SET_CORRUPT');
+    if (!st.isFile() || (st.mode & 0o7777) !== 0o600 || (uid() !== undefined && st.uid !== uid())) return refuse('ACTIVATION_SET_FILE_UNSAFE');
+    if (st.nlink !== 1) {
+      const dir = dirname(path), aliases = readdirSync(dir).filter((name) => {
+        try { const other = lstatSync(join(dir, name)); return other.ino === st.ino && other.dev === st.dev; } catch { return false; }
+      });
+      const unsafe = aliases.some((name) => join(dir, name) !== path && !TEMP_NAME.test(name));
+      if (unsafe || fstatSync(fd).nlink > aliases.length) return refuse('ACTIVATION_SET_FILE_UNSAFE');
+    }
+    if (st.size > 64 * 1024) return refuse('ACTIVATION_SET_CORRUPT');
     const parsed = fileSchema.safeParse(JSON.parse(readFileSync(fd, 'utf8')));
     if (!parsed.success || activationSetHash(parsed.data.set) !== parsed.data.setHash) return refuse('ACTIVATION_SET_CORRUPT');
     return parsed.data;
   } catch (error) {
     if (error instanceof ActivationSetError) throw error;
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return refuse('ACTIVATION_SET_MISSING');
     return refuse('ACTIVATION_SET_CORRUPT');
   } finally { if (fd !== undefined) closeSync(fd); }
 }
 
 /**
- * Publish the expected set after all three members are durably archived and verified: temp + fsync, one
- * exclusive link(2), directory fsync. An existing identical set is the same commit (idempotent); anything else
- * under that name is a conflict. Returns the set hash.
+ * Publish the expected set after all three members are durably archived and verified. Order (R1, Fix 2):
+ * directories created or checked with each parent fsynced; private temp (0600) written and fsynced; one exclusive
+ * link(2); on EEXIST the existing file must pass every check and carry the same hash, and is then fsynced itself;
+ * the temp name is removed; the set's directory is fsynced. Only then does it return, on both the new and the
+ * idempotent path, so the caller (activation) moves the Controller only after these durability steps.
+ * What fsync guarantees depends on the platform (see AUTO_P2_A4_P0_S1_R1_ARCHITECT_REVIEW.md); nothing here
+ * claims durability across a real power cut.
  */
 export function publishActivationSet(root: string, input: ActivationSetInput): string {
   const set = expectedActivationSet(input), setHash = activationSetHash(set);
-  const dir = directoryOf(root, set.runId, true), target = join(dir, `${setHash}.json`);
-  const text = JSON.stringify({ set, setHash });
+  const dir = ensureSetDirectory(root, set.runId), target = join(dir, `${setHash}.json`);
   const temp = join(dir, `.${randomUUID()}.tmp`);
   const fd = openSync(temp, 'wx', 0o600);
-  try { writeFileSync(fd, text); fsyncSync(fd); } finally { closeSync(fd); }
+  try { fchmodSync(fd, 0o600); writeFileSync(fd, JSON.stringify({ set, setHash })); fsyncSync(fd); } finally { closeSync(fd); }
   try {
     try { linkSync(temp, target); }
     catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-      const existing = readSetFile(target);
-      if (existing.setHash !== setHash) refuse('ACTIVATION_SET_CONFLICT');
-      return setHash;
+      if (readSetFile(target).setHash !== setHash) refuse('ACTIVATION_SET_CONFLICT');
+      // Idempotent path: the earlier publisher may have died before its directory fsync; make this commit durable now.
+      const existing = openSync(target, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+      try { fsyncSync(existing); } finally { closeSync(existing); }
     }
-    const dirFd = openSync(dir, 'r'); try { fsyncSync(dirFd); } finally { closeSync(dirFd); }
-    return setHash;
-  } finally { try { unlinkSync(temp); } catch { /* best effort: a leftover temp name is never read as a set */ } }
+  } finally { try { unlinkSync(temp); } catch { /* already gone: a leftover temp name is never read as a set */ } }
+  fsyncDirectory(dir);
+  return setHash;
 }
 
 /**
@@ -149,7 +189,7 @@ export function publishActivationSet(root: string, input: ActivationSetInput): s
  */
 export function verifyActivationSet(root: string, input: ActivationSetInput): ActivationSetVerification {
   const set = expectedActivationSet(input), setHash = activationSetHash(set);
-  const stored = readSetFile(join(directoryOf(root, set.runId, false), `${setHash}.json`));
+  const stored = readSetFile(join(existingSetDirectory(root, set.runId), `${setHash}.json`));
   // The stored content hashes to the expected set, so its signature policy and its (empty) attestation list are
   // exactly the expected ones; a set carrying any attestation never parses in S1.
   if (stored.setHash !== setHash || activationSetHash(stored.set) !== setHash) refuse('ACTIVATION_SET_CORRUPT');

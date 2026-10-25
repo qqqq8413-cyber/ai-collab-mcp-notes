@@ -11,11 +11,21 @@ M = [
  ('M6 worker skips set check', 'dist/limited-worker/adapter.js', "if (d.requireActivationSet || d.transport.kind === 'LIVE_PROVIDER') {", 'if (false) {'),
  ('M7 member need not be archived', 'dist/limited-worker/activation-set.js', 'if (exact.length !== 1)', 'if (false)'),
  ('M8 member need not be current', 'dist/limited-worker/activation-set.js', 'if (versions.some((fact) => fact.ref.version > exact[0].ref.version))', 'if (false)'),
- ('M9 publish ignores conflict', 'dist/limited-worker/activation-set.js', 'if (existing.setHash !== setHash)', 'if (false)'),
+ ('M9 publish ignores conflict', 'dist/limited-worker/activation-set.js', 'if (readSetFile(target).setHash !== setHash)', 'if (false)'),
  ('M10 verify skips stored hash', 'dist/limited-worker/activation-set.js', "if (stored.setHash !== setHash || activationSetHash(stored.set) !== setHash)", 'if (false)'),
+ ('M11 set file mode not checked', 'dist/limited-worker/activation-set.js', '(st.mode & 0o7777) !== 0o600 ||', 'false ||'),
+ ('M12 set file open may block (FIFO)', 'dist/limited-worker/activation-set.js', 'fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);', 'fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);'),
+ ('M13 outside hard link allowed', 'dist/limited-worker/activation-set.js', 'if (unsafe || fstatSync(fd).nlink > aliases.length)', 'if (false)'),
+ ('M14 any same-dir alias allowed', 'dist/limited-worker/activation-set.js', '!TEMP_NAME.test(name)', 'false'),
+ ('M15 new directory parent not fsynced', 'dist/limited-worker/activation-set.js', '        fsyncDirectory(parent);\n', ''),
+ ('M16 temp not fsynced before link', 'dist/limited-worker/activation-set.js', 'writeFileSync(fd, JSON.stringify({ set, setHash }));\n        fsyncSync(fd);', 'writeFileSync(fd, JSON.stringify({ set, setHash }));'),
+ ('M17 idempotent path returns unsynced', 'dist/limited-worker/activation-set.js', '                fsyncSync(existing);\n', ''),
+ ('M18 set directory not fsynced after link', 'dist/limited-worker/activation-set.js', '    fsyncDirectory(dir);\n    return setHash;', '    return setHash;'),
 ]
+only = set(sys.argv[1:])  # optional: run only these ids, e.g. M9 M11
 ok = True
 for name, path, old, new in M:
+    if only and name.split()[0] not in only: continue
     src = open(path).read()
     if src.count(old) != 1: print(f'{name}: ANCHOR NOT UNIQUE ({src.count(old)})'); ok = False; continue
     open(path, 'w').write(src.replace(old, new))

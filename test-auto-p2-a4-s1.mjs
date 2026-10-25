@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { chmodSync, closeSync, existsSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, realpathSync, rmSync,
+import fsModule, { chmodSync, closeSync, existsSync, fstatSync, linkSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, realpathSync, rmSync,
   symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { syncBuiltinESMExports } from 'node:module';
+import { execFileSync } from 'node:child_process';
 import { parseWorkspaceConfig } from './dist/workspace/config.js';
 import { createGoalChangeBridge } from './dist/intake/goal-change-bridge.js';
 import { createGoalRunAdmissionBridge } from './dist/intake/goal-run-admission-bridge.js';
@@ -102,9 +104,9 @@ const supersede = (w, doc) => {
 };
 
 // ---------------------------------------------------------------- separate processes
-function child(script, args) {
+function child(script, args, { timeout } = {}) {
   return new Promise((resolve, reject) => {
-    const p = spawn(process.execPath, ['--input-type=module', '-e', script, ...args], { cwd: ROOT });
+    const p = spawn(process.execPath, ['--input-type=module', '-e', script, ...args], { cwd: ROOT, ...(timeout ? { timeout } : {}) });
     let out = '', err = '';
     p.stdout.on('data', (b) => { out += b; }); p.stderr.on('data', (b) => { err += b; });
     p.on('close', (code, signal) => resolve({ code, signal, out, err, pid: p.pid }));
@@ -384,7 +386,7 @@ await test('S1-B duplicate concurrent submissions of the same documents: one arc
   verifyActivationSet(w.store.directory, w.setInput());
   assert.equal(activate(w).stage.state, 'PACKET_READY'); assert.equal(w.setFiles().length, 1);
 });
-await test('S1-B power-loss residues: a leftover temp file is never a set; truncated, altered, symlinked, unsafe or missing sets refuse', async (dir) => {
+await test('S1-B simulated power-loss residues (constructed states, not a real power cut): a leftover temp file is never a set; truncated, altered, symlinked, unsafe or missing sets refuse', async (dir) => {
   const w = await world(dir); activate(w);
   const [name] = w.setFiles(), path = join(w.setDir, name), runDir = join(path, '..'), good = readFileSync(path);
   writeFileSync(join(runDir, `.${randomUUID()}.tmp`), good.subarray(0, 20), { mode: 0o600 });
@@ -392,8 +394,8 @@ await test('S1-B power-loss residues: a leftover temp file is never a set; trunc
   for (const bad of [good.subarray(0, 40), Buffer.from(good.toString().replace(/"runId":"[^"]+"/, '"runId":"run-other"')), Buffer.alloc(0)]) {
     writeFileSync(path, bad); refusedWith(() => verifyActivationSet(w.store.directory, w.setInput()), 'ACTIVATION_SET_CORRUPT');
   }
-  unlinkSync(path); const copy = join(dir, 'copy.json'); writeFileSync(copy, good); symlinkSync(copy, path);
-  refusedWith(() => verifyActivationSet(w.store.directory, w.setInput()), 'ACTIVATION_SET_CORRUPT');
+  unlinkSync(path); const copy = join(dir, 'copy.json'); writeFileSync(copy, good, { mode: 0o600 }); symlinkSync(copy, path);
+  refusedWith(() => verifyActivationSet(w.store.directory, w.setInput()), 'ACTIVATION_SET_FILE_UNSAFE');
   unlinkSync(path); writeFileSync(path, good, { mode: 0o600 }); verifyActivationSet(w.store.directory, w.setInput());
   chmodSync(runDir, 0o755); refusedWith(() => verifyActivationSet(w.store.directory, w.setInput()), 'ACTIVATION_SET_STORAGE_UNSAFE'); chmodSync(runDir, 0o700);
   unlinkSync(path); refusedWith(() => verifyActivationSet(w.store.directory, w.setInput()), 'ACTIVATION_SET_MISSING');
@@ -471,6 +473,177 @@ await test('S1-B the unissued Pilot Packet states the ACTIVATION_SET requirement
     [ACTIVATION_SET_SCHEMA, true, null, 'NOT_ELIGIBLE_UNSIGNED', true]);
   assert.deepEqual(p.activationSet.signaturePolicy, { ...SIGNATURE_POLICY }); assert.match(p.activationPath, /Authority Archive -> ACTIVATION_SET -> Controller/);
   assert.deepEqual(w.setFiles(), []); assert.equal(w.model().authority.length, 0);
+});
+
+// ================================================================ S1-R1: Fix 1 (set file checks) and Fix 2 (commit durability)
+// Test-only tracing of the builtin fs calls the dist modules make (ESM live bindings refreshed with syncBuiltinESMExports).
+// A hook runs before each call, so a hook that throws stops the publisher exactly before that step. Restored after use.
+const TRACED = ['mkdirSync', 'openSync', 'fchmodSync', 'writeFileSync', 'fsyncSync', 'linkSync', 'unlinkSync', 'renameSync'];
+function traceFs(hook) {
+  const original = Object.fromEntries([...TRACED, 'closeSync'].map((n) => [n, fsModule[n]])), fdPath = new Map();
+  for (const name of TRACED) fsModule[name] = function (...args) {
+    const call = { name, path: typeof args[0] === 'number' ? fdPath.get(args[0]) : String(args[0]),
+      to: ['linkSync', 'renameSync'].includes(name) ? String(args[1]) : undefined, flags: name === 'openSync' ? args[1] : undefined };
+    hook(call);
+    const result = original[name].apply(this, args);
+    if (name === 'openSync') fdPath.set(result, call.path);
+    return result;
+  };
+  fsModule.closeSync = function (fd) { fdPath.delete(fd); return original.closeSync.call(this, fd); };
+  syncBuiltinESMExports();
+  return () => { Object.assign(fsModule, original); syncBuiltinESMExports(); };
+}
+const TEMP = /\/\.[0-9a-f-]{36}\.tmp$/;
+const publishSteps = (w) => (c) => c.path === w.store.directory || Boolean(c.path?.startsWith(w.setDir));
+function labelled(w, trace) {
+  const runDir = existsSync(w.setDir) ? join(w.setDir, readdirSync(w.setDir)[0] ?? '') : null;
+  const label = (p) => p === w.store.directory ? 'root' : p === w.setDir ? 'base' : p === runDir ? 'run' : TEMP.test(p) ? 'temp' : p?.endsWith('.json') ? 'target' : p;
+  return trace.map((c) => `${c.name}:${label(c.path)}${c.to ? '>' + label(c.to) : ''}`);
+}
+const VERIFY_CHILD = `
+  import { readFileSync } from 'node:fs';
+  import { readGovernedModel } from './dist/automation/read-model/governed-read-model.js';
+  import { verifyActivationSet } from './dist/limited-worker/activation-set.js';
+  const job = JSON.parse(readFileSync(process.argv[1], 'utf8'));
+  const model = readGovernedModel({ controllerStoreDirectory: job.controller, authorityArchiveDirectory: job.authority }, { now: () => new Date().toISOString() });
+  try { verifyActivationSet(job.results, { contract: job.contract, packet: job.packet, model, liveGrant: job.live, limitedGrant: job.limited }); console.log(JSON.stringify({ ok: true })); }
+  catch (error) { console.log(JSON.stringify({ error: error.message })); }`;
+// SIGKILL (a real process death, not a power cut) exactly before the chosen publish step.
+const PUBLISH_KILL_CHILD = `
+  import fs, { readFileSync } from 'node:fs';
+  import { syncBuiltinESMExports } from 'node:module';
+  import { readGovernedModel } from './dist/automation/read-model/governed-read-model.js';
+  import { publishActivationSet } from './dist/limited-worker/activation-set.js';
+  const job = JSON.parse(readFileSync(process.argv[1], 'utf8')), killAt = Number(process.argv[2]), fdPath = new Map();
+  let n = 0;
+  for (const name of ${JSON.stringify(TRACED)}) {
+    const original = fs[name];
+    fs[name] = function (...args) {
+      const path = typeof args[0] === 'number' ? fdPath.get(args[0]) : String(args[0]);
+      if ((path === job.results || path?.startsWith(job.results + '/activation-sets')) && n++ === killAt) process.kill(process.pid, 'SIGKILL');
+      const result = original.apply(this, args); if (name === 'openSync') fdPath.set(result, path); return result;
+    };
+  }
+  syncBuiltinESMExports();
+  const model = readGovernedModel({ controllerStoreDirectory: job.controller, authorityArchiveDirectory: job.authority }, { now: () => new Date().toISOString() });
+  publishActivationSet(job.results, { contract: job.contract, packet: job.packet, model, liveGrant: job.live, limitedGrant: job.limited });
+  console.log('done');`;
+const FRESH_PUBLISH = ['mkdirSync:base', 'openSync:root', 'fsyncSync:root', 'mkdirSync:run', 'openSync:base', 'fsyncSync:base',
+  'openSync:temp', 'fchmodSync:temp', 'writeFileSync:temp', 'fsyncSync:temp', 'linkSync:temp>target', 'unlinkSync:temp', 'openSync:run', 'fsyncSync:run'];
+const LINKED_AT = FRESH_PUBLISH.indexOf('linkSync:temp>target');
+
+await test('S1-R1 Fix 1: the set file must be mode 0600; 0644, 0666 and every other mode fail closed at verify, publish and execution', async (dir) => {
+  const w = await world(dir); activate(w);
+  const [name] = w.setFiles(), path = join(w.setDir, name), verify = () => verifyActivationSet(w.store.directory, w.setInput());
+  assert.equal(lstatSync(path).mode & 0o7777, 0o600); verify();
+  for (const mode of [0o644, 0o666, 0o640, 0o604, 0o660, 0o400, 0o700]) {
+    chmodSync(path, mode);
+    refusedWith(verify, 'ACTIVATION_SET_FILE_UNSAFE');
+    refusedWith(() => publishActivationSet(w.store.directory, w.setInput()), 'ACTIVATION_SET_FILE_UNSAFE');
+  }
+  chmodSync(path, 0o600); verify(); assert.equal(publishActivationSet(w.store.directory, w.setInput()), verify().setHash);
+  // The directories are checked separately; a safe file does not excuse an unsafe directory.
+  for (const d of [w.setDir, join(path, '..')]) {
+    chmodSync(d, 0o755); refusedWith(verify, 'ACTIVATION_SET_STORAGE_UNSAFE');
+    refusedWith(() => publishActivationSet(w.store.directory, w.setInput()), 'ACTIVATION_SET_STORAGE_UNSAFE'); chmodSync(d, 0o700);
+  }
+  chmodSync(path, 0o644);
+  await w.runtime.execute(w.c);
+  assert.equal(w.calls, 0); assert.equal(w.job().reason, 'ACTIVATION_SET_FILE_UNSAFE'); assert.equal(w.job().generationClaimed, false);
+});
+await test('S1-R1 Fix 1: a directory, FIFO or symlink at the set name, or a hard link other than the publisher\'s own temp name, fails closed without blocking', async (dir) => {
+  const w = await world(dir); activate(w);
+  const [name] = w.setFiles(), path = join(w.setDir, name), runDir = join(path, '..'), good = readFileSync(path);
+  const verify = () => verifyActivationSet(w.store.directory, w.setInput());
+  const alias = join(runDir, `.${randomUUID()}.tmp`); linkSync(path, alias); verify(); unlinkSync(alias);
+  for (const other of [join(w.store.directory, 'outside.json'), join(dir, 'elsewhere.json'), join(runDir, 'other-name.json'), join(runDir, '.not-a-temp.tmp')]) {
+    linkSync(path, other);
+    refusedWith(verify, 'ACTIVATION_SET_FILE_UNSAFE');
+    refusedWith(() => publishActivationSet(w.store.directory, w.setInput()), 'ACTIVATION_SET_FILE_UNSAFE');
+    unlinkSync(other); verify();
+  }
+  unlinkSync(path); mkdirSync(path, { mode: 0o700 }); refusedWith(verify, 'ACTIVATION_SET_FILE_UNSAFE'); rmSync(path, { recursive: true });
+  // A FIFO is checked in its own process with a time limit, so a blocking open would show up as a kill, not a hang.
+  execFileSync('mkfifo', ['-m', '600', path]);
+  const r = await child(VERIFY_CHILD, [stageJob(w, dir, -1)], { timeout: 15000 });
+  assert.equal(r.signal, null, 'the check blocked on a FIFO'); assert.deepEqual(JSON.parse(r.out.trim()), { error: 'ACTIVATION_SET_FILE_UNSAFE' });
+  unlinkSync(path); writeFileSync(path, good, { mode: 0o600 }); verify();
+});
+await test('S1-R1 Fix 2: publish order — each parent fsynced after its directory, temp fsynced before link(2), set directory fsynced last; the idempotent path syncs before returning', async (dir) => {
+  const w = await world(dir);
+  for (const d of w.documents) w.preserver.preserve(d);
+  const record = (fn) => { const trace = []; const restore = traceFs((c) => { if (publishSteps(w)(c)) trace.push(c); }); try { return [fn(), trace]; } finally { restore(); } };
+  const [first, fresh] = record(() => publishActivationSet(w.store.directory, w.setInput()));
+  assert.deepEqual(labelled(w, fresh), FRESH_PUBLISH);
+  const [again, repeat] = record(() => publishActivationSet(w.store.directory, w.setInput()));
+  assert.equal(again, first);
+  // mkdir and link are attempted and answer EEXIST; the existing file is checked, then fsynced, before the directory fsync.
+  assert.deepEqual(labelled(w, repeat), ['mkdirSync:base', 'openSync:root', 'fsyncSync:root', 'mkdirSync:run', 'openSync:base', 'fsyncSync:base',
+    'openSync:temp', 'fchmodSync:temp', 'writeFileSync:temp', 'fsyncSync:temp', 'linkSync:temp>target', 'openSync:target', 'openSync:target', 'fsyncSync:target',
+    'unlinkSync:temp', 'openSync:run', 'fsyncSync:run']);
+  assert.equal(w.setFiles().length, 1); assert.deepEqual(readdirSync(join(w.setDir, w.setFiles()[0], '..')).filter((n) => n.endsWith('.tmp')), []);
+});
+await test(`S1-R1 Fix 2: a stop injected before each of the ${FRESH_PUBLISH.length} publish steps leaves no set or a complete one; an exact retry commits once`, async (dir) => {
+  for (let k = 0; k < FRESH_PUBLISH.length; k++) {
+    const w = await world(sub(dir, `k${k}`));
+    for (const d of w.documents) w.preserver.preserve(d);
+    let n = 0;
+    const restore = traceFs((c) => { if (publishSteps(w)(c) && n++ === k) throw new Error('INJECTED_STOP'); });
+    let threw = false;
+    try { publishActivationSet(w.store.directory, w.setInput()); } catch (e) { assert.match(e.message, /INJECTED_STOP/); threw = true; } finally { restore(); }
+    // The temp-name removal is best effort by design: a failure there is absorbed and the commit completes.
+    assert.equal(threw, FRESH_PUBLISH[k] !== 'unlinkSync:temp', `stop before ${FRESH_PUBLISH[k]}`);
+    let outcome; try { verifyActivationSet(w.store.directory, w.setInput()); outcome = 'COMMITTED'; } catch (e) { outcome = e.message; }
+    assert.equal(outcome, k > LINKED_AT ? 'COMMITTED' : 'ACTIVATION_SET_MISSING', `stop before ${FRESH_PUBLISH[k]}`);
+    publishActivationSet(w.store.directory, w.setInput()); verifyActivationSet(w.store.directory, w.setInput()); assert.equal(w.setFiles().length, 1);
+  }
+});
+await test(`S1-R1 Fix 2: SIGKILL before each of the ${FRESH_PUBLISH.length} publish steps (real process death, not a power cut): restart activates and executes once`, async (dir) => {
+  for (let k = 0; k < FRESH_PUBLISH.length; k++) {
+    const w = await world(sub(dir, `k${k}`));
+    for (const d of w.documents) w.preserver.preserve(d);
+    const r = await child(PUBLISH_KILL_CHILD, [stageJob(w, dir, -1), String(k)]);
+    assert.equal(r.signal, 'SIGKILL', `step ${k}: ${r.err.slice(-200)}`);
+    let outcome; try { verifyActivationSet(w.store.directory, w.setInput()); outcome = 'COMMITTED'; } catch (e) { outcome = e.message; }
+    assert.equal(outcome, k > LINKED_AT ? 'COMMITTED' : 'ACTIVATION_SET_MISSING', `killed before ${FRESH_PUBLISH[k]}`);
+    assert.equal(activate(w).stage.state, 'PACKET_READY'); assert.equal(w.setFiles().length, 1);
+    await w.runtime.execute(w.c); assert.equal(w.calls, 1, `step ${k}`);
+  }
+});
+await test('S1-R1 Fix 2: activation writes the Controller only after every set durability step; a stop at any set step leaves the Controller unchanged', async (dir) => {
+  const w = await world(dir), controllerRoot = w.options.controllerStoreDirectory, initial = w.state();
+  const { O_WRONLY, O_RDWR, O_CREAT, O_APPEND, O_TRUNC } = fsModule.constants;
+  const writes = (f) => typeof f === 'number' ? Boolean(f & (O_WRONLY | O_RDWR | O_CREAT | O_APPEND | O_TRUNC)) : /[wax+]/.test(String(f ?? 'r'));
+  const trace = [];
+  const restore = traceFs((c) => { if (c.path?.startsWith(w.setDir) || c.path?.startsWith(controllerRoot)) trace.push(c); });
+  try { assert.equal(activate(w).stage.state, 'PACKET_READY'); } finally { restore(); }
+  const controllerWrite = (c) => c.path?.startsWith(controllerRoot) && (c.name !== 'openSync' || writes(c.flags)) && c.name !== 'fsyncSync';
+  const firstControllerWrite = trace.findIndex(controllerWrite), lastSetSync = trace.findLastIndex((c) => c.name === 'fsyncSync' && c.path?.startsWith(w.setDir));
+  assert.ok(lastSetSync >= 0 && firstControllerWrite > lastSetSync, `controller write at ${firstControllerWrite}, last set fsync at ${lastSetSync}`);
+  assert.notEqual(initial, 'PACKET_READY');
+  let k = 0;
+  for (;; k++) {
+    const v = await world(sub(dir, `s${k}`)), before = v.state();
+    let n = 0, stoppedAt = null, threw = false;
+    const undo = traceFs((c) => { if (c.path?.startsWith(v.setDir) && n++ === k) { stoppedAt = c; throw new Error('INJECTED_STOP'); } });
+    // Any refusal counts (a stop inside the set file read is reported fail-closed as ACTIVATION_SET_CORRUPT).
+    try { activate(v); } catch (e) { assert.match(e.message, /^(INJECTED_STOP|ACTIVATION_SET_[A-Z_]+)$/); threw = true; } finally { undo(); }
+    if (!stoppedAt) break;
+    if (!threw) {
+      // Only the best-effort temp-name removal may absorb a stop; the activation then completed with its set committed.
+      assert.ok(stoppedAt.name === 'unlinkSync' && TEMP.test(stoppedAt.path), `stop at set step ${k} (${stoppedAt.name}) was absorbed`);
+      assert.equal(v.state(), 'PACKET_READY'); verifyActivationSet(v.store.directory, v.setInput()); continue;
+    }
+    assert.equal(v.state(), before, `stop at set step ${k} (${stoppedAt.name}) moved the Controller`);
+    assert.equal(activate(v).stage.state, 'PACKET_READY'); assert.equal(activate(v).stage.status, 'ALREADY_ACTIVATED');
+    if (k === 0) { await v.runtime.execute(v.c); assert.equal(v.calls, 1); }
+  }
+  assert.ok(k >= FRESH_PUBLISH.length - 2, `only ${k} set steps were exercised`);
+});
+await test('S1-R1 Fix 3: S1_UNSIGNED_V0 can never become live-eligible, whatever a caller claims', async () => {
+  for (const claimed of [{ setHash: 'a'.repeat(64), signed: true, policy: 'S1_UNSIGNED_V0' }, { setHash: 'a'.repeat(64), signed: true, policy: 'S2_HUMAN_SIGNED_V1' },
+    { setHash: 'a'.repeat(64), signed: false, policy: 'S1_UNSIGNED_V0' }]) assert.equal(liveEligibility(claimed).eligible, false);
+  assert.deepEqual({ ...SIGNATURE_POLICY }, { version: 'S1_UNSIGNED_V0', humanSignatureRequired: false });
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
