@@ -468,7 +468,11 @@ check('35. only the governed read model obtains the archive reader; nothing outs
   const users = outside.filter((path) => /openAuthorityArchive(Appender|Reader)|authority\/file-archive(\.js)?['"]/.test(text(path)));
   assert.deepEqual(users.map(rel), [GOVERNED_READ_MODEL]);
   assert.deepEqual(outside.filter((path) => /authority\/document(\.js)?['"]/.test(text(path))).map(rel).sort(),
-    [ACTIVATION_CORE, EXECUTION_DRIVER, GOVERNED_EXECUTION, GOVERNED_READ_MODEL, STATUS_BRIDGE, 'src/limited-worker/governance.ts'].sort());
+    [ACTIVATION_CORE, EXECUTION_DRIVER, GOVERNED_EXECUTION, GOVERNED_READ_MODEL, STATUS_BRIDGE, 'src/limited-worker/governance.ts',
+      'src/limited-worker/activation-set.ts'].sort());
+  // AUTO-P2-A4-P0-S1: the ACTIVATION_SET hashes member bodies only; it names no archive reader or appender (checked above and below)
+  // and takes read-model facts as plain data (no read-model import).
+  assert.match(text(join(ROOT, 'src', 'limited-worker', 'activation-set.ts')), /import \{ authorityBodyHash, type JsonObject \} from '\.\.\/automation\/authority\/document\.js';/);
   assert.match(text(join(ROOT, STATUS_BRIDGE)), /import \{ isAuthorityPrincipalRef \} from '\.\.\/automation\/authority\/document\.js';/);
   // Inside R4P: the appender is opened by the preserver alone; the preserver is opened by the governed composition alone.
   assert.deepEqual(SRC.filter((path) => rel(path) !== join('src', 'automation', 'authority', 'file-archive.ts') &&

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { constants, closeSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+import { constants, closeSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { parseContract, hash, type Contract } from './contract.js';
@@ -23,6 +23,12 @@ export type Observation=z.infer<typeof observationSchema>;
 const payload = z.strictObject({ jobs: z.array(jobSchema).max(100), ceilingMicroUsd: z.literal(1000000),
   observations:z.array(observationSchema).max(2000).optional(),observationsDropped:z.number().int().nonnegative().optional() });
 const envelope = z.strictObject({ schemaVersion: z.literal(1), payload, checksum: digest });
+const leaseSchema = z.strictObject({ pid: z.number().int().min(1), nonce: z.string().uuid() });
+/** Any live process with this pid counts, including a reused pid: such a lease is BUSY, never taken over. */
+function alive(pid: number): boolean {
+  try { process.kill(pid, 0); return true; }
+  catch (error) { return (error as NodeJS.ErrnoException).code !== 'ESRCH'; }
+}
 
 export class WorkerStore {
   readonly directory: string;
@@ -31,22 +37,73 @@ export class WorkerStore {
   }
   #check() { const s = lstatSync(this.directory); if (!s.isDirectory() || s.isSymbolicLink() || (s.mode & 0o077)) throw new Error('WORKER_STORAGE_UNSAFE'); }
   identity(): string { this.#check(); const s = lstatSync(this.directory); return hash([realpathSync(this.directory), s.dev, s.ino]); }
-  lease(): () => void {
-    this.#check(); const file = join(this.directory, 'runtime.lock');
-    let fd: number;
-    try { fd = openSync(file, 'wx', 0o600); }
-    catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-      const prior = lstatSync(file); if (!prior.isFile() || prior.isSymbolicLink() || prior.size > 500) throw new Error('WORKER_LEASE_UNCERTAIN');
-      const pid = JSON.parse(readFileSync(file, 'utf8')).pid;
-      if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('WORKER_LEASE_UNCERTAIN');
-      try { process.kill(pid, 0); throw new Error('WORKER_LEASE_BUSY'); }
-      catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ESRCH') throw new Error('WORKER_LEASE_BUSY'); }
-      const current = lstatSync(file); if (current.ino !== prior.ino || current.dev !== prior.dev) throw new Error('WORKER_LEASE_UNCERTAIN');
-      unlinkSync(file); return this.lease();
+  /**
+   * The Host's exclusive runtime lease (S1). A held lease names its owner's pid and a random nonce, and it is always
+   * complete: it is written to a private temp file, fsynced and published with one exclusive link(2), so a crash can
+   * never leave an empty or partial lease. A lease whose owner is alive (or whose pid now belongs to any live process,
+   * PID reuse included) is BUSY and is never touched. A lease whose owner is dead is taken over only by the one process
+   * that wins that exact stale lease's takeover token (one exclusive file per stale nonce); the winner re-reads the
+   * lease and replaces it only while it is still that same stale record, by an atomic rename, so no process can ever
+   * remove or replace a lease another process has just acquired. Anything it cannot prove (an unreadable record, a
+   * token left by a takeover that died) fails closed as BUSY or UNCERTAIN; nothing is forced. Release removes the lease
+   * only while it still carries this holder's nonce. `hooks` exist only for deterministic interleaving tests.
+   */
+  lease(hooks?: { beforeTakeover?(): void }): () => void {
+    this.#check();
+    const file = join(this.directory, 'runtime.lock'), nonce = randomUUID();
+    const temp = join(this.directory, `runtime.lock.${nonce}.tmp`);
+    const out = openSync(temp, 'wx', 0o600);
+    try { writeFileSync(out, JSON.stringify({ pid: process.pid, nonce })); fsyncSync(out); } finally { closeSync(out); }
+    try {
+      let acquired = false;
+      try { linkSync(temp, file); acquired = true; }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
+      if (!acquired) this.#takeOver(file, temp, hooks);
+      const dir = openSync(this.directory, 'r'); try { fsyncSync(dir); } finally { closeSync(dir); }
+    } finally { try { unlinkSync(temp); } catch { /* already renamed into place */ } }
+    return () => {
+      let current: { nonce: string } | null;
+      try { current = this.#leaseRecord(file); } catch { return; } // unreadable: left in place (fail closed)
+      if (current?.nonce === nonce) unlinkSync(file);
+    };
+  }
+  #takeOver(file: string, temp: string, hooks?: { beforeTakeover?(): void }) {
+    const prior = this.#leaseRecord(file);
+    // Missing: its holder released it between our link and this read. No waiting: the caller retries.
+    if (!prior || alive(prior.pid)) throw new Error('WORKER_LEASE_BUSY');
+    hooks?.beforeTakeover?.();
+    const token = join(this.directory, `runtime.lock.takeover-${prior.nonce}`);
+    let tokenFd: number;
+    try { tokenFd = openSync(token, 'wx', 0o600); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new Error('WORKER_LEASE_BUSY'); throw error; }
+    // done: the stale lease was replaced, or it is already gone (only this token's holder can ever replace that exact
+    // stale nonce, and a nonce is never reused), so the token guards nothing and is removed. Any other failure keeps
+    // the token: that stale lease is then refused (fail closed) until a Human recovers it.
+    let done = false;
+    try {
+      writeFileSync(tokenFd, readFileSync(temp)); fsyncSync(tokenFd);
+      const current = this.#leaseRecord(file);
+      if (current?.nonce !== prior.nonce) { done = true; throw new Error('WORKER_LEASE_BUSY'); }
+      renameSync(temp, file); done = true;
+    } finally {
+      closeSync(tokenFd);
+      if (done) unlinkSync(token);
     }
-    const owner = fstatSync(fd); writeFileSync(fd, JSON.stringify({ pid: process.pid, nonce: randomUUID() })); fsyncSync(fd);
-    return () => { closeSync(fd); const s = lstatSync(file); if (s.dev === owner.dev && s.ino === owner.ino) unlinkSync(file); };
+  }
+  /** The lease record, or null when there is none. Anything unreadable or malformed is UNCERTAIN. */
+  #leaseRecord(file: string): { pid: number; nonce: string } | null {
+    let fd: number | undefined;
+    try {
+      fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+      const st = fstatSync(fd);
+      if (!st.isFile() || st.size > 500) throw new Error('WORKER_LEASE_UNCERTAIN');
+      const parsed = leaseSchema.safeParse(JSON.parse(readFileSync(fd, 'utf8')));
+      if (!parsed.success) throw new Error('WORKER_LEASE_UNCERTAIN');
+      return parsed.data;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      throw new Error('WORKER_LEASE_UNCERTAIN');
+    } finally { if (fd !== undefined) closeSync(fd); }
   }
   writeReport(c: Contract, report: string): string {
     if (c.storageIdentity !== this.identity() || Buffer.byteLength(report) > 65536) throw new Error('REPORT_SCOPE_LIMIT');
@@ -80,7 +137,13 @@ export class WorkerStore {
     finally { if (fd !== undefined) closeSync(fd); }
   }
   update<T>(fn: (data: ReturnType<WorkerStore['read']>) => T): T {
-    this.#check(); const lock = join(this.directory, 'write.lock'); const fd = openSync(lock, 'wx', 0o600), owner = fstatSync(fd);
+    this.#check(); const lock = join(this.directory, 'write.lock');
+    // A held or leftover write.lock stops every ledger write (fail closed); it is never removed here. Recovery of a
+    // leftover lock is a documented Human step (AUTO_P2_A4_P0_S1_ARCHITECT_REVIEW.md), never automatic.
+    let fd: number;
+    try { fd = openSync(lock, 'wx', 0o600); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new Error('WORKER_STORE_WRITE_LOCK_HELD'); throw error; }
+    const owner = fstatSync(fd);
     let temp: string | undefined;
     try {
       const data = this.read(), result = fn(data), parsed = payload.parse(data);

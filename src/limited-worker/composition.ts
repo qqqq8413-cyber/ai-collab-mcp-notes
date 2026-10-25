@@ -36,7 +36,7 @@ export function composeLimitedWorker(options: {
     observeCi() { throw new Error('LIMITED_WORKER_HAS_NO_GIT_DELIVERY'); }, observeProtection() { throw new Error('LIMITED_WORKER_HAS_NO_GIT_DELIVERY'); } });
   const readModel = () => readGovernedModel(options, options.clock);
   const adapter = new LimitedReadmeWorker({ ...options, store, journal, humanGrant: options.limitedGrant, liveGrant: options.liveCallGrant,
-    now: () => options.clock.now(), readModel, readRun: id => controller.get(id) });
+    now: () => options.clock.now(), readModel, readRun: id => controller.get(id), activationSetRoot: store.directory, requireActivationSet: Boolean(trusted) });
   const scopes = { IMPLEMENTATION: structuredClone(SCOPE), ARCHITECT_REVIEW: { actorKind: 'ARCHITECT_REVIEW' as const, provider: 'openai', model: 'NOT_AUTHORIZED', egressDestinations: ['api.openai.com:443'] } };
   const runner = new AutomationRunner(controller, adapter, { review() { throw new Error('SECOND_AGENT_FORBIDDEN'); } },
     { journal, clock: options.clock, authorizations: { IMPLEMENTATION: options.liveCallGrant }, scopes });

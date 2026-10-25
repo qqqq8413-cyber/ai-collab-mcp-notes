@@ -1,0 +1,28 @@
+M1 takeover skips nonce re-check: CAUGHT 30 passed, 1 failed
+    FAIL S1-A the same interleaving against the new lease: the late contender stops and the fresh holder keeps its
+M2 takeover token not exclusive: CAUGHT 29 passed, 2 failed
+    FAIL S1-A a takeover in progress (its token exists) makes every contender BUSY; a token left by a dead takeove
+    FAIL S1-A six processes race for a stale lease, 8 rounds: one holder at a time, every lease intact until relea
+M3 PID liveness ignored: CAUGHT 27 passed, 4 failed
+    FAIL S1-A the same interleaving against the new lease: the late contender stops and the fresh holder keeps its
+    FAIL S1-A PID reuse: a lease whose pid belongs to any live process is BUSY and untouched: AssertionError [ERR_
+    FAIL S1-A six processes race for a free lease, 8 rounds: one holder at a time, every lease intact until releas
+    FAIL S1-A four Host processes execute one activated run at once: one provider send in total: AssertionError [E
+M4 release ignores nonce: CAUGHT 30 passed, 1 failed
+    FAIL S1-A the same interleaving against the new lease: the late contender stops and the fresh holder keeps its
+M5 write.lock auto-removed: CAUGHT 29 passed, 2 failed
+    FAIL S1-A a leftover write.lock stops every ledger write and changes nothing; the documented Human recovery re
+    FAIL S1-A three processes racing to reserve one job, 5 rounds: exactly one claim each round: AssertionError [E
+M6 worker skips set check: CAUGHT 28 passed, 3 failed
+    FAIL S1-B power-loss residues: a leftover temp file is never a set; truncated, altered, symlinked, unsafe or m
+    FAIL S1-B the final send guard re-verifies the set: removed after the claim, no request is sent: AssertionErro
+    FAIL S1-B the final send guard re-verifies the set: corrupted after the claim, no request is sent: AssertionEr
+M7 member need not be archived: CAUGHT 30 passed, 1 failed
+    FAIL S1-B forged markers, conflicting content, a forged attestation and mixed versions are never the expected 
+M8 member need not be current: CAUGHT 30 passed, 1 failed
+    FAIL S1-B forged markers, conflicting content, a forged attestation and mixed versions are never the expected 
+M9 publish ignores conflict: CAUGHT 30 passed, 1 failed
+    FAIL S1-B forged markers, conflicting content, a forged attestation and mixed versions are never the expected 
+M10 verify skips stored hash: CAUGHT 30 passed, 1 failed
+    FAIL S1-B forged markers, conflicting content, a forged attestation and mixed versions are never the expected 
+ALL MUTATIONS CAUGHT

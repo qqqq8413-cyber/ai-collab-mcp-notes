@@ -1,5 +1,6 @@
 import { EXE, checkQuote, hash, maximumCost, packetFor, type Contract } from './contract.js';
 import { packetHash } from '../automation/packet.js';
+import { ACTIVATION_SET_SCHEMA, SIGNATURE_POLICY } from './activation-set.js';
 
 const guidance: Record<string,{title:string;nextStep:string;owner:string}> = {
   EXE_HOLD:{title:'正式執行尚未開放',nextStep:'先交 Architect 審查；本輪不解除執行鎖定。',owner:'Architect / Human'},
@@ -32,7 +33,12 @@ export function activationCandidate(c:Contract,sliceId:string,objective:string) 
     hostReadiness:{state:'TRUSTED_HOST_CANDIDATE_REQUIRES_ARCHITECT_REVIEW',productionExecution:'HOLD',providerAccount:'UNVERIFIED_NO_ACCOUNT_REQUEST',
       authorityOrigin:'EXTERNALLY_ISSUED_DOCUMENTS_ONLY',canIssueAuthority:false,lastLocalGuard:'AFTER_SOCKET_READY_BEFORE_WRITE'},
     requiredHumanOperations:['LIVE_PROVIDER_MODEL_CALL','LIMITED_README_WORKER'],limitedPermitTarget:hash(c),
-    activationPath:'Existing governed activation core -> Authority Archive -> Controller PACKET_READY -> Execution Driver',
+    // S1: what activation additionally requires. The set hash exists only after all three documents are archived.
+    activationSet:{schema:ACTIVATION_SET_SCHEMA,required:true,setHash:null,
+      members:['IMPLEMENTATION_PACKET','LIVE_PROVIDER_MODEL_CALL','LIMITED_README_WORKER'],
+      binds:['runId','packetId','packetHash','contractHash','implementationSha','workerCodeHash','signaturePolicy'],
+      signaturePolicy:{...SIGNATURE_POLICY},liveEligibility:'NOT_ELIGIBLE_UNSIGNED',recordClass:'OPERATIONAL_RECORD',notAuthority:true},
+    activationPath:'Existing governed activation core -> Authority Archive -> ACTIVATION_SET -> Controller PACKET_READY -> Execution Driver',
     constraint:'No Workspace issuance; trusted governance must preserve separately issued exact documents. Activation alone does not release HOLD.'};
 }
 export function planConditions(c:Contract,now:string,identity:{sha:string;codeHash:string;clean:boolean},reserved:number) {

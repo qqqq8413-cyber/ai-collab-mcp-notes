@@ -7,6 +7,7 @@ import { EXE, MODEL, contractOf, hash, maximumCost, checkQuote, assertInputReady
 import { verifyInvocation, verifyPermit } from './governance.js';
 import { WorkerStore } from './store.js';
 import { parsePreflight, type WorkerTransport } from './transport.js';
+import { liveEligibility, verifyActivationSet } from './activation-set.js';
 
 const replySchema = z.object({ id: z.string().min(1).max(200), model: z.literal(MODEL), stop_reason: z.literal('end_turn'),
   content: z.array(z.object({ type: z.literal('text'), text: z.string(), citations: z.null().optional() }).strict()).min(1).max(20),
@@ -24,6 +25,8 @@ export interface WorkerDependencies {
   currentImplementation(): { sha: string; codeHash: string; clean: boolean };
   /** Only tightens the fixed 300 second bound, for deterministic timeout tests. */
   deadlineMs?: number;
+  /** S1: where committed ACTIVATION_SETs live, and whether this worker (the trusted Host's) requires one. */
+  activationSetRoot?: string; requireActivationSet?: boolean;
 }
 export class LimitedReadmeWorker implements ImplementationAgentPort {
   readonly #d: WorkerDependencies;
@@ -42,7 +45,14 @@ export class LimitedReadmeWorker implements ImplementationAgentPort {
       if (!identity.clean || identity.sha !== c.implementationSha || identity.codeHash !== c.workerCodeHash) throw new Error('IMPLEMENTATION_CHANGED');
       if (c.implementationSha !== d.implementationSha || c.workerCodeHash !== d.workerCodeHash || c.storageIdentity !== d.store.identity() || input.runId !== c.runId || input.implementationIteration !== 1 || input.correction) throw new Error('IMPLEMENTATION_BINDING_MISMATCH');
       checkQuote(c.quote, d.now());
-      verifyPermit(c, { grant: d.humanGrant, liveGrant: d.liveGrant, model: d.readModel(), packet: input.packet, humanPrincipalRef: d.humanPrincipalRef,architectPrincipalRef:d.architectPrincipalRef, now: d.now() });
+      const model = d.readModel();
+      verifyPermit(c, { grant: d.humanGrant, liveGrant: d.liveGrant, model, packet: input.packet, humanPrincipalRef: d.humanPrincipalRef,architectPrincipalRef:d.architectPrincipalRef, now: d.now() });
+      // S1: the trusted Host's worker (and any live provider call) re-verifies the complete committed set at every check,
+      // including the final send guard; an unsigned set is never eligible for a live provider call.
+      if (d.requireActivationSet || d.transport.kind === 'LIVE_PROVIDER') {
+        const set = verifyActivationSet(d.activationSetRoot ?? d.store.directory, { contract: c, packet: input.packet, model, liveGrant: d.liveGrant, limitedGrant: d.humanGrant });
+        if (d.transport.kind === 'LIVE_PROVIDER') { const live = liveEligibility(set); if (!live.eligible) throw new Error(live.reason); }
+      }
       const record = input.invocationId ? d.journal.get(input.invocationId) : undefined;
       verifyInvocation(c, input.packet, d.readRun(c.runId), record);
       const source = d.readSource(c), objective = d.readGoal(c);

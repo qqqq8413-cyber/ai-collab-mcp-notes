@@ -7,6 +7,7 @@ import { parseAuthorization, authorizationBinds } from '../automation/policy.js'
 import type { GovernedReadModelV1 } from '../automation/read-model/governed-read-model.js';
 import type { ControllerRun, ImplementationPacket } from '../automation/types.js';
 import type { InvocationRecord } from '../automation/invocation-journal.js';
+import { liveEligibility, publishActivationSet, verifyActivationSet } from './activation-set.js';
 
 function boundGrant(raw:unknown,c:Contract,packet:ImplementationPacket,operation:string,target:string,now:string) {
   const grant=parseAuthorization(raw),at=Date.parse(now);
@@ -99,10 +100,15 @@ export function limitedActivationCandidate(options: {
       if(!versions.some(f=>f.ref.recordHash===record.recordHash)||versions.some(f=>f.ref.version>doc.version)||Date.parse(doc.issuedAt)>Date.parse(options.now()))throw new Error('ACTIVATION_DOCUMENT_NOT_CURRENTLY_ARCHIVED');
     }
     verifyPermit(c,{grant:limitedDocument.body,liveGrant:liveDocument.body,model:current,packet,humanPrincipalRef:options.humanPrincipalRef,architectPrincipalRef:options.architectPrincipalRef,now:options.now()});
+    // S1: all three documents are durably archived, current and verified; only now is their ACTIVATION_SET
+    // committed (idempotent), and the committed set is re-derived and re-verified before the Controller moves.
+    const setInput={contract:c,packet,model:current,liveGrant:liveDocument.body,limitedGrant:limitedDocument.body};
+    publishActivationSet(options.store.directory,setInput);
+    const set=verifyActivationSet(options.store.directory,{...setInput,model:options.readModel()});
     const result=options.core.activate(target,{implementationPacket:packetDocument,liveCallAuthorizations:[liveDocument]});
     if(result.packet.packetHash!==packetHash(packet)||result.state!=='PACKET_READY')throw new Error('ACTIVATION_RESULT_MISMATCH');
-    return {recordClass:'OPERATIONAL_RECORD' as const,stage:result,executionEligible:false as const,
-      blockers:['EXE_HOLD',...(c.inputPolicy?.revision==='A3'?[]:['INPUT_LIMIT_DECISION_REQUIRED']),'H1_H9_NOT_GRANTED'],
+    return {recordClass:'OPERATIONAL_RECORD' as const,stage:result,executionEligible:false as const,activationSet:set,liveEligibility:liveEligibility(set),
+      blockers:['EXE_HOLD',...(c.inputPolicy?.revision==='A3'?[]:['INPUT_LIMIT_DECISION_REQUIRED']),'H1_H9_NOT_GRANTED','ACTIVATION_SET_UNSIGNED'],
       notice:'Staging archived documents is not execution authorization. No Driver or Worker was invoked.'};
   }});
 }

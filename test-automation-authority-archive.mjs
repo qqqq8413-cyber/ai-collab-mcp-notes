@@ -560,7 +560,10 @@ check('the archive is wired into no runtime surface; only the governed read mode
   // governed composition parse documents and check principal references; none of them names the append capability.
   assert.deepEqual(importers('document'), ['src/automation/activation-core.ts', 'src/automation/execution-driver.ts',
     'src/automation/live/governed-execution.ts', 'src/automation/read-model/governed-read-model.ts',
-    'src/intake/goal-execution-status-bridge.ts', 'src/limited-worker/governance.ts']);
+    'src/intake/goal-execution-status-bridge.ts', 'src/limited-worker/activation-set.ts', 'src/limited-worker/governance.ts']);
+  // AUTO-P2-A4-P0-S1: the ACTIVATION_SET only hashes member bodies (authorityBodyHash); it never opens the archive.
+  assert.match(readFileSync(join(ROOT, 'src/limited-worker/activation-set.ts'), 'utf8'),
+    /import \{ authorityBodyHash, type JsonObject \} from '\.\.\/automation\/authority\/document\.js';/);
   assert.match(readFileSync(join(ROOT, 'src/automation/execution-driver.ts'), 'utf8'),
     /import \{ authorityBodyHash, type AuthorityRefV1, type JsonObject \} from '\.\/authority\/document\.js';/);
   // Reader only: neither names the append capability.

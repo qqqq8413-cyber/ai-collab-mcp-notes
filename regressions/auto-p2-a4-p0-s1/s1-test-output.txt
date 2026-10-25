@@ -1,0 +1,33 @@
+  PASS S1-A reproduced: the pre-S1 takeover deletes a lease another process has just taken over
+  PASS S1-A the same interleaving against the new lease: the late contender stops and the fresh holder keeps its lease
+  PASS S1-A a takeover in progress (its token exists) makes every contender BUSY; a token left by a dead takeover fails closed
+  PASS S1-A PID reuse: a lease whose pid belongs to any live process is BUSY and untouched
+  PASS S1-A unreadable, malformed or symlinked lease records are UNCERTAIN and never removed
+  PASS S1-A process death: a holder killed by SIGKILL leaves a complete stale lease that a later process takes over cleanly
+  PASS S1-A six processes race for a free lease, 8 rounds: one holder at a time, every lease intact until released
+  PASS S1-A six processes race for a stale lease, 8 rounds: one holder at a time, every lease intact until released
+  PASS S1-A a leftover write.lock stops every ledger write and changes nothing; the documented Human recovery resumes
+  PASS S1-A three processes racing to reserve one job, 5 rounds: exactly one claim each round
+  PASS S1-A four Host processes execute one activated run at once: one provider send in total
+  PASS S1-A Host killed (SIGKILL) after the claim, before the send: restart takes the lease over and never sends again
+  PASS S1-A Host killed (SIGKILL) right after the send: restart takes the lease over and never sends again
+  PASS S1-B activation commits one content-addressed set binding run, packet, contract, implementation and signature policy
+  PASS S1-B crash after 0 of 3 documents preserved: no set, no activation, no execution; an exact retry completes once
+  PASS S1-B crash after 1 of 3 documents preserved: no set, no activation, no execution; an exact retry completes once
+  PASS S1-B crash after 2 of 3 documents preserved: no set, no activation, no execution; an exact retry completes once
+  PASS S1-B crash after 3 of 3 documents preserved: no set, no activation, no execution; an exact retry completes once
+  PASS S1-B Host killed (SIGKILL) after 1 document(s): restart activates once
+  PASS S1-B Host killed (SIGKILL) after 2 document(s): restart activates once
+  PASS S1-B Host killed (SIGKILL) after 3 document(s): restart activates once
+  PASS S1-B Host killed (SIGKILL) after the set, before the Controller: restart activates once
+  PASS S1-B duplicate concurrent submissions of the same documents: one archive record each, one set
+  PASS S1-B power-loss residues: a leftover temp file is never a set; truncated, altered, symlinked, unsafe or missing sets refuse
+  PASS S1-B forged markers, conflicting content, a forged attestation and mixed versions are never the expected set
+  PASS S1-B the final send guard re-verifies the set: removed after the claim, no request is sent
+  PASS S1-B the final send guard re-verifies the set: corrupted after the claim, no request is sent
+  PASS S1-B the final send guard re-verifies the set: stale after the claim, no request is sent
+  PASS S1-B an unsigned set never yields live eligibility, and a live transport stays behind EXE HOLD
+  PASS S1-B publishing writes nothing to the Authority Archive and never rewrites its history
+  PASS S1-B the unissued Pilot Packet states the ACTIVATION_SET requirement and grants nothing
+
+31 passed, 0 failed
