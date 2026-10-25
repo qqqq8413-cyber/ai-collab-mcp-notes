@@ -21,6 +21,14 @@ M = [
  ('M16 temp not fsynced before link', 'dist/limited-worker/activation-set.js', 'writeFileSync(fd, JSON.stringify({ set, setHash }));\n        fsyncSync(fd);', 'writeFileSync(fd, JSON.stringify({ set, setHash }));'),
  ('M17 idempotent path returns unsynced', 'dist/limited-worker/activation-set.js', '                fsyncSync(existing);\n', ''),
  ('M18 set directory not fsynced after link', 'dist/limited-worker/activation-set.js', '    fsyncDirectory(dir);\n    return setHash;', '    return setHash;'),
+ # R2: WorkerStore reads. M19-M21 drop O_NONBLOCK for one read point only, so each point's FIFO test is shown to matter.
+ ('M19 runtime.lock open may block (FIFO)', 'dist/limited-worker/store.js', 'constants.O_NOFOLLOW | constants.O_NONBLOCK);', "constants.O_NOFOLLOW | (path.endsWith('/runtime.lock') ? 0 : constants.O_NONBLOCK));"),
+ ('M20 ledger.json open may block (FIFO)', 'dist/limited-worker/store.js', 'constants.O_NOFOLLOW | constants.O_NONBLOCK);', "constants.O_NOFOLLOW | (path.endsWith('/ledger.json') ? 0 : constants.O_NONBLOCK));"),
+ ('M21 report.md open may block (FIFO)', 'dist/limited-worker/store.js', 'constants.O_NOFOLLOW | constants.O_NONBLOCK);', "constants.O_NOFOLLOW | (path.endsWith('/report.md') ? 0 : constants.O_NONBLOCK));"),
+ ('M22 store file type not checked', 'dist/limited-worker/store.js', 'if (!st.isFile() || (st.mode & 0o7077)', 'if ((st.mode & 0o7077)'),
+ ('M23 store file mode not checked', 'dist/limited-worker/store.js', '(st.mode & 0o7077) || (uid()', 'false || (uid()'),
+ ('M24 ledger read failure read as empty', 'dist/limited-worker/store.js', "const data = readOwnFile(join(this.directory, 'ledger.json'), 16 * 1024 * 1024, 'WORKER_STORAGE_INTEGRITY');",
+  "let data; try { data = readOwnFile(join(this.directory, 'ledger.json'), 16 * 1024 * 1024, 'WORKER_STORAGE_INTEGRITY'); } catch { data = null; }"),
 ]
 only = set(sys.argv[1:])  # optional: run only these ids, e.g. M9 M11
 ok = True

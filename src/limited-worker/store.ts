@@ -29,6 +29,26 @@ function alive(pid: number): boolean {
   try { process.kill(pid, 0); return true; }
   catch (error) { return (error as NodeJS.ErrnoException).code !== 'ESRCH'; }
 }
+const uid = () => process.getuid?.();
+/**
+ * R2: read one of this store's own files (runtime.lock, ledger.json, a report.md). The open never follows a symlink
+ * and never blocks (O_NONBLOCK), so a FIFO or a device cannot stall the open or the read. Before any byte is read,
+ * fstat must show a regular file owned by this user, with no group/other or setuid/setgid/sticky bits, of at most
+ * `maxBytes`. Returns null only when open(2) itself reports ENOENT (the file does not exist); every other problem,
+ * including a socket, a directory or a read error, throws `code` (fail closed).
+ */
+function readOwnFile(path: string, maxBytes: number, code: string): Buffer | null {
+  let fd: number;
+  try { fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null; throw new Error(code); }
+  try {
+    const st = fstatSync(fd);
+    if (!st.isFile() || (st.mode & 0o7077) || (uid() !== undefined && st.uid !== uid()) || st.size > maxBytes) throw new Error(code);
+    const data = readFileSync(fd);
+    if (data.length > maxBytes) throw new Error(code);
+    return data;
+  } catch { throw new Error(code); } finally { closeSync(fd); }
+}
 
 export class WorkerStore {
   readonly directory: string;
@@ -90,20 +110,15 @@ export class WorkerStore {
       if (done) unlinkSync(token);
     }
   }
-  /** The lease record, or null when there is none. Anything unreadable or malformed is UNCERTAIN. */
+  /** The lease record, or null when there is none. Anything unsafe, unreadable or malformed is UNCERTAIN. */
   #leaseRecord(file: string): { pid: number; nonce: string } | null {
-    let fd: number | undefined;
+    const data = readOwnFile(file, 500, 'WORKER_LEASE_UNCERTAIN');
+    if (data === null) return null;
     try {
-      fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
-      const st = fstatSync(fd);
-      if (!st.isFile() || st.size > 500) throw new Error('WORKER_LEASE_UNCERTAIN');
-      const parsed = leaseSchema.safeParse(JSON.parse(readFileSync(fd, 'utf8')));
-      if (!parsed.success) throw new Error('WORKER_LEASE_UNCERTAIN');
-      return parsed.data;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-      throw new Error('WORKER_LEASE_UNCERTAIN');
-    } finally { if (fd !== undefined) closeSync(fd); }
+      const parsed = leaseSchema.safeParse(JSON.parse(data.toString('utf8')));
+      if (parsed.success) return parsed.data;
+    } catch { /* not JSON */ }
+    throw new Error('WORKER_LEASE_UNCERTAIN');
   }
   writeReport(c: Contract, report: string): string {
     if (c.storageIdentity !== this.identity() || Buffer.byteLength(report) > 65536) throw new Error('REPORT_SCOPE_LIMIT');
@@ -116,25 +131,24 @@ export class WorkerStore {
   }
   reportIsValid(job: Job): boolean {
     if (!job.reportHash || typeof job.report!=='string' || hash(job.report)!==job.reportHash || job.contract.storageIdentity !== this.identity()) return false;
-    let fd: number | undefined;
     try {
       const dir = join(this.directory, job.contract.outputKey), st = lstatSync(dir);
       if (!st.isDirectory() || st.isSymbolicLink()) return false;
-      fd = openSync(join(dir, 'report.md'), constants.O_RDONLY | constants.O_NOFOLLOW);
-      const file = fstatSync(fd); return file.isFile() && file.size <= 65536 && hash(readFileSync(fd)) === job.reportHash;
-    } catch { return false; } finally { if (fd !== undefined) closeSync(fd); }
+      const data = readOwnFile(join(dir, 'report.md'), 65536, 'WORKER_REPORT_UNSAFE');
+      return data !== null && hash(data) === job.reportHash;
+    } catch { return false; }
   }
   read():z.infer<typeof payload> {
-    this.#check(); let fd: number | undefined;
+    this.#check();
+    const data = readOwnFile(join(this.directory, 'ledger.json'), 16 * 1024 * 1024, 'WORKER_STORAGE_INTEGRITY');
+    // Only a ledger that does not exist (open(2) reported ENOENT) reads as new and empty; any other failure is INTEGRITY.
+    if (data === null) return { jobs: [], ceilingMicroUsd: 1000000 };
     try {
-      fd = openSync(join(this.directory, 'ledger.json'), constants.O_RDONLY | constants.O_NOFOLLOW);
-      const st = fstatSync(fd); if (!st.isFile() || st.size > 16 * 1024 * 1024) throw new Error('WORKER_STORAGE_INTEGRITY');
-      const v = envelope.parse(JSON.parse(readFileSync(fd, 'utf8')));
+      const v = envelope.parse(JSON.parse(data.toString('utf8')));
       if (hash(v.payload) !== v.checksum || new Set(v.payload.jobs.map(j => j.id)).size !== v.payload.jobs.length ||
         v.payload.jobs.some(j => hash(j.contract) !== j.id) || v.payload.jobs.reduce((sum, j) => sum + j.reservedMicroUsd, 0) > 1000000) throw new Error('WORKER_STORAGE_INTEGRITY');
       return v.payload;
-    } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { jobs: [], ceilingMicroUsd: 1000000 }; throw new Error('WORKER_STORAGE_INTEGRITY'); }
-    finally { if (fd !== undefined) closeSync(fd); }
+    } catch { throw new Error('WORKER_STORAGE_INTEGRITY'); }
   }
   update<T>(fn: (data: ReturnType<WorkerStore['read']>) => T): T {
     this.#check(); const lock = join(this.directory, 'write.lock');

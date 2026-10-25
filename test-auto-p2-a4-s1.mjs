@@ -646,5 +646,182 @@ await test('S1-R1 Fix 3: S1_UNSIGNED_V0 can never become live-eligible, whatever
   assert.deepEqual({ ...SIGNATURE_POLICY }, { version: 'S1_UNSIGNED_V0', humanSignatureRequired: false });
 });
 
+// ================================================================ S1-R2: WorkerStore special-file reads (runtime.lock, ledger.json, report.md)
+// Each case replaces exactly one of the three names. A FIFO is always checked in its own process with a 15 s limit, so a
+// blocking open shows up as a killed child, never as a hung suite; it is tried empty and holding a well-formed record (a
+// reader that skipped the file-type check would accept that record). A device node cannot be created without root, so
+// the device case redirects that one open(2) to /dev/null (a real character device, same flags) in this process.
+const R2_CHILD = `
+  import { closeSync, constants, openSync, readFileSync, unlinkSync, writeSync } from 'node:fs';
+  import { execFileSync } from 'node:child_process';
+  import { WorkerStore } from './dist/limited-worker/store.js';
+  const [kind, dir, target, preload, jobFile] = process.argv.slice(1);
+  const fifo = (bytes) => {
+    execFileSync('mkfifo', ['-m', '600', target]);
+    if (!bytes) return;
+    openSync(target, constants.O_RDONLY | constants.O_NONBLOCK); // held open: the FIFO keeps the bytes after the writer closes
+    const w = openSync(target, constants.O_WRONLY); writeSync(w, bytes); closeSync(w);
+  };
+  const store = new WorkerStore(dir);
+  let out;
+  try {
+    if (kind === 'release') {
+      const release = store.lease(), mine = readFileSync(target);
+      unlinkSync(target); fifo(preload ? mine : null);
+      release(); out = { result: 'RELEASE_RETURNED' };
+    } else {
+      fifo(preload ? readFileSync(preload) : null);
+      if (kind === 'lease') { store.lease(); out = { result: 'ACQUIRED' }; }
+      if (kind === 'ledger') out = { result: store.read().jobs.length };
+      if (kind === 'update') out = { result: store.update(() => 'WROTE') };
+      if (kind === 'report') out = { result: store.reportIsValid(JSON.parse(readFileSync(jobFile, 'utf8'))) };
+    }
+  } catch (error) { out = { error: error.message }; }
+  console.log(JSON.stringify(out));`;
+async function fifoCase(kind, dir, target, { preload = '', job = '' } = {}) {
+  const r = await child(R2_CHILD, [kind, dir, target, preload, job], { timeout: 15000 });
+  assert.equal(r.signal, null, `${kind}: the read blocked on a FIFO (child killed after 15 s)`);
+  assert.ok(lstatSync(target).isFIFO(), `${kind}: the FIFO was replaced`);
+  rmSync(target);
+  return JSON.parse(r.out.trim() || JSON.stringify({ exit: r.code, err: r.err.slice(-300) }));
+}
+const PIPE_SAFE = 16384; // stay within the smallest default FIFO buffer (macOS), so the preload write never blocks
+function viaDevice(path, fn) {
+  const original = fsModule.openSync;
+  fsModule.openSync = function (p, ...rest) { return original.call(this, String(p) === path ? '/dev/null' : p, ...rest); };
+  syncBuiltinESMExports();
+  try { return fn(); } finally { fsModule.openSync = original; syncBuiltinESMExports(); }
+}
+const mksock = (path) => execFileSync('python3', ['-I', '-c',
+  'import os, socket, sys; os.chdir(os.path.dirname(sys.argv[1])); socket.socket(socket.AF_UNIX).bind(os.path.basename(sys.argv[1]))', path]);
+const put = (path, bytes, mode) => { rmSync(path, { recursive: true, force: true }); writeFileSync(path, bytes, { mode }); chmodSync(path, mode); };
+const UNSAFE_MODES = [0o644, 0o640, 0o604, 0o660, 0o606, 0o666, 0o4600];
+// Every non-FIFO special or unsafe form of `path`; `good` is a well-formed record, so only the file itself is at fault.
+function* unsafeForms(dir, path, good, oversize) {
+  const elsewhere = join(dir, `elsewhere-${randomUUID()}`); put(elsewhere, good, 0o600);
+  rmSync(path, { recursive: true, force: true }); symlinkSync(elsewhere, path); yield 'symlink to a valid record';
+  rmSync(path); mkdirSync(path, { mode: 0o700 }); yield 'directory';
+  rmSync(path, { recursive: true }); mksock(path); yield 'socket';
+  for (const mode of UNSAFE_MODES) { put(path, good, mode); yield `mode ${mode.toString(8)}`; }
+  put(path, oversize, 0o600); yield 'oversize';
+  rmSync(path); rmSync(elsewhere);
+}
+// Names and file types only (reading a FIFO or socket would block or fail).
+const kinds = (root) => readdirSync(root).sort().map((name) => {
+  const st = lstatSync(join(root, name));
+  return [name, st.isFile() ? readFileSync(join(root, name)).toString('base64') : st.isDirectory() ? 'dir' : st.isSymbolicLink() ? 'link' : st.isFIFO() ? 'fifo' : st.isSocket() ? 'socket' : 'other'];
+});
+
+await test('S1-R2 runtime.lock: FIFO (empty or holding a valid stale record), symlink, directory, socket, device, unsafe mode or oversize lease is UNCERTAIN — no block, no takeover, release leaves it', async (dir) => {
+  const store = new WorkerStore(sub(dir, 's')), file = join(store.directory, 'runtime.lock');
+  const record = await staleLease(store.directory), good = readFileSync(file);
+  // Regular owner-only files keep working: a stale 0600 or 0400 lease is taken over; the new lease is 0600.
+  for (const mode of [0o600, 0o400]) {
+    put(file, good, mode); const release = store.lease();
+    assert.equal(JSON.parse(readFileSync(file, 'utf8')).pid, process.pid); assert.equal(lstatSync(file).mode & 0o7777, 0o600);
+    release(); assert.equal(existsSync(file), false);
+  }
+  for (const form of unsafeForms(dir, file, good, JSON.stringify({ ...record, pad: 'x'.repeat(600) }))) {
+    const before = kinds(store.directory);
+    refusedWith(() => store.lease(), 'WORKER_LEASE_UNCERTAIN');
+    assert.deepEqual(kinds(store.directory), before, `${form}: nothing taken over, no token or temp left`);
+  }
+  put(file, good, 0o600);
+  viaDevice(file, () => refusedWith(() => store.lease(), 'WORKER_LEASE_UNCERTAIN'));
+  assert.deepEqual(readFileSync(file), good, 'device: the stale lease was not taken over');
+  // Release: the holder's lease replaced by an unsafe form (a 0644 copy carries the holder's own nonce) is left in place.
+  for (const [form, swap] of [['0644 copy of the holder\'s own lease', (mine) => put(file, mine, 0o644)], ['directory', () => { rmSync(file); mkdirSync(file); }],
+    ['socket', () => { rmSync(file); mksock(file); }]]) {
+    rmSync(file, { recursive: true, force: true });
+    const release = store.lease(), mine = readFileSync(file); swap(mine);
+    release(); assert.ok(existsSync(file), `release removed a ${form}`);
+  }
+  rmSync(file, { recursive: true, force: true });
+  { const release = store.lease(), mine = readFileSync(file); viaDevice(file, () => release()); assert.deepEqual(readFileSync(file), mine, 'device: release removed the lease'); release(); }
+  // FIFOs, each in a time-limited child.
+  const preload = join(dir, 'stale-lease.json'); writeFileSync(preload, good);
+  assert.deepEqual(await fifoCase('lease', store.directory, file), { error: 'WORKER_LEASE_UNCERTAIN' });
+  assert.deepEqual(await fifoCase('lease', store.directory, file, { preload }), { error: 'WORKER_LEASE_UNCERTAIN' });
+  assert.deepEqual(await fifoCase('release', store.directory, file), { result: 'RELEASE_RETURNED' });
+  assert.deepEqual(await fifoCase('release', store.directory, file, { preload: '1' }), { result: 'RELEASE_RETURNED' });
+  assert.deepEqual(kinds(store.directory), [], 'no lease, token or temp file left');
+});
+await test('S1-R2 runtime.lock: an unsafe lease blocks activation and execution before any ledger change or send', async (dir) => {
+  const w = await world(dir); activate(w);
+  const file = join(w.store.directory, 'runtime.lock'), ledger = join(w.store.directory, 'ledger.json');
+  await staleLease(w.store.directory); chmodSync(file, 0o644);
+  const before = readFileSync(ledger);
+  await assert.rejects(w.runtime.execute(w.c), /WORKER_LEASE_UNCERTAIN/);
+  assert.throws(() => activate(w), /WORKER_LEASE_UNCERTAIN/);
+  assert.equal(w.calls, 0); assert.deepEqual(readFileSync(ledger), before); assert.equal(w.job().state, 'PREPARED');
+  rmSync(file); await w.runtime.execute(w.c); assert.equal(w.calls, 1); assert.equal(w.store.read().jobs.length, 1);
+});
+await test('S1-R2 ledger.json: FIFO (empty or holding the valid ledger), symlink, directory, socket, device, unsafe mode or oversize ledger is INTEGRITY — never read as an empty ledger, never rewritten', async (dir) => {
+  const w = await world(dir), file = join(w.store.directory, 'ledger.json'), lock = join(w.store.directory, 'write.lock');
+  const good = readFileSync(file), jobs = w.store.read().jobs;
+  assert.equal(lstatSync(file).mode & 0o7777, 0o600); assert.equal(jobs.length, 1);
+  put(file, good, 0o400); assert.deepEqual(w.store.read().jobs, jobs, 'an owner-only 0400 ledger still reads');
+  const refused = (form) => {
+    refusedWith(() => w.store.read(), 'WORKER_STORAGE_INTEGRITY');
+    refusedWith(() => w.store.update((d) => d.jobs.length), 'WORKER_STORAGE_INTEGRITY');
+    refusedWith(() => w.store.create(w.c, w.clock.now()), 'WORKER_STORAGE_INTEGRITY');
+    assert.equal(existsSync(lock), false, `${form}: write.lock left behind`);
+  };
+  const oversize = Buffer.alloc(16 * 1024 * 1024 + 1, 0x20);
+  for (const form of unsafeForms(dir, file, good, oversize)) {
+    const kind = lstatSync(file); refused(form);
+    const after = lstatSync(file);
+    assert.ok(after.ino === kind.ino && after.mode === kind.mode, `${form}: the ledger name was rewritten`);
+  }
+  put(file, good, 0o600);
+  viaDevice(file, () => refused('device'));
+  assert.deepEqual(readFileSync(file), good);
+  // FIFOs in a time-limited child: read, and a write (update) that would replace the ledger with a fresh one.
+  const preload = join(dir, 'ledger-copy.json'); writeFileSync(preload, good); assert.ok(good.length < PIPE_SAFE, `ledger ${good.length} bytes`);
+  rmSync(file);
+  assert.deepEqual(await fifoCase('ledger', w.store.directory, file), { error: 'WORKER_STORAGE_INTEGRITY' });
+  assert.deepEqual(await fifoCase('ledger', w.store.directory, file, { preload }), { error: 'WORKER_STORAGE_INTEGRITY' });
+  assert.deepEqual(await fifoCase('update', w.store.directory, file, { preload }), { error: 'WORKER_STORAGE_INTEGRITY' });
+  assert.equal(existsSync(lock), false);
+  // Restored: the same ledger, byte for byte; only a missing ledger (ENOENT) reads as new and empty.
+  put(file, good, 0o600); assert.deepEqual(w.store.read().jobs, jobs);
+  assert.deepEqual(new WorkerStore(sub(dir, 'fresh')).read().jobs, []);
+});
+await test('S1-R2 ledger.json: an unsafe ledger stops execution with zero sends; restored, the same job runs once (no new job)', async (dir) => {
+  const w = await world(dir); activate(w);
+  const file = join(w.store.directory, 'ledger.json'), good = readFileSync(file);
+  for (const unsafe of [() => chmodSync(file, 0o644), () => { rmSync(file); mkdirSync(file); }]) {
+    unsafe();
+    await assert.rejects(w.runtime.execute(w.c), /WORKER_STORAGE_INTEGRITY/);
+    assert.equal(w.calls, 0);
+    put(file, good, 0o600);
+  }
+  assert.equal(w.job().state, 'PREPARED');
+  await w.runtime.execute(w.c); assert.equal(w.calls, 1); assert.equal(w.store.read().jobs.length, 1);
+});
+await test('S1-R2 report.md: FIFO (empty or holding the exact report), symlink, directory, socket, device, unsafe mode or oversize report is invalid — the result is not consistent and nothing is re-sent', async (dir) => {
+  const w = await world(dir); activate(w); await w.runtime.execute(w.c);
+  const file = join(w.store.directory, w.c.outputKey, 'report.md'), good = readFileSync(file), job = w.job();
+  assert.equal(w.calls, 1); assert.equal(job.state, 'COMPLETED'); assert.equal(lstatSync(file).mode & 0o7777, 0o600);
+  assert.equal(w.store.reportIsValid(job), true); assert.equal(w.runtime.resultConsistency(w.c), true);
+  put(file, good, 0o400); assert.equal(w.store.reportIsValid(job), true, 'an owner-only 0400 report is still valid');
+  const invalid = (form) => {
+    assert.equal(w.store.reportIsValid(job), false, form); assert.equal(w.runtime.resultConsistency(w.c), false, form);
+  };
+  for (const form of unsafeForms(dir, file, good, Buffer.alloc(65537, 0x20))) invalid(form);
+  put(file, good, 0o600);
+  viaDevice(file, () => invalid('device'));
+  const jobFile = join(dir, 'job.json'), preload = join(dir, 'report-copy.md');
+  writeFileSync(jobFile, JSON.stringify(job)); writeFileSync(preload, good); assert.ok(good.length < PIPE_SAFE);
+  rmSync(file);
+  assert.deepEqual(await fifoCase('report', w.store.directory, file, { job: jobFile }), { result: false });
+  assert.deepEqual(await fifoCase('report', w.store.directory, file, { preload, job: jobFile }), { result: false });
+  // An invalid report is not new work: the job stays COMPLETED and another execute sends nothing.
+  mksock(file);
+  try { await w.runtime.execute(w.c); } catch { /* refused either way */ }
+  assert.equal(w.calls, 1); assert.equal(w.job().state, 'COMPLETED');
+  rmSync(file); put(file, good, 0o600); assert.equal(w.store.reportIsValid(job), true); assert.equal(w.runtime.resultConsistency(w.c), true);
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exitCode = failed ? 1 : 0;
