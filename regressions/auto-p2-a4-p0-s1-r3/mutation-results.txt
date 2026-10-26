@@ -1,0 +1,108 @@
+M1 takeover skips nonce re-check: CAUGHT 53 passed, 1 failed
+    FAIL S1-A the same interleaving against the new lease: the late contender stops and the fresh holder keeps its
+M2 takeover token not exclusive: CAUGHT 52 passed, 2 failed
+    FAIL S1-A a takeover in progress (its token exists) makes every contender BUSY; a token left by a dead takeove
+    FAIL S1-A six processes race for a stale lease, 8 rounds: one holder at a time, every lease intact until relea
+M3 PID liveness ignored: CAUGHT 50 passed, 4 failed
+    FAIL S1-A the same interleaving against the new lease: the late contender stops and the fresh holder keeps its
+    FAIL S1-A PID reuse: a lease whose pid belongs to any live process is BUSY and untouched: AssertionError [ERR_
+    FAIL S1-A six processes race for a free lease, 8 rounds: one holder at a time, every lease intact until releas
+    FAIL S1-A four Host processes execute one activated run at once: one provider send in total: AssertionError [E
+M4 release ignores nonce: CAUGHT 53 passed, 1 failed
+    FAIL S1-A the same interleaving against the new lease: the late contender stops and the fresh holder keeps its
+M5 write.lock auto-removed: CAUGHT 52 passed, 2 failed
+    FAIL S1-A a leftover write.lock stops every ledger write and changes nothing; the documented Human recovery re
+    FAIL S1-A three processes racing to reserve one job, 5 rounds: exactly one claim each round: AssertionError [E
+M6 worker skips set check: CAUGHT 50 passed, 4 failed
+    FAIL S1-B simulated power-loss residues (constructed states, not a real power cut): a leftover temp file is ne
+    FAIL S1-B the final send guard re-verifies the set: removed after the claim, no request is sent: AssertionErro
+    FAIL S1-B the final send guard re-verifies the set: corrupted after the claim, no request is sent: AssertionEr
+    FAIL S1-R1 Fix 1: the set file must be mode 0600; 0644, 0666 and every other mode fail closed at verify, publi
+M7 member need not be archived: CAUGHT 53 passed, 1 failed
+    FAIL S1-B forged markers, conflicting content, a forged attestation and mixed versions are never the expected 
+M8 member need not be current: CAUGHT 53 passed, 1 failed
+    FAIL S1-B forged markers, conflicting content, a forged attestation and mixed versions are never the expected 
+M9 publish ignores conflict: CAUGHT 50 passed, 4 failed
+    FAIL S1-B forged markers, conflicting content, a forged attestation and mixed versions are never the expected 
+    FAIL S1-R1 Fix 1: the set file must be mode 0600; 0644, 0666 and every other mode fail closed at verify, publi
+    FAIL S1-R1 Fix 1: a directory, FIFO or symlink at the set name, or a hard link other than the publisher's own 
+    FAIL S1-R1 Fix 2: publish order — each parent fsynced after its directory, temp fsynced before link(2), set di
+M10 verify skips stored hash: CAUGHT 53 passed, 1 failed
+    FAIL S1-B forged markers, conflicting content, a forged attestation and mixed versions are never the expected 
+M11 set file mode not checked: CAUGHT 53 passed, 1 failed
+    FAIL S1-R1 Fix 1: the set file must be mode 0600; 0644, 0666 and every other mode fail closed at verify, publi
+M12 set file open may block (FIFO): CAUGHT 53 passed, 1 failed
+    FAIL S1-R1 Fix 1: a directory, FIFO or symlink at the set name, or a hard link other than the publisher's own 
+M13 outside hard link allowed: CAUGHT 53 passed, 1 failed
+    FAIL S1-R1 Fix 1: a directory, FIFO or symlink at the set name, or a hard link other than the publisher's own 
+M14 any same-dir alias allowed: CAUGHT 53 passed, 1 failed
+    FAIL S1-R1 Fix 1: a directory, FIFO or symlink at the set name, or a hard link other than the publisher's own 
+M15 new directory parent not fsynced: CAUGHT 50 passed, 4 failed
+    FAIL S1-R1 Fix 2: publish order — each parent fsynced after its directory, temp fsynced before link(2), set di
+    FAIL S1-R1 Fix 2: a stop injected before each of the 14 publish steps leaves no set or a complete one; an exac
+    FAIL S1-R1 Fix 2: SIGKILL before each of the 14 publish steps (real process death, not a power cut): restart a
+    FAIL S1-R1 Fix 2: activation writes the Controller only after every set durability step; a stop at any set ste
+M16 temp not fsynced before link: CAUGHT 51 passed, 3 failed
+    FAIL S1-R1 Fix 2: publish order — each parent fsynced after its directory, temp fsynced before link(2), set di
+    FAIL S1-R1 Fix 2: a stop injected before each of the 14 publish steps leaves no set or a complete one; an exac
+    FAIL S1-R1 Fix 2: SIGKILL before each of the 14 publish steps (real process death, not a power cut): restart a
+M17 idempotent path returns unsynced: CAUGHT 53 passed, 1 failed
+    FAIL S1-R1 Fix 2: publish order — each parent fsynced after its directory, temp fsynced before link(2), set di
+M18 set directory not fsynced after link: CAUGHT 50 passed, 4 failed
+    FAIL S1-R1 Fix 2: publish order — each parent fsynced after its directory, temp fsynced before link(2), set di
+    FAIL S1-R1 Fix 2: a stop injected before each of the 14 publish steps leaves no set or a complete one; an exac
+    FAIL S1-R1 Fix 2: SIGKILL before each of the 14 publish steps (real process death, not a power cut): restart a
+    FAIL S1-R1 Fix 2: activation writes the Controller only after every set durability step; a stop at any set ste
+M19 runtime.lock open may block (FIFO): CAUGHT 53 passed, 1 failed
+    FAIL S1-R2 runtime.lock: FIFO (empty or holding a valid stale record), symlink, directory, socket, device, uns
+M20 ledger.json open may block (FIFO): CAUGHT 53 passed, 1 failed
+    FAIL S1-R2 ledger.json: FIFO (empty or holding the valid ledger), symlink, directory, socket, device, unsafe m
+M21 report.md open may block (FIFO): CAUGHT 53 passed, 1 failed
+    FAIL S1-R2 report.md: FIFO (empty or holding the exact report), symlink, directory, socket, device, unsafe mod
+M22 store file type not checked: CAUGHT 51 passed, 3 failed
+    FAIL S1-R2 runtime.lock: FIFO (empty or holding a valid stale record), symlink, directory, socket, device, uns
+    FAIL S1-R2 ledger.json: FIFO (empty or holding the valid ledger), symlink, directory, socket, device, unsafe m
+    FAIL S1-R2 report.md: FIFO (empty or holding the exact report), symlink, directory, socket, device, unsafe mod
+M23 store file mode not checked: CAUGHT 49 passed, 5 failed
+    FAIL S1-R2 runtime.lock: FIFO (empty or holding a valid stale record), symlink, directory, socket, device, uns
+    FAIL S1-R2 runtime.lock: an unsafe lease blocks activation and execution before any ledger change or send: Ass
+    FAIL S1-R2 ledger.json: FIFO (empty or holding the valid ledger), symlink, directory, socket, device, unsafe m
+    FAIL S1-R2 ledger.json: an unsafe ledger stops execution with zero sends; restored, the same job runs once (no
+M24 ledger read failure read as empty: CAUGHT 52 passed, 2 failed
+    FAIL S1-R2 ledger.json: FIFO (empty or holding the valid ledger), symlink, directory, socket, device, unsafe m
+    FAIL S1-R2 ledger.json: an unsafe ledger stops execution with zero sends; restored, the same job runs once (no
+M25 Controller record open may block (FIFO): CAUGHT 9 passed, 2 failed
+    FAIL S1-R3-A run: FIFO (empty or holding the exact record), symlink, directory, socket, device, unsafe mode, o
+    FAIL S1-R3-A admission: FIFO (empty or holding the exact record), symlink, directory, socket, device, unsafe m
+M26 journal record open may block (FIFO): CAUGHT 10 passed, 1 failed
+    FAIL S1-R3-A journal: FIFO (empty or holding the exact record), symlink, directory, socket, device, unsafe mod
+M27 archive record open may block (FIFO): CAUGHT 10 passed, 1 failed
+    FAIL S1-R3-A archive: FIFO (empty or holding the exact record), symlink, directory, socket, device, unsafe mod
+M28 record file type not checked: CAUGHT 7 passed, 4 failed
+    FAIL S1-R3-A run: FIFO (empty or holding the exact record), symlink, directory, socket, device, unsafe mode, o
+    FAIL S1-R3-A admission: FIFO (empty or holding the exact record), symlink, directory, socket, device, unsafe m
+    FAIL S1-R3-A journal: FIFO (empty or holding the exact record), symlink, directory, socket, device, unsafe mod
+    FAIL S1-R3-A archive: FIFO (empty or holding the exact record), symlink, directory, socket, device, unsafe mod
+M29 record file mode not checked: CAUGHT 5 passed, 6 failed
+    FAIL S1-R3-A run: FIFO (empty or holding the exact record), symlink, directory, socket, device, unsafe mode, o
+    FAIL S1-R3-A admission: FIFO (empty or holding the exact record), symlink, directory, socket, device, unsafe m
+    FAIL S1-R3-A journal: FIFO (empty or holding the exact record), symlink, directory, socket, device, unsafe mod
+    FAIL S1-R3-A archive: FIFO (empty or holding the exact record), symlink, directory, socket, device, unsafe mod
+M30 record read not bounded: CAUGHT 10 passed, 1 failed
+    FAIL S1-R3-A the read is bounded: never more than maxBytes + 1 bytes, even when fstat under-reports a file tha
+M31 unsafe journal record read as missing: CAUGHT 10 passed, 1 failed
+    FAIL S1-R3-A journal: FIFO (empty or holding the exact record), symlink, directory, socket, device, unsafe mod
+M32 unsafe Controller run read as missing: CAUGHT 10 passed, 1 failed
+    FAIL S1-R3-A run: FIFO (empty or holding the exact record), symlink, directory, socket, device, unsafe mode, o
+M33 unsafe admission record read as missing: CAUGHT 10 passed, 1 failed
+    FAIL S1-R3-A admission: FIFO (empty or holding the exact record), symlink, directory, socket, device, unsafe m
+M34 local store evidence ignored: CAUGHT 10 passed, 1 failed
+    FAIL S1-R3-B after activation, a missing ledger is refused for read, create, reserve, observe and execution; n
+M35 Controller evidence ignored: CAUGHT 10 passed, 1 failed
+    FAIL S1-R3-B after a send, with the ACTIVATION_SET and reports removed too, the Controller evidence still refu
+M36 evidence not bound to the store identity: CAUGHT 10 passed, 1 failed
+    FAIL S1-R3-B a never-used store still initializes; Controller evidence counts only for the store identity it i
+M37 unreadable evidence read as none: CAUGHT 10 passed, 1 failed
+    FAIL S1-R3-B evidence that cannot be read is not evidence of absence: the missing ledger is refused as UNVERIF
+ALL MUTATIONS CAUGHT
+python3 -u regressions/auto-p2-a4-p0-s1/mutate.py  3207.40s user 1307.76s system 41% cpu 2:59:37.03 total

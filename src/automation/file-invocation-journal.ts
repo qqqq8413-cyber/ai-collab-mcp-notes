@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { closeSync, existsSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync,
+import { closeSync, existsSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, renameSync,
   unlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { readRecordFile } from './record-file.js';
 import {
   InvocationJournalIntegrityError, assertInvocationTransition, invocationIdOf, parseInvocationIdentity, parseInvocationRecord,
   serializeOutcome, sha256Hex, type ActorKind, type InvocationIdentity, type InvocationJournal, type InvocationRecord,
@@ -15,6 +16,9 @@ import type { Clock } from './types.js';
 // authority that was never proven, so a version 1 record fails closed as unsupported.
 const VERSION = 2;
 const RECORD_FILE = /^[0-9a-f]{64}\.json$/;
+// R3: a record holds at most a 256 KiB result (MAX_RESULT_BYTES), up to eight short history entries and the
+// identity; JSON escaping can grow the result up to six times. Anything larger is refused before it is read.
+const RECORD_MAX_BYTES = 4 * 1024 * 1024;
 
 // Durability follows FileControllerStore: a checksummed envelope per invocation, one
 // exclusive journal-wide writer lock (so budget counting and the STARTED write are one
@@ -43,10 +47,13 @@ export class FileInvocationJournal implements InvocationJournal {
     return join(this.#directory, `${invocationId}.json`);
   }
   #load(invocationId: string): InvocationRecord | undefined {
-    const file = this.#file(invocationId);
-    if (!existsSync(file)) return undefined;
+    // R3: undefined only when the record does not exist; a symlink, FIFO, socket, device, directory, another
+    // owner's file, group/other permission bits or an oversize record fail closed without being followed or waited on.
+    const read = readRecordFile(this.#file(invocationId), RECORD_MAX_BYTES);
+    if (read.status === 'ABSENT') return undefined;
+    if (read.status === 'UNSAFE') throw new InvocationJournalIntegrityError(`Invocation journal file is not a safe regular file (${read.problem})`);
     let envelope: unknown;
-    try { envelope = JSON.parse(readFileSync(file, 'utf8')); }
+    try { envelope = JSON.parse(read.text); }
     catch { throw new InvocationJournalIntegrityError('Invocation journal file is not JSON'); }
     if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope) ||
         Object.keys(envelope).sort().join(',') !== 'checksum,record,schemaVersion') {

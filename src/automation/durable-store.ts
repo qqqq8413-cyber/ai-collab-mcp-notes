@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { closeSync, existsSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync,
+import { closeSync, existsSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readdirSync,
   renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { readRecordFile } from './record-file.js';
 import {
   RunAdmissionIntegrityError, admissionDecision, admissionRecordOf, changeKeyOf, openAdmissionRecord,
   openAdmissionRefusalRecord, parseChangeIdentity, refuseSecondRun, sealAdmissionRecord, type AdmissionRecord,
@@ -16,6 +17,8 @@ const VERSION = 1;
 const RUN_FILE = /^[0-9a-f]{64}\.json$/;
 const CLAIM_FILE = RUN_FILE;
 const REFUSAL_FILE = /^[0-9a-f-]{36}\.json$/;
+// R3: the most a stored file may hold; a larger one is refused before it is read (and the read stops at one more byte).
+const RUN_MAX_BYTES = 16 * 1024 * 1024, ADMISSION_MAX_BYTES = 1024 * 1024;
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 
 /** The file name a run is stored under: the runId is never a path. */
@@ -84,16 +87,25 @@ export class FileControllerStore implements ControllerStore {
     try { fsyncSync(fd); } finally { closeSync(fd); }
   }
   #load(runId: string): ControllerRun | undefined {
-    const file = this.#file(runId);
-    if (!existsSync(file)) return undefined;
-    const run = this.#read(file, (stored) => stored === runId);
+    const file = this.#file(runId), text = this.#text(file);
+    if (text === undefined) return undefined;
+    const run = openStoredRun(text, (stored) => stored === runId);
     this.#assertRoot(run);
     return run;
   }
+  /**
+   * R3: a run file's text, or undefined only when it does not exist. A symlink, FIFO, socket, device, directory,
+   * another owner's file, group/other permission bits or an oversize file fail closed; nothing is followed or waited on.
+   */
+  #text(file: string): string | undefined {
+    const read = readRecordFile(file, RUN_MAX_BYTES);
+    if (read.status === 'ABSENT') return undefined;
+    if (read.status === 'UNSAFE') throw new Error(`Unsafe controller storage file (${read.problem})`);
+    return read.text;
+  }
   #read(file: string, owns: (runId: unknown) => boolean): ControllerRun {
-    let text: string;
-    try { text = readFileSync(file, 'utf8'); }
-    catch { throw new Error('Corrupt controller storage JSON'); }
+    const text = this.#text(file);
+    if (text === undefined) throw new Error('Corrupt controller storage JSON');
     return openStoredRun(text, owns);
   }
   // The store opens only when admissions and runs form one-to-one ROOT relations, checked
@@ -109,9 +121,9 @@ export class FileControllerStore implements ControllerStore {
         throw new RunAdmissionIntegrityError('ADMISSION_REGISTRY_MISMATCH', 'One runId is claimed as ROOT by two changes', record.changeKey);
       }
       owners.add(record.rootRunId);
-      const file = this.#file(record.rootRunId);
-      if (!existsSync(file)) continue;
-      const run = this.#read(file, (stored) => stored === record.rootRunId);
+      const text = this.#text(this.#file(record.rootRunId));
+      if (text === undefined) continue;
+      const run = openStoredRun(text, (stored) => stored === record.rootRunId);
       if (run.repository !== record.repository || run.sliceId !== record.sliceId) {
         throw new RunAdmissionIntegrityError('ADMISSION_REGISTRY_MISMATCH', 'An admitted ROOT run belongs to another change', record.changeKey);
       }
@@ -145,14 +157,12 @@ export class FileControllerStore implements ControllerStore {
     }
   }
   #admission(changeKey: string): AdmissionRecord | undefined {
-    let text: string;
-    try { text = readFileSync(this.#admissionFile(changeKey), 'utf8'); }
-    catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code === 'ENOENT') return undefined;
-      throw new RunAdmissionIntegrityError('ADMISSION_RECORD_INVALID', `Admission record is unreadable (${code ?? 'unknown error'})`, changeKey);
+    const read = readRecordFile(this.#admissionFile(changeKey), ADMISSION_MAX_BYTES);
+    if (read.status === 'ABSENT') return undefined;
+    if (read.status === 'UNSAFE') {
+      throw new RunAdmissionIntegrityError('ADMISSION_RECORD_INVALID', `Admission record is not a safe regular file (${read.problem})`, changeKey);
     }
-    const record = openAdmissionRecord(text);
+    const record = openAdmissionRecord(read.text);
     if (record.changeKey !== changeKey) {
       throw new RunAdmissionIntegrityError('ADMISSION_REGISTRY_MISMATCH', 'Admission record is filed under another change', changeKey);
     }
@@ -282,7 +292,12 @@ export class FileControllerStore implements ControllerStore {
     const directory = join(this.#changes, 'refusals', changeKey);
     if (!existsSync(directory)) return [];
     return readdirSync(directory).filter((name) => REFUSAL_FILE.test(name)).map((name) => {
-      const refusal = openAdmissionRefusalRecord(readFileSync(join(directory, name), 'utf8'));
+      const read = readRecordFile(join(directory, name), ADMISSION_MAX_BYTES);
+      if (read.status !== 'READ') {
+        throw new RunAdmissionIntegrityError('ADMISSION_RECORD_INVALID',
+          `Refusal record is not a safe regular file (${read.status === 'UNSAFE' ? read.problem : 'ABSENT'})`, changeKey);
+      }
+      const refusal = openAdmissionRefusalRecord(read.text);
       if (refusal.changeKey !== changeKey) {
         throw new RunAdmissionIntegrityError('ADMISSION_REGISTRY_MISMATCH', 'Refusal record is filed under another change', changeKey);
       }

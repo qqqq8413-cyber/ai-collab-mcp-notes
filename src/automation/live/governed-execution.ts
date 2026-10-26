@@ -5,7 +5,7 @@ import { openDirectAuthorityPreserver } from '../authority/preserver.js';
 import { openGovernedExecutionDriver, type GovernedExecutionDriver } from '../execution-driver.js';
 import type { ActorKind, ProviderCallScope } from '../types.js';
 import { createLiveAutomation, type LiveAutomationConfig } from './composition.js';
-import { composeLimitedWorker } from '../../limited-worker/composition.js';
+import { composeLimitedWorker, limitedLedgerEvidence } from '../../limited-worker/composition.js';
 import { WorkerStore } from '../../limited-worker/store.js';
 
 // G1-LD1 / G1-AP1: the trusted governed live composition. It is the one production path that
@@ -42,7 +42,7 @@ export function createGovernedLimitedWorker(options:Parameters<typeof composeLim
     createActivation:controller=>openGovernedActivationCore({...options,controller,preserver}),
     preserveIssued:documents=>{for(const document of documents)preserver.preserve(document);},
   });
-  const store=new WorkerStore(options.resultDirectory);
+  const store=new WorkerStore(options.resultDirectory,{initializationEvidence:limitedLedgerEvidence(options,options.clock)});
   return Object.freeze({...runtime,
     activateIssued(...args:Parameters<typeof runtime.activateIssued>){const release=store.lease();try{store.recover(options.clock.now());return runtime.activateIssued(...args);}finally{release();}},
     async execute(...args:Parameters<typeof runtime.execute>){const release=store.lease();try{store.recover(options.clock.now());return await runtime.execute(...args);}finally{release();}},

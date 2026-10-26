@@ -11,7 +11,7 @@ import { trustedObservationPreflight } from '../intake/goal-execution-status-bri
 import { PilotEngine } from '../pilot/engine.js';
 import { GitHubActionsReader } from '../pilot/github.js';
 import { GovernanceStoreIsolation } from '../automation/governance-store-isolation.js';
-import { composeLimitedWorker } from './composition.js';
+import { composeLimitedWorker, limitedLedgerEvidence } from './composition.js';
 import { createLimitedWorkerService } from './service.js';
 import { WorkerStore } from './store.js';
 import { fetchOfficialQuote, nativeAnthropicTransport } from './transport.js';
@@ -38,8 +38,9 @@ async function main() {
   if(!projects.length||config.governedRepositories.some(b=>b.repository!==REPOSITORY))throw new Error('EXACT_REPOSITORY_REQUIRED');
   const workerDirectory=join(config.workspace.dataDirectory,'limited-worker'), journalDirectory=join(config.workspace.dataDirectory,'limited-worker-journal');
   isolation.assertDisjoint('limited results',workerDirectory);isolation.assertDisjoint('limited journal',journalDirectory);
-  const workerStore=new WorkerStore(workerDirectory), release=workerStore.lease();
-  const clock={now:()=>new Date().toISOString()}; workerStore.recover(clock.now());
+  const clock={now:()=>new Date().toISOString()};
+  const workerStore=new WorkerStore(workerDirectory,{initializationEvidence:limitedLedgerEvidence(roots,clock)}), release=workerStore.lease();
+  workerStore.recover(clock.now());
   for(const projectId of projects)workerStore.observe({id:randomUUID(),projectId,at:clock.now(),kind:'RUNTIME_START',
     interactionId:null,jobId:null,reason:null,clientElapsedMs:null,evidenceClass:measurementClass});
   const identity=()=>{

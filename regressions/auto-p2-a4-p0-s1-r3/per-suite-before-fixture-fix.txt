@@ -1,0 +1,10 @@
+# Each suite run separately after R3-A/R3-B, before the fixture fix (npm test stops at the first failing suite).
+test-automation-run-admission.mjs exit=1 16s 34 passed, 4 failed
+      FAIL file: a run that predates admission fails closed and is never backfilled: AssertionError [ERR_ASSERTION]: expected LEGACY_UNINDEXED_RUN
+      FAIL file C1: two admissions naming the same ROOT runId fail closed at open: AssertionError [ERR_ASSERTION]: expected ADMISSION_REGISTRY_MISMATCH
+      FAIL file C1: an admission whose ROOT run file belongs to another change fails closed at open: AssertionError [ERR_ASSERTION]: expected ADMISSION_REGISTRY_MISMATCH
+      FAIL file C1: a pending ROOT with no run file stays valid; temps and refusal evidence take no part: RunAdmissionIntegrityError: Admission record is not a safe regular file (UNSAFE_MODE)
+test-automation-authority-archive.mjs exit=1 9s 48 passed, 1 failed
+      FAIL 36. a matching hash is integrity, never authenticity: AuthorityArchiveError: A canonical authority record is not safe to read (UNSAFE_MODE)
+test-automation-governed-read-model.mjs exit=1 2s 19 passed, 1 failed
+      FAIL G. two valid runs of one exact change: UNLINKED_SIBLING_RUN, INDETERMINATE, no lineage, nothing repaired: AssertionError [ERR_ASSERTION]: The validation function is expected to return "true". Received false

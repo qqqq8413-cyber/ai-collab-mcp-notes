@@ -296,7 +296,7 @@ tampered('24c. a gap in a stored chain fails closed', (root) => {
 tampered('24d. a stored fork (a version not superseding its predecessor) fails closed', (root) => {
   const other = forge({ ...packetDoc({ objective: 'Fork' }), version: 2,
     supersedes: { kind: 'IMPLEMENTATION_PACKET', authorityId: 'packet-1', version: 1, recordHash: 'e'.repeat(64) } });
-  writeFileSync(recordFile(root, 'IMPLEMENTATION_PACKET', 'packet-1', 2), canonicalJson(other));
+  writeFileSync(recordFile(root, 'IMPLEMENTATION_PACKET', 'packet-1', 2), canonicalJson(other), { mode: 0o600 });
 });
 tampered('24e. an unknown entry in the archive fails closed', (root) => {
   writeFileSync(join(root, 'records', keyOf('IMPLEMENTATION_PACKET', 'packet-1'), 'notes.txt'), 'x');
@@ -447,7 +447,7 @@ check('36. a matching hash is integrity, never authenticity', (root) => {
   const forged = forge(doc('AUTHORIZATION', BODIES.AUTHORIZATION({ authorizationId: 'auth-forged' }), {
     issuer: { role: 'HUMAN', principalRef: 'not-the-human' } }));
   mkdirSync(join(root, 'records', keyOf('AUTHORIZATION', 'auth-forged')));
-  writeFileSync(recordFile(root, 'AUTHORIZATION', 'auth-forged', 1), canonicalJson(forged));
+  writeFileSync(recordFile(root, 'AUTHORIZATION', 'auth-forged', 1), canonicalJson(forged), { mode: 0o600 });
   const record = openAuthorityArchiveReader(root).latest('AUTHORIZATION', 'auth-forged');
   assert.equal(record.issuer.principalRef, 'not-the-human');
   assert.deepEqual(Object.keys(record).sort(), ['authorityId', 'body', 'bodyHash', 'issuedAt', 'issuer', 'kind', 'recordClass',

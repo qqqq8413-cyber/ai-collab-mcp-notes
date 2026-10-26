@@ -61,7 +61,7 @@ function rewriteClaim(dir, mutate, { reseal = true, key = keyOf() } = {}) {
 /** A run file exactly as the store wrote runs before admission existed. */
 function writeLegacyRun(dir, run) {
   const payload = JSON.stringify(run);
-  writeFileSync(runFile(dir, run.runId), JSON.stringify({ schemaVersion: 1, run: JSON.parse(payload), checksum: sha(payload) }));
+  writeFileSync(runFile(dir, run.runId), JSON.stringify({ schemaVersion: 1, run: JSON.parse(payload), checksum: sha(payload) }), { mode: 0o600 });
 }
 
 // ---------------------------------------------------------------- lifecycle fixtures
@@ -426,7 +426,7 @@ const OTHER = { repository: REPO, sliceId: 'slice-2' };
 function writeClaim(dir, change, runId) {
   mkdirSync(join(dir, 'changes'), { recursive: true });
   writeFileSync(claimFile(dir, keyOf(change.repository, change.sliceId)),
-    admission.sealAdmissionRecord(admission.admissionRecordOf(change, runId, T)));
+    admission.sealAdmissionRecord(admission.admissionRecordOf(change, runId, T)), { mode: 0o600 });
 }
 check('file C1: a pending ROOT runId cannot be admitted for another change; its own change can still finish it', (dir) => {
   const store = new FileControllerStore(dir, clock);

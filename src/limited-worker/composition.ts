@@ -7,7 +7,7 @@ import { readGovernedModel } from '../automation/read-model/governed-read-model.
 import { GovernanceStoreIsolation } from '../automation/governance-store-isolation.js';
 import type { Clock } from '../automation/types.js';
 import { LimitedReadmeWorker } from './adapter.js';
-import { SCOPE, EXE, hash, assertInputReady, type Contract } from './contract.js';
+import { SCOPE, EXE, hash, assertInputReady, contractOf, type Contract } from './contract.js';
 import { WorkerStore } from './store.js';
 import type { WorkerTransport } from './transport.js';
 import { packetFor } from './contract.js';
@@ -16,6 +16,24 @@ import type { GovernedActivationCore } from '../automation/activation-core.js';
 import { readStoredOutcome } from '../automation/invocation-journal.js';
 import { parseImplementationResult } from '../automation/bridge.js';
 import { packetHash } from '../automation/packet.js';
+
+/**
+ * R3-B: evidence, in the Controller store rather than the results directory, that a Worker store with this identity
+ * was used: a governed run activated with a limited packet whose contract is bound to it. Activation requires the
+ * job in the ledger, and every reservation and claim comes after activation. Read only when a ledger is missing.
+ */
+export function limitedLedgerEvidence(roots: { controllerStoreDirectory: string; authorityArchiveDirectory: string },
+  clock: Clock): (storageIdentity: string) => string | null {
+  return (storageIdentity) => {
+    const controller = new FileControllerStore(roots.controllerStoreDirectory, clock);
+    for (const { runId } of readGovernedModel(roots, clock).runs) {
+      const packet = controller.get(runId)?.activePacket;
+      if (!packet || !packet.packetId.startsWith('limited-')) continue;
+      if (contractOf(packet).storageIdentity === storageIdentity) return 'CONTROLLER_ACTIVATED_LIMITED_RUN';
+    }
+    return null;
+  };
+}
 
 export function composeLimitedWorker(options: {
   controllerStoreDirectory: string; authorityArchiveDirectory: string; changeRegistryDirectory: string;
@@ -30,7 +48,8 @@ export function composeLimitedWorker(options: {
   const isolation = GovernanceStoreIsolation.forLiveRoots(options);
   isolation.assertDisjoint('limited worker journal', options.journalDirectory);
   isolation.assertDisjoint('limited worker results', options.resultDirectory);
-  const store = new WorkerStore(options.resultDirectory), journal = new FileInvocationJournal(options.journalDirectory, options.clock);
+  const store = new WorkerStore(options.resultDirectory, { initializationEvidence: limitedLedgerEvidence(options, options.clock) });
+  const journal = new FileInvocationJournal(options.journalDirectory, options.clock);
   const controller = new AutomationController(options.clock, new FileControllerStore(options.controllerStoreDirectory, options.clock), {
     observeBranch() { throw new Error('LIMITED_WORKER_HAS_NO_GIT_DELIVERY'); }, compare() { throw new Error('LIMITED_WORKER_HAS_NO_GIT_DELIVERY'); },
     observeCi() { throw new Error('LIMITED_WORKER_HAS_NO_GIT_DELIVERY'); }, observeProtection() { throw new Error('LIMITED_WORKER_HAS_NO_GIT_DELIVERY'); } });

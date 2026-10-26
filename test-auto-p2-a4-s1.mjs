@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import fsModule, { chmodSync, closeSync, existsSync, fstatSync, linkSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, realpathSync, rmSync,
   symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { syncBuiltinESMExports } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { parseWorkspaceConfig } from './dist/workspace/config.js';
@@ -15,8 +15,11 @@ import { openDirectAuthorityPreserver } from './dist/automation/authority/preser
 import { parseAuthorityDocument } from './dist/automation/authority/document.js';
 import { readGovernedModel } from './dist/automation/read-model/governed-read-model.js';
 import { AutomationController } from './dist/automation/controller.js';
-import { FileControllerStore } from './dist/automation/durable-store.js';
-import { composeLimitedWorker } from './dist/limited-worker/composition.js';
+import { FileControllerStore, storedRunFileName } from './dist/automation/durable-store.js';
+import { FileInvocationJournal } from './dist/automation/file-invocation-journal.js';
+import { openAuthorityArchiveReader } from './dist/automation/authority/file-archive.js';
+import { readRecordFile } from './dist/automation/record-file.js';
+import { composeLimitedWorker, limitedLedgerEvidence } from './dist/limited-worker/composition.js';
 import { WorkerStore } from './dist/limited-worker/store.js';
 import { MODEL, API_VERSION, REPOSITORY, SCOPE, hash, parseContract, resourceInputPolicy, packetFor } from './dist/limited-worker/contract.js';
 import { tariffFromMarkdown, offlineAnthropicTransport } from './dist/limited-worker/transport.js';
@@ -34,7 +37,10 @@ const REPLY = { id: 'OFFLINE_SYNTHETIC_MESSAGE', model: MODEL, stop_reason: 'end
   usage: { input_tokens: 100, output_tokens: 50, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, service_tier: 'standard' } };
 const ROOT = process.cwd();
 let passed = 0, failed = 0;
+// S1_ONLY=<name prefix> runs only the matching tests (used by mutate.py to keep fault-injection runs short).
+const ONLY = process.env.S1_ONLY;
 async function test(name, fn) {
+  if (ONLY && !name.startsWith(ONLY)) return;
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'chief-s1-')));
   try { await fn(dir); passed++; console.log('  PASS ' + name); }
   catch (e) { failed++; console.error('  FAIL ' + name + ': ' + e.stack); }
@@ -821,6 +827,170 @@ await test('S1-R2 report.md: FIFO (empty or holding the exact report), symlink, 
   try { await w.runtime.execute(w.c); } catch { /* refused either way */ }
   assert.equal(w.calls, 1); assert.equal(w.job().state, 'COMPLETED');
   rmSync(file); put(file, good, 0o600); assert.equal(w.store.reportIsValid(job), true); assert.equal(w.runtime.resultConsistency(w.c), true);
+});
+
+// ================================================================ S1-R3-A: critical governance reads (Controller store, invocation journal, Authority Archive)
+// Each target is a file the execution path reads before a provider request: the run's Controller file, its R4L admission
+// record, its invocation journal record and an Authority Archive record. A FIFO is again checked in a time-limited child,
+// empty and holding the exact valid record.
+const R3_CHILD = `
+  import { closeSync, constants, openSync, readFileSync, writeSync } from 'node:fs';
+  import { execFileSync } from 'node:child_process';
+  import { FileControllerStore } from './dist/automation/durable-store.js';
+  import { FileInvocationJournal } from './dist/automation/file-invocation-journal.js';
+  import { openAuthorityArchiveReader } from './dist/automation/authority/file-archive.js';
+  const [kind, root, target, preload, id] = process.argv.slice(1);
+  execFileSync('mkfifo', ['-m', '600', target]);
+  if (preload) {
+    openSync(target, constants.O_RDONLY | constants.O_NONBLOCK); // held open: the FIFO keeps the bytes after the writer closes
+    const w = openSync(target, constants.O_WRONLY); writeSync(w, readFileSync(preload)); closeSync(w);
+  }
+  const clock = { now: () => new Date().toISOString() };
+  let out;
+  try {
+    if (kind === 'controller') out = { result: new FileControllerStore(root, clock).get(id)?.runId ?? null };
+    if (kind === 'journal') out = { result: new FileInvocationJournal(root, clock).get(id)?.invocationId ?? null };
+    if (kind === 'archive') { openAuthorityArchiveReader(root); out = { result: 'OPENED' }; }
+  } catch (error) { out = { error: String(error.message) }; }
+  console.log(JSON.stringify(out));`;
+async function fifoRecord(t, preload = '') {
+  const r = await child(R3_CHILD, [t.kind, t.root, t.path, preload, t.id ?? ''], { timeout: 15000 });
+  assert.equal(r.signal, null, `${t.name}: the read blocked on a FIFO (child killed after 15 s)`);
+  assert.ok(lstatSync(t.path).isFIFO(), `${t.name}: the FIFO was replaced`);
+  rmSync(t.path);
+  return JSON.parse(r.out.trim() || JSON.stringify({ exit: r.code, err: r.err.slice(-300) }));
+}
+const RECORD = /^[0-9a-f]{64}\.json$/;
+const runFileOf = (w) => join(w.options.controllerStoreDirectory, storedRunFileName(w.c.runId));
+const admissionFileOf = (w) => { const d = join(w.options.controllerStoreDirectory, 'changes'); return join(d, readdirSync(d).find((n) => RECORD.test(n))); };
+const journalFileOf = (w) => join(w.options.journalDirectory, readdirSync(w.options.journalDirectory).find((n) => RECORD.test(n)));
+const archiveFileOf = (w) => {
+  const records = join(w.authority, 'records');
+  return join(records, readdirSync(records, { recursive: true }).map(String).filter((n) => n.endsWith('.json')).sort()[0]);
+};
+async function governedFiles(dir) {
+  const w = await world(dir); activate(w); await w.runtime.execute(w.c); assert.equal(w.calls, 1);
+  const controller = w.options.controllerStoreDirectory, journal = w.options.journalDirectory;
+  const invocationId = basename(journalFileOf(w)).slice(0, -'.json'.length);
+  const controllerRead = () => new FileControllerStore(controller, w.clock).get(w.c.runId).runId;
+  return {
+    run: { name: 'Controller run file', kind: 'controller', root: controller, id: w.c.runId, max: 16 * 1024 * 1024,
+      path: runFileOf(w), read: controllerRead, refused: /Unsafe controller storage file \(/ },
+    admission: { name: 'R4L admission record', kind: 'controller', root: controller, id: w.c.runId, max: 1024 * 1024,
+      path: admissionFileOf(w), read: controllerRead, refused: /Admission record is not a safe regular file \(/ },
+    journal: { name: 'invocation journal record', kind: 'journal', root: journal, id: invocationId, max: 4 * 1024 * 1024,
+      path: journalFileOf(w), read: () => new FileInvocationJournal(journal, w.clock).get(invocationId).invocationId,
+      refused: /Invocation journal file is not a safe regular file \(/ },
+    archive: { name: 'Authority Archive record', kind: 'archive', root: w.authority, max: 4 * 1024 * 1024,
+      path: archiveFileOf(w), read: () => { openAuthorityArchiveReader(w.authority); return 'OPENED'; },
+      refused: /A canonical authority record is (not a regular file|not safe to read \()/ },
+  };
+}
+for (const which of ['run', 'admission', 'journal', 'archive']) {
+  await test(`S1-R3-A ${which}: FIFO (empty or holding the exact record), symlink, directory, socket, device, unsafe mode, oversize, truncated, corrupted or empty record fails closed without blocking`, async (dir) => {
+    const t = (await governedFiles(dir))[which], good = readFileSync(t.path), expected = t.read();
+    assert.equal(lstatSync(t.path).mode & 0o7777, 0o600, `${t.name} is written 0600`);
+    put(t.path, good, 0o400); assert.equal(t.read(), expected, 'an owner-only 0400 record still reads');
+    for (const form of unsafeForms(dir, t.path, good, Buffer.alloc(t.max + 1, 0x20))) assert.throws(t.read, t.refused, form);
+    put(t.path, good, 0o600);
+    viaDevice(t.path, () => assert.throws(t.read, t.refused, 'device'));
+    const flipped = good.toString('utf8').replace(/[0-9a-f](?=[0-9a-f]{20})/, (d) => (d === '0' ? '1' : '0'));
+    for (const [form, bytes] of [['truncated', good.subarray(0, Math.floor(good.length / 2))], ['corrupted', Buffer.from(flipped)], ['empty', Buffer.alloc(0)]]) {
+      put(t.path, bytes, 0o600); assert.throws(t.read, /./, form);
+    }
+    const copy = join(dir, 'record-copy'); writeFileSync(copy, good); assert.ok(good.length < PIPE_SAFE, `${t.name}: ${good.length} bytes`);
+    rmSync(t.path);
+    for (const preload of ['', copy]) assert.match((await fifoRecord(t, preload)).error ?? 'NO ERROR', t.refused, preload ? 'FIFO holding the record' : 'empty FIFO');
+    put(t.path, good, 0o600); assert.equal(t.read(), expected);
+  });
+}
+await test('S1-R3-A an unsafe or missing run, admission or archive record, or an unsafe record after the generation claim, stops execution with zero sends', async (dir) => {
+  const cases = [
+    ['before execution: run file 0644', 'before', (w) => chmodSync(runFileOf(w), 0o644)],
+    ['before execution: run file missing', 'before', (w) => rmSync(runFileOf(w))],
+    ['before execution: admission record 0644', 'before', (w) => chmodSync(admissionFileOf(w), 0o644)],
+    ['before execution: admission record missing', 'before', (w) => rmSync(admissionFileOf(w))],
+    ['before execution: archive record 0644', 'before', (w) => chmodSync(archiveFileOf(w), 0o644)],
+    ['before execution: archive record missing', 'before', (w) => rmSync(archiveFileOf(w))],
+    ['after the claim: run file 0644', 'claimed', (w) => chmodSync(runFileOf(w), 0o644)],
+    ['after the claim: archive record 0644', 'claimed', (w) => chmodSync(archiveFileOf(w), 0o644)],
+    ['after the claim: journal record 0644', 'claimed', (w) => chmodSync(journalFileOf(w), 0o644)],
+    ['after the claim: journal record replaced by a symlink to itself', 'claimed', (w) => {
+      const f = journalFileOf(w), copy = `${f}.copy`; writeFileSync(copy, readFileSync(f), { mode: 0o600 }); rmSync(f); symlinkSync(copy, f); }],
+  ];
+  for (const [i, [name, when, unsafe]] of cases.entries()) {
+    const w = await world(sub(dir, `c${i}`)); activate(w);
+    if (when === 'before') unsafe(w); else w.providerIO.ready = async () => unsafe(w);
+    try { await w.runtime.execute(w.c); } catch { /* refused */ }
+    assert.equal(w.calls, 0, name);
+  }
+});
+await test('S1-R3-A the read is bounded: never more than maxBytes + 1 bytes, even when fstat under-reports a file that grows', async (dir) => {
+  const path = join(dir, 'grows.json'); put(path, Buffer.alloc(1000, 0x20), 0o600);
+  assert.equal(readRecordFile(path, 1000).status, 'READ');
+  assert.deepEqual(readRecordFile(path, 999), { status: 'UNSAFE', problem: 'TOO_LARGE' });
+  const original = { fstatSync: fsModule.fstatSync, readSync: fsModule.readSync };
+  let bytes = 0;
+  fsModule.fstatSync = function (...args) { const st = original.fstatSync.apply(this, args); return Object.assign(Object.create(Object.getPrototypeOf(st)), st, { size: 0 }); };
+  fsModule.readSync = function (...args) { const n = original.readSync.apply(this, args); bytes += n; return n; };
+  syncBuiltinESMExports();
+  let result;
+  try { result = readRecordFile(path, 100); } finally { Object.assign(fsModule, original); syncBuiltinESMExports(); }
+  assert.deepEqual(result, { status: 'UNSAFE', problem: 'TOO_LARGE' });
+  assert.ok(bytes <= 101, `read ${bytes} bytes for a 100-byte bound`);
+});
+
+// ================================================================ S1-R3-B: a ledger lost after the store was used
+const ledgerOf = (w) => join(w.store.directory, 'ledger.json');
+const evidenceStore = (w, directory = w.store.directory) => new WorkerStore(directory, { initializationEvidence: limitedLedgerEvidence(w.options, w.clock) });
+const observation = (w) => ({ id: randomUUID(), projectId: 'chief', at: w.clock.now(), kind: 'RUNTIME_START', interactionId: null, jobId: null,
+  reason: null, evidenceClass: 'OFFLINE_SYNTHETIC', clientElapsedMs: null });
+const usedEntries = (w) => readdirSync(w.store.directory).filter((n) => /^(activation-sets|[0-9a-f]{64})$/.test(n));
+function refusedEverywhere(w, store, code) {
+  refusedWith(() => store.read(), code);
+  refusedWith(() => store.create(w.c, w.clock.now()), code);
+  refusedWith(() => store.reserve(hash(w.c), 1, 'a'.repeat(64), w.clock.now(), true), code);
+  refusedWith(() => store.observe(observation(w)), code);
+  assert.equal(existsSync(ledgerOf(w)), false, 'a fresh ledger was written');
+}
+await test('S1-R3-B after activation, a missing ledger is refused for read, create, reserve, observe and execution; nothing rebuilds it', async (dir) => {
+  const w = await world(dir); activate(w);
+  const good = readFileSync(ledgerOf(w)); rmSync(ledgerOf(w));
+  for (const store of [w.store, evidenceStore(w)]) refusedEverywhere(w, store, 'WORKER_LEDGER_MISSING_AFTER_INIT');
+  await assert.rejects(w.runtime.execute(w.c), /WORKER_LEDGER_MISSING_AFTER_INIT/);
+  assert.throws(() => activate(w), /WORKER_LEDGER_MISSING_AFTER_INIT/);
+  assert.equal(w.calls, 0); assert.equal(existsSync(ledgerOf(w)), false);
+  writeFileSync(ledgerOf(w), good, { mode: 0o600 }); await w.runtime.execute(w.c); assert.equal(w.calls, 1);
+});
+await test('S1-R3-B after a send, with the ACTIVATION_SET and reports removed too, the Controller evidence still refuses any new reservation or dispatch', async (dir) => {
+  const w = await world(dir); activate(w); await w.runtime.execute(w.c); assert.equal(w.calls, 1);
+  rmSync(ledgerOf(w)); for (const name of usedEntries(w)) rmSync(join(w.store.directory, name), { recursive: true });
+  refusedEverywhere(w, evidenceStore(w), 'WORKER_LEDGER_MISSING_AFTER_INIT');
+  await assert.rejects(w.runtime.execute(w.c), /WORKER_LEDGER_MISSING_AFTER_INIT/);
+  assert.equal(w.calls, 1); assert.equal(existsSync(ledgerOf(w)), false);
+  // Stated limit: a store given no evidence source sees only its own directory, which now holds no trace.
+  assert.deepEqual(w.store.read().jobs, []);
+});
+await test('S1-R3-B a ledger lost after the generation claim stops the final send guard: no request is sent and nothing is rebuilt', async (dir) => {
+  const w = await world(dir); activate(w);
+  w.providerIO.ready = async () => { rmSync(ledgerOf(w)); };
+  try { await w.runtime.execute(w.c); } catch { /* refused */ }
+  assert.equal(w.calls, 0); assert.equal(existsSync(ledgerOf(w)), false);
+});
+await test('S1-R3-B a never-used store still initializes; Controller evidence counts only for the store identity it is bound to', async (dir) => {
+  const w = await world(dir); activate(w);
+  const other = evidenceStore(w, sub(dir, 'other-results'));
+  assert.deepEqual(other.read().jobs, []); other.observe(observation(w));
+  assert.equal(other.read().observations.length, 1, 'the first write initialized a new ledger');
+  // Before activation the same store has no evidence yet (no reservation can exist before activation): it reads as new.
+  const v = await world(sub(dir, 'v')); rmSync(ledgerOf(v));
+  assert.deepEqual(evidenceStore(v).read().jobs, []);
+});
+await test('S1-R3-B evidence that cannot be read is not evidence of absence: the missing ledger is refused as UNVERIFIABLE', async (dir) => {
+  const w = await world(dir); activate(w);
+  rmSync(ledgerOf(w)); for (const name of usedEntries(w)) rmSync(join(w.store.directory, name), { recursive: true });
+  chmodSync(runFileOf(w), 0o644);
+  refusedEverywhere(w, evidenceStore(w), 'WORKER_LEDGER_MISSING_UNVERIFIABLE');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

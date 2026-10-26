@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { constants, closeSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+import { constants, closeSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { parseContract, hash, type Contract } from './contract.js';
@@ -50,10 +50,23 @@ function readOwnFile(path: string, maxBytes: number, code: string): Buffer | nul
   } catch { throw new Error(code); } finally { closeSync(fd); }
 }
 
+export interface WorkerStoreOptions {
+  /**
+   * R3-B: evidence kept outside this directory that a store with this identity has been used (a governed run
+   * activated with a packet bound to it). Returns a short code, or null when there is none. Called only when
+   * ledger.json does not exist; if it throws, the missing ledger is refused as unverifiable.
+   */
+  initializationEvidence?(storageIdentity: string): string | null;
+}
+// Entries that exist only after a job was in this store's ledger: the ACTIVATION_SET root and report directories.
+const USED_STORE_ENTRY = /^(activation-sets|[0-9a-f]{64})$/;
+
 export class WorkerStore {
   readonly directory: string;
-  constructor(directory: string) {
+  readonly #evidence?: (storageIdentity: string) => string | null;
+  constructor(directory: string, options: WorkerStoreOptions = {}) {
     this.directory = directory; mkdirSync(directory, { recursive: true, mode: 0o700 }); this.#check();
+    if (options.initializationEvidence) this.#evidence = options.initializationEvidence;
   }
   #check() { const s = lstatSync(this.directory); if (!s.isDirectory() || s.isSymbolicLink() || (s.mode & 0o077)) throw new Error('WORKER_STORAGE_UNSAFE'); }
   identity(): string { this.#check(); const s = lstatSync(this.directory); return hash([realpathSync(this.directory), s.dev, s.ino]); }
@@ -141,14 +154,29 @@ export class WorkerStore {
   read():z.infer<typeof payload> {
     this.#check();
     const data = readOwnFile(join(this.directory, 'ledger.json'), 16 * 1024 * 1024, 'WORKER_STORAGE_INTEGRITY');
-    // Only a ledger that does not exist (open(2) reported ENOENT) reads as new and empty; any other failure is INTEGRITY.
-    if (data === null) return { jobs: [], ceilingMicroUsd: 1000000 };
+    // Only a ledger that does not exist (open(2) reported ENOENT) and was never initialized reads as new and empty;
+    // any other failure is INTEGRITY.
+    if (data === null) { this.#assertNeverUsed(); return { jobs: [], ceilingMicroUsd: 1000000 }; }
     try {
       const v = envelope.parse(JSON.parse(data.toString('utf8')));
       if (hash(v.payload) !== v.checksum || new Set(v.payload.jobs.map(j => j.id)).size !== v.payload.jobs.length ||
         v.payload.jobs.some(j => hash(j.contract) !== j.id) || v.payload.jobs.reduce((sum, j) => sum + j.reservedMicroUsd, 0) > 1000000) throw new Error('WORKER_STORAGE_INTEGRITY');
       return v.payload;
     } catch { throw new Error('WORKER_STORAGE_INTEGRITY'); }
+  }
+  /**
+   * R3-B: a missing ledger is a new, empty ledger only for a store that was never used. Evidence in this directory
+   * (an ACTIVATION_SET root or a report directory) or outside it (`initializationEvidence`) means the ledger was lost
+   * after jobs, reservations or claims existed: every read and write then fails closed, so no reservation total or
+   * claim is ever rebuilt from nothing. This is loss detection, not protection: a process that can delete all of the
+   * evidence as well is outside what this can prove (AUTO_P2_A4_P0_S1_R3_ARCHITECT_REVIEW.md).
+   */
+  #assertNeverUsed() {
+    if (readdirSync(this.directory).some((name) => USED_STORE_ENTRY.test(name))) throw new Error('WORKER_LEDGER_MISSING_AFTER_INIT');
+    if (!this.#evidence) return;
+    let found: string | null;
+    try { found = this.#evidence(this.identity()); } catch { throw new Error('WORKER_LEDGER_MISSING_UNVERIFIABLE'); }
+    if (found !== null) throw new Error('WORKER_LEDGER_MISSING_AFTER_INIT');
   }
   update<T>(fn: (data: ReturnType<WorkerStore['read']>) => T): T {
     this.#check(); const lock = join(this.directory, 'write.lock');

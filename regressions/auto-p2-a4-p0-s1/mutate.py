@@ -29,16 +29,37 @@ M = [
  ('M23 store file mode not checked', 'dist/limited-worker/store.js', '(st.mode & 0o7077) || (uid()', 'false || (uid()'),
  ('M24 ledger read failure read as empty', 'dist/limited-worker/store.js', "const data = readOwnFile(join(this.directory, 'ledger.json'), 16 * 1024 * 1024, 'WORKER_STORAGE_INTEGRITY');",
   "let data; try { data = readOwnFile(join(this.directory, 'ledger.json'), 16 * 1024 * 1024, 'WORKER_STORAGE_INTEGRITY'); } catch { data = null; }"),
+ # R3-A: governance record reads (shared record-file.js). M25-M27 drop O_NONBLOCK for one store only. A 5th field
+ # runs only the tests whose name starts with it (S1_ONLY); a tuple of anchors applies every pair in one mutation.
+ ('M25 Controller record open may block (FIFO)', 'dist/automation/record-file.js', 'constants.O_NOFOLLOW | constants.O_NONBLOCK);', "constants.O_NOFOLLOW | (path.includes('/controller/') ? 0 : constants.O_NONBLOCK));", 'S1-R3'),
+ ('M26 journal record open may block (FIFO)', 'dist/automation/record-file.js', 'constants.O_NOFOLLOW | constants.O_NONBLOCK);', "constants.O_NOFOLLOW | (path.includes('/journal/') ? 0 : constants.O_NONBLOCK));", 'S1-R3'),
+ ('M27 archive record open may block (FIFO)', 'dist/automation/record-file.js', 'constants.O_NOFOLLOW | constants.O_NONBLOCK);', "constants.O_NOFOLLOW | (path.includes('/records/') ? 0 : constants.O_NONBLOCK));", 'S1-R3'),
+ ('M28 record file type not checked', 'dist/automation/record-file.js', "if (!st.isFile())\n            return unsafe('NOT_REGULAR');\n", '', 'S1-R3'),
+ ('M29 record file mode not checked', 'dist/automation/record-file.js', "if (st.mode & 0o7077)\n            return unsafe('UNSAFE_MODE');\n", '', 'S1-R3'),
+ ('M30 record read not bounded', 'dist/automation/record-file.js', ('Math.min(chunk.length, maxBytes + 1 - total)', "if (total > maxBytes)\n                return unsafe('TOO_LARGE');\n"), ('chunk.length', ''), 'S1-R3'),
+ ('M31 unsafe journal record read as missing', 'dist/automation/file-invocation-journal.js', "if (read.status === 'ABSENT')\n            return undefined;", "if (read.status !== 'READ')\n            return undefined;", 'S1-R3'),
+ ('M32 unsafe Controller run read as missing', 'dist/automation/durable-store.js', "readRecordFile(file, RUN_MAX_BYTES);\n        if (read.status === 'ABSENT')", "readRecordFile(file, RUN_MAX_BYTES);\n        if (read.status !== 'READ')", 'S1-R3'),
+ ('M33 unsafe admission record read as missing', 'dist/automation/durable-store.js', "ADMISSION_MAX_BYTES);\n        if (read.status === 'ABSENT')", "ADMISSION_MAX_BYTES);\n        if (read.status !== 'READ')", 'S1-R3'),
+ # R3-B: a ledger lost after the store was used.
+ ('M34 local store evidence ignored', 'dist/limited-worker/store.js', 'if (readdirSync(this.directory).some((name) => USED_STORE_ENTRY.test(name)))', 'if (false)', 'S1-R3'),
+ ('M35 Controller evidence ignored', 'dist/limited-worker/store.js', 'if (found !== null)', 'if (false)', 'S1-R3'),
+ ('M36 evidence not bound to the store identity', 'dist/limited-worker/composition.js', 'if (contractOf(packet).storageIdentity === storageIdentity)', 'if (true)', 'S1-R3'),
+ ('M37 unreadable evidence read as none', 'dist/limited-worker/store.js', "catch {\n            throw new Error('WORKER_LEDGER_MISSING_UNVERIFIABLE');\n        }", 'catch {\n            return;\n        }', 'S1-R3'),
 ]
 only = set(sys.argv[1:])  # optional: run only these ids, e.g. M9 M11
 ok = True
-for name, path, old, new in M:
+for entry in M:
+    name, path, old, new = entry[:4]
     if only and name.split()[0] not in only: continue
+    pairs = list(zip(old, new)) if isinstance(old, tuple) else [(old, new)]
+    env = dict(os.environ, S1_ONLY=entry[4]) if len(entry) > 4 else dict(os.environ)
     src = open(path).read()
-    if src.count(old) != 1: print(f'{name}: ANCHOR NOT UNIQUE ({src.count(old)})'); ok = False; continue
-    open(path, 'w').write(src.replace(old, new))
+    if any(src.count(o) != 1 for o, _ in pairs): print(f'{name}: ANCHOR NOT UNIQUE ({[src.count(o) for o, _ in pairs]})'); ok = False; continue
+    mutated = src
+    for o, n in pairs: mutated = mutated.replace(o, n)
+    open(path, 'w').write(mutated)
     try:
-        r = subprocess.run(['node', 'test-auto-p2-a4-s1.mjs'], capture_output=True, text=True, timeout=600)
+        r = subprocess.run(['node', 'test-auto-p2-a4-s1.mjs'], capture_output=True, text=True, timeout=900, env=env)
     finally:
         open(path, 'w').write(src)
     fails = [l.strip()[:110] for l in (r.stdout + r.stderr).splitlines() if l.strip().startswith('FAIL ')]

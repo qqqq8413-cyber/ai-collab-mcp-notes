@@ -1,0 +1,11 @@
+# Temporary dist instrumentation: every readRecordFile UNSAFE_MODE refusal, 59 suites (S1 file excluded), before the fixture fix.
+# Columns: suite, R3_UNSAFE_MODE, file mode, path (temp prefix removed). After the fix the same run printed 0 lines.
+test-automation-run-admission.mjs R3_UNSAFE_MODE 644 chief-r4l-6YzIzq/e3d06fc55a7286f774caee2af62567ff65bb018ae4b8fe220ef70670178e3a71.json
+test-automation-run-admission.mjs R3_UNSAFE_MODE 644 chief-r4l-GYTso6/changes/6db31d84137bf1b9e6d67c708594c3b494b8967e8500c0c96669d93a5a08a907.json
+test-automation-run-admission.mjs R3_UNSAFE_MODE 644 chief-r4l-F1bd7r/changes/c3881356217f1e700d6495dda1a29194a5c9a9db5ab461f74a4c0dd57df8575b.json
+test-automation-run-admission.mjs R3_UNSAFE_MODE 644 chief-r4l-q5Ky7S/changes/c3881356217f1e700d6495dda1a29194a5c9a9db5ab461f74a4c0dd57df8575b.json
+test-automation-authority-archive.mjs R3_UNSAFE_MODE 644 chief-r4p-ZfpnMu/archive/records/e11fcd992ee381f896913871d0db7edc282224b9cbb48d72adba79958fb76dca/00000002.json
+test-automation-authority-archive.mjs R3_UNSAFE_MODE 644 chief-r4p-ZfpnMu/archive/records/e11fcd992ee381f896913871d0db7edc282224b9cbb48d72adba79958fb76dca/00000002.json
+test-automation-authority-archive.mjs R3_UNSAFE_MODE 644 chief-r4p-kFMSx1/archive/records/57fe945997b0188acc6e5ea2a6058fa48485bba59df855f8c53dd2e5ffd87369/00000001.json
+test-automation-governed-read-model.mjs R3_UNSAFE_MODE 644 chief-r4a0-kkhlh6/authority/records/b29686d5109be38e08e6e496169d2e40dbf9b6249263b81c52c8538d7c2c888b/00000001.json
+test-automation-governed-read-model.mjs R3_UNSAFE_MODE 644 chief-r4a0-Jj33pN/controller/b9d17232a4c83d9928ee0d4e6fab81d3802cd3bf898149558e1abf8b24e1ba49.json

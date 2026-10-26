@@ -85,7 +85,7 @@ const roots = (w) => ({ controllerStoreDirectory: w.controllerStoreDirectory, au
 function plantRun(w, run) {
   const payload = JSON.stringify(run);
   mkdirSync(w.controllerStoreDirectory, { recursive: true });
-  writeFileSync(join(w.controllerStoreDirectory, `${sha(run.runId)}.json`), JSON.stringify({ schemaVersion: 1, run: JSON.parse(payload), checksum: sha(payload) }));
+  writeFileSync(join(w.controllerStoreDirectory, `${sha(run.runId)}.json`), JSON.stringify({ schemaVersion: 1, run: JSON.parse(payload), checksum: sha(payload) }), { mode: 0o600 });
 }
 const freshRun = (runId, sliceId, repository = REPO) => ({ runId, sliceId, repository, state: 'IDLE', implementationIterations: 0, acceptanceFailures: 0, audit: [] });
 const claimFile = (w, repository, sliceId) => join(w.controllerStoreDirectory, 'changes', `${admission.changeKeyOf({ repository, sliceId })}.json`);
@@ -324,7 +324,7 @@ check('E. an operational ACCEPT (the Controller copy, a journal entry) is not di
   // The same operational record placed in the archive is refused, never converted.
   const key = sha('chief.authority.v1\0ACCEPTANCE_DECISION\0review-1');
   mkdirSync(join(w.authorityArchiveDirectory, 'records', key));
-  writeFileSync(join(w.authorityArchiveDirectory, 'records', key, '00000001.json'), readFileSync(join(journal, 'review.json')));
+  writeFileSync(join(w.authorityArchiveDirectory, 'records', key, '00000001.json'), readFileSync(join(journal, 'review.json')), { mode: 0o600 });
   unchanged(w, () => readFails(() => w.read(), 'AUTHORITY_ARCHIVE_INVALID'));
   // Once the exact decision is archived (and the stray record is gone), it resolves.
   rmSync(join(w.authorityArchiveDirectory, 'records', key), { recursive: true });

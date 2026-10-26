@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { closeSync, constants, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync,
+import { closeSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readdirSync,
   unlinkSync, writeFileSync, type Stats } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { canonicalJson } from '../invocation-journal.js';
+import { readRecordFile } from '../record-file.js';
 import {
   AuthorityArchiveError, authorityKeyOf, authorityRefOf, openAuthorityRecord, parseAuthorityDocument, parseAuthorityRef,
   sealAuthorityRecord, type AuthorityDocumentV1, type AuthorityKindV1, type AuthorityRecordV1, type AuthorityRefV1,
@@ -61,20 +62,20 @@ const createdOrPresent = (create: () => void) => {
   try { create(); }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
 };
-/** A canonical record file's text, only if it is a regular file reached without a symlink. */
+// R3: the most one canonical record file may hold; a larger one is refused before it is read.
+const RECORD_MAX_BYTES = 4 * 1024 * 1024;
+/**
+ * A canonical record file's text, only if it is a regular file reached without a symlink (R3: opened without
+ * blocking, so a FIFO or device fails closed instead of stalling; owned by this user with no group/other or special
+ * permission bits; at most RECORD_MAX_BYTES, read with a bound).
+ */
 function readRecord(path: string): string {
-  const notRegular = () => integrity('A canonical authority record is not a regular file (symlinks are not followed)');
-  if (!entry(path)?.isFile()) throw notRegular();
-  let fd: number;
-  try { fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW); }
-  catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ELOOP') throw notRegular();
-    throw error;
+  const read = readRecordFile(path, RECORD_MAX_BYTES);
+  if (read.status === 'READ') return read.text;
+  if (read.status === 'ABSENT' || read.problem === 'SYMLINK' || read.problem === 'NOT_REGULAR') {
+    throw integrity('A canonical authority record is not a regular file (symlinks are not followed)');
   }
-  try {
-    if (!fstatSync(fd).isFile()) throw notRegular();
-    return readFileSync(fd, 'utf8');
-  } finally { closeSync(fd); }
+  throw integrity(`A canonical authority record is not safe to read (${read.problem})`);
 }
 
 class FileAuthorityArchive {
