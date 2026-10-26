@@ -893,7 +893,8 @@ check('AJ-AK-AL. Change Mint stays GC1\'s, run creation stays RA1\'s; LD1 holds 
   assert.deepEqual(users(/createLiveAutomation\(/, ['src/automation/live/composition.ts']), [LIVE]);
   assert.equal((code(join(ROOT, LIVE)).match(/createLiveAutomation\(/g) ?? []).length, 1);
   assert.deepEqual(users(/openGovernedExecutionDriver\(/, [DRIVER]), [LIVE, 'src/limited-worker/composition.ts'].sort());
-  assert.deepEqual(users(/createGovernedLiveAutomation|governed-execution\.js|execution-driver\.js/, [DRIVER, LIVE]), ['src/ai-pilot/preparation.ts', 'src/limited-worker/composition.ts']);
+  // M0: the OFFLINE_SYNTHETIC rehearsal Host composes the trusted governed Worker (createGovernedLimitedWorker) for offline agents only.
+  assert.deepEqual(users(/createGovernedLiveAutomation|governed-execution\.js|execution-driver\.js/, [DRIVER, LIVE]), ['src/ai-pilot/preparation.ts', 'src/limited-worker/composition.ts', 'src/limited-worker/rehearsal.ts']);
   assert.match(text(join(ROOT, 'src/ai-pilot/preparation.ts')), /import type \{ ExecutionInspectionV1 \} from '\.\.\/automation\/execution-driver\.js';/);
   assert.doesNotMatch(readFileSync(join(ROOT, 'dist/ai-pilot/preparation.js'), 'utf8'), /execution-driver|governed-execution/,
     'preparation holds only the inspection type; no driver runtime is loaded');

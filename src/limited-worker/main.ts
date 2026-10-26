@@ -14,7 +14,7 @@ import { GovernanceStoreIsolation } from '../automation/governance-store-isolati
 import { composeLimitedWorker, limitedLedgerEvidence } from './composition.js';
 import { createLimitedWorkerService } from './service.js';
 import { WorkerStore } from './store.js';
-import { fetchOfficialQuote, nativeAnthropicTransport } from './transport.js';
+import { agentTransports, fetchOfficialQuote, nativeAnthropicTransport, unconfiguredLiveTransport } from './transport.js';
 import { hash, REPOSITORY } from './contract.js';
 import { readPinnedReadme } from './source.js';
 import { loadGrantCopies } from './config.js';
@@ -62,9 +62,11 @@ async function main() {
         const runtime=composeLimitedWorker({...roots,journalDirectory,resultDirectory:workerDirectory,clock,
           humanPrincipalRef:config.workspace.humanPrincipal.principalRef,implementationSha:id.sha,workerCodeHash:id.codeHash,
           currentImplementation:identity,
-          ...grantCopies,transport:nativeAnthropicTransport(()=>{
+          ...grantCopies,transport:agentTransports({'limited-readme-worker':nativeAnthropicTransport(()=>{
             const key=process.env.CHIEF_LIMITED_ANTHROPIC_KEY;if(!key)throw new Error('CREDENTIAL_NOT_CONFIGURED');return key;
           }),
+            // M0: the live Claude Code reader needs a pinned CLI, its Seatbelt boundary and a credential; none is configured here.
+            'claude-code-reader':unconfiguredLiveTransport('CLAUDE_CODE_READER_NOT_CONFIGURED')}),
           readSource:c=>readPinnedReadme(root,c.sourceSha),readGoal:c=>{
             const g=ports.store.read(c.projectId).goals.find(g=>g.goalId===c.goalId);
             if(!g||g.submittedBy?.principalRef!==config.workspace.humanPrincipal.principalRef)throw new Error('GOAL_BINDING_MISMATCH');return g.text;

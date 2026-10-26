@@ -3,15 +3,16 @@ import type { ImplementationAgentPort, ImplementationInput, ImplementationResult
 import type { ControllerRun } from '../automation/types.js';
 import type { InvocationJournal } from '../automation/invocation-journal.js';
 import type { GovernedReadModelV1 } from '../automation/read-model/governed-read-model.js';
-import { EXE, MODEL, contractOf, hash, maximumCost, checkQuote, assertInputReady, messageBody,serializeRequest, type Contract } from './contract.js';
+import { EXE, MODEL, contractOf, hash, maximumCost, checkQuote, assertInputReady, messageBody,serializeRequest, turnsOf, type Contract } from './contract.js';
 import { verifyInvocation, verifyPermit } from './governance.js';
 import { WorkerStore } from './store.js';
 import { parsePreflight, type WorkerTransport } from './transport.js';
 import { liveEligibility, verifyActivationSet } from './activation-set.js';
 
-const replySchema = z.object({ id: z.string().min(1).max(200), model: z.literal(MODEL), stop_reason: z.literal('end_turn'),
+// M0: usage covers the whole invocation, so its bounds scale with the contract's request limit (1, or the reader's turns).
+const replySchemaFor = (c: Contract) => z.object({ id: z.string().min(1).max(200), model: z.literal(MODEL), stop_reason: z.literal('end_turn'),
   content: z.array(z.object({ type: z.literal('text'), text: z.string(), citations: z.null().optional() }).strict()).min(1).max(20),
-  usage: z.object({ input_tokens: z.number().int().min(0).max(200000), output_tokens: z.number().int().min(0).max(2048),
+  usage: z.object({ input_tokens: z.number().int().min(0).max(c.maxInputTokens * turnsOf(c)), output_tokens: z.number().int().min(0).max(c.maxOutputTokens * turnsOf(c)),
     cache_creation_input_tokens: z.literal(0), cache_read_input_tokens: z.literal(0), service_tier: z.literal('standard') }) });
 const safeReason = (e: unknown) => e instanceof Error && /^[A-Z0-9_]{1,100}$/.test(e.message) ? e.message : 'WORKER_FAILED_CLOSED';
 export interface WorkerDependencies {
@@ -95,7 +96,7 @@ export class LimitedReadmeWorker implements ImplementationAgentPort {
         if(abort.signal.aborted)throw abort.signal.reason;
       };
       beforeSend();
-      const response = replySchema.parse(await bounded(d.transport.generate(c, objective, source.text, abort.signal,beforeSend)));
+      const response = replySchemaFor(c).parse(await bounded(d.transport.generate(c, objective, source.text, abort.signal,beforeSend)));
       if (abort.signal.aborted) throw abort.signal.reason;
       const report = response.content.map(b => b.text).join('\n');
       if (!report.trim() || Buffer.byteLength(report) > 65536) throw new Error('REPORT_BYTES_LIMIT');

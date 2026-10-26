@@ -1,0 +1,12 @@
+  PASS M0 contract: the Claude Code reader carries exactly 3 turns and reserves three requests; the README Worker is unchanged
+  PASS M0 reader argv: read-only tools, only ./README.md readable, no shell, edit or web, exact model, turn and spend limits, report schema
+  PASS M0 reader result: success maps to one reply; failure, timeout, bad JSON, extra turns, another model, cache tokens, no report or overspend fail closed
+  PASS M0 reader in its workspace: only README.md is present, the workspace is removed afterwards, and a refused final guard starts no process
+  PASS M0 live paths stay behind EXE HOLD: the Seatbelt reader runner and an unconfigured live agent refuse before any process or request
+  PASS M0 service on a LIVE_PROVIDER Host: START is refused as EXE_HOLD before anything runs, and the remaining authorization steps are shown
+  PASS M0 rehearsal E2E (claude-code-reader): submit in the Workspace, Host checks, approve, the agent runs, the result returns; restart re-reads it and never re-sends
+  PASS M0 rehearsal E2E (limited-readme-worker): submit in the Workspace, Host checks, approve, the agent runs, the result returns; restart re-reads it and never re-sends
+  PASS M0 rehearsal: a second Claude Code task that the conservative US$1 ceiling cannot hold is refused before activation and never runs
+  PASS M0 panel: approval checkbox and enabled start only on an executable Host for a prepared job; a LIVE Host shows LOCKED and the authorization steps
+
+10 passed, 0 failed

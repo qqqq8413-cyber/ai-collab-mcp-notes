@@ -16,7 +16,7 @@ const jobSchema = z.strictObject({ id: digest, contract: z.unknown().transform(p
   events: z.array(z.strictObject({ at: instant, kind: z.string().max(100) })).max(100) });
 export type Job = z.infer<typeof jobSchema>;
 const observationSchema=z.strictObject({id:z.string().uuid(),projectId:z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),at:instant,
-  kind:z.enum(['SETUP_OPENED','TASK_FORM_STARTED','PLAN_READY','PLAN_REUSED','CHECK','START_REFUSED','CANCEL','RECONCILIATION_REQUESTED','RUNTIME_START']),
+  kind:z.enum(['SETUP_OPENED','TASK_FORM_STARTED','PLAN_READY','PLAN_REUSED','CHECK','START_REFUSED','START_APPROVED','CANCEL','RECONCILIATION_REQUESTED','RUNTIME_START']),
   interactionId:z.string().uuid().nullable(),jobId:digest.nullable(),reason:z.string().regex(/^[A-Z0-9_]{1,100}$/).nullable(),
   evidenceClass:z.enum(['LOCAL_OBSERVATION','OFFLINE_SYNTHETIC']),clientElapsedMs:z.number().int().min(0).max(86400000).nullable()});
 export type Observation=z.infer<typeof observationSchema>;

@@ -126,3 +126,20 @@ export function nativeAnthropicTransport(apiKey: () => string): WorkerTransport 
     },
   });
 }
+/**
+ * M0: one transport per agent. Every transport must be the same kind, so a Host is wholly OFFLINE_SYNTHETIC or
+ * wholly LIVE_PROVIDER and the kind the service reports is never mixed.
+ */
+export function agentTransports(transports: Readonly<Partial<Record<Contract['agentId'], WorkerTransport>>>): WorkerTransport {
+  const kinds = new Set(Object.values(transports).map((t) => t!.kind));
+  if (kinds.size !== 1) throw new Error('TRANSPORT_KIND_MIXED');
+  const pick = (c: Contract) => { const t = transports[c.agentId]; if (!t) throw new Error('AGENT_TRANSPORT_UNAVAILABLE'); return t; };
+  return Object.freeze({ kind: [...kinds][0]!,
+    preflight: async (c: Contract, signal: AbortSignal, payload?: { objective: string; source: string }) => pick(c).preflight(c, signal, payload),
+    generate: async (c: Contract, objective: string, source: string, signal: AbortSignal, beforeSend?: () => void) => pick(c).generate(c, objective, source, signal, beforeSend) });
+}
+/** A live agent this Host has not configured: under EXE HOLD it reports the hold first, otherwise the missing setup. */
+export function unconfiguredLiveTransport(reason: string): WorkerTransport {
+  const refuse = async (): Promise<never> => { throw new Error(EXE === 'HOLD' ? 'EXE_HOLD' : reason); };
+  return Object.freeze({ kind: 'LIVE_PROVIDER' as const, preflight: refuse, generate: refuse });
+}

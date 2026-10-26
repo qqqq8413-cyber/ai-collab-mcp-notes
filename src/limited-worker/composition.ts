@@ -65,6 +65,8 @@ export function composeLimitedWorker(options: {
     humanPrincipalRef:options.humanPrincipalRef,architectPrincipalRef:options.architectPrincipalRef,now:()=>options.clock.now(),
     identity:options.currentImplementation,readSource:options.readSource,readGoal:options.readGoal,preserveIssued:trusted.preserveIssued}):null;
   return Object.freeze({
+    /** M0: OFFLINE_SYNTHETIC or LIVE_PROVIDER, so the Workspace service can say which kind of run a START would be. */
+    transportKind: options.transport.kind,
     activateIssued(c:Contract,bundle:unknown,limitedDocument:unknown){
       if(!activation)throw new Error('TRUSTED_ACTIVATION_NOT_COMPOSED');
       return activation.stage(hash(c),bundle,limitedDocument);

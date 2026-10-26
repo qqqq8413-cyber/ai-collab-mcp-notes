@@ -44,19 +44,35 @@ export const resourceInputPolicy=()=>resourcePolicySchema.parse({revision:'A3',d
   requestedHardLimitTokens:null,hardLimitVerification:'NOT_CLAIMED',enforcement:'RUNTIME_BYTES_AND_UTF16',
   estimatedInputTokens:null,estimateMethod:'NOT_MEASURED',sourceMaxBytes:16384,goalMaxCharacters:2000,requestMaxBytes:131072,
   reservationInputTokenBound:200000,outputMaxTokens:2048});
+/**
+ * M0: the agents a Worker job may name. `limited-readme-worker` makes one Messages API request; `claude-code-reader`
+ * runs Claude Code read-only (Read/Glob/Grep) over an isolated copy of the same pinned README, for at most
+ * `maxTurns` model requests. Either way one governed invocation, the same model, egress scope and pinned source.
+ */
+export const AGENT_IDS = ['limited-readme-worker', 'claude-code-reader'] as const;
+export type AgentId = typeof AGENT_IDS[number];
+export const READER_TURNS = 3;
 const contractSchema = z.strictObject({ schemaVersion: z.literal(1), kind: z.literal('LIMITED_README_WORKER'),
   repository: z.literal(REPOSITORY), projectId: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/), goalId: z.string().regex(/^goal-[a-f0-9-]{36}$/),
   objectiveHash: digest, runId: z.string().min(1).max(200), implementationSha: sha, workerCodeHash: digest,
   sourceSha: sha, sourcePath: z.literal('README.md'), sourceHash: digest, sourceBytes: z.number().int().min(1).max(16384),
-  agentId: z.literal('limited-readme-worker'), provider: z.literal('anthropic'), model: z.literal(MODEL), apiVersion: z.literal(API_VERSION),
+  agentId: z.enum(AGENT_IDS), provider: z.literal('anthropic'), model: z.literal(MODEL), apiVersion: z.literal(API_VERSION),
   tools: z.tuple([z.literal('READ_PINNED_README'), z.literal('WRITE_ISOLATED_REPORT')]), outputKey: digest, storageIdentity: digest,
   maxInputTokens: z.literal(200000), maxOutputTokens: z.literal(2048), maxCalls: z.literal(1), maxRetries: z.literal(0),
+  maxTurns: z.literal(READER_TURNS).optional(),
   maxCostMicroUsd: z.literal(1000000), totalCostMicroUsd: z.literal(1000000), timeoutSeconds: z.literal(300), quote: quoteSchema,
-  inputPolicy: inputPolicySchema.optional() });
+  inputPolicy: inputPolicySchema.optional() }).superRefine((c, context) => {
+  // maxTurns is present exactly for the Claude Code reader, so a README Worker contract is byte-identical to before M0.
+  if ((c.agentId === 'claude-code-reader') !== (c.maxTurns === READER_TURNS)) context.addIssue({ code: 'custom', message: 'AGENT_TURNS_MISMATCH' });
+});
 export type Contract = z.infer<typeof contractSchema>;
 export function parseContract(v: unknown): Contract { return contractSchema.parse(v); }
+/** Model requests one invocation may make: 1, or the Claude Code reader's turn limit. */
+export const turnsOf = (c: Contract): number => c.maxTurns ?? 1;
+/** Worst case for the whole invocation: every allowed request at the full input and output bound. */
 export function maximumCost(c: Contract): number {
-  const cost = BigInt(c.maxInputTokens) * BigInt(c.quote.inputMicroUsdPerToken) + BigInt(c.maxOutputTokens) * BigInt(c.quote.outputMicroUsdPerToken);
+  const perRequest = BigInt(c.maxInputTokens) * BigInt(c.quote.inputMicroUsdPerToken) + BigInt(c.maxOutputTokens) * BigInt(c.quote.outputMicroUsdPerToken);
+  const cost = BigInt(turnsOf(c)) * perRequest;
   if (cost > BigInt(c.maxCostMicroUsd) || cost > BigInt(c.totalCostMicroUsd)) throw new Error('COST_LIMIT');
   return Number(cost);
 }
