@@ -1,0 +1,31 @@
+  PASS R-1 record classes: a derived record is a version 1 packet with one derivation; direct authority carries none; grants are never derived
+  PASS R-1 standing acceptance: domain-separated hash over source and version; every field binds; the version chain is explicit
+  PASS R-1 class-delegation rule: admits exactly the derived packet the pinned acceptance allows; source, version, issuer and packet substitutions are refused
+  PASS R-1 governance verification: a derived packet record is never treated as direct authority; without the explicit rule it is refused
+  PASS WebAuthn forgery: bytes changed after signing, a forged or truncated signature, a borrowed credential id and another signer are all refused
+  PASS WebAuthn replay: one consumed approval per job; a record copied to another job, re-pinned to another acceptance or edited is refused
+  PASS Pilot profile: the accepted class pins the README Worker, one Messages request, 0 retries, 300 s, 2,048 output tokens, US$1, no Git, no deploy
+  PASS EXE HOLD cannot be lifted by an agent: one source constant, no environment, flag, config, file or HTTP action changes it
+  PASS Real build (EXE HOLD), valid candidate, agent-set environment: the runtime called directly still refuses EXE_HOLD before any write
+  PASS EXE-lifted copy: only the run the Human approved executes; unrequested, passkey-less, replayed, copied-record and archive-planted runs never send
+  PASS EXE-lifted copy: substituting the acceptance source, its version, the accepted SHA or the Architect principal after approval sends nothing
+
+11 passed, 0 failed
+  PASS M1-A request bound: the README Worker is 1 request and 0 retries; the Claude Code reader has no proven bound and no live request
+  PASS M1-A reader: zero retries, no non-streaming second request and no thinking by environment; a live reader is refused before any process
+  PASS M1-C real CLI evidence (non-paid): the pinned binary accepted the M0 argv, and under --max-turns 3 it still sent 4 requests (no request bound)
+  PASS M1-B passkey assertion: only the pinned key, this challenge, an allowed origin, the RP ID, user presence and user verification pass
+  PASS M1-B passkey enrollment: a registration needs user verification and the credential's own ES256 key; the result is only a draft
+  PASS M1-B approver file: root-owned for the live Host, never group/other writable, never a link, a public P-256 key only, no placeholders
+  PASS M1-B class and payload: the class omits only per-run fields; the signed bytes are domain separated and the window is at most 15 minutes
+  PASS M1-B live eligibility: an S1 set is never eligible; an M1 set only with a verifier that accepts its setHash
+  PASS M1-B consumed approval record: once per job (exclusive 0600 file), re-verified against the set, the payload and the window
+  PASS M1-B real Host: trusted live runtime, root-owned approver, startup-only lease, no rehearsal, no untrusted composition, reader unconfigured
+  PASS M1-B/D panel: before approval the Human sees task, data scope, model and budget; the live Host shows the passkey step, LOCKED under EXE HOLD
+  PASS M1 real build over HTTP (EXE HOLD): the Human sees the run; approval and START refuse before any write, verification or request
+  PASS M1 EXE-lifted copy over HTTP: passkey approval, three preserved documents, M1 set, exactly one provider request, evidence kept, no resend
+  PASS M1 EXE-lifted copy: a wrong, foreign or unverified assertion and an expired approval preserve nothing and send nothing
+  PASS M1 EXE-lifted copy: a browser that disconnects mid-request does not stop or repeat the run; the Host finishes it once
+  PASS M1 EXE-lifted copy: a class the Architect did not accept cannot be approved
+
+16 passed, 0 failed

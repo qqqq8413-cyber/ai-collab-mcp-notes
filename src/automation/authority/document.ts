@@ -4,6 +4,7 @@ import { REPOSITORY_PATTERN, SLICE_ID_PATTERN } from '../admission.js';
 import { canonicalJson } from '../invocation-journal.js';
 import { parseAcceptanceDecision } from '../lifecycle.js';
 import { parseCorrection, tryParsePacket } from '../packet.js';
+import type { ImplementationPacket } from '../types.js';
 import { parseAuthorization } from '../policy.js';
 import { isInstant } from '../time.js';
 
@@ -28,6 +29,16 @@ import { isInstant } from '../time.js';
 // admission and refusal, CI results, provider or executor output, replay traces,
 // connector executions) are never direct authority. No body of theirs parses as a
 // direct-authority body, and nothing here converts one.
+//
+// M1-R1 (R-1): a CLASS_DERIVED_AUTHORITY record is not direct authority. It is an
+// implementation packet that a trusted Host derived for one run from a Worker class the
+// Architect accepted once (ARCHITECT_CLASS_DELEGATION_V1); its `derivation` names that
+// standing acceptance by hash, the accepted class hash and the accepted implementation SHA.
+// The issuer it states is the accepting Architect principal (the delegator), never a claim
+// that the Architect issued this document. Only a version 1 implementation packet may be
+// derived, so a derived record never supersedes, and is never superseded into, direct
+// authority by itself. Nothing in the archive accepts it as authority: a consumer must apply
+// an explicit class-delegation rule (ClassDelegationVerifier), and without one it is refused.
 
 export const AUTHORITY_KINDS = Object.freeze(['IMPLEMENTATION_PACKET', 'CORRECTION_PACKET', 'ACCEPTANCE_DECISION',
   'AUTHORIZATION'] as const);
@@ -38,6 +49,26 @@ export const AUTHORITY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 export type JsonObject = { [key: string]: JsonValue };
 
+/** Direct authority, or a run packet a trusted Host derived under the Architect's standing class acceptance. */
+export const AUTHORITY_RECORD_CLASSES = Object.freeze(['DIRECT_AUTHORITY', 'CLASS_DERIVED_AUTHORITY'] as const);
+export type AuthorityRecordClassV1 = typeof AUTHORITY_RECORD_CLASSES[number];
+export const CLASS_DELEGATION_RULE = 'ARCHITECT_CLASS_DELEGATION_V1';
+/** What a class-derived record was derived under: integrity data, checked only by an explicit delegation rule. */
+export interface ClassDerivationV1 {
+  rule: typeof CLASS_DELEGATION_RULE;
+  derivedBy: 'CHIEF_TRUSTED_HOST';
+  /** SHA-256 of the standing ARCHITECT_CLASS_ACCEPTANCE record (domain separated). */
+  acceptanceHash: string;
+  classHash: string;
+  implementationSha: string;
+}
+/**
+ * The explicit class-delegation rule a trusted composition supplies. It throws unless the derived record and its
+ * packet are exactly what the pinned standing acceptance allows. Without one, every derived record is refused.
+ */
+export type ClassDelegationVerifier = (record: { issuer: { role: string; principalRef: string }; derivation: ClassDerivationV1; version: number },
+  packet: ImplementationPacket) => void;
+
 export interface AuthorityRefV1 {
   kind: AuthorityKindV1;
   authorityId: string;
@@ -46,7 +77,7 @@ export interface AuthorityRefV1 {
 }
 export interface AuthorityDocumentV1 {
   schemaVersion: 1;
-  recordClass: 'DIRECT_AUTHORITY';
+  recordClass: AuthorityRecordClassV1;
   kind: AuthorityKindV1;
   authorityId: string;
   version: number;
@@ -56,6 +87,8 @@ export interface AuthorityDocumentV1 {
   subject: { repository: string; sliceId?: string };
   supersedes: AuthorityRefV1 | null;
   body: JsonObject;
+  /** Present exactly for CLASS_DERIVED_AUTHORITY. */
+  derivation?: ClassDerivationV1;
 }
 /** A document as archived: bodyHash = SHA256(canonical(body)), recordHash = SHA256(canonical(record without recordHash)). */
 export interface AuthorityRecordV1 extends AuthorityDocumentV1 {
@@ -89,9 +122,11 @@ const refSchema = z.strictObject({ kind, authorityId, version, recordHash: z.str
 export function isAuthorityPrincipalRef(value: unknown): value is string {
   return principalRef.safeParse(value).success;
 }
+const derivationSchema = z.strictObject({ rule: z.literal(CLASS_DELEGATION_RULE), derivedBy: z.literal('CHIEF_TRUSTED_HOST'),
+  acceptanceHash: z.string().regex(HEX64), classHash: z.string().regex(HEX64), implementationSha: z.string().regex(/^[0-9a-f]{40}$/) });
 const documentShape = {
   schemaVersion: z.literal(1),
-  recordClass: z.literal('DIRECT_AUTHORITY'),
+  recordClass: z.enum(AUTHORITY_RECORD_CLASSES),
   kind,
   authorityId,
   version,
@@ -102,6 +137,7 @@ const documentShape = {
     sliceId: z.string().regex(SLICE_ID_PATTERN).optional() }),
   supersedes: refSchema.nullable(),
   body: z.record(z.string(), z.unknown()),
+  derivation: derivationSchema.optional(),
 };
 const documentSchema = z.strictObject(documentShape);
 const recordSchema = z.strictObject({ ...documentShape, bodyHash: z.string().regex(HEX64), recordHash: z.string().regex(HEX64) });
@@ -146,6 +182,10 @@ const BODY_RULES: Readonly<Record<AuthorityKindV1, BodyRule>> = Object.freeze({
 });
 
 function checkDocument(document: AuthorityDocumentV1, bodyText: string): void {
+  // R-1: derived exactly when a derivation is present, and only for a version 1 implementation packet.
+  const derived = document.recordClass === 'CLASS_DERIVED_AUTHORITY';
+  if (derived !== (document.derivation !== undefined)) throw invalid('A class-derived record carries one derivation; direct authority carries none');
+  if (derived && (document.kind !== 'IMPLEMENTATION_PACKET' || document.version !== 1)) throw invalid('Only a version 1 implementation packet may be class-derived');
   const rule = BODY_RULES[document.kind];
   const parsed = rule.parse(document.body);
   if (!parsed || canonicalJson(parsed) !== bodyText) throw invalid(`Body is not a canonical ${document.kind}`);

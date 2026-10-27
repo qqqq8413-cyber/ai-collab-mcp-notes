@@ -36,6 +36,13 @@ const contract = (agentId, extra = {}) => parseContract({ schemaVersion: 1, kind
   maxOutputTokens: 2048, maxCalls: 1, maxRetries: 0, maxCostMicroUsd: 1000000, totalCostMicroUsd: 1000000, timeoutSeconds: 300,
   quote: tariffFromMarkdown(REHEARSAL_PRICE_DOCUMENT, new Date().toISOString()), inputPolicy: resourceInputPolicy(), ...extra });
 
+// M1-R1: a valid standing ARCHITECT_CLASS_ACCEPTANCE record (synthetic values).
+const acceptance = (over = {}) => ({ schema: 'chief-architect-class-acceptance.v1', recordClass: 'ARCHITECT_CLASS_ACCEPTANCE',
+  delegationRule: 'ARCHITECT_CLASS_DELEGATION_V1', architectPrincipalRef: 'architect:m1', agentId: 'limited-readme-worker',
+  classSchema: 'chief-limited-worker-class.v1', classHash: 'e'.repeat(64), implementationSha: 'c'.repeat(40), acceptanceVersion: 1, supersedes: null,
+  source: { kind: 'ARCHITECT_REVIEW_DECISION', reviewRef: 'M1', decisionSha256: 'd'.repeat(64) }, acceptedAt: '2026-10-27T00:00:00.000Z', ...over });
+const R1_PAYLOAD = { packetRecordClass: 'CLASS_DERIVED_AUTHORITY', packetRecordHash: '9'.repeat(64), acceptanceHash: '8'.repeat(64) };
+
 // ---------------------------------------------------------------- software passkey (test authenticator only)
 const rpHash = (rpId = 'localhost') => createHash('sha256').update(rpId).digest();
 function authenticator() {
@@ -136,7 +143,7 @@ await test('M1-B passkey enrollment: a registration needs user verification and 
 await test('M1-B approver file: root-owned for the live Host, never group/other writable, never a link, a public P-256 key only, no placeholders', async (dir) => {
   const a = authenticator(), path = join(dir, 'approver.json');
   const config = (over = {}) => ({ schemaVersion: 1, kind: 'CHIEF_LIVE_RUN_APPROVER', policy: 'M1_PASSKEY_RUN_V1', humanPrincipalRef: 'human:m1',
-    passkey: { ...a.approver.passkey }, architectAcceptance: { architectPrincipalRef: 'architect:m1', classHash: 'e'.repeat(64), implementationSha: 'c'.repeat(40), reviewRef: 'M1' },
+    passkey: { ...a.approver.passkey }, architectAcceptance: acceptance(),
     approvalValiditySeconds: 600, ...over });
   const put = (value, mode = 0o644) => { rmSync(path, { force: true }); writeFileSync(path, JSON.stringify(value)); chmodSync(path, mode); };
   put(config());
@@ -150,8 +157,9 @@ await test('M1-B approver file: root-owned for the live Host, never group/other 
   put(config({ passkey: { ...a.approver.passkey, publicKeySpki: pkcs8 } })); assert.equal(refusal(() => loadApprover(path, [process.getuid()])), 'APPROVER_KEY_INVALID');
   const p384 = generateKeyPairSync('ec', { namedCurve: 'secp384r1' }).publicKey.export({ format: 'der', type: 'spki' }).toString('base64');
   put(config({ passkey: { ...a.approver.passkey, publicKeySpki: p384 } })); assert.equal(refusal(() => loadApprover(path, [process.getuid()])), 'APPROVER_KEY_INVALID');
-  put(config({ architectAcceptance: { architectPrincipalRef: 'FILL_IN_AFTER_ARCHITECT_ACCEPTANCE', classHash: 'FILL_IN_AFTER_ARCHITECT_ACCEPTANCE',
-    implementationSha: 'FILL_IN_AFTER_ARCHITECT_ACCEPTANCE', reviewRef: 'FILL_IN_AFTER_ARCHITECT_ACCEPTANCE' } }));
+  const FILL = 'FILL_IN_AFTER_ARCHITECT_ACCEPTANCE';
+  put(config({ architectAcceptance: acceptance({ architectPrincipalRef: FILL, classHash: FILL, implementationSha: FILL, acceptedAt: FILL,
+    source: { kind: 'ARCHITECT_REVIEW_DECISION', reviewRef: FILL, decisionSha256: FILL } }) }));
   assert.equal(refusal(() => loadApprover(path, [process.getuid()])), 'APPROVER_CONFIG_INVALID', 'an enrollment draft grants nothing');
   put(config({ approvalValiditySeconds: MAX_APPROVAL_SECONDS + 1 })); assert.equal(refusal(() => loadApprover(path, [process.getuid()])), 'APPROVER_CONFIG_INVALID');
   put(config({ passkey: { ...a.approver.passkey, origins: ['http://127.0.0.1:4876'] } })); assert.equal(refusal(() => loadApprover(path, [process.getuid()])), 'APPROVER_CONFIG_INVALID');
@@ -163,7 +171,7 @@ await test('M1-B class and payload: the class omits only per-run fields; the sig
   assert.notEqual(workerClassHash(one), workerClassHash(contract('claude-code-reader')));
   assert.deepEqual(workerClass(one).requestBound.maxModelRequests, 1); assert.equal(workerClass(one).reservationMicroUsd, 210240);
   const now = Date.now(), payload = { payloadSchema: 'chief-activation-attestation.v1', policyVersion: 'M1_PASSKEY_RUN_V1', setHash: 'a'.repeat(64), runId: 'run-m1',
-    repository: REPOSITORY, contractHash: hash(one), packetId: 'limited-x', packetHash: 'b'.repeat(64), implementationSha: 'c'.repeat(40), workerCodeHash: hash('code'),
+    repository: REPOSITORY, contractHash: hash(one), packetId: 'limited-x', packetHash: 'b'.repeat(64), ...R1_PAYLOAD, implementationSha: 'c'.repeat(40), workerCodeHash: hash('code'),
     operations: ['LIMITED_README_WORKER', 'LIVE_PROVIDER_MODEL_CALL'],
     grants: [{ operation: 'LIMITED_README_WORKER', authorityId: 'm1-limited-1', version: 1, recordHash: 'd'.repeat(64) },
       { operation: 'LIVE_PROVIDER_MODEL_CALL', authorityId: 'm1-live-1', version: 1, recordHash: 'e'.repeat(64) }],
@@ -189,7 +197,7 @@ await test('M1-B live eligibility: an S1 set is never eligible; an M1 set only w
 await test('M1-B consumed approval record: once per job (exclusive 0600 file), re-verified against the set, the payload and the window', async (dir) => {
   const a = authenticator(), c = contract('limited-readme-worker'), now = Date.now();
   const payload = parsePayload({ payloadSchema: 'chief-activation-attestation.v1', policyVersion: 'M1_PASSKEY_RUN_V1', setHash: 'a'.repeat(64), runId: c.runId,
-    repository: REPOSITORY, contractHash: hash(c), packetId: 'limited-x', packetHash: 'b'.repeat(64), implementationSha: c.implementationSha, workerCodeHash: c.workerCodeHash,
+    repository: REPOSITORY, contractHash: hash(c), packetId: 'limited-x', packetHash: 'b'.repeat(64), ...R1_PAYLOAD, implementationSha: c.implementationSha, workerCodeHash: c.workerCodeHash,
     operations: ['LIMITED_README_WORKER', 'LIVE_PROVIDER_MODEL_CALL'], grants: [{ operation: 'LIMITED_README_WORKER', authorityId: 'l', version: 1, recordHash: 'd'.repeat(64) },
       { operation: 'LIVE_PROVIDER_MODEL_CALL', authorityId: 'v', version: 1, recordHash: 'e'.repeat(64) }], classHash: workerClassHash(c), agentId: 'limited-readme-worker',
     model: MODEL, maxModelRequests: 1, maxRetries: 0, approvedMaxReservationMicroUsd: 210240, signerKeyId: a.approver.keyId, rpId: 'localhost',
@@ -199,10 +207,13 @@ await test('M1-B consumed approval record: once per job (exclusive 0600 file), r
     signCount: verified.signCount, verifiedAt: new Date().toISOString() };
   writeApprovalRecord(dir, record);
   assert.equal(refusal(() => writeApprovalRecord(dir, record)), 'APPROVAL_ALREADY_USED');
-  const verify = attestationVerifier(dir, a.approver, () => new Date().toISOString());
+  const approver = { ...a.approver, acceptanceHash: R1_PAYLOAD.acceptanceHash };
+  const verify = attestationVerifier(dir, approver, () => new Date().toISOString());
   assert.doesNotThrow(() => verify(c, payload.setHash));
   assert.equal(refusal(() => verify(c, 'f'.repeat(64))), 'ATTESTATION_BINDING_MISMATCH');
-  assert.equal(refusal(() => attestationVerifier(dir, a.approver, () => new Date(now + 601000).toISOString())(c, payload.setHash)), 'ATTESTATION_EXPIRED');
+  assert.equal(refusal(() => attestationVerifier(dir, approver, () => new Date(now + 601000).toISOString())(c, payload.setHash)), 'ATTESTATION_EXPIRED');
+  // M1-R1: the record names one standing acceptance; another pinned acceptance (source or version substituted) fails.
+  assert.equal(refusal(() => attestationVerifier(dir, { ...approver, acceptanceHash: '7'.repeat(64) }, () => new Date().toISOString())(c, payload.setHash)), 'ATTESTATION_BINDING_MISMATCH');
   // A record rewritten after consumption (another reservation) no longer matches its own signed challenge.
   const file = join(dir, 'm1-approvals', `${hash(c)}.json`), stored = JSON.parse(readFileSync(file, 'utf8'));
   rmSync(file); writeFileSync(file, JSON.stringify({ ...stored, payload: { ...stored.payload, approvedMaxReservationMicroUsd: 1000000 } }), { mode: 0o600 });
@@ -291,7 +302,16 @@ await test('M1 EXE-lifted copy over HTTP: passkey approval, three preserved docu
   assert.deepEqual([f.provider.messages, f.provider.models, f.provider.price, f.provider.other], [1, 1, 1, 0]);
   assert.deepEqual(f.provider.bodies, [{ model: MODEL, max_tokens: 2048, stream: false, thinking: { type: 'disabled' }, tools: null, service_tier: 'standard_only' }]);
   assert.deepEqual(f.provider.apiKeys, ['DUMMY']); assert.equal(f.keyInFiles, 0, 'the credential is in no stored file');
-  assert.deepEqual(f.archive.map((d) => [d.kind, d.issuer.role]).sort(), [['AUTHORIZATION', 'HUMAN'], ['AUTHORIZATION', 'HUMAN'], ['IMPLEMENTATION_PACKET', 'GPT_ARCHITECT']]);
+  // M1-R1: the run packet is archived as CLASS_DERIVED_AUTHORITY naming the pinned acceptance; the two grants are the Human's direct authority.
+  assert.deepEqual(f.archive.map((d) => [d.kind, d.issuer.role, d.recordClass]).sort(), [['AUTHORIZATION', 'HUMAN', 'DIRECT_AUTHORITY'], ['AUTHORIZATION', 'HUMAN', 'DIRECT_AUTHORITY'],
+    ['IMPLEMENTATION_PACKET', 'GPT_ARCHITECT', 'CLASS_DERIVED_AUTHORITY']]);
+  const derivedFact = f.archive.find((d) => d.kind === 'IMPLEMENTATION_PACKET');
+  assert.deepEqual(derivedFact.derivation, { rule: 'ARCHITECT_CLASS_DELEGATION_V1', derivedBy: 'CHIEF_TRUSTED_HOST', acceptanceHash: f.acceptanceHash,
+    classHash: f.classHash, implementationSha: 'c'.repeat(40) });
+  assert.deepEqual([f.pending.payload.packetRecordClass, f.pending.payload.acceptanceHash, f.pending.payload.packetRecordHash], ['CLASS_DERIVED_AUTHORITY', f.acceptanceHash, derivedFact.recordHash]);
+  assert.deepEqual([f.status.packetProvenance, f.status.acceptanceHash, f.status.acceptanceVersion], ['CLASS_DERIVED_AUTHORITY', f.acceptanceHash, 1]);
+  // M1-R1: the fake provider is labelled as such on the job; it never counts as the account's model metadata.
+  assert.deepEqual([f.done.providerEndpoint, f.done.modelAccountAvailability], ['INJECTED_TEST_REQUESTER', 'TEST_REQUESTER_NOT_ACCOUNT']);
   assert.deepEqual(f.sets, [{ policy: { version: 'M1_PASSKEY_RUN_V1', humanSignatureRequired: true }, setHash: f.pending.payload.setHash, attestations: 0 }]);
   assert.deepEqual(f.records.map((r) => [r.mode, r.payloadSetHash]), [['600', f.pending.payload.setHash]]);
   assert.deepEqual([f.again, f.replayOnOtherRun, f.afterRestart], ['WORK_ALREADY_STARTED_OR_TERMINAL', 'PASSKEY_CHALLENGE_MISMATCH', 'WORK_ALREADY_STARTED_OR_TERMINAL']);

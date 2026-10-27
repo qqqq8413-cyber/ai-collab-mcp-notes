@@ -17,6 +17,8 @@ const messages={EXE_HOLD:'目前未開放正式執行，沒有送出模型請求
   READER_REQUEST_BOUND_UNPROVEN:'Claude Code 無法證明一次執行只送出有限次數的模型請求，正式 Host 不提供；請改用 README 審查 Worker。',
   PASSKEY_APPROVAL_REQUIRED:'需要用通行金鑰（Touch ID）批准這一個 Run。',APPROVER_NOT_CONFIGURED:'正式 Host 尚未設定 Human 的通行金鑰，不能批准。',
   WORKER_CLASS_NOT_ACCEPTED:'這類工作尚未經 Architect 接受，不能批准。',IMPLEMENTATION_NOT_ACCEPTED:'目前程式版本不是 Architect 接受的版本，不能批准。',
+  CLASS_ACCEPTANCE_HASH_MISMATCH:'Architect 接受紀錄與設定不一致，不能批准。',DELEGATION_ACCEPTANCE_MISMATCH:'這個 Packet 不是依目前的 Architect 接受紀錄衍生，不能批准。',
+  DELEGATION_ISSUER_MISMATCH:'這個 Packet 標示的 Architect 與接受紀錄不符，不能批准。',DELEGATION_PACKET_NOT_DERIVED:'這個 Packet 不是依接受的類別逐字衍生，不能批准。',
   APPROVAL_EXPIRED:'批准已過期，請重新批准。',APPROVAL_ALREADY_USED:'這次批准已使用過，不會重送。',APPROVAL_NOT_REQUESTED:'請先按「以通行金鑰批准並執行」。',
   PASSKEY_SIGNATURE_INVALID:'通行金鑰簽章不正確，沒有執行。',PASSKEY_USER_NOT_VERIFIED:'通行金鑰沒有完成使用者驗證（Touch ID／密碼），沒有執行。',
   PASSKEY_ORIGIN_MISMATCH:'請從 http://localhost 開啟 Workspace 再批准。',PASSKEY_CREDENTIAL_MISMATCH:'使用的通行金鑰不是 Host 設定的那一把。'};
@@ -54,8 +56,10 @@ function previewHTML(j){const p=j.approvalPreview;if(!p)return '';const b=p.requ
     :`<details class="worker-preview" data-evidence="preview-${j.id}"><summary>批准時確認的內容</summary>${facts}</details>`;}
 /** M1: the live passkey approval controls (shown only where a live START is possible). */
 function liveHTML(j,exec,approved){const a=j.liveApproval??{},ok=approved.has(j.id),local=location.hostname==='localhost';
-  const status=!a.configured?'尚未設定 Human 通行金鑰':`通行金鑰 ${esc((a.keyId??'').slice(0,12))}${a.protection==='ROOT_OWNED'?'（設定檔 root 擁有）':''}；類別${a.classAccepted?'已接受':'未接受'}；程式版本${a.implementationAccepted?'已接受':'未接受'}`;
-  return `<p class="auto-deferred worker-passkey">${status}${a.refusal?`：${esc(messages[a.refusal]??a.refusal)}`:''}</p>
+  const status=!a.configured?'尚未設定 Human 通行金鑰':`通行金鑰 ${esc((a.keyId??'').slice(0,12))}${a.protection==='ROOT_OWNED'?'（設定檔 root 擁有）':''}；類別${a.classAccepted?'已接受':'未接受'}；程式版本${a.implementationAccepted?'已接受':'未接受'}${a.acceptanceHash?`；Architect 接受紀錄 第 ${esc(a.acceptanceVersion)} 版 ${esc(a.acceptanceHash.slice(0,12))}`:''}`;
+  // M1-R1: say plainly that this run's packet is derived by the Host under the accepted class, not issued by the Architect for this run.
+  const provenance=a.configured?'<p class="auto-deferred worker-provenance">本次 Packet 由 Host 依 Architect 已接受的類別自動衍生（不是 Architect 逐次核發）；你的通行金鑰簽章同時涵蓋這份衍生紀錄與接受紀錄。</p>':'';
+  return `<p class="auto-deferred worker-passkey">${status}${a.refusal?`：${esc(messages[a.refusal]??a.refusal)}`:''}</p>${provenance}
     ${local?'':`<p class="auto-error">通行金鑰只能在 <a href="http://localhost:${esc(location.port)}${esc(location.pathname)}${esc(location.hash)}">http://localhost:${esc(location.port)}</a> 使用。</p>`}
     <label class="worker-approve"><input type="checkbox" data-approve="${j.id}" ${ok?'checked':''}> 我已確認以上任務、資料範圍、模型與預算，批准這一個 Run，最多預留 ${usd(j.maximumReservationMicroUsd)}</label>
     <button class="auto-button" data-worker-passkey="${j.id}" data-max="${j.maximumReservationMicroUsd}" ${ok&&local&&!a.refusal?'':'disabled'}>${readerIcon('play')} 以通行金鑰（Touch ID）批准並執行</button>`;}
@@ -83,6 +87,7 @@ export function jobsHTML(data,approved=new Set()){const exec=data.execution??{ev
       <div><dt>實際 usage 計算費用，非帳單</dt><dd>${usd(j.actualCostMicroUsd)}</dd></div>
       <div><dt>usage</dt><dd>${j.usage?`輸入 ${j.usage.inputTokens}、輸出 ${j.usage.outputTokens} tokens`:'尚無'}</dd></div>
       ${j.providerMessageId?`<div><dt>供應商紀錄</dt><dd>${esc(j.providerMessageId)}${j.providerRequestId?` · ${esc(j.providerRequestId)}`:''}</dd></div>`:''}
+      ${j.providerEndpoint?`<div><dt>供應商端點</dt><dd>${j.providerEndpoint==='ANTHROPIC_PUBLIC_API'?'Anthropic 正式 API':'測試用假 Provider（注入的請求器，不是真實供應商）'}</dd></div>`:''}
       <div><dt>正式授權</dt><dd>${offline(exec)?'OFFLINE_SYNTHETIC 演練紀錄，不是 Human 授權':j.authorityStatus==='ARCHIVED_BINDING_VALID'?'限定文件綁定有效，仍需完整許可':'尚未取得有效限定授權'}</dd></div></dl>
     ${previewHTML(j)}
     <p class="auto-deferred">${offline(exec)?`OFFLINE_SYNTHETIC 演練 Host：完整經過受信啟用、Controller、Journal 與隔離工作區；不呼叫模型，成果不是 AI 分析。${esc(AGENT_NOTES[j.contract.agentId]??'')}。`:'可信執行 Host：EXE HOLD，尚未開放執行。帳戶模型尚未驗證。'}</p>

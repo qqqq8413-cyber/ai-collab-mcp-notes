@@ -153,13 +153,13 @@ async function admitted(dir, running, options) {
   reality.prime();
   const controller = new AutomationController(clock, new FileControllerStore(f.controller, clock), reality);
   let appender;
-  const archive = (kind, body, { principalRef = ARCHITECT } = {}) => {
+  const archive = (kind, body, { principalRef = ARCHITECT, derivation } = {}) => {
     const id = { IMPLEMENTATION_PACKET: body.packetId, CORRECTION_PACKET: body.correctionPacketId, ACCEPTANCE_DECISION: body.reviewId,
       AUTHORIZATION: body.authorizationId }[kind];
     const role = kind === 'AUTHORIZATION' ? 'HUMAN' : 'GPT_ARCHITECT';
-    return (appender ??= openAuthorityArchiveAppender(f.authority)).append({ schemaVersion: 1, recordClass: 'DIRECT_AUTHORITY', kind,
+    return (appender ??= openAuthorityArchiveAppender(f.authority)).append({ schemaVersion: 1, recordClass: derivation ? 'CLASS_DERIVED_AUTHORITY' : 'DIRECT_AUTHORITY', kind,
       authorityId: id, version: 1, issuedAt: body.issuedAt ?? EARLIER, issuer: { role, principalRef: role === 'HUMAN' ? HUMAN.principalRef : principalRef },
-      subject: { repository: record.repository, sliceId: record.sliceId }, supersedes: null, body });
+      subject: { repository: record.repository, sliceId: record.sliceId }, supersedes: null, body, ...(derivation ? { derivation } : {}) });
   };
   const packet = (overrides = {}) => ({ packetId: 'packet-1', packetVersion: 1, sliceId: record.sliceId, expectedBaseSha: SHA_A,
     targetBranch: 'work/synthetic-1', objective: 'WE1-R0 fixture packet', allowedAreas: ['src/automation'], forbiddenChanges: ['src/stress-test'],
@@ -441,6 +441,18 @@ await check('M/N/S. no packet is never model READY; unarchived authority is BLOC
   const text = JSON.stringify(progress);
   for (const secret of ['activationBinding', 'packetHash', 'recordHash', 'bodyHash', body.objective, f.authority, f.controller, f.registry, ARCHITECT,
     'checksum', 'validationEvidence']) assert.equal(text.includes(secret), false, `the status exposed ${secret}`);
+});
+await check('M1-R1. a Host-derived run packet is shown as CLASS_DERIVED_AUTHORITY, never as the Architect\'s direct authority', async (dir, running) => {
+  const { f, ws, runId, controller, archive, packet } = await admitted(dir, running);
+  const body = packet();
+  controller.enterArchitectureForActivation(runId, A, { packetId: body.packetId, packetHash: packetHash(body) });
+  const entered = controller.audit(runId)[0];
+  controller.issuePacketForOccurrence(runId, A, { runId, sequence: entered.sequence, action: entered.action, timestamp: entered.timestamp }, body);
+  archive('IMPLEMENTATION_PACKET', body, { derivation: { rule: 'ARCHITECT_CLASS_DELEGATION_V1', derivedBy: 'CHIEF_TRUSTED_HOST', acceptanceHash: 'a'.repeat(64),
+    classHash: 'b'.repeat(64), implementationSha: 'c'.repeat(40) } });
+  const progress = S(await status(ws, f), 'IN_PROGRESS');
+  assert.deepEqual(progress.directAuthority, [{ recordClass: 'CLASS_DERIVED_AUTHORITY', kind: 'IMPLEMENTATION_PACKET', authorityId: 'packet-1', version: 1 }]);
+  assert.equal(JSON.stringify(progress).includes('a'.repeat(64)), false, 'the status exposed the acceptance hash');
 });
 await check('O/P/Q/R. foreign activation, a re-issued packet, a foreign review and a foreign correction are BLOCKED_PROVENANCE with bounded reasons', async (dir, running) => {
   const cases = [

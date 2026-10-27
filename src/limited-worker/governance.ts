@@ -1,4 +1,7 @@
-import { authorityBodyHash, parseAuthorityDocument, sealAuthorityRecord, type AuthorityDocumentV1, type JsonObject } from '../automation/authority/document.js';
+import { authorityBodyHash, parseAuthorityDocument, sealAuthorityRecord, type AuthorityDocumentV1, type ClassDelegationVerifier, type ClassDerivationV1,
+  type JsonObject } from '../automation/authority/document.js';
+// M1-R1: the limited worker reaches the R4P document module only through this file (and activation-set.ts's body hash).
+export { CLASS_DELEGATION_RULE, isAuthorityPrincipalRef, type ClassDelegationVerifier, type ClassDerivationV1 } from '../automation/authority/document.js';
 import { contractOf, hash, SCOPE, checkQuote, packetFor, parseContract, inputFacts, type Contract } from './contract.js';
 import type { GovernedActivationCore } from '../automation/activation-core.js';
 import { packetHash } from '../automation/packet.js';
@@ -16,8 +19,19 @@ function boundGrant(raw:unknown,c:Contract,packet:ImplementationPacket,operation
     throw new Error('LIMITED_PERMIT_NOT_BOUND_OR_EXPIRED');
   return grant;
 }
+/**
+ * M1-R1 (R-1): the packet's archived record class decides how it is verified. DIRECT_AUTHORITY: the Architect's own
+ * document (unchanged check). CLASS_DERIVED_AUTHORITY: a Host-derived run packet, admitted only by the explicit
+ * class-delegation rule; without one it is refused, whatever principal it states.
+ */
+export function verifyPacketProvenance(record: { recordClass: string; issuer: { role: string; principalRef: string }; derivation?: ClassDerivationV1; version: number },
+  packet: ImplementationPacket, classDelegation: ClassDelegationVerifier | undefined, code: string): void {
+  if (record.recordClass === 'DIRECT_AUTHORITY' && record.derivation === undefined) return;
+  if (record.recordClass !== 'CLASS_DERIVED_AUTHORITY' || !record.derivation || !classDelegation) throw new Error(code);
+  classDelegation({ issuer: record.issuer, derivation: record.derivation, version: record.version }, packet);
+}
 export function verifyPermit(c: Contract, input: { grant: unknown; liveGrant: unknown; model: GovernedReadModelV1; packet: ImplementationPacket;
-  humanPrincipalRef: string; architectPrincipalRef:string; now: string }) {
+  humanPrincipalRef: string; architectPrincipalRef:string; now: string; classDelegation?: ClassDelegationVerifier }) {
   const { packet, model } = input, grant = parseAuthorization(input.grant);
   if (hash(contractOf(packet)) !== hash(c)) throw new Error('CONTRACT_PACKET_MISMATCH');
   const run = model.runs.find(r => r.runId === c.runId);
@@ -26,6 +40,7 @@ export function verifyPermit(c: Contract, input: { grant: unknown; liveGrant: un
     exact=packets.filter(f=>f.bodyHash===authorityBodyHash(packet as unknown as JsonObject));
   if(exact.length!==1||exact[0].issuer.role!=='GPT_ARCHITECT'||exact[0].issuer.principalRef!==input.architectPrincipalRef||
     packets.some(f=>f.ref.version>exact[0].ref.version))throw new Error('PACKET_AUTHORITY_NOT_CURRENT');
+  verifyPacketProvenance({ ...exact[0], version: exact[0].ref.version }, packet, input.classDelegation, 'PACKET_AUTHORITY_DERIVED_WITHOUT_DELEGATION');
   const verify = (raw: unknown, operation: string, target: string) => {
     const parsed = boundGrant(raw,c,packet,operation,target,input.now);
     const versions = model.authority.filter(f => f.ref.kind === 'AUTHORIZATION' && f.ref.authorityId === parsed.authorizationId);
@@ -51,22 +66,25 @@ export function verifyInvocation(c: Contract, packet: ImplementationPacket, run:
 }
 
 /**
- * M1-B: the three documents of one passkey-approved run, drafted deterministically from the approval window. The
- * packet derives from the contract (packetFor) under the Architect's standing class acceptance; the two grants are the
- * Human's, valid only inside the window the Human signed. The trusted Host preserves them only after it verified the
- * Human's assertion over a payload that names their exact record hashes; drafting alone writes and grants nothing.
+ * M1-B / M1-R1: the three documents of one passkey-approved run, drafted deterministically from the approval window.
+ * The packet is CLASS_DERIVED_AUTHORITY: derived from the contract (packetFor) under the Architect's standing class
+ * acceptance, which its `derivation` names; its issuer is the accepting Architect principal as delegator, and it is
+ * never filed as the Architect's direct authority. The two grants are the Human's (DIRECT_AUTHORITY), valid only inside
+ * the window the Human signed. The trusted Host preserves them only after it verified the Human's assertion over a
+ * payload that names all three exact record hashes and the acceptance hash; drafting alone writes and grants nothing.
  */
 export function draftRunDocuments(c: Contract, packet: ImplementationPacket, input: { architectPrincipalRef: string; humanPrincipalRef: string;
-  issuedAt: string; expiresAt: string; nonce: string }): [AuthorityDocumentV1, AuthorityDocumentV1, AuthorityDocumentV1] {
+  issuedAt: string; expiresAt: string; nonce: string; derivation: ClassDerivationV1 }): [AuthorityDocumentV1, AuthorityDocumentV1, AuthorityDocumentV1] {
   if (hash(contractOf(packet)) !== hash(c)) throw new Error('CONTRACT_PACKET_MISMATCH');
   const key = hash([hash(c), input.nonce]).slice(0, 24);
   const grant = (operation: string, target: string, authorizationId: string) => ({ authorizationId, actorRole: 'HUMAN', operation, target,
     runId: c.runId, packetId: packet.packetId, scope: { ...SCOPE, egressDestinations: [...SCOPE.egressDestinations] }, issuedAt: input.issuedAt,
     expiresAt: input.expiresAt, reason: 'M1 single run approved by the Human with a passkey in the CHIEF Workspace' });
   const document = (kind: 'IMPLEMENTATION_PACKET' | 'AUTHORIZATION', authorityId: string, body: unknown) => parseAuthorityDocument({ schemaVersion: 1,
-    recordClass: 'DIRECT_AUTHORITY', kind, authorityId, version: 1, issuedAt: input.issuedAt,
+    recordClass: kind === 'IMPLEMENTATION_PACKET' ? 'CLASS_DERIVED_AUTHORITY' : 'DIRECT_AUTHORITY', kind, authorityId, version: 1, issuedAt: input.issuedAt,
     issuer: kind === 'IMPLEMENTATION_PACKET' ? { role: 'GPT_ARCHITECT', principalRef: input.architectPrincipalRef } : { role: 'HUMAN', principalRef: input.humanPrincipalRef },
-    subject: { repository: c.repository, sliceId: packet.sliceId }, supersedes: null, body });
+    subject: { repository: c.repository, sliceId: packet.sliceId }, supersedes: null, body,
+    ...(kind === 'IMPLEMENTATION_PACKET' ? { derivation: { ...input.derivation } } : {}) });
   return [document('IMPLEMENTATION_PACKET', packet.packetId, packet),
     document('AUTHORIZATION', `m1-live-${key}`, grant('LIVE_PROVIDER_MODEL_CALL', 'live-provider-model-call', `m1-live-${key}`)),
     document('AUTHORIZATION', `m1-limited-${key}`, grant('LIMITED_README_WORKER', hash(c), `m1-limited-${key}`))];
@@ -84,6 +102,8 @@ export function limitedActivationCandidate(options: {
   preserveIssued?:(documents:readonly AuthorityDocumentV1[])=>void;
   /** M1-B: the signing policy of the set this activation commits (S1_UNSIGNED_V0 when absent). */
   signaturePolicy?:SignaturePolicyVersion;
+  /** M1-R1: the explicit class-delegation rule; without it a CLASS_DERIVED_AUTHORITY packet is refused. */
+  classDelegation?:ClassDelegationVerifier;
 }) {
   return Object.freeze({ stage(id: string, rawBundle: unknown, rawLimitedDocument: unknown) {
     const job=options.store.read().jobs.find(j=>j.id===id);
@@ -103,6 +123,8 @@ export function limitedActivationCandidate(options: {
     if(position.repository!==c.repository||position.humanPrincipalRef!==options.humanPrincipalRef)throw new Error('ACTIVATION_TARGET_MISMATCH');
     if(packetDocument.kind!=='IMPLEMENTATION_PACKET'||packetDocument.issuer.role!=='GPT_ARCHITECT'||packetDocument.issuer.principalRef!==options.architectPrincipalRef||
       hash(packetDocument.body)!==hash(packet)||liveDocument.kind!=='AUTHORIZATION'||limitedDocument.kind!=='AUTHORIZATION')throw new Error('ACTIVATION_DOCUMENT_MISMATCH');
+    // R-1: a Host-derived packet passes only the explicit class-delegation rule; a direct one as before.
+    verifyPacketProvenance(packetDocument,packet,options.classDelegation,'ACTIVATION_PACKET_DERIVED_WITHOUT_DELEGATION');
     if(options.preserveIssued){
       if(c.inputPolicy?.revision!=='A3')throw new Error('ACTIVATION_POLICY_REPLAN_REQUIRED');
       boundGrant(liveDocument.body,c,packet,'LIVE_PROVIDER_MODEL_CALL','live-provider-model-call',options.now());
@@ -125,7 +147,8 @@ export function limitedActivationCandidate(options: {
       const record=sealAuthorityRecord(doc),versions=current.authority.filter(f=>f.ref.kind===doc.kind&&f.ref.authorityId===doc.authorityId);
       if(!versions.some(f=>f.ref.recordHash===record.recordHash)||versions.some(f=>f.ref.version>doc.version)||Date.parse(doc.issuedAt)>Date.parse(options.now()))throw new Error('ACTIVATION_DOCUMENT_NOT_CURRENTLY_ARCHIVED');
     }
-    verifyPermit(c,{grant:limitedDocument.body,liveGrant:liveDocument.body,model:current,packet,humanPrincipalRef:options.humanPrincipalRef,architectPrincipalRef:options.architectPrincipalRef,now:options.now()});
+    verifyPermit(c,{grant:limitedDocument.body,liveGrant:liveDocument.body,model:current,packet,humanPrincipalRef:options.humanPrincipalRef,architectPrincipalRef:options.architectPrincipalRef,now:options.now(),
+      classDelegation:options.classDelegation});
     // S1: all three documents are durably archived, current and verified; only now is their ACTIVATION_SET
     // committed (idempotent), and the committed set is re-derived and re-verified before the Controller moves.
     const setInput={contract:c,packet,model:current,liveGrant:liveDocument.body,limitedGrant:limitedDocument.body,signaturePolicy:options.signaturePolicy};

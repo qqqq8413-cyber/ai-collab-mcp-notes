@@ -3,7 +3,8 @@ import { createServer } from 'node:http';
 import { constants, closeSync, fsyncSync, openSync, writeFileSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
 import { M1_SIGNATURE_POLICY } from './activation-set.js';
-import { verifyRegistration } from './run-approval.js';
+import { CLASS_ACCEPTANCE_SCHEMA, WORKER_CLASS_SCHEMA, verifyRegistration } from './run-approval.js';
+import { CLASS_DELEGATION_RULE } from './governance.js';
 
 // M1-B one-time passkey enrollment, run by the Human:
 //   npm run workspace:m1-passkey-enroll -- --out <absolute path> --human <principalRef> [--workspace-port 4876] [--port 4878]
@@ -58,8 +59,12 @@ function main() {
         const passkey = verifyRegistration(JSON.parse(raw), { challenge, rpId: 'localhost', origins: [origin] });
         const draft = { schemaVersion: 1, kind: 'CHIEF_LIVE_RUN_APPROVER', policy: M1_SIGNATURE_POLICY.version, humanPrincipalRef: human,
           passkey: { rpId: passkey.rpId, origins: [`http://localhost:${workspacePort}`], credentialId: passkey.credentialId, publicKeySpki: passkey.publicKeySpki, algorithm: passkey.algorithm },
-          architectAcceptance: { architectPrincipalRef: 'FILL_IN_AFTER_ARCHITECT_ACCEPTANCE', classHash: 'FILL_IN_AFTER_ARCHITECT_ACCEPTANCE',
-            implementationSha: 'FILL_IN_AFTER_ARCHITECT_ACCEPTANCE', reviewRef: 'FILL_IN_AFTER_ARCHITECT_ACCEPTANCE' }, approvalValiditySeconds: 600 };
+          // M1-R1: the standing ARCHITECT_CLASS_ACCEPTANCE record. Every FILL_IN value fails validation, so the draft grants nothing.
+          architectAcceptance: { schema: CLASS_ACCEPTANCE_SCHEMA, recordClass: 'ARCHITECT_CLASS_ACCEPTANCE', delegationRule: CLASS_DELEGATION_RULE,
+            architectPrincipalRef: 'FILL_IN_AFTER_ARCHITECT_ACCEPTANCE', agentId: 'limited-readme-worker', classSchema: WORKER_CLASS_SCHEMA,
+            classHash: 'FILL_IN_AFTER_ARCHITECT_ACCEPTANCE', implementationSha: 'FILL_IN_AFTER_ARCHITECT_ACCEPTANCE', acceptanceVersion: 1, supersedes: null,
+            source: { kind: 'ARCHITECT_REVIEW_DECISION', reviewRef: 'FILL_IN_AFTER_ARCHITECT_ACCEPTANCE', decisionSha256: 'FILL_IN_AFTER_ARCHITECT_ACCEPTANCE' },
+            acceptedAt: 'FILL_IN_AFTER_ARCHITECT_ACCEPTANCE' }, approvalValiditySeconds: 600 };
         const fd = openSync(out, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
         try { writeFileSync(fd, JSON.stringify(draft, null, 2) + '\n'); fsyncSync(fd); } finally { closeSync(fd); }
         done = true;

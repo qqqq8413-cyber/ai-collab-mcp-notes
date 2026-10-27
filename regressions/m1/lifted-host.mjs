@@ -27,8 +27,12 @@ const { WorkerStore } = await load('limited-worker/store.js');
 const { limitedLedgerEvidence } = await load('limited-worker/composition.js');
 const { agentTransports, nativeAnthropicTransport, unconfiguredLiveTransport, tariffFromMarkdown } = await load('limited-worker/transport.js');
 const { REHEARSAL_PRICE_DOCUMENT } = await load('limited-worker/rehearsal.js');
-const { loadApprover, workerClassHash, challengeOf } = await load('limited-worker/run-approval.js');
+const { loadApprover, workerClassHash, challengeOf, acceptanceHashOf } = await load('limited-worker/run-approval.js');
 const { readGovernedModel } = await load('automation/read-model/governed-read-model.js');
+const { draftRunDocuments } = await load('limited-worker/governance.js');
+const { derivationOf } = await load('limited-worker/run-approval.js');
+const { packetFor } = await load('limited-worker/contract.js');
+const { openDirectAuthorityPreserver } = await load('automation/authority/preserver.js');
 
 const HUMAN = 'human:m1-lifted-test', ARCHITECT = 'architect:m1-lifted-test', PROJECT = 'chief';
 const DUMMY_KEY = 'sk-ant-api03-M1-DUMMY-TEST-KEY-NOT-REAL-0000';
@@ -90,6 +94,7 @@ const layout = { goals: at('goals'), registry: at('governance', 'registry'), con
   results: at('worker', 'results'), journal: at('worker', 'journal') };
 for (const p of [layout.goals, layout.registry, layout.controller, layout.authority, at('worker')]) mkdirSync(p, { recursive: true, mode: 0o700 });
 const approverPath = join(WORK, 'approver.json');
+let runtimeRef = null; // M1-R1: the live runtime the Host composed, for direct-call scenarios (as a same-process caller would use it).
 let clock = { offsetMs: 0, now: () => new Date(Date.now() + clock.offsetMs).toISOString() };
 async function startHost() {
   const config = parseTrustedWorkspaceHostConfig({ schemaVersion: 1,
@@ -111,6 +116,7 @@ async function startHost() {
           const g = ports.store.read(c.projectId).goals.find((x) => x.goalId === c.goalId);
           if (!g || g.submittedBy?.principalRef !== HUMAN) throw new Error('GOAL_BINDING_MISMATCH'); return g.text;
         } }, approver);
+      runtimeRef = runtime;
       return createLimitedWorkerService({ goals: ports.store, governance: ports.governance, admission: ports.runAdmission, projects: [PROJECT], store,
         quote: () => tariffFromMarkdown(REHEARSAL_PRICE_DOCUMENT, clock.now()), source: () => source, identity, runtime, now: () => clock.now() });
     } });
@@ -128,11 +134,20 @@ async function startHost() {
   };
   return { workspace, call, close: () => workspace.close() };
 }
-const writeApprover = (classHash, over = {}) => {
+// M1-R1: the standing ARCHITECT_CLASS_ACCEPTANCE the Human pins (synthetic source: the hash of a test decision text).
+const acceptanceOf = (classHash, over = {}) => ({ schema: 'chief-architect-class-acceptance.v1', recordClass: 'ARCHITECT_CLASS_ACCEPTANCE',
+  delegationRule: 'ARCHITECT_CLASS_DELEGATION_V1', architectPrincipalRef: ARCHITECT, agentId: 'limited-readme-worker', classSchema: 'chief-limited-worker-class.v1',
+  classHash, implementationSha: identity().sha, acceptanceVersion: 1, supersedes: null,
+  source: { kind: 'ARCHITECT_REVIEW_DECISION', reviewRef: 'M1-R1 lifted test', decisionSha256: hash('GPT-6: M1-R1 ACCEPTED (synthetic test decision)') },
+  acceptedAt: '2026-10-27T00:00:00.000Z', ...over });
+const writeApprover = (classHash, over = {}, acceptanceOver = {}) => {
   if (existsSync(approverPath)) unlinkSync(approverPath);
+  const architectAcceptance = acceptanceOf(classHash, acceptanceOver);
+  // An invalid acceptance is still written (the Host must refuse it when loading); it simply has no hash.
+  try { facts.acceptanceHash = acceptanceHashOf(architectAcceptance); } catch { facts.acceptanceHash = null; }
   writeFileSync(approverPath, JSON.stringify({ schemaVersion: 1, kind: 'CHIEF_LIVE_RUN_APPROVER', policy: 'M1_PASSKEY_RUN_V1', humanPrincipalRef: HUMAN,
     passkey: { rpId: 'localhost', origins: [ORIGIN], credentialId, publicKeySpki: spki, algorithm: 'ES256' },
-    architectAcceptance: { architectPrincipalRef: ARCHITECT, classHash, implementationSha: identity().sha, reviewRef: 'M1 lifted test' }, approvalValiditySeconds: 600, ...over }), { mode: 0o644 });
+    architectAcceptance, approvalValiditySeconds: 600, ...over }), { mode: 0o644 });
   chmodSync(approverPath, 0o644);
 };
 const submit = async (call, text, agentId = 'limited-readme-worker') => {
@@ -171,10 +186,70 @@ try {
     const after = (await host.call('GET', `/projects/${PROJECT}/limited-worker`)).jobs.find((j) => j.id === job.id);
     facts.holdJob = { state: after.state, approvalRequest: after.approvalRequest ?? null, approval: after.approval ?? null, reserved: after.reservedMicroUsd,
       events: after.events.map((e) => e.kind), driver: after.driver.state };
+    // M1-R1: called directly (not through the service), the runtime itself refuses EXE_HOLD before any write, even
+    // for a fully valid candidate (accepted class and SHA, pinned key) and whatever the environment says.
+    facts.holdDirect = { request: await refusal((async () => runtimeRef.requestApproval(job.contract, job.maximumReservationMicroUsd))()),
+      execute: await refusal(runtimeRef.execute(job.contract, any)), envSeen: ['EXE', 'CHIEF_EXE', 'CHIEF_LIMITED_EXE'].filter((k) => process.env[k] === 'LIVE_PILOT') };
     facts.holdArchive = archived().length; facts.holdRecords = existsSync(join(layout.results, 'm1-approvals'));
     facts.holdSets = existsSync(join(layout.results, 'activation-sets'));
   } else if (SCENARIO === 'class-not-accepted') {
     facts.request = await refusal(act(host.call, job, { action: 'REQUEST_APPROVAL', approval: { maxReservationMicroUsd: job.maximumReservationMicroUsd } }));
+  } else if (SCENARIO === 'substitution') {
+    // M1-R1: the Human approved a run under acceptance v1; any later change of the pinned acceptance (its source, its
+    // version, the accepted SHA or the Architect principal) refuses before anything is preserved or sent.
+    const request = () => act(host.call, job, { action: 'REQUEST_APPROVAL', approval: { maxReservationMicroUsd: job.maximumReservationMicroUsd } });
+    view = await request();
+    const pending = view.jobs.find((j) => j.id === job.id).liveApproval.pending;
+    const start = () => act(host.call, job, { action: 'START', approval: { maxReservationMicroUsd: job.maximumReservationMicroUsd }, passkey: assertion(pending.challenge, { origin: ORIGIN }) });
+    const v1 = facts.acceptanceHash, swap = async (over, acceptanceOver) => { await host.close(); writeApprover(facts.classHash, over, acceptanceOver); host = await startHost(); };
+    await swap({}, { source: { kind: 'ARCHITECT_REVIEW_DECISION', reviewRef: 'M1-R1 lifted test', decisionSha256: hash('a different decision text') } });
+    facts.sourceSubstituted = { acceptanceChanged: facts.acceptanceHash !== v1, start: await refusal(start()) };
+    await swap({}, { acceptanceVersion: 2, supersedes: v1 });
+    facts.versionSuperseded = { acceptanceChanged: facts.acceptanceHash !== v1, start: await refusal(start()) };
+    await swap({}, { implementationSha: 'd'.repeat(40) });
+    facts.otherSha = { start: await refusal(start()), request: await refusal(request()) };
+    await swap({}, { architectPrincipalRef: 'architect:someone-else' });
+    facts.otherArchitect = { start: await refusal(start()), request: await refusal(request()) };
+    await swap({}, { classSchema: 'chief-limited-worker-class.v2' }).catch((e) => { facts.otherClassSchema = e.message; });
+    facts.afterSubstitution = { archive: archived().length, records: existsSync(join(layout.results, 'm1-approvals')), sets: existsSync(join(layout.results, 'activation-sets')),
+      messages: messages().length, state: (await host.call('GET', `/projects/${PROJECT}/limited-worker`).catch(() => null))?.jobs.find((j) => j.id === job.id)?.state ?? null };
+    // Restoring exactly v1 makes the very same approval valid again: the refusals above were the substitutions, nothing else.
+    await host.close().catch(() => {}); writeApprover(facts.classHash); host = await startHost();
+    facts.restored = { acceptanceIsV1: facts.acceptanceHash === v1, state: (await start()).jobs.find((j) => j.id === job.id).state, messages: messages().length };
+  } else if (SCENARIO === 'only-approved') {
+    // M1-R1: with EXE lifted (formal enablement), only the run the Human approved with the passkey can execute.
+    const max = job.maximumReservationMicroUsd;
+    view = await act(host.call, job, { action: 'REQUEST_APPROVAL', approval: { maxReservationMicroUsd: max } });
+    const pendingA = view.jobs.find((j) => j.id === job.id).liveApproval.pending;
+    const assertionA = assertion(pendingA.challenge, { origin: ORIGIN });
+    facts.runA = (await act(host.call, job, { action: 'START', approval: { maxReservationMicroUsd: max }, passkey: assertionA })).jobs.find((j) => j.id === job.id).state;
+    const b = await submit(host.call, '第二個任務：README 的安裝步驟');
+    const startB = (passkey) => act(host.call, b, { action: 'START', approval: { maxReservationMicroUsd: max }, ...(passkey ? { passkey } : {}) });
+    facts.runB = { notRequested: await refusal(startB(assertionA)) };
+    await act(host.call, b, { action: 'REQUEST_APPROVAL', approval: { maxReservationMicroUsd: max } });
+    facts.runB.noPasskey = await refusal(startB());
+    facts.runB.replayA = await refusal(startB(assertionA));
+    // A same-account writer copies run A's consumed approval record under run B's name: not B's approval.
+    const records = join(layout.results, 'm1-approvals'), copied = join(records, `${b.id}.json`);
+    writeFileSync(copied, readFileSync(join(records, `${job.id}.json`)), { mode: 0o600 });
+    facts.runB.copiedRecord = await refusal(startB(assertionA));
+    unlinkSync(copied);
+    // Called directly (not through the service) the runtime asks for the passkey too.
+    facts.runB.direct = await refusal(runtimeRef.execute(b.contract));
+    // A same-account writer archives a correctly derived packet and two grants for run C without any Human approval:
+    // archived documents alone never run anything (no consumed approval, no signed set).
+    const c = await submit(host.call, '第三個任務：README 的標題');
+    const approver = loadApprover(approverPath, [process.getuid()]);
+    const sliceId = (await host.call('GET', `/projects/${PROJECT}/limited-worker`)).jobs.find((j) => j.id === c.id).driver.change.changeId;
+    const now = clock.now(), docs = draftRunDocuments(c.contract, packetFor(c.contract, sliceId), { architectPrincipalRef: ARCHITECT, humanPrincipalRef: HUMAN,
+      issuedAt: now, expiresAt: new Date(Date.parse(now) + 600000).toISOString(), nonce: randomUUID(), derivation: derivationOf(approver) });
+    const preserver = openDirectAuthorityPreserver(layout.authority); for (const d of docs) preserver.preserve(d);
+    facts.runC = { planted: archived().filter((d) => d.ref.authorityId === docs[0].authorityId).map((d) => d.recordClass),
+      start: await refusal(act(host.call, c, { action: 'START', approval: { maxReservationMicroUsd: max }, passkey: assertionA })),
+      direct: await refusal(runtimeRef.execute(c.contract)), state: (await host.call('GET', `/projects/${PROJECT}/limited-worker`)).jobs.find((j) => j.id === c.id).state };
+    const after = (await host.call('GET', `/projects/${PROJECT}/limited-worker`)).jobs;
+    facts.states = Object.fromEntries([['A', job.id], ['B', b.id], ['C', c.id]].map(([k, id]) => [k, after.find((j) => j.id === id).state]));
+    facts.consumed = readdirSync(records).sort(); facts.expectedConsumed = [`${job.id}.json`];
   } else {
     view = await act(host.call, job, { action: 'REQUEST_APPROVAL', approval: { maxReservationMicroUsd: job.maximumReservationMicroUsd } });
     const pending = view.jobs.find((j) => j.id === job.id).liveApproval.pending;
@@ -211,7 +286,8 @@ try {
       const done = view.jobs.find((j) => j.id === job.id);
       facts.done = { state: done.state, effectiveState: done.effectiveState, resultApplied: done.resultApplied, driver: done.driver.state,
         invocations: done.invocations.map((i) => i.state), report: done.report, usage: done.usage, actualCostMicroUsd: done.actualCostMicroUsd,
-        providerMessageId: done.providerMessageId, providerRequestId: done.providerRequestId, reserved: done.reservedMicroUsd, max: maximumCost(done.contract),
+        providerMessageId: done.providerMessageId, providerRequestId: done.providerRequestId, providerEndpoint: done.providerEndpoint,
+        modelAccountAvailability: done.modelAccountAvailability, reserved: done.reservedMicroUsd, max: maximumCost(done.contract),
         approval: done.approval, events: done.events.map((e) => e.kind) };
       facts.again = await refusal(act(host.call, job, approve()));
       // The same assertion cannot approve another run: its challenge names this run only.
@@ -220,7 +296,8 @@ try {
       facts.replayOnOtherRun = await refusal(act(host.call, second, { action: 'START', approval: { maxReservationMicroUsd: second.maximumReservationMicroUsd },
         passkey: assertion(pending.challenge, { origin: ORIGIN }) }));
       const docs = archived();
-      facts.archive = docs.map((d) => ({ kind: d.ref.kind, issuer: d.issuer, authorityId: d.ref.authorityId }));
+      facts.archive = docs.map((d) => ({ kind: d.ref.kind, issuer: d.issuer, authorityId: d.ref.authorityId, recordClass: d.recordClass,
+        recordHash: d.ref.recordHash, ...(d.derivation ? { derivation: d.derivation } : {}) }));
       const sets = allFiles(join(layout.results, 'activation-sets')).map((p) => JSON.parse(readFileSync(p, 'utf8')));
       facts.sets = sets.map((s) => ({ policy: s.set.signaturePolicy, setHash: s.setHash, attestations: s.set.attestations.length }));
       const records = readdirSync(join(layout.results, 'm1-approvals'));

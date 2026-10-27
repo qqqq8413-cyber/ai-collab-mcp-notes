@@ -98,14 +98,16 @@ export function createGoalExecutionStatusBridge(options: GoalExecutionStatusBrid
     view('GOVERNANCE_CONFLICT', 'HUMAN', { reason, change, snapshotId });
 
   /** The projection of R4A0's and RP1's answer for the Change's ROOT run, which exists exactly once. */
-  const runView = (assessed: GovernedRunAssessmentV1, change: Change): GoalExecutionStatusView => {
+  const runView = (assessed: GovernedRunAssessmentV1, change: Change, model: GovernedReadModelV1): GoalExecutionStatusView => {
+    // M1-R1: each resolved reference keeps its archived record class (a Host-derived packet is not direct authority).
+    const classOf = (ref: { recordHash: string }) => model.authority.find((fact) => fact.ref.recordHash === ref.recordHash)?.recordClass ?? 'DIRECT_AUTHORITY';
     const run = assessed.run!;
     const required = run.authority.filter((reference) => reference.required);
     const facts: Partial<GoalExecutionStatusView> = { reason: assessed.reason, change, snapshotId: assessed.snapshotId,
       run: { runId: run.runId, state: run.state, terminal: run.terminal, admission: 'ROOT' },
       nextMoves: assessed.nextMoves.map(({ action, role }) => ({ action, role })),
       directAuthority: required.filter((reference) => reference.resolution === 'RESOLVED' && reference.authority)
-        .map((reference) => ({ recordClass: 'DIRECT_AUTHORITY', kind: reference.kind, authorityId: reference.authority!.authorityId,
+        .map((reference) => ({ recordClass: classOf(reference.authority!), kind: reference.kind, authorityId: reference.authority!.authorityId,
           version: reference.authority!.version })),
       unresolvedAuthority: required.filter((reference) => reference.resolution !== 'RESOLVED')
         .map((reference) => ({ kind: reference.kind, authorityId: reference.authorityId, resolution: reference.resolution })),
@@ -164,7 +166,7 @@ export function createGoalExecutionStatusBridge(options: GoalExecutionStatusBrid
         if (assessed.outcome === 'TARGET_MISMATCH' || assessed.outcome === 'ADMISSION_INVALID' || assessed.outcome === 'READ_MODEL_CONFLICT') {
           return conflict(assessed.reason ?? 'GOVERNANCE_CONFLICT', change, assessed.snapshotId);
         }
-        return runView(assessed, change);
+        return runView(assessed, change, model);
       } catch (error) { return mapped(error); }
     },
   });

@@ -76,8 +76,12 @@ export interface ProviderReply { id: string; model: string; content: Array<{ typ
   usage: { input_tokens: number; output_tokens: number; cache_creation_input_tokens: number; cache_read_input_tokens: number; service_tier: string };
   /** M1-C: the provider's request-id header, when the transport saw one (evidence, never trusted for binding). */
   requestId?: string }
+/** M1-R1: production sends to the public Anthropic API; only tests inject a requester (a local fake provider). */
+export type ProviderEndpoint = 'ANTHROPIC_PUBLIC_API' | 'INJECTED_TEST_REQUESTER';
 export interface WorkerTransport {
   readonly kind: 'LIVE_PROVIDER' | 'OFFLINE_SYNTHETIC';
+  /** M1-R1: the endpoint a live transport sends to for this contract (stated by the transport itself; absent = none). */
+  endpointFor?(c: Contract): ProviderEndpoint | undefined;
   preflight(c: Contract, signal: AbortSignal,payload?:{objective:string;source:string}): Promise<PreflightFact>;
   generate(c: Contract, objective: string, source: string, signal: AbortSignal,beforeSend?:()=>void): Promise<ProviderReply>;
 }
@@ -110,11 +114,13 @@ export function offlineAnthropicTransport(io:{price(c:Contract,signal:AbortSigna
  */
 export function nativeAnthropicTransport(apiKey: () => string, options: { requester?: typeof request } = {}): WorkerTransport {
   const requester = options.requester ?? request;
+  // M1-R1: a fake provider is reachable only through an injected requester, and every result it produces says so.
+  const endpoint: ProviderEndpoint = options.requester ? 'INJECTED_TEST_REQUESTER' : 'ANTHROPIC_PUBLIC_API';
   const headers = () => {
     const key = apiKey(); if (!key || /[\r\n]/.test(key)) throw new Error('CREDENTIAL_NOT_CONFIGURED');
     return { 'x-api-key': key, 'anthropic-version': API_VERSION, 'content-type': 'application/json' };
   };
-  return Object.freeze({ kind: 'LIVE_PROVIDER' as const,
+  return Object.freeze({ kind: 'LIVE_PROVIDER' as const, endpointFor: () => endpoint,
     async preflight(c: Contract, signal: AbortSignal,payload?:{objective:string;source:string}) {
       if (EXE === 'HOLD') throw new Error('EXE_HOLD');
       assertInputReady(c);
@@ -146,7 +152,7 @@ export function agentTransports(transports: Readonly<Partial<Record<Contract['ag
   const kinds = new Set(Object.values(transports).map((t) => t!.kind));
   if (kinds.size !== 1) throw new Error('TRANSPORT_KIND_MIXED');
   const pick = (c: Contract) => { const t = transports[c.agentId]; if (!t) throw new Error('AGENT_TRANSPORT_UNAVAILABLE'); return t; };
-  return Object.freeze({ kind: [...kinds][0]!,
+  return Object.freeze({ kind: [...kinds][0]!, endpointFor: (c: Contract) => transports[c.agentId]?.endpointFor?.(c),
     preflight: async (c: Contract, signal: AbortSignal, payload?: { objective: string; source: string }) => pick(c).preflight(c, signal, payload),
     generate: async (c: Contract, objective: string, source: string, signal: AbortSignal, beforeSend?: () => void) => pick(c).generate(c, objective, source, signal, beforeSend) });
 }

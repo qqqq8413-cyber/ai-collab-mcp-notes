@@ -109,7 +109,7 @@ function modelPorts(journalOf, behaviour = {}) {
 }
 
 /** One governed world: Goal n minted and admitted; the activation core over a real Controller and preserver. */
-function world(dir, { goals = [1], admit = true, onWrite = () => {}, preserver: wrap } = {}) {
+function world(dir, { goals = [1], admit = true, onWrite = () => {}, preserver: wrap, classDelegation } = {}) {
   const paths = { registry: join(dir, 'registry'), controller: join(dir, 'controller'), authority: join(dir, 'authority'), journal: join(dir, 'journal') };
   const minter = openChangeMinter(paths.registry, clock);
   const records = goals.map((n) => minter.mint({ repository: REPO, source: { schemaVersion: 1, ...sourceOf(n), createdAt: T,
@@ -124,7 +124,7 @@ function world(dir, { goals = [1], admit = true, onWrite = () => {}, preserver: 
   const preserver = wrap ? wrap(realPreserver) : realPreserver;
   const controller = new AutomationController(clock, hookedStore(paths.controller, (run) => onWrite(run, paths)), reality);
   const core = openGovernedActivationCore({ controllerStoreDirectory: paths.controller, authorityArchiveDirectory: paths.authority,
-    changeRegistryDirectory: paths.registry, controller, preserver, architectPrincipalRef: ARCHITECT, clock });
+    changeRegistryDirectory: paths.registry, controller, preserver, architectPrincipalRef: ARCHITECT, clock, ...(classDelegation ? { classDelegation } : {}) });
   const sliceId = record.sliceId;
   const packet = (overrides) => packetOf(sliceId, overrides);
   const bundle = ({ packetOverrides, grants, packetDocument } = {}) => {
@@ -301,6 +301,40 @@ check('L-O. the packet document must name this exact Change and be issued by the
   wrongClass.implementationPacket.recordClass = 'OPERATIONAL_RECORD';
   refusedUntouched(w, () => w.core.activate(w.target(), wrongClass), 'AUTHORITY_DOCUMENT_INVALID');
   assert.equal(runOf(w).state, 'IDLE');
+});
+check('M1-R1 (R-1). a Host-derived CLASS_DERIVED_AUTHORITY packet is refused without the explicit class-delegation rule; with it, only an admitted packet activates and stays derived', (dir) => {
+  const derivation = { rule: 'ARCHITECT_CLASS_DELEGATION_V1', derivedBy: 'CHIEF_TRUSTED_HOST', acceptanceHash: 'a'.repeat(64), classHash: 'b'.repeat(64), implementationSha: C };
+  const derived = (w) => { const b = w.bundle(); b.implementationPacket = { ...b.implementationPacket, recordClass: 'CLASS_DERIVED_AUTHORITY', derivation }; return b; };
+  const at = (name) => { const d = join(dir, name); mkdirSync(d); return d; };
+  // No rule configured (every generic composition): a derived packet is never the Architect's, whatever principal it states.
+  const plain = world(at('plain'));
+  refusedUntouched(plain, () => plain.core.activate(plain.target(), derived(plain)), 'AUTHORITY_DERIVED_WITHOUT_DELEGATION');
+  // The record class and the derivation go together; only a version 1 packet may be derived; grants never are.
+  const directWithDerivation = plain.bundle(); directWithDerivation.implementationPacket.derivation = derivation;
+  refusedUntouched(plain, () => plain.core.activate(plain.target(), directWithDerivation), 'AUTHORITY_DOCUMENT_INVALID');
+  const derivedWithout = plain.bundle(); derivedWithout.implementationPacket.recordClass = 'CLASS_DERIVED_AUTHORITY';
+  refusedUntouched(plain, () => plain.core.activate(plain.target(), derivedWithout), 'AUTHORITY_DOCUMENT_INVALID');
+  const derivedGrant = plain.bundle();
+  derivedGrant.liveCallAuthorizations[0] = { ...derivedGrant.liveCallAuthorizations[0], recordClass: 'CLASS_DERIVED_AUTHORITY', derivation };
+  refusedUntouched(plain, () => plain.core.activate(plain.target(), derivedGrant), 'AUTHORITY_DOCUMENT_INVALID');
+  // A rule that refuses: nothing is preserved or moved; the rule saw the stated issuer, derivation, version and packet.
+  const seen = [];
+  const refusing = world(at('refusing'), { classDelegation: (record, packet) => { seen.push([record.issuer.principalRef, record.derivation.acceptanceHash, record.version, packet.packetId]);
+    throw new Error('DELEGATION_ACCEPTANCE_MISMATCH'); } });
+  const error = refusedUntouched(refusing, () => refusing.core.activate(refusing.target(), derived(refusing)), 'AUTHORITY_DELEGATION_INVALID');
+  assert.equal(error.reason, 'DELEGATION_ACCEPTANCE_MISMATCH');
+  assert.deepEqual(seen, [[ARCHITECT, 'a'.repeat(64), 1, 'packet-1']]);
+  assert.equal(runOf(refusing).state, 'IDLE');
+  // A rule that admits: the run activates and the archive (and R4A0) keep the packet as derived, never as direct authority.
+  const admitting = world(at('admitting'), { classDelegation: () => {} });
+  assert.equal(admitting.core.activate(admitting.target(), derived(admitting)).status, 'ACTIVATED');
+  const fact = admitting.read().authority.find((f) => f.ref.kind === 'IMPLEMENTATION_PACKET');
+  assert.deepEqual([fact.recordClass, fact.derivation, fact.issuer.role], ['CLASS_DERIVED_AUTHORITY', derivation, 'GPT_ARCHITECT']);
+  // A direct packet never needs the rule, even where one is configured, and its record carries no derivation key.
+  const direct = world(at('direct'), { classDelegation: () => { throw new Error('NEVER_CALLED'); } });
+  assert.equal(direct.core.activate(direct.target(), direct.bundle()).status, 'ACTIVATED');
+  const directFact = direct.read().authority.find((f) => f.ref.kind === 'IMPLEMENTATION_PACKET');
+  assert.deepEqual([directFact.recordClass, 'derivation' in directFact], ['DIRECT_AUTHORITY', false]);
 });
 check('P-V. each Human grant is issued by the CM1-attributed Human and binds this run, packet and one exact call entry', (dir) => {
   const w = world(dir);

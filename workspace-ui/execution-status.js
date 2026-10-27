@@ -96,7 +96,7 @@ export function executionStatusHTML(entry) {
   }
   facts.push('<dt>能否呼叫 AI 模型</dt><dd>未評估：這裡沒有載入即時呼叫設定，不會宣稱可以執行</dd>');
   if (view.directAuthority?.length) {
-    facts.push(`<dt>已封存的正式授權</dt><dd>${view.directAuthority.map((item) => `${esc(KIND[item.kind] ?? item.kind)} ${esc(item.authorityId)} 第 ${esc(item.version)} 版`).join('、')}</dd>`);
+    facts.push(`<dt>已封存的正式授權</dt><dd>${view.directAuthority.map((item) => `${esc(KIND[item.kind] ?? item.kind)} ${esc(item.authorityId)} 第 ${esc(item.version)} 版${item.recordClass === 'CLASS_DERIVED_AUTHORITY' ? '（Host 依 Architect 接受的類別衍生，非 Architect 逐次核發）' : ''}`).join('、')}</dd>`);
   }
   if (view.unresolvedAuthority?.length) {
     facts.push(`<dt>找不到相符版本</dt><dd>${view.unresolvedAuthority.map((item) => `${esc(KIND[item.kind] ?? item.kind)} ${esc(item.authorityId)}（<code>${esc(item.resolution)}</code>）`).join('、')}</dd>`);

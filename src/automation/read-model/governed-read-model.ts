@@ -2,7 +2,7 @@ import { isAbsolute, normalize, sep } from 'node:path';
 import { ADMISSION_RULESET, changeKeyOf, openAdmissionRecord, parseChangeIdentity, type AdmissionRecord } from '../admission.js';
 import {
   AUTHORITY_ID_PATTERN, AUTHORITY_KINDS, authorityBodyHash, authorityRefOf, type AuthorityKindV1, type AuthorityRecordV1,
-  type AuthorityRefV1, type JsonObject,
+  type AuthorityRefV1, type AuthorityRecordClassV1, type ClassDerivationV1, type JsonObject,
 } from '../authority/document.js';
 import { openAuthorityArchiveReader } from '../authority/file-archive.js';
 import { openStoredRun, storedRunFileName } from '../durable-store.js';
@@ -86,7 +86,10 @@ export interface AuthorityReferenceV1 {
 }
 export interface AuthorityFactV1 {
   ref: AuthorityRefV1;
-  recordClass: 'DIRECT_AUTHORITY';
+  /** M1-R1: DIRECT_AUTHORITY, or CLASS_DERIVED_AUTHORITY (a Host-derived run packet; only an explicit delegation rule accepts it). */
+  recordClass: AuthorityRecordClassV1;
+  /** Present exactly for CLASS_DERIVED_AUTHORITY. */
+  derivation?: ClassDerivationV1;
   issuedAt: string;
   /** Stated by the document, not authenticated. */
   issuer: { role: 'HUMAN' | 'GPT_ARCHITECT'; principalRef: string };
@@ -512,7 +515,7 @@ function project(roots: GovernedReadRoots, snapshot: SourceSnapshot, observedAt:
   });
 
   const facts: AuthorityFactV1[] = [...index.values()].flat().map((record) => ({
-    ref: authorityRefOf(record), recordClass: 'DIRECT_AUTHORITY' as const, issuedAt: record.issuedAt,
+    ref: authorityRefOf(record), recordClass: record.recordClass, ...(record.derivation ? { derivation: { ...record.derivation } } : {}), issuedAt: record.issuedAt,
     issuer: { role: record.issuer.role, principalRef: record.issuer.principalRef },
     subject: { repository: record.subject.repository, sliceId: record.subject.sliceId ?? null }, bodyHash: record.bodyHash,
   })).sort((a, b) => compare(a.ref.kind, b.ref.kind) || compare(a.ref.authorityId, b.ref.authorityId) || a.ref.version - b.ref.version);

@@ -24,9 +24,9 @@ const FINISHED = ['RESULT_PERSISTED_NOT_AUTHORITY','UNCERTAIN_NO_REPLAY_RESERVAT
   'USER_CANCEL_BEFORE_REQUEST','UNCERTAIN_NO_REPLAY'];
 /** M1: what a real (LIVE_PROVIDER) run still needs. Shown by a Host that cannot start one; nothing here grants anything. */
 export const LIVE_AUTHORIZATION_STEPS = Object.freeze([
-  'Architect 審查 M1，並決定是否接受「README Worker 類別」與確切程式版本；Claude Code 唯讀分析不在首次 Pilot 範圍（CLI 無法證明請求上限）。',
+  'Architect 審查 M1-R1，並決定是否接受「README Worker 類別」與確切程式版本（常設類別接受；每個 Run 的 Packet 由 Host 依此衍生並標示為衍生紀錄，不是 Architect 逐次核發）；Claude Code 唯讀分析不在首次 Pilot 範圍（CLI 無法證明請求上限）。',
   'Human 與 Architect 決定是否解除 EXE／H1–H9 HOLD。目前程式常數 EXE＝HOLD，必須由另一個經 Architect 接受的提交改變。',
-  'Human 一次性登記通行金鑰（Touch ID），把公鑰、已接受的類別雜湊與程式版本寫入批准設定檔，並把該檔改為 root 擁有。這是 S2 的最小替代；完整 S2（D1 獨立簽署帳號、D2 撤銷）仍未完成。',
+  'Human 一次性登記通行金鑰（Touch ID），把公鑰與 Architect 類別接受紀錄（類別雜湊、程式版本、審查來源與版本）寫入批准設定檔，並把該檔改為 root 擁有。這是 S2 的最小替代；完整 S2（D1 獨立簽署帳號、D2 撤銷）仍未完成。',
   'Human 在 Anthropic Console 設定工作區支出上限（供應商端硬上限；CLI 的預算開關不是硬上限），並只讓正式 Host 持有 API 金鑰。',
   '每個任務：Human 在介面查看任務、資料範圍、預算上限與模型，再用通行金鑰批准這一個 Run（最多 15 分鐘內有效、只能用一次）。',
 ]);
@@ -91,7 +91,9 @@ export function createLimitedWorkerService(options: LimitedServiceOptions): Limi
       verifiedAt:applied?observed.journal.find(r=>r.invocationId===j.invocationId&&r.state==='APPLIED')?.appliedAt??null:null,
       reviewPacket:sliceId?activationCandidate(j.contract,sliceId,g.text):null,
       effectiveState: j.state === 'COMPLETED' && !applied ? 'RESULT_REQUIRES_RECONCILIATION' : j.state,
-      resultApplied: applied, exe: EXE, modelAccountAvailability: j.modelPreflight?.evidenceClass === 'LIVE_PROVIDER' ? 'ACCOUNT_METADATA_VERIFIED' : 'UNVERIFIED_NO_ACCOUNT_CALL',
+      resultApplied: applied, exe: EXE, modelAccountAvailability: j.modelPreflight?.evidenceClass !== 'LIVE_PROVIDER' ? 'UNVERIFIED_NO_ACCOUNT_CALL'
+        // M1-R1: a fake provider's model metadata never counts as the account's.
+        : j.providerEndpoint === 'ANTHROPIC_PUBLIC_API' ? 'ACCOUNT_METADATA_VERIFIED' : 'TEST_REQUESTER_NOT_ACCOUNT',
       maximumReservationMicroUsd: maximumCost(j.contract), report: j.report, notice: 'Operational evidence, not authority. OFFLINE_SYNTHETIC is not real AI acceptance.',
       startedAt: j.events.find(e => e.kind === 'WORST_CASE_RESERVED')?.at ?? null, finishedAt: j.events.filter(e => FINISHED.includes(e.kind)).at(-1)?.at ?? null,
       approvalPreview: approvalPreview(j.contract, g.text), requestBound: requestBound(j.contract),

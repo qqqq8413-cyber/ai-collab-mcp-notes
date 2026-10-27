@@ -2,8 +2,10 @@ import { createHash, createPublicKey, randomUUID, verify as verifySignature, typ
 import { closeSync, constants, fstatSync, fsyncSync, mkdirSync, openSync, readFileSync, writeFileSync, lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { MODEL, canonical, hash, maximumCost, packetFor, requestBound, type Contract } from './contract.js';
+import { MODEL, assertLiveRequestBound, canonical, contractOf, hash, maximumCost, packetFor, requestBound, type Contract } from './contract.js';
 import { M1_SIGNATURE_POLICY } from './activation-set.js';
+import { CLASS_DELEGATION_RULE, isAuthorityPrincipalRef, type ClassDelegationVerifier, type ClassDerivationV1 } from './governance.js';
+import type { ImplementationPacket } from '../automation/types.js';
 
 // M1-B: the minimum short-lived, single-run Human authorization for the trusted Host.
 //
@@ -34,16 +36,49 @@ export const fromBase64Url = (value: unknown, code = 'PASSKEY_ENCODING_INVALID')
   return Buffer.from(value, 'base64url');
 };
 
+// ------------------------------------------------------------------------------------------------ standing class acceptance
+// M1-R1 (R-1). Three different things, never confused:
+//   1. ARCHITECT_CLASS_ACCEPTANCE (this record): the Architect accepted one fixed Worker class (WORKER_CLASS_SCHEMA,
+//      its hash) for one exact implementation SHA. Stated by its source (the Architect's review decision: a reference
+//      and the SHA-256 of the decision text the Human received) and versioned (acceptanceVersion, supersedes). The
+//      Human pins it in the root-owned approver file; its hash (acceptanceHashOf, domain separated) is what every
+//      derived record and every per-run passkey payload names. It is not run authority and authorizes no run.
+//   2. CLASS_DERIVED_AUTHORITY: the one run packet the trusted Host derives from that class (packetFor), archived with
+//      a `derivation` naming the acceptance hash, class hash and SHA. It is not the Architect's direct authority.
+//   3. DIRECT_AUTHORITY: a document the Architect (or the Human) issued directly. Unchanged.
+// A derived packet is accepted only by classDelegationVerifier below (the explicit ARCHITECT_CLASS_DELEGATION_V1 rule);
+// a configured architectPrincipalRef alone never makes a Host-derived packet the Architect's.
+export const CLASS_ACCEPTANCE_SCHEMA = 'chief-architect-class-acceptance.v1';
+export const CLASS_ACCEPTANCE_DOMAIN = 'CHIEF-ARCHITECT-CLASS-ACCEPTANCE-V1\n';
+export const WORKER_CLASS_SCHEMA = 'chief-limited-worker-class.v1';
+const principal = z.string().min(1).max(200).refine(isAuthorityPrincipalRef);
+export const acceptanceSchema = z.strictObject({ schema: z.literal(CLASS_ACCEPTANCE_SCHEMA), recordClass: z.literal('ARCHITECT_CLASS_ACCEPTANCE'),
+  delegationRule: z.literal(CLASS_DELEGATION_RULE), architectPrincipalRef: principal, agentId: z.literal('limited-readme-worker'),
+  classSchema: z.literal(WORKER_CLASS_SCHEMA), classHash: z.string().regex(HEX), implementationSha: z.string().regex(SHA),
+  acceptanceVersion: z.number().int().min(1).max(1000), supersedes: z.string().regex(HEX).nullable(),
+  source: z.strictObject({ kind: z.literal('ARCHITECT_REVIEW_DECISION'), reviewRef: z.string().min(1).max(200), decisionSha256: z.string().regex(HEX) }),
+  acceptedAt: instant }).refine((a) => (a.acceptanceVersion === 1) === (a.supersedes === null), { message: 'ACCEPTANCE_VERSION_CHAIN' });
+export type ClassAcceptanceV1 = z.infer<typeof acceptanceSchema>;
+/** The standing acceptance's identity: SHA-256("CHIEF-ARCHITECT-CLASS-ACCEPTANCE-V1\n" + canonical(record)). */
+export const acceptanceHashOf = (acceptance: ClassAcceptanceV1): string => {
+  const parsed = acceptanceSchema.safeParse(acceptance);
+  if (!parsed.success) return fail('CLASS_ACCEPTANCE_INVALID');
+  return sha256(CLASS_ACCEPTANCE_DOMAIN + canonical(parsed.data)).toString('hex');
+};
+
 // ------------------------------------------------------------------------------------------------ approver config
 const approverSchema = z.strictObject({ schemaVersion: z.literal(1), kind: z.literal('CHIEF_LIVE_RUN_APPROVER'),
   policy: z.literal(M1_SIGNATURE_POLICY.version), humanPrincipalRef: z.string().min(1).max(200),
   passkey: z.strictObject({ rpId: z.literal('localhost'), origins: z.array(z.string().regex(/^http:\/\/localhost:[1-9][0-9]{0,4}$/)).min(1).max(4),
     credentialId: z.string().regex(B64U), publicKeySpki: z.string().regex(/^[A-Za-z0-9+/=]{40,400}$/), algorithm: z.literal('ES256') }),
-  architectAcceptance: z.strictObject({ architectPrincipalRef: z.string().min(1).max(200), classHash: z.string().regex(HEX),
-    implementationSha: z.string().regex(SHA), reviewRef: z.string().min(1).max(200) }),
+  architectAcceptance: acceptanceSchema,
   approvalValiditySeconds: z.number().int().min(60).max(MAX_APPROVAL_SECONDS) });
 export type ApproverConfigV1 = z.infer<typeof approverSchema>;
-export interface Approver extends ApproverConfigV1 { readonly keyId: string; readonly publicKey: KeyObject; readonly protection: 'ROOT_OWNED' | 'SAME_ACCOUNT_OWNED' }
+export interface Approver extends ApproverConfigV1 {
+  readonly keyId: string; readonly publicKey: KeyObject; readonly protection: 'ROOT_OWNED' | 'SAME_ACCOUNT_OWNED';
+  /** M1-R1: the pinned standing acceptance's hash. */
+  readonly acceptanceHash: string;
+}
 
 /** An ES256 (P-256) SubjectPublicKeyInfo, and nothing else (a private key or another curve is refused). */
 export function passkeyPublicKey(spkiBase64: string): KeyObject {
@@ -83,7 +118,8 @@ export function loadApprover(path: string, owners: readonly number[] = [0]): App
   let parsed: ApproverConfigV1;
   try { parsed = approverSchema.parse(JSON.parse(data.toString('utf8'))); } catch { return fail('APPROVER_CONFIG_INVALID'); }
   const publicKey = passkeyPublicKey(parsed.passkey.publicKeySpki);
-  return Object.freeze({ ...structuredClone(parsed), keyId: keyIdOf(parsed.passkey.publicKeySpki), publicKey, protection: uid === 0 ? 'ROOT_OWNED' as const : 'SAME_ACCOUNT_OWNED' as const });
+  return Object.freeze({ ...structuredClone(parsed), keyId: keyIdOf(parsed.passkey.publicKeySpki), publicKey, protection: uid === 0 ? 'ROOT_OWNED' as const : 'SAME_ACCOUNT_OWNED' as const,
+    acceptanceHash: acceptanceHashOf(parsed.architectAcceptance) });
 }
 
 // ------------------------------------------------------------------------------------------------ the worker class
@@ -96,7 +132,7 @@ export function loadApprover(path: string, owners: readonly number[] = [0]): App
 export function workerClass(c: Contract) {
   const template = packetFor(c, 'chief-limited-worker-class') as unknown as Record<string, unknown>;
   const { packetId: _id, sliceId: _slice, objective: _objective, expectedBaseSha: _base, ...packetTemplate } = template;
-  return { schema: 'chief-limited-worker-class.v1', kind: c.kind, repository: c.repository, sourceSha: c.sourceSha, sourcePath: c.sourcePath,
+  return { schema: WORKER_CLASS_SCHEMA, kind: c.kind, repository: c.repository, sourceSha: c.sourceSha, sourcePath: c.sourcePath,
     sourceHash: c.sourceHash, sourceBytes: c.sourceBytes, agentId: c.agentId, provider: c.provider, model: c.model, apiVersion: c.apiVersion,
     tools: [...c.tools], maxInputTokens: c.maxInputTokens, maxOutputTokens: c.maxOutputTokens, maxCalls: c.maxCalls, maxRetries: c.maxRetries,
     maxTurns: c.maxTurns ?? null, maxCostMicroUsd: c.maxCostMicroUsd, totalCostMicroUsd: c.totalCostMicroUsd, timeoutSeconds: c.timeoutSeconds,
@@ -106,12 +142,43 @@ export function workerClass(c: Contract) {
 }
 export const workerClassHash = (c: Contract) => hash(workerClass(c));
 
+/** M1-R1: what a run packet derived under this approver's pinned acceptance states about its derivation. */
+export const derivationOf = (approver: Pick<Approver, 'architectAcceptance' | 'acceptanceHash'>): ClassDerivationV1 => ({ rule: CLASS_DELEGATION_RULE,
+  derivedBy: 'CHIEF_TRUSTED_HOST', acceptanceHash: approver.acceptanceHash, classHash: approver.architectAcceptance.classHash,
+  implementationSha: approver.architectAcceptance.implementationSha });
+
+/**
+ * M1-R1: the explicit class-delegation rule (ARCHITECT_CLASS_DELEGATION_V1). A CLASS_DERIVED_AUTHORITY packet is admitted
+ * only when it is version 1, states the accepting Architect principal as its issuer (the delegator, not the author),
+ * names exactly the pinned acceptance (hash, class, SHA), and its packet is exactly packetFor(its own contract) for an
+ * accepted class at the accepted SHA with a proven one-request bound. Anything else throws; nothing is repaired.
+ */
+export function classDelegationVerifier(approver: Pick<Approver, 'architectAcceptance' | 'acceptanceHash'>): ClassDelegationVerifier {
+  const a = approver.architectAcceptance, pinned = approver.acceptanceHash;
+  if (acceptanceHashOf(a) !== pinned) return fail('CLASS_ACCEPTANCE_HASH_MISMATCH');
+  return (record, packet: ImplementationPacket) => {
+    const d = record.derivation;
+    if (record.version !== 1 || record.issuer.role !== 'GPT_ARCHITECT' || record.issuer.principalRef !== a.architectPrincipalRef) fail('DELEGATION_ISSUER_MISMATCH');
+    if (!d || d.rule !== CLASS_DELEGATION_RULE || d.derivedBy !== 'CHIEF_TRUSTED_HOST' || d.acceptanceHash !== pinned) fail('DELEGATION_ACCEPTANCE_MISMATCH');
+    // contractOf refuses any packet that is not exactly packetFor(its own contract): nothing but the derivation is accepted.
+    let c: Contract;
+    try { c = contractOf(packet); } catch { return fail('DELEGATION_PACKET_NOT_DERIVED'); }
+    if (c.agentId !== a.agentId) fail('WORKER_CLASS_NOT_ACCEPTED');
+    assertLiveRequestBound(c);
+    if (d.classHash !== a.classHash || workerClassHash(c) !== a.classHash) fail('WORKER_CLASS_NOT_ACCEPTED');
+    if (d.implementationSha !== a.implementationSha || c.implementationSha !== a.implementationSha) fail('IMPLEMENTATION_NOT_ACCEPTED');
+  };
+}
+
 // ------------------------------------------------------------------------------------------------ the payload
 const grantRefSchema = z.strictObject({ operation: z.enum(['LIMITED_README_WORKER', 'LIVE_PROVIDER_MODEL_CALL']), authorityId: z.string().min(1).max(128),
   version: z.literal(1), recordHash: z.string().regex(HEX) });
 export const payloadSchema = z.strictObject({ payloadSchema: z.literal(ATTESTATION_SCHEMA), policyVersion: z.literal(M1_SIGNATURE_POLICY.version),
   setHash: z.string().regex(HEX), runId: z.string().min(1).max(200), repository: z.string().min(1).max(200), contractHash: z.string().regex(HEX),
-  packetId: z.string().min(1).max(128), packetHash: z.string().regex(HEX), implementationSha: z.string().regex(SHA), workerCodeHash: z.string().regex(HEX),
+  packetId: z.string().min(1).max(128), packetHash: z.string().regex(HEX),
+  // M1-R1: the signed run names the derived packet record (with its derivation) and the standing acceptance it derives from.
+  packetRecordClass: z.literal('CLASS_DERIVED_AUTHORITY'), packetRecordHash: z.string().regex(HEX), acceptanceHash: z.string().regex(HEX),
+  implementationSha: z.string().regex(SHA), workerCodeHash: z.string().regex(HEX),
   operations: z.tuple([z.literal('LIMITED_README_WORKER'), z.literal('LIVE_PROVIDER_MODEL_CALL')]),
   grants: z.tuple([grantRefSchema, grantRefSchema]), classHash: z.string().regex(HEX), agentId: z.literal('limited-readme-worker'), model: z.literal(MODEL),
   maxModelRequests: z.literal(1), maxRetries: z.literal(0), approvedMaxReservationMicroUsd: z.number().int().min(1).max(1000000),
@@ -245,7 +312,11 @@ export function writeApprovalRecord(root: string, record: Omit<ApprovalRecordV1,
 export function readApprovalRecord(root: string, jobId: string): ApprovalRecordV1 {
   const uid = process.getuid?.();
   const { data } = readProtected(recordPath(root, jobId), { maxBytes: 65536, owners: uid === undefined ? [] : [uid], mode: 0o600, code: 'APPROVAL_RECORD_UNSAFE' });
-  try { return recordSchema.parse(JSON.parse(data.toString('utf8'))); } catch { return fail('APPROVAL_RECORD_CORRUPT'); }
+  let record: ApprovalRecordV1;
+  try { record = recordSchema.parse(JSON.parse(data.toString('utf8'))); } catch { return fail('APPROVAL_RECORD_CORRUPT'); }
+  // M1-R1: a record copied under another job's name is not that job's approval.
+  if (record.jobId !== jobId) return fail('APPROVAL_RECORD_CORRUPT');
+  return record;
 }
 
 /**
@@ -253,10 +324,11 @@ export function readApprovalRecord(root: string, jobId: string): ApprovalRecordV
  * contract, its payload re-hashes to the signed challenge, the pinned key verifies the assertion again, and the
  * approval window is still open.
  */
-export function attestationVerifier(root: string, approver: Pick<Approver, 'passkey' | 'publicKey' | 'keyId'>, now: () => string) {
+export function attestationVerifier(root: string, approver: Pick<Approver, 'passkey' | 'publicKey' | 'keyId' | 'acceptanceHash'>, now: () => string) {
   return (c: Contract, setHash: string): void => {
     const record = readApprovalRecord(root, hash(c)), p = record.payload;
-    if (p.setHash !== setHash || p.contractHash !== hash(c) || p.runId !== c.runId || p.signerKeyId !== approver.keyId || record.keyId !== approver.keyId) fail('ATTESTATION_BINDING_MISMATCH');
+    if (p.setHash !== setHash || p.contractHash !== hash(c) || p.runId !== c.runId || p.signerKeyId !== approver.keyId || record.keyId !== approver.keyId ||
+      p.acceptanceHash !== approver.acceptanceHash) fail('ATTESTATION_BINDING_MISMATCH');
     const challenge = challengeOf(p);
     if (record.challenge !== challenge.toString('base64url')) fail('ATTESTATION_BINDING_MISMATCH');
     verifyAssertion(approver, record.assertion, challenge);

@@ -1,6 +1,6 @@
 import {
   authorityBodyHash, isAuthorityPrincipalRef, parseAuthorityDocument, sealAuthorityRecord, type AuthorityDocumentV1, type AuthorityKindV1,
-  type AuthorityRefV1, type JsonObject,
+  type AuthorityRefV1, type ClassDelegationVerifier, type JsonObject,
 } from './authority/document.js';
 import { AuthorityPreservationError, type DirectAuthorityPreserver } from './authority/preserver.js';
 import { ChangeMintError, parseChangeSourceIdentity, type ChangeMintRecordV1, type ChangeSourceIdentityV1 } from './change-mint.js';
@@ -68,7 +68,7 @@ export const ACTIVATION_ERROR_CODES = Object.freeze(['ACTIVATION_TARGET_INVALID'
   'AUTHORITY_DOCUMENT_INVALID', 'AUTHORITY_SUBJECT_MISMATCH', 'AUTHORITY_ISSUER_MISMATCH', 'HUMAN_PRINCIPAL_MISMATCH',
   'PACKET_BINDING_MISMATCH', 'LIVE_CALL_GRANT_MISSING', 'LIVE_CALL_GRANT_EXTRA', 'LIVE_CALL_GRANT_DUPLICATE',
   'LIVE_CALL_GRANT_NOT_BOUND', 'AUTHORITY_VERSION_CONFLICT', 'AUTHORITY_PRESERVATION_FAILED', 'CORRECTION_NOT_APPLICABLE',
-  'CORRECTION_CONFLICT'] as const);
+  'CORRECTION_CONFLICT', 'AUTHORITY_DERIVED_WITHOUT_DELEGATION', 'AUTHORITY_DELEGATION_INVALID'] as const);
 export type ActivationErrorCode = typeof ACTIVATION_ERROR_CODES[number];
 
 /** Activation refused or incomplete. Nothing the refusal names was written after it was decided. */
@@ -140,6 +140,12 @@ export interface GovernedActivationOptions {
   preserver: DirectAuthorityPreserver;
   /** Trusted configuration: the GPT_ARCHITECT principal reference. Stated, not authenticated. */
   architectPrincipalRef: string;
+  /**
+   * M1-R1 (R-1): the explicit class-delegation rule for a CLASS_DERIVED_AUTHORITY packet (a run packet a trusted Host
+   * derived under the Architect's standing class acceptance). Absent, such a packet is refused; a direct packet never
+   * needs it. Only the trusted limited Host with a pinned acceptance passes one.
+   */
+  classDelegation?: ClassDelegationVerifier;
   clock?: Clock;
 }
 
@@ -194,6 +200,8 @@ export function openGovernedActivationCore(options: GovernedActivationOptions): 
   if (!isAuthorityPrincipalRef(options.architectPrincipalRef)) throw new TypeError('architectPrincipalRef must be an exact principal reference');
   const preserver = options.preserver;
   const principalRef = options.architectPrincipalRef;
+  if (options.classDelegation !== undefined && typeof options.classDelegation !== 'function') throw new TypeError('classDelegation must be a verifier');
+  const classDelegation = options.classDelegation;
   const architect: Readonly<Actor> = Object.freeze({ id: principalRef, role: 'GPT_ARCHITECT' });
   const roots = { controllerStoreDirectory: options.controllerStoreDirectory, authorityArchiveDirectory: options.authorityArchiveDirectory };
   const registry = openChangeRegistryReader(options.changeRegistryDirectory);
@@ -308,6 +316,12 @@ export function openGovernedActivationCore(options: GovernedActivationOptions): 
     let packet: ImplementationPacket;
     try { packet = parsePacket(packetDocument.body); } catch { return fail('AUTHORITY_DOCUMENT_INVALID'); }
     if (packet.sliceId !== record.sliceId || packetDocument.authorityId !== packet.packetId) return fail('PACKET_BINDING_MISMATCH');
+    // R-1: a Host-derived packet is not the Architect's direct authority; only the explicit delegation rule admits it.
+    if (packetDocument.recordClass !== 'DIRECT_AUTHORITY') {
+      if (packetDocument.recordClass !== 'CLASS_DERIVED_AUTHORITY' || !packetDocument.derivation || !classDelegation) return fail('AUTHORITY_DERIVED_WITHOUT_DELEGATION');
+      try { classDelegation({ issuer: packetDocument.issuer, derivation: packetDocument.derivation, version: packetDocument.version }, packet); }
+      catch (error) { return fail('AUTHORITY_DELEGATION_INVALID', error instanceof Error && /^[A-Z0-9_]{1,100}$/.test(error.message) ? error.message : null); }
+    }
     const calls = packet.providerCallAuthorization.allowed ? packet.providerCallAuthorization.calls : [];
     const grants = new Map<ActorKind, AuthorityDocumentV1>();
     for (const item of liveCallAuthorizations) {

@@ -16,6 +16,8 @@ const jobSchema = z.strictObject({ id: digest, contract: z.unknown().transform(p
   // M1: the provider's request-id response header (evidence only), the pending passkey approval request (the exact
   // payload shown and to be signed; validated by run-approval.ts) and the consumed approval's summary.
   providerRequestId: z.string().regex(/^[A-Za-z0-9_-]{1,200}$/).nullable().optional(),
+  // M1-R1: the endpoint that answered a LIVE_PROVIDER run: the public Anthropic API, or a requester a test injected (fake provider).
+  providerEndpoint: z.enum(['ANTHROPIC_PUBLIC_API', 'INJECTED_TEST_REQUESTER']).nullable().optional(),
   approvalRequest: z.strictObject({ payload: z.unknown(), createdAt: instant }).nullable().optional(),
   approval: z.strictObject({ payloadHash: digest, assertionHash: digest, keyId: digest, consumedAt: instant }).nullable().optional(),
   events: z.array(z.strictObject({ at: instant, kind: z.string().max(100) })).max(100) });

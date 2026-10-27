@@ -14,6 +14,7 @@ import type { SignaturePolicyVersion } from './activation-set.js';
 import { packetFor } from './contract.js';
 import { verifyPermit, limitedActivationCandidate } from './governance.js';
 import type { GovernedActivationCore } from '../automation/activation-core.js';
+import type { ClassDelegationVerifier } from './governance.js';
 import { readStoredOutcome } from '../automation/invocation-journal.js';
 import { parseImplementationResult } from '../automation/bridge.js';
 import { packetHash } from '../automation/packet.js';
@@ -45,6 +46,8 @@ export function composeLimitedWorker(options: {
   readGoal(c: Contract): string; deadlineMs?: number;
   /** M1-B (trusted Host only): the signing policy of this worker's sets and the passkey attestation verifier. */
   signaturePolicy?: SignaturePolicyVersion; liveApproval?(c: Contract, setHash: string): void;
+  /** M1-R1 (trusted Host only): the explicit class-delegation rule for its Host-derived run packets. */
+  classDelegation?: ClassDelegationVerifier;
 }, trusted?: {createActivation(controller:AutomationController):GovernedActivationCore;
   preserveIssued:NonNullable<Parameters<typeof limitedActivationCandidate>[0]['preserveIssued']>}) {
   options = { ...options, liveCallGrant: structuredClone(options.liveCallGrant), limitedGrant: structuredClone(options.limitedGrant) };
@@ -67,7 +70,7 @@ export function composeLimitedWorker(options: {
   const activation=trusted?limitedActivationCandidate({core:trusted.createActivation(controller),store,readModel,
     humanPrincipalRef:options.humanPrincipalRef,architectPrincipalRef:options.architectPrincipalRef,now:()=>options.clock.now(),
     identity:options.currentImplementation,readSource:options.readSource,readGoal:options.readGoal,preserveIssued:trusted.preserveIssued,
-    signaturePolicy:options.signaturePolicy}):null;
+    signaturePolicy:options.signaturePolicy,classDelegation:options.classDelegation}):null;
   return Object.freeze({
     /** M0: OFFLINE_SYNTHETIC or LIVE_PROVIDER, so the Workspace service can say which kind of run a START would be. */
     transportKind: options.transport.kind,
@@ -97,7 +100,7 @@ export function composeLimitedWorker(options: {
       const model = readModel(), run = model.runs.find(r => r.runId === c.runId);
       if (!run) throw new Error('RUN_BINDING_MISMATCH');
       return verifyPermit(c, { grant: options.limitedGrant, liveGrant: options.liveCallGrant, model, packet: packetFor(c, run.sliceId),
-        humanPrincipalRef: options.humanPrincipalRef,architectPrincipalRef:options.architectPrincipalRef, now: options.clock.now() });
+        humanPrincipalRef: options.humanPrincipalRef,architectPrincipalRef:options.architectPrincipalRef, now: options.clock.now(), classDelegation: options.classDelegation });
     },
     async execute(c: Contract) {
       if (options.transport.kind === 'LIVE_PROVIDER' && EXE === 'HOLD') throw new Error('EXE_HOLD');

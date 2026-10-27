@@ -55,7 +55,7 @@ const tree = (root) => readdirSync(root, { recursive: true }).map(String).sort()
 const leaseFiles = (dir) => readdirSync(dir).filter((n) => n.startsWith('runtime.lock')).sort();
 
 // ---------------------------------------------------------------- the A4 trusted-Host world (as in test-auto-p2-a1.mjs)
-async function world(dir, { preserveIssued } = {}) {
+async function world(dir, { preserveIssued, classDelegation } = {}) {
   const directory = (name) => sub(dir, name);
   const clock = { now: () => new Date().toISOString() }, registry = directory('registry'), controllerRoot = directory('controller'), authority = directory('authority');
   const config = parseWorkspaceConfig({ schemaVersion: 1, dataDirectory: join(dir, 'goals'), humanPrincipal: { principalRef: HUMAN.principalRef },
@@ -88,7 +88,7 @@ async function world(dir, { preserveIssued } = {}) {
   const options = { ...roots, authorityArchiveDirectory: authority, journalDirectory: join(dir, 'journal'), resultDirectory: store.directory,
     architectPrincipalRef: ARCHITECT, humanPrincipalRef: HUMAN.principalRef, implementationSha: c.implementationSha, workerCodeHash: c.workerCodeHash,
     currentImplementation: () => ({ sha: c.implementationSha, codeHash: c.workerCodeHash, clean: true }), clock, transport: offlineAnthropicTransport(providerIO),
-    liveCallGrant: live, limitedGrant: limited, readSource: () => source, readGoal: () => g.text };
+    liveCallGrant: live, limitedGrant: limited, readSource: () => source, readGoal: () => g.text, ...(classDelegation ? { classDelegation } : {}) };
   const preserver = openDirectAuthorityPreserver(authority);
   const runtime = preserveIssued
     ? composeLimitedWorker(options, { createActivation: (controller) => openGovernedActivationCore({ ...options, controller, preserver }),
@@ -108,6 +108,21 @@ const supersede = (w, doc) => {
   const prior = w.model().authority.find((f) => f.ref.kind === doc.kind && f.ref.authorityId === doc.authorityId);
   w.preserver.preserve({ ...doc, version: 2, supersedes: prior.ref, body: doc.kind === 'IMPLEMENTATION_PACKET' ? { ...doc.body, packetVersion: 2 } : { ...doc.body, reason: 'OFFLINE_SYNTHETIC superseded' } });
 };
+
+// ---------------------------------------------------------------- M1-R1 (R-1) at the stage layer
+await test('S1-M1R1 a Host-derived packet document is refused at staging without the explicit class-delegation rule, before anything is preserved', async (dir) => {
+  const derivation = { rule: 'ARCHITECT_CLASS_DELEGATION_V1', derivedBy: 'CHIEF_TRUSTED_HOST', acceptanceHash: 'a'.repeat(64), classHash: 'b'.repeat(64), implementationSha: 'b'.repeat(40) };
+  const derived = (w) => ({ ...w.bundle, implementationPacket: { ...w.bundle.implementationPacket, recordClass: 'CLASS_DERIVED_AUTHORITY', derivation } });
+  let preserved = 0;
+  const preserveIssued = (documents, preserver) => { preserved += documents.length; for (const d of documents) preserver.preserve(d); };
+  const plain = await world(sub(dir, 'plain'), { preserveIssued });
+  refusedWith(() => plain.runtime.activateIssued(plain.c, derived(plain), plain.limitedDocument), 'ACTIVATION_PACKET_DERIVED_WITHOUT_DELEGATION');
+  assert.deepEqual([preserved, plain.model().authority.length, plain.setFiles(), plain.state()], [0, 0, [], 'IDLE']);
+  const seen = [];
+  const refusing = await world(sub(dir, 'refusing'), { preserveIssued, classDelegation: (record, packet) => { seen.push([record.version, packet.packetId]); throw new Error('DELEGATION_ACCEPTANCE_MISMATCH'); } });
+  refusedWith(() => refusing.runtime.activateIssued(refusing.c, derived(refusing), refusing.limitedDocument), 'DELEGATION_ACCEPTANCE_MISMATCH');
+  assert.deepEqual([preserved, refusing.model().authority.length, refusing.state(), seen], [0, 0, 'IDLE', [[1, refusing.packet.packetId]]]);
+});
 
 // ---------------------------------------------------------------- separate processes
 function child(script, args, { timeout } = {}) {

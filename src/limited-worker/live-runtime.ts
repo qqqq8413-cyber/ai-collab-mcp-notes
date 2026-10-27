@@ -1,18 +1,23 @@
 import { createGovernedLimitedWorker } from '../automation/live/governed-execution.js';
 import { M1_SIGNATURE_POLICY, prospectiveActivationSet, type ProspectiveMember } from './activation-set.js';
-import { assertLiveRequestBound, hash, maximumCost, packetFor, type Contract } from './contract.js';
+import { EXE, assertLiveRequestBound, hash, maximumCost, packetFor, type Contract } from './contract.js';
 import { draftRunDocuments, recordHashOf } from './governance.js';
 import { packetHash } from '../automation/packet.js';
-import { approvalWindow, attestationVerifier, challengeOf, parsePayload, readApprovalRecord, verifyAssertion, workerClassHash, writeApprovalRecord,
-  type ApprovalPayloadV1, type Approver } from './run-approval.js';
+import { approvalWindow, attestationVerifier, challengeOf, classDelegationVerifier, derivationOf, parsePayload, readApprovalRecord, verifyAssertion,
+  workerClassHash, writeApprovalRecord, type ApprovalPayloadV1, type Approver } from './run-approval.js';
 import { WorkerStore } from './store.js';
 
 // M1-B: the real Host's runtime. One trusted governed Worker per approved job (its two Human grants exist only after
 // the Human's passkey approval of that exact run), plus one without grants for views. Under EXE HOLD the service
-// refuses before any of this is called; nothing here lifts or bypasses EXE, H1–H9, the activation set, the final
+// refuses before any of this is called, and (M1-R1) requestApproval and execute refuse EXE_HOLD themselves before any
+// read of the approval, write or request; nothing here lifts or bypasses EXE, H1–H9, the activation set, the final
 // send guard or the single generation claim.
+//
+// M1-R1 (R-1): the run packet is CLASS_DERIVED_AUTHORITY, derived under the standing acceptance pinned in the approver
+// file (never the Architect's direct authority), and every governed check admits it only through the explicit
+// class-delegation rule built from that same pinned acceptance.
 
-type Common = Omit<Parameters<typeof createGovernedLimitedWorker>[0], 'liveCallGrant' | 'limitedGrant' | 'signaturePolicy' | 'liveApproval'>;
+type Common = Omit<Parameters<typeof createGovernedLimitedWorker>[0], 'liveCallGrant' | 'limitedGrant' | 'signaturePolicy' | 'liveApproval' | 'classDelegation'>;
 type GovernedWorker = ReturnType<typeof createGovernedLimitedWorker>;
 const fail = (code: string): never => { throw new Error(code); };
 
@@ -22,19 +27,27 @@ export interface ApprovalChallenge {
 export interface ApprovalStatus {
   configured: boolean; policy: string; keyId: string | null; protection: Approver['protection'] | null;
   classAccepted: boolean; implementationAccepted: boolean; reviewRef: string | null; classHash: string;
+  /** M1-R1: the pinned standing acceptance (hash and version) and the provenance every run packet here has. */
+  acceptanceHash: string | null; acceptanceVersion: number | null; packetProvenance: 'CLASS_DERIVED_AUTHORITY';
   pending: ApprovalChallenge | null; consumed: boolean; refusal: string | null;
 }
 
 export function createLiveRuntime(common: Common, approver: Approver | null) {
-  const base = createGovernedLimitedWorker({ ...common, liveCallGrant: null, limitedGrant: null });
+  const classDelegation = approver ? classDelegationVerifier(approver) : undefined;
+  const base = createGovernedLimitedWorker({ ...common, liveCallGrant: null, limitedGrant: null, classDelegation });
   const store = new WorkerStore(common.resultDirectory);
   const verifier = approver ? attestationVerifier(common.resultDirectory, approver, () => common.clock.now()) : undefined;
   const workers = new Map<string, GovernedWorker>();
   const documentsOf = (c: Contract, window: { issuedAt: string; expiresAt: string; nonce: string }) => {
+    if (!approver) return fail('APPROVER_NOT_CONFIGURED');
     const sliceId = base.inspect(c).driver.change?.changeId;
     if (!sliceId) return fail('RUN_NOT_ADMITTED');
     const packet = packetFor(c, sliceId);
-    const documents = draftRunDocuments(c, packet, { architectPrincipalRef: common.architectPrincipalRef, humanPrincipalRef: common.humanPrincipalRef, ...window });
+    // The derived packet states the pinned acceptance's principal as delegator and names that acceptance; it is
+    // checked by the same delegation rule before anything is drafted further.
+    const documents = draftRunDocuments(c, packet, { architectPrincipalRef: approver.architectAcceptance.architectPrincipalRef,
+      humanPrincipalRef: common.humanPrincipalRef, ...window, derivation: derivationOf(approver) });
+    classDelegation!({ issuer: documents[0].issuer, derivation: documents[0].derivation!, version: documents[0].version }, packet);
     const member = (d: (typeof documents)[number]): ProspectiveMember => ({ ...d, recordHash: recordHashOf(d) });
     const members: [ProspectiveMember, ProspectiveMember, ProspectiveMember] = [member(documents[0]), member(documents[1]), member(documents[2])];
     return { packet, documents, members };
@@ -47,6 +60,7 @@ export function createLiveRuntime(common: Common, approver: Approver | null) {
     const { packet, documents, members } = documentsOf(c, payload);
     const { setHash } = prospectiveActivationSet({ contract: c, packet, signaturePolicy: M1_SIGNATURE_POLICY.version, documents: members });
     if (payload.setHash !== setHash || payload.contractHash !== hash(c) || payload.packetId !== packet.packetId || payload.packetHash !== packetHash(packet) || payload.runId !== c.runId ||
+      payload.packetRecordClass !== 'CLASS_DERIVED_AUTHORITY' || payload.packetRecordHash !== recordHashOf(documents[0]) || payload.acceptanceHash !== approver!.acceptanceHash ||
       payload.implementationSha !== c.implementationSha || payload.workerCodeHash !== c.workerCodeHash ||
       payload.grants[0].recordHash !== recordHashOf(documents[2]) || payload.grants[1].recordHash !== recordHashOf(documents[1]) ||
       payload.signerKeyId !== approver!.keyId || payload.classHash !== approver!.architectAcceptance.classHash) fail('APPROVAL_BINDING_MISMATCH');
@@ -57,7 +71,7 @@ export function createLiveRuntime(common: Common, approver: Approver | null) {
     if (!approver) return fail('APPROVER_NOT_CONFIGURED');
     assertLiveRequestBound(c);
     if (approver.humanPrincipalRef !== common.humanPrincipalRef || approver.architectAcceptance.architectPrincipalRef !== common.architectPrincipalRef) fail('APPROVER_PRINCIPAL_MISMATCH');
-    if (workerClassHash(c) !== approver.architectAcceptance.classHash) fail('WORKER_CLASS_NOT_ACCEPTED');
+    if (c.agentId !== approver.architectAcceptance.agentId || workerClassHash(c) !== approver.architectAcceptance.classHash) fail('WORKER_CLASS_NOT_ACCEPTED');
     const identity = common.currentImplementation();
     if (c.implementationSha !== approver.architectAcceptance.implementationSha || !identity.clean || identity.sha !== c.implementationSha || identity.codeHash !== c.workerCodeHash) fail('IMPLEMENTATION_NOT_ACCEPTED');
     return approver;
@@ -67,7 +81,7 @@ export function createLiveRuntime(common: Common, approver: Approver | null) {
     const record = recordOf(c); if (!record) return null;
     const documents = bind(c, record.payload);
     const worker = createGovernedLimitedWorker({ ...common, liveCallGrant: documents[1].body, limitedGrant: documents[2].body,
-      signaturePolicy: M1_SIGNATURE_POLICY.version, liveApproval: verifier });
+      signaturePolicy: M1_SIGNATURE_POLICY.version, liveApproval: verifier, classDelegation });
     workers.set(hash(c), worker);
     return worker;
   };
@@ -95,10 +109,14 @@ export function createLiveRuntime(common: Common, approver: Approver | null) {
       return { configured: Boolean(approver), policy: M1_SIGNATURE_POLICY.version, keyId: approver?.keyId ?? null, protection: approver?.protection ?? null,
         classAccepted: Boolean(approver) && approver!.architectAcceptance.classHash === workerClassHash(c),
         implementationAccepted: Boolean(approver) && approver!.architectAcceptance.implementationSha === c.implementationSha,
-        reviewRef: approver?.architectAcceptance.reviewRef ?? null, classHash: workerClassHash(c), pending, consumed, refusal };
+        reviewRef: approver?.architectAcceptance.source.reviewRef ?? null, classHash: workerClassHash(c),
+        acceptanceHash: approver?.acceptanceHash ?? null, acceptanceVersion: approver?.architectAcceptance.acceptanceVersion ?? null,
+        packetProvenance: 'CLASS_DERIVED_AUTHORITY', pending, consumed, refusal };
     },
     /** Build, store and return the exact payload the Human is asked to sign for this run (a fresh window each time). */
     requestApproval(c: Contract, approvedMaxReservationMicroUsd: number): ApprovalChallenge {
+      // M1-R1: EXE HOLD is enforced here too, not only by the service: nothing is drafted, stored or verified under HOLD.
+      if (EXE === 'HOLD') fail('EXE_HOLD');
       const a = eligible(c), job = jobOf(c), now = common.clock.now();
       if (job.state !== 'PREPARED' || job.generationClaimed || job.reservedMicroUsd || job.approval || recordOf(c)) fail('WORK_ALREADY_STARTED_OR_TERMINAL');
       if (approvedMaxReservationMicroUsd !== maximumCost(c)) fail('APPROVAL_DOES_NOT_MATCH_COST');
@@ -106,6 +124,7 @@ export function createLiveRuntime(common: Common, approver: Approver | null) {
       const { setHash } = prospectiveActivationSet({ contract: c, packet, signaturePolicy: M1_SIGNATURE_POLICY.version, documents: members });
       const payload = parsePayload({ payloadSchema: 'chief-activation-attestation.v1', policyVersion: M1_SIGNATURE_POLICY.version, setHash, runId: c.runId,
         repository: c.repository, contractHash: hash(c), packetId: packet.packetId, packetHash: packetHash(packet),
+        packetRecordClass: 'CLASS_DERIVED_AUTHORITY', packetRecordHash: recordHashOf(documents[0]), acceptanceHash: a.acceptanceHash,
         implementationSha: c.implementationSha, workerCodeHash: c.workerCodeHash, operations: ['LIMITED_README_WORKER', 'LIVE_PROVIDER_MODEL_CALL'],
         grants: [{ operation: 'LIMITED_README_WORKER', authorityId: documents[2].authorityId, version: 1, recordHash: recordHashOf(documents[2]) },
           { operation: 'LIVE_PROVIDER_MODEL_CALL', authorityId: documents[1].authorityId, version: 1, recordHash: recordHashOf(documents[1]) }],
@@ -120,6 +139,8 @@ export function createLiveRuntime(common: Common, approver: Approver | null) {
      * stopped after consuming re-uses that same consumed approval for the same run and never accepts another.
      */
     async execute(c: Contract, passkey?: unknown) {
+      // M1-R1: under EXE HOLD no assertion is verified or consumed and no document is preserved, even if called directly.
+      if (EXE === 'HOLD') fail('EXE_HOLD');
       const a = eligible(c);
       let record = recordOf(c);
       if (!record) {

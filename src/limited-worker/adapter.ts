@@ -8,6 +8,7 @@ import { verifyInvocation, verifyPermit } from './governance.js';
 import { WorkerStore } from './store.js';
 import { parsePreflight, type WorkerTransport } from './transport.js';
 import { liveEligibility, verifyActivationSet, type SignaturePolicyVersion } from './activation-set.js';
+import type { ClassDelegationVerifier } from './governance.js';
 
 // M0: usage covers the whole invocation, so its bounds scale with the contract's request limit (1, or the reader's turns).
 const replySchemaFor = (c: Contract) => z.object({ id: z.string().min(1).max(200), model: z.literal(MODEL), stop_reason: z.literal('end_turn'),
@@ -30,6 +31,8 @@ export interface WorkerDependencies {
   activationSetRoot?: string; requireActivationSet?: boolean;
   /** M1-B: the set's signing policy, and the trusted Host's passkey attestation verifier for an M1 set. */
   signaturePolicy?: SignaturePolicyVersion; liveApproval?(c: Contract, setHash: string): void;
+  /** M1-R1: the explicit class-delegation rule; a Host-derived packet without it is refused at every check. */
+  classDelegation?: ClassDelegationVerifier;
 }
 export class LimitedReadmeWorker implements ImplementationAgentPort {
   readonly #d: WorkerDependencies;
@@ -51,7 +54,8 @@ export class LimitedReadmeWorker implements ImplementationAgentPort {
       if (c.implementationSha !== d.implementationSha || c.workerCodeHash !== d.workerCodeHash || c.storageIdentity !== d.store.identity() || input.runId !== c.runId || input.implementationIteration !== 1 || input.correction) throw new Error('IMPLEMENTATION_BINDING_MISMATCH');
       checkQuote(c.quote, d.now());
       const model = d.readModel();
-      verifyPermit(c, { grant: d.humanGrant, liveGrant: d.liveGrant, model, packet: input.packet, humanPrincipalRef: d.humanPrincipalRef,architectPrincipalRef:d.architectPrincipalRef, now: d.now() });
+      verifyPermit(c, { grant: d.humanGrant, liveGrant: d.liveGrant, model, packet: input.packet, humanPrincipalRef: d.humanPrincipalRef,architectPrincipalRef:d.architectPrincipalRef, now: d.now(),
+        classDelegation: d.classDelegation });
       // S1: the trusted Host's worker (and any live provider call) re-verifies the complete committed set at every check,
       // including the final send guard; an unsigned set is never eligible for a live provider call.
       if (d.requireActivationSet || d.transport.kind === 'LIVE_PROVIDER') {
@@ -70,6 +74,8 @@ export class LimitedReadmeWorker implements ImplementationAgentPort {
       return { source, objective };
     };
     let reserved = false, claimed = false;
+    // M1-R1: which endpoint a live run uses, as the transport states it (the public API, or a requester a test injected).
+    const endpoint = d.transport.kind === 'LIVE_PROVIDER' ? d.transport.endpointFor?.(c) ?? null : null;
     const abort = new AbortController();
     const grantExpiry = Date.parse((d.humanGrant as { expiresAt?: string } | null)?.expiresAt ?? '');
     const liveExpiry = Date.parse((d.liveGrant as { expiresAt?: string } | null)?.expiresAt ?? '');
@@ -90,7 +96,7 @@ export class LimitedReadmeWorker implements ImplementationAgentPort {
         (d.transport.kind==='LIVE_PROVIDER'&&(!preflight.requestHash||!preflight.contractHash))||
         preflight.priceSourceHash !== c.quote.sourceSha256 || preflight.evidenceClass !== d.transport.kind ||
         Date.parse(preflight.observedAt) > Date.parse(d.now()) || Date.parse(d.now()) - Date.parse(preflight.observedAt) > 300000) throw new Error('PREFLIGHT_NOT_BOUND');
-      d.store.change(id, j => { j.modelPreflight = preflight; j.events.push({ at: d.now(), kind: 'MODEL_PRICE_PREFLIGHT_VERIFIED' }); });
+      d.store.change(id, j => { j.modelPreflight = preflight; if (endpoint) j.providerEndpoint = endpoint; j.events.push({ at: d.now(), kind: 'MODEL_PRICE_PREFLIGHT_VERIFIED' }); });
       check();
       if (performance.now() - started >= duration) abort.abort(new Error('WORKER_TIMEOUT'));
       if (abort.signal.aborted) throw abort.signal.reason;
@@ -115,9 +121,9 @@ export class LimitedReadmeWorker implements ImplementationAgentPort {
       if (actualCostMicroUsd > maximumCost(c)) throw new Error('USAGE_EXCEEDED_RESERVED_BOUND');
       d.store.writeReport(c, report);
       d.store.change(id, j => { j.state = 'COMPLETED'; j.report = report; j.reportHash = hash(report); j.usage = usage;
-        j.actualCostMicroUsd = actualCostMicroUsd; j.providerMessageId = response.id; if (requestId) j.providerRequestId = requestId; j.events.push({ at: d.now(), kind: 'RESULT_PERSISTED_NOT_AUTHORITY' }); });
+        j.actualCostMicroUsd = actualCostMicroUsd; j.providerMessageId = response.id; if (requestId) j.providerRequestId = requestId; if (endpoint) j.providerEndpoint = endpoint; j.events.push({ at: d.now(), kind: 'RESULT_PERSISTED_NOT_AUTHORITY' }); });
       return { status: 'COMPLETED', validationEvidence: [`limited-worker:${id}`, `report-sha256:${hash(report)}`,
-        `evidence-class:${d.transport.kind}`, `reserved-micro-usd:${maximumCost(c)}`, 'No Git writes, delivery, tools or other agents'] };
+        `evidence-class:${d.transport.kind}`, ...(endpoint ? [`provider-endpoint:${endpoint}`] : []), `reserved-micro-usd:${maximumCost(c)}`, 'No Git writes, delivery, tools or other agents'] };
     } catch (error) {
       const reason = safeReason(abort.signal.aborted ? abort.signal.reason : error);
       if (reserved) d.store.change(id, j => { j.state = claimed ? 'UNCERTAIN' : reason === 'USER_CANCEL' ? 'CANCELLED' : reason === 'WORKER_TIMEOUT' ? 'TIMED_OUT' : 'BLOCKED';

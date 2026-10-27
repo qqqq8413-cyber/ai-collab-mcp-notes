@@ -17,7 +17,7 @@ import { loadApprover } from './run-approval.js';
 import { createLimitedWorkerService } from './service.js';
 import { WorkerStore } from './store.js';
 import { agentTransports, fetchOfficialQuote, nativeAnthropicTransport, unconfiguredLiveTransport } from './transport.js';
-import { hash, REPOSITORY } from './contract.js';
+import { EXE, hash, REPOSITORY } from './contract.js';
 import { readPinnedReadme } from './source.js';
 
 async function main() {
@@ -81,9 +81,9 @@ async function main() {
         return createLimitedWorkerService({goals:ports.store,governance:ports.governance,admission:ports.runAdmission,
           projects,store:workerStore,quote,source,identity,runtime,now:clock.now,measurementClass});
       }});
-    engine.start();console.log(`CHIEF limited worker: ${server.url} | EXE HOLD | approver ${approver?`${approver.keyId.slice(0,16)} (${approver.protection})`:'not configured'} | passkey approvals at http://localhost:${port}/ | account/model not called`);
+    engine.start();console.log(`CHIEF limited worker: ${server.url} | EXE ${EXE} | approver ${approver?`${approver.keyId.slice(0,16)} (${approver.protection})`:'not configured'} | passkey approvals at http://localhost:${port}/ | account/model not called`);
     let stopping=false;const stop=()=>{if(stopping)return;stopping=true;void engine.close().then(()=>server.close()).then(()=>{process.exit(0);}).catch(()=>process.exit(1));};
     process.once('SIGTERM',stop);process.once('SIGINT',stop);
   }catch(error){await engine.close();throw error;}
 }
-main().catch((error:unknown)=>{console.error(`限定 Worker 無法安全啟動；EXE HOLD，未呼叫模型。${error instanceof Error&&/^[A-Z0-9_]{1,100}$/.test(error.message)?` (${error.message})`:''}`);process.exitCode=1;});
+main().catch((error:unknown)=>{console.error(`限定 Worker 無法安全啟動；EXE ${EXE}，未呼叫模型。${error instanceof Error&&/^[A-Z0-9_]{1,100}$/.test(error.message)?` (${error.message})`:''}`);process.exitCode=1;});

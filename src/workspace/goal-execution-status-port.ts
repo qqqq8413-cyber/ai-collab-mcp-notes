@@ -30,7 +30,8 @@ export interface GoalExecutionStatusView {
   /** The lifecycle moves the governed evidence allows next, each with the one role that may take it. */
   nextMoves: { action: string; role: string }[];
   /** Required direct authority the run rests on that resolves exactly in the archive: identifiers only, never a body. */
-  directAuthority: { recordClass: 'DIRECT_AUTHORITY'; kind: string; authorityId: string; version: number }[];
+  /** Archived authority the run resolves to. M1-R1: a Host-derived run packet says CLASS_DERIVED_AUTHORITY, never DIRECT_AUTHORITY. */
+  directAuthority: { recordClass: 'DIRECT_AUTHORITY' | 'CLASS_DERIVED_AUTHORITY'; kind: string; authorityId: string; version: number }[];
   /** Required direct authority that does not resolve: identifiers and the resolution code only. */
   unresolvedAuthority: { kind: string; authorityId: string; resolution: string }[];
   /** Operational provenance of the run, never authority. */

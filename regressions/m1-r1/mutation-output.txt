@@ -1,0 +1,44 @@
+MR1 activation core admits a derived packet without the rule: CAUGHT | test-governed-activation.mjs: 46 passed, 1 failed
+    FAIL M1-R1 (R-1). a Host-derived CLASS_DERIVED_AUTHORITY packet is refused without the explicit class-delegati
+MR2 derived record need not carry a derivation: CAUGHT | test-m1-r1-provenance.mjs[R-1 record]: 0 passed, 1 failed
+    FAIL R-1 record classes: a derived record is a version 1 packet with one derivation; direct authority carries 
+MR3 grants or later versions may be derived: CAUGHT | test-m1-r1-provenance.mjs[R-1 record]: 0 passed, 1 failed
+    FAIL R-1 record classes: a derived record is a version 1 packet with one derivation; direct authority carries 
+MR4 provenance check passes a derived record without the rule: CAUGHT | test-m1-r1-provenance.mjs[R-1 governance]: 0 passed, 1 failed | test-auto-p2-a4-s1.mjs[S1-M1R1]: 0 passed, 1 failed
+    FAIL R-1 governance verification: a derived packet record is never treated as direct authority; without the ex
+    FAIL S1-M1R1 a Host-derived packet document is refused at staging without the explicit class-delegation rule, 
+MR5 staging skips the provenance check: CAUGHT | test-auto-p2-a4-s1.mjs[S1-M1R1]: 0 passed, 1 failed
+    FAIL S1-M1R1 a Host-derived packet document is refused at staging without the explicit class-delegation rule, 
+MR6 verifyPermit skips the provenance check: CAUGHT | test-m1-r1-provenance.mjs[R-1 governance]: 0 passed, 1 failed
+    FAIL R-1 governance verification: a derived packet record is never treated as direct authority; without the ex
+MR7 run packet drafted as direct authority: CAUGHT | test-m1-r1-provenance.mjs[R-1 record]: 0 passed, 1 failed
+    FAIL R-1 record classes: a derived record is a version 1 packet with one derivation; direct authority carries 
+MR8 rule ignores the issuer and version: CAUGHT | test-m1-r1-provenance.mjs[R-1 class-delegation]: 0 passed, 1 failed
+    FAIL R-1 class-delegation rule: admits exactly the derived packet the pinned acceptance allows; source, versio
+MR9 rule ignores which acceptance: CAUGHT | test-m1-r1-provenance.mjs[R-1 class-delegation]: 0 passed, 1 failed
+    FAIL R-1 class-delegation rule: admits exactly the derived packet the pinned acceptance allows; source, versio
+MR10 rule ignores the class: CAUGHT | test-m1-r1-provenance.mjs[R-1 class-delegation]: 0 passed, 1 failed
+    FAIL R-1 class-delegation rule: admits exactly the derived packet the pinned acceptance allows; source, versio
+MR11 rule ignores the implementation SHA: CAUGHT | test-m1-r1-provenance.mjs[R-1 class-delegation]: 0 passed, 1 failed
+    FAIL R-1 class-delegation rule: admits exactly the derived packet the pinned acceptance allows; source, versio
+MR12 rule accepts a packet that is not exactly packetFor(its contract): CAUGHT | test-m1-r1-provenance.mjs[R-1 class-delegation]: 0 passed, 1 failed
+    FAIL R-1 class-delegation rule: admits exactly the derived packet the pinned acceptance allows; source, versio
+MR13 acceptance hash not domain separated: CAUGHT | test-m1-r1-provenance.mjs[R-1 standing]: 0 passed, 1 failed
+    FAIL R-1 standing acceptance: domain-separated hash over source and version; every field binds; the version ch
+MR14 acceptance version chain not enforced: CAUGHT | test-m1-r1-provenance.mjs[R-1 standing]: 0 passed, 1 failed
+    FAIL R-1 standing acceptance: domain-separated hash over source and version; every field binds; the version ch
+MR15 attestation ignores the pinned acceptance: CAUGHT | test-m1-r1-provenance.mjs[WebAuthn replay]: 0 passed, 1 failed
+    FAIL WebAuthn replay: one consumed approval per job; a record copied to another job, re-pinned to another acce
+MR16 approval record copied to another job accepted: CAUGHT | test-m1-r1-provenance.mjs[WebAuthn replay]: 0 passed, 1 failed
+    FAIL WebAuthn replay: one consumed approval per job; a record copied to another job, re-pinned to another acce
+MR17 approval binding ignores the derived record and acceptance fields: NOT CAUGHT (REDUNDANT: setHash names the derived packet record, whose hash covers the derivation and acceptance hash) | test-m1-r1-provenance.mjs[EXE-lifted copy: substituting]: 1 passed, 0 failed
+MR18 runtime trusts the service for EXE HOLD: CAUGHT | test-m1-r1-provenance.mjs[Real build]: 0 passed, 1 failed
+    FAIL Real build (EXE HOLD), valid candidate, agent-set environment: the runtime called directly still refuses 
+MR19 fake provider labelled as the public API: CAUGHT | test-m1-real-task-activation.mjs: 15 passed, 1 failed
+    FAIL M1 EXE-lifted copy over HTTP: passkey approval, three preserved documents, M1 set, exactly one provider r
+MR20 fake provider metadata counted as the account: CAUGHT | test-m1-real-task-activation.mjs: 15 passed, 1 failed
+    FAIL M1 EXE-lifted copy over HTTP: passkey approval, three preserved documents, M1 set, exactly one provider r
+MR21 status view shows a derived packet as direct authority: CAUGHT | test-goal-execution-status.mjs: 15 passed, 1 failed
+    FAIL M1-R1. a Host-derived run packet is shown as CLASS_DERIVED_AUTHORITY, never as the Architect's direct aut
+ALL MUTATIONS CAUGHT (REDUNDANT ones reported)
+mutate exit=0
