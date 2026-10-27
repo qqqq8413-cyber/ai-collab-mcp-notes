@@ -6,14 +6,20 @@ const when=v=>v?new Date(v).toLocaleString('zh-TW',{hour12:false}):'—';
 const labels={PREPARED:'計畫已保存，尚未執行',RUNNING:'請求進行中',COMPLETED:'成果已保存',CANCELLED:'已取消',TIMED_OUT:'送出前已逾時',
   BLOCKED:'條件不符合',UNCERTAIN:'結果不確定，禁止重送',FAILED:'執行失敗',RESULT_REQUIRES_RECONCILIATION:'成果待人工核對'};
 export const AGENT_LABELS={'claude-code-reader':'Claude Code 唯讀分析','limited-readme-worker':'README 審查 Worker'};
-const AGENT_NOTES={'claude-code-reader':'隔離工作區只放固定版本 README.md；只有 Read、Glob、Grep；最多 3 輪模型請求',
+const AGENT_NOTES={'claude-code-reader':'隔離工作區只放固定版本 README.md；只有 Read、Glob、Grep；最多 3 輪（輪數不等於請求數，僅限離線演練）',
   'limited-readme-worker':'一次 Messages API 請求，不使用工具'};
 const messages={EXE_HOLD:'目前未開放正式執行，沒有送出模型請求。',PRICE_QUOTE_EXPIRED:'價格證據已過期，請待系統更新後重新準備。',
   PRICE_NOT_VERIFIED:'目前無法確認價格，不能準備執行。',INPUT_POLICY_LEGACY_REQUIRES_REPLAN:'舊計畫不會自動升級。請建立新工作，產生新的 A3 計畫與未核發許可。',OBSERVATION_ID_CONFLICT:'操作識別衝突，請重新開啟準備畫面。',
   APPROVAL_REQUIRED:'請先勾選批准這項工作與費用上限。',APPROVAL_DOES_NOT_MATCH_COST:'批准的費用上限與系統計算的不同，請重新整理後再批准。',
   WORK_ALREADY_STARTED_OR_TERMINAL:'這項工作已經開始或已經結束，不會重送。',WORKER_LEASE_BUSY:'另一個執行正在進行，請稍後再試。',
   GOAL_BINDING_MISMATCH:'任務內容與計畫不一致，沒有執行。',
-  TOTAL_COST_LIMIT:'累積預算上限不足以容納這項工作的最壞預留；已完成工作的預留不會退回。沒有執行。'};
+  TOTAL_COST_LIMIT:'累積預算上限不足以容納這項工作的最壞預留；已完成工作的預留不會退回。沒有執行。',
+  READER_REQUEST_BOUND_UNPROVEN:'Claude Code 無法證明一次執行只送出有限次數的模型請求，正式 Host 不提供；請改用 README 審查 Worker。',
+  PASSKEY_APPROVAL_REQUIRED:'需要用通行金鑰（Touch ID）批准這一個 Run。',APPROVER_NOT_CONFIGURED:'正式 Host 尚未設定 Human 的通行金鑰，不能批准。',
+  WORKER_CLASS_NOT_ACCEPTED:'這類工作尚未經 Architect 接受，不能批准。',IMPLEMENTATION_NOT_ACCEPTED:'目前程式版本不是 Architect 接受的版本，不能批准。',
+  APPROVAL_EXPIRED:'批准已過期，請重新批准。',APPROVAL_ALREADY_USED:'這次批准已使用過，不會重送。',APPROVAL_NOT_REQUESTED:'請先按「以通行金鑰批准並執行」。',
+  PASSKEY_SIGNATURE_INVALID:'通行金鑰簽章不正確，沒有執行。',PASSKEY_USER_NOT_VERIFIED:'通行金鑰沒有完成使用者驗證（Touch ID／密碼），沒有執行。',
+  PASSKEY_ORIGIN_MISMATCH:'請從 http://localhost 開啟 Workspace 再批准。',PASSKEY_CREDENTIAL_MISMATCH:'使用的通行金鑰不是 Host 設定的那一把。'};
 const offline=e=>e?.evidenceClass==='OFFLINE_SYNTHETIC'&&e.startAvailable===true;
 export const modeText=e=>!e?'讀取中…':offline(e)?'OFFLINE_SYNTHETIC 演練：不呼叫模型':e.startAvailable?'可執行':'正式執行：EXE HOLD';
 export function workerHTML(){return `<section id="limited-worker" class="ai-preparation" aria-label="交付任務">
@@ -21,9 +27,9 @@ export function workerHTML(){return `<section id="limited-worker" class="ai-prep
   <p class="worker-message" role="status" aria-live="polite">讀取準備條件…</p>
   <form class="auto-form worker-create"><label class="worker-objective">要 AI 完成什麼<textarea name="objective" maxlength="2000" rows="3" required></textarea></label>
     <label>可用資料<span class="worker-scope">CHIEF 的固定版本 README.md，最多 16KB</span></label>
-    <label>指定 Agent<select name="agentId"><option value="claude-code-reader">${AGENT_LABELS['claude-code-reader']}</option><option value="limited-readme-worker">${AGENT_LABELS['limited-readme-worker']}</option></select></label>
+    <label>指定 Agent<select name="agentId"><option value="limited-readme-worker">${AGENT_LABELS['limited-readme-worker']}</option><option value="claude-code-reader">${AGENT_LABELS['claude-code-reader']}</option></select></label>
     <label>費用上限<span class="worker-scope">單次及累積最多 US$1；每項工作的預留上限顯示在工作卡片上，批准前可確認</span></label>
-    <label>時間上限<span class="worker-scope">300 秒；README 審查一次請求，Claude Code 最多 3 輪；零重試</span></label>
+    <label>時間上限<span class="worker-scope">300 秒；README 審查一次請求、零重試；Claude Code 只在離線演練提供</span></label>
     <p class="worker-delivery">資料上限：README 16,384 bytes、工作內容 2,000 UTF-16 units。超限拒絕，不截斷文件。</p>
     <p class="worker-delivery">交付：繁體中文 Markdown 報告。只讀文件，不修改程式、Git 或部署。</p>
     <button class="auto-button" type="submit">${readerIcon('add')} 建立工作與計畫</button></form>
@@ -31,14 +37,37 @@ export function workerHTML(){return `<section id="limited-worker" class="ai-prep
     <form class="auto-form worker-form" hidden><label>既有目標<select name="goalId" required></select></label>
       <button class="auto-button" type="submit">${readerIcon('add')} 準備計畫</button></form></details>
   <div class="worker-jobs"></div><div class="worker-efficiency"></div></section>`;}
+const b64u={from:t=>Uint8Array.from(atob(t.replace(/-/g,'+').replace(/_/g,'/')+'==='.slice((t.length+3)%4)),c=>c.charCodeAt(0)),
+  to:b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')};
+/** M1: what the Human checks before approving one live run. */
+function previewHTML(j){const p=j.approvalPreview;if(!p)return '';const b=p.requestBound??{};
+  const facts=`<dl class="auto-facts">
+    <div><dt>任務</dt><dd>${esc(p.task)}</dd></div><div><dt>Agent</dt><dd>${esc(AGENT_LABELS[p.agentId]??p.agentId)}</dd></div>
+    <div><dt>模型</dt><dd>${esc(p.provider)} · ${esc(p.model)}</dd></div>
+    <div><dt>資料範圍（唯讀）</dt><dd>${esc(p.dataScope.repository)} · ${esc(p.dataScope.path)} @ ${esc(p.dataScope.sourceSha.slice(0,12))} · ${p.dataScope.bytes} bytes</dd></div>
+    <div><dt>預算上限（最壞預留，不退回）</dt><dd>${usd(p.maxReservationMicroUsd)}；累積上限 ${usd(p.totalCeilingMicroUsd)}</dd></div>
+    <div><dt>模型請求</dt><dd>${b.maxModelRequests===1?'最多 1 次、零重試':'無法證明上限（不提供正式執行）'}</dd></div>
+    <div><dt>時間上限</dt><dd>${p.timeoutSeconds} 秒</dd></div><div><dt>連線對象</dt><dd>${esc(p.egressDestinations.join('、'))}</dd></div>
+    <div><dt>費用證據</dt><dd>依 usage 與公開價格計算，不是供應商帳單</dd></div></dl>`;
+  // Always visible while the job waits for approval; folded away afterwards.
+  return j.state==='PREPARED'?`<section class="worker-preview"><h4>批准前請確認</h4>${facts}</section>`
+    :`<details class="worker-preview" data-evidence="preview-${j.id}"><summary>批准時確認的內容</summary>${facts}</details>`;}
+/** M1: the live passkey approval controls (shown only where a live START is possible). */
+function liveHTML(j,exec,approved){const a=j.liveApproval??{},ok=approved.has(j.id),local=location.hostname==='localhost';
+  const status=!a.configured?'尚未設定 Human 通行金鑰':`通行金鑰 ${esc((a.keyId??'').slice(0,12))}${a.protection==='ROOT_OWNED'?'（設定檔 root 擁有）':''}；類別${a.classAccepted?'已接受':'未接受'}；程式版本${a.implementationAccepted?'已接受':'未接受'}`;
+  return `<p class="auto-deferred worker-passkey">${status}${a.refusal?`：${esc(messages[a.refusal]??a.refusal)}`:''}</p>
+    ${local?'':`<p class="auto-error">通行金鑰只能在 <a href="http://localhost:${esc(location.port)}${esc(location.pathname)}${esc(location.hash)}">http://localhost:${esc(location.port)}</a> 使用。</p>`}
+    <label class="worker-approve"><input type="checkbox" data-approve="${j.id}" ${ok?'checked':''}> 我已確認以上任務、資料範圍、模型與預算，批准這一個 Run，最多預留 ${usd(j.maximumReservationMicroUsd)}</label>
+    <button class="auto-button" data-worker-passkey="${j.id}" data-max="${j.maximumReservationMicroUsd}" ${ok&&local&&!a.refusal?'':'disabled'}>${readerIcon('play')} 以通行金鑰（Touch ID）批准並執行</button>`;}
 function startHTML(j,exec,approved,data){
   if(exec.startAvailable&&j.state==='PREPARED'&&data.totalReservedMicroUsd+j.maximumReservationMicroUsd>data.totalCeilingMicroUsd)
     return `<p class="auto-error worker-budget">剩餘預算不足：累積上限 ${usd(data.totalCeilingMicroUsd)}，已保守預留 ${usd(data.totalReservedMicroUsd)}，這項工作需要預留 ${usd(j.maximumReservationMicroUsd)}。已完成工作的預留不會退回，所以不能批准。</p>`;
+  if(exec.startAvailable&&j.state==='PREPARED'&&exec.approvalMethod==='PASSKEY_PER_RUN')return liveHTML(j,exec,approved);
   if(exec.startAvailable&&j.state==='PREPARED'){const ok=approved.has(j.id);
     return `<label class="worker-approve"><input type="checkbox" data-approve="${j.id}" ${ok?'checked':''}> 我批准這項工作，並同意最多預留 ${usd(j.maximumReservationMicroUsd)}</label>
       <button class="auto-button" data-worker-start="${j.id}" data-max="${j.maximumReservationMicroUsd}" ${ok?'':'disabled'}>${readerIcon('play')} 批准並執行</button>`;}
   if(exec.startAvailable)return '';
-  return `<button class="auto-button" disabled title="EXE HOLD；本輪沒有付費執行授權">${readerIcon('play')} 啟動執行 · LOCKED</button>`;}
+  return `<button class="auto-button" disabled title="EXE HOLD；本輪沒有付費執行授權">${readerIcon('play')} 以通行金鑰批准並執行 · LOCKED</button>`;}
 export function jobsHTML(data,approved=new Set()){const exec=data.execution??{evidenceClass:'LIVE_PROVIDER',startAvailable:false,authorizationSteps:[]};
   return `<dl class="auto-facts"><div><dt>持久化總預算</dt><dd>${usd(data.totalCeilingMicroUsd)}</dd></div>
   <div><dt>已保守預留，含不確定請求</dt><dd>${usd(data.totalReservedMicroUsd)}</dd></div></dl>
@@ -53,7 +82,9 @@ export function jobsHTML(data,approved=new Set()){const exec=data.execution??{ev
       <div><dt>最壞費用預留，非實際費用</dt><dd>${usd(j.maximumReservationMicroUsd)}</dd></div>
       <div><dt>實際 usage 計算費用，非帳單</dt><dd>${usd(j.actualCostMicroUsd)}</dd></div>
       <div><dt>usage</dt><dd>${j.usage?`輸入 ${j.usage.inputTokens}、輸出 ${j.usage.outputTokens} tokens`:'尚無'}</dd></div>
+      ${j.providerMessageId?`<div><dt>供應商紀錄</dt><dd>${esc(j.providerMessageId)}${j.providerRequestId?` · ${esc(j.providerRequestId)}`:''}</dd></div>`:''}
       <div><dt>正式授權</dt><dd>${offline(exec)?'OFFLINE_SYNTHETIC 演練紀錄，不是 Human 授權':j.authorityStatus==='ARCHIVED_BINDING_VALID'?'限定文件綁定有效，仍需完整許可':'尚未取得有效限定授權'}</dd></div></dl>
+    ${previewHTML(j)}
     <p class="auto-deferred">${offline(exec)?`OFFLINE_SYNTHETIC 演練 Host：完整經過受信啟用、Controller、Journal 與隔離工作區；不呼叫模型，成果不是 AI 分析。${esc(AGENT_NOTES[j.contract.agentId]??'')}。`:'可信執行 Host：EXE HOLD，尚未開放執行。帳戶模型尚未驗證。'}</p>
     ${offline(exec)?'':`<h4>啟動前檢查：尚未符合</h4><ul class="worker-checks">${(j.readiness?.checks??[]).map(c=>`<li><strong>${esc(c.title)}</strong><p>${esc(c.nextStep)}</p></li>`).join('')}</ul>`}
     <div class="auto-actions"><button class="auto-button" data-worker-act="CHECK" data-id="${j.id}">${readerIcon('refresh')} 檢查準備狀態</button>
@@ -85,6 +116,9 @@ export function attachWorker({projectId,source,root}){
   // Approval checkboxes survive the 3-second refresh; a job leaves the set once it has started or ended.
   const approved=new Set();let execution=null;
   const show=data=>{if(!root.isConnected)return;execution=data.execution??null;mode.textContent=modeText(execution);
+    for(const option of create.elements.agentId.options){const unavailable=data.agentAvailability?.[option.value]==='READER_REQUEST_BOUND_UNPROVEN';
+      option.disabled=unavailable;option.textContent=AGENT_LABELS[option.value]+(unavailable?'（僅離線演練）':'');}
+    if(create.elements.agentId.selectedOptions[0]?.disabled)create.elements.agentId.value='limited-readme-worker';
     for(const id of approved)if(!data.jobs.some(j=>j.id===id&&j.state==='PREPARED'))approved.delete(id);
     const opened=new Set([...jobs.querySelectorAll('details[open]')].map(d=>d.dataset.evidence));
     jobs.innerHTML=jobsHTML(data,approved);for(const d of jobs.querySelectorAll('details'))d.open=opened.has(d.dataset.evidence);
@@ -117,8 +151,25 @@ export function attachWorker({projectId,source,root}){
       message.textContent=j?.contract.inputPolicy?.revision==='A3'?(offline(data.execution)?'計畫已保存。勾選批准後按「批准並執行」。':'計畫已保存，尚未授權或執行。'):'這是歷史計畫，未升級或執行。請建立新工作以準備 A3 計畫。';}catch(e){message.textContent=explain(e);}finally{button.disabled=false;}});
   root.addEventListener('change',e=>{const box=e.target.closest('[data-approve]');if(!box)return;
     if(box.checked)approved.add(box.dataset.approve);else approved.delete(box.dataset.approve);
-    const start=jobs.querySelector(`[data-worker-start="${box.dataset.approve}"]`);if(start)start.disabled=!box.checked;});
-  root.addEventListener('click',async e=>{const s=e.target.closest('[data-worker-start]');
+    const start=jobs.querySelector(`[data-worker-start="${box.dataset.approve}"]`);if(start)start.disabled=!box.checked;
+    const passkey=jobs.querySelector(`[data-worker-passkey="${box.dataset.approve}"]`);if(passkey)passkey.disabled=!box.checked||location.hostname!=='localhost';});
+  root.addEventListener('click',async e=>{const k=e.target.closest('[data-worker-passkey]');
+    if(k){if(k.disabled)return;k.disabled=true;const id=k.dataset.workerPasskey,approval={maxReservationMicroUsd:Number(k.dataset.max)};
+      try{message.textContent='Host 正在準備這一個 Run 的批准內容…';
+        const asked=await source.workerAction(projectId,id,{action:'REQUEST_APPROVAL',requestId:crypto.randomUUID(),approval});
+        const pending=asked.jobs.find(j=>j.id===id)?.liveApproval?.pending;if(!pending)throw new Error('APPROVAL_NOT_REQUESTED');
+        message.textContent='請用 Touch ID／通行金鑰確認。';
+        const credential=await navigator.credentials.get({publicKey:{challenge:b64u.from(pending.challenge),rpId:pending.rpId,timeout:pending.timeoutMs,
+          userVerification:'required',allowCredentials:[{type:'public-key',id:b64u.from(pending.credentialId)}]}});
+        if(!credential)throw new Error('PASSKEY_APPROVAL_REQUIRED');
+        const r=credential.response;message.textContent='已批准，執行中…';
+        const data=await source.workerAction(projectId,id,{action:'START',requestId:crypto.randomUUID(),approval,passkey:{credentialId:b64u.to(credential.rawId),
+          authenticatorData:b64u.to(r.authenticatorData),clientDataJSON:b64u.to(r.clientDataJSON),signature:b64u.to(r.signature)}});
+        approved.delete(id);show(data);const j=data.jobs.find(j=>j.id===id);
+        message.textContent=j?.state==='COMPLETED'?`完成：${AGENT_LABELS[j.contract.agentId]??'Agent'} 的成果已保存，顯示在下方工作卡片。`:`執行結束：${labels[j?.effectiveState]??j?.effectiveState??'狀態未知'}。`;
+      }catch(err){message.textContent=err?.name==='NotAllowedError'?'通行金鑰確認已取消或逾時；沒有執行。':explain(err);k.disabled=false;}
+      return;}
+    const s=e.target.closest('[data-worker-start]');
     if(s){if(s.disabled)return;s.disabled=true;const id=s.dataset.workerStart;message.textContent='已批准，執行中…';
       try{const data=await source.workerAction(projectId,id,{action:'START',requestId:crypto.randomUUID(),approval:{maxReservationMicroUsd:Number(s.dataset.max)}});
         approved.delete(id);show(data);const j=data.jobs.find(j=>j.id===id);

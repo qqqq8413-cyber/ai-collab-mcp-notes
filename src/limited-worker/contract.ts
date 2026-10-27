@@ -69,6 +69,30 @@ export type Contract = z.infer<typeof contractSchema>;
 export function parseContract(v: unknown): Contract { return contractSchema.parse(v); }
 /** Model requests one invocation may make: 1, or the Claude Code reader's turn limit. */
 export const turnsOf = (c: Contract): number => c.maxTurns ?? 1;
+/**
+ * M1-A: what one governed invocation can actually send to the provider, and what proves it. The packet's
+ * `providerCallAuthorization.maxCalls` counts governed invocations (Invocation Journal starts), never provider requests.
+ * - README Worker: one native HTTPS POST (no SDK, no retry, no redirect, no tool loop), so 1 request and 0 retries.
+ * - Claude Code reader: `--max-turns` limits turns, not requests. The real CLI 2.1.283 against a fake local provider
+ *   (regressions/m1/cli-probe-result.json) retried a 529 and fell back to a second non-streaming request under the M0
+ *   environment, and even with retries, the fallback and thinking switched off it sent 4 requests under
+ *   `--max-turns 3` when every answer stopped at max_tokens. No request bound is proven, so no live request is allowed.
+ */
+export interface RequestBound {
+  agentId: AgentId; maxModelRequests: number | null; maxRetries: 0; liveEligible: boolean;
+  proof: 'ONE_NATIVE_HTTPS_REQUEST_NO_SDK_NO_RETRY' | 'CLI_TURN_LIMIT_IS_NOT_A_REQUEST_LIMIT';
+  refusal: 'READER_REQUEST_BOUND_UNPROVEN' | null;
+}
+export function requestBound(c: Contract): RequestBound {
+  return c.agentId === 'limited-readme-worker'
+    ? { agentId: c.agentId, maxModelRequests: 1, maxRetries: 0, liveEligible: true, proof: 'ONE_NATIVE_HTTPS_REQUEST_NO_SDK_NO_RETRY', refusal: null }
+    : { agentId: c.agentId, maxModelRequests: null, maxRetries: 0, liveEligible: false, proof: 'CLI_TURN_LIMIT_IS_NOT_A_REQUEST_LIMIT', refusal: 'READER_REQUEST_BOUND_UNPROVEN' };
+}
+/** M1-A: refuse a live provider request whose request bound is not proven, before any reservation or send. */
+export function assertLiveRequestBound(c: Contract): void {
+  const bound = requestBound(c);
+  if (!bound.liveEligible || bound.maxModelRequests !== 1 || c.maxCalls !== 1 || c.maxRetries !== 0) throw new Error(bound.refusal ?? 'REQUEST_BOUND_NOT_PROVEN');
+}
 /** Worst case for the whole invocation: every allowed request at the full input and output bound. */
 export function maximumCost(c: Contract): number {
   const perRequest = BigInt(c.maxInputTokens) * BigInt(c.quote.inputMicroUsdPerToken) + BigInt(c.maxOutputTokens) * BigInt(c.quote.outputMicroUsdPerToken);
@@ -85,7 +109,11 @@ export function packetFor(c: Contract, sliceId: string): ImplementationPacket {
   return parsePacket({ packetId: 'limited-' + hash(c).slice(0, 48), packetVersion: 1, sliceId, expectedBaseSha: c.sourceSha,
     targetBranch: 'work/limited-readme-no-delivery', objective: canonical(c), allowedAreas: ['README.md'],
     forbiddenChanges: ['ALL_SOURCE_WRITES', 'GIT_WRITE', 'PUSH', 'DEPLOY', 'AUTHORITY_WRITE', 'SHELL', 'OTHER_AGENTS'],
-    invariants: ['READ_ONLY_SOURCE', 'ONE_MODEL_REQUEST', 'EXE_HOLD_UNTIL_SEPARATE_HUMAN_AUTHORITY'],
+    // M1-A: only the README Worker states ONE_MODEL_REQUEST (its packet is byte-identical to before M0). The reader
+    // states what is true: one governed invocation, a turn limit that does not bound requests, and no live request.
+    invariants: c.agentId === 'limited-readme-worker' ? ['READ_ONLY_SOURCE', 'ONE_MODEL_REQUEST', 'EXE_HOLD_UNTIL_SEPARATE_HUMAN_AUTHORITY']
+      : ['READ_ONLY_SOURCE', 'ONE_GOVERNED_INVOCATION', 'CLI_TURN_LIMIT_IS_NOT_A_REQUEST_LIMIT', 'NO_LIVE_PROVIDER_REQUEST_UNTIL_REQUEST_BOUND_PROVEN',
+        'EXE_HOLD_UNTIL_SEPARATE_HUMAN_AUTHORITY'],
     acceptanceCriteria: ['Persist a bounded report with source and usage evidence; no repository delivery'],
     validationCommands: [{ commandId: 'verify-report', executable: 'node', args: ['--version'], cwd: '.', classification: 'OFFLINE_VALIDATION' }],
     networkAuthorization: { level: 'READ_EXTERNAL_API', destinations: [...SCOPE.egressDestinations], purpose: 'One exact bounded document review', budget: 1 },

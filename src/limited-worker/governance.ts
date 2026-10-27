@@ -7,7 +7,7 @@ import { parseAuthorization, authorizationBinds } from '../automation/policy.js'
 import type { GovernedReadModelV1 } from '../automation/read-model/governed-read-model.js';
 import type { ControllerRun, ImplementationPacket } from '../automation/types.js';
 import type { InvocationRecord } from '../automation/invocation-journal.js';
-import { liveEligibility, publishActivationSet, verifyActivationSet } from './activation-set.js';
+import { liveEligibility, publishActivationSet, verifyActivationSet, type SignaturePolicyVersion } from './activation-set.js';
 
 function boundGrant(raw:unknown,c:Contract,packet:ImplementationPacket,operation:string,target:string,now:string) {
   const grant=parseAuthorization(raw),at=Date.parse(now);
@@ -50,6 +50,30 @@ export function verifyInvocation(c: Contract, packet: ImplementationPacket, run:
     record.identity.occurrence.action !== last.action || hash(contractOf(packet)) !== hash(c)) throw new Error('INVOCATION_NOT_GOVERNED');
 }
 
+/**
+ * M1-B: the three documents of one passkey-approved run, drafted deterministically from the approval window. The
+ * packet derives from the contract (packetFor) under the Architect's standing class acceptance; the two grants are the
+ * Human's, valid only inside the window the Human signed. The trusted Host preserves them only after it verified the
+ * Human's assertion over a payload that names their exact record hashes; drafting alone writes and grants nothing.
+ */
+export function draftRunDocuments(c: Contract, packet: ImplementationPacket, input: { architectPrincipalRef: string; humanPrincipalRef: string;
+  issuedAt: string; expiresAt: string; nonce: string }): [AuthorityDocumentV1, AuthorityDocumentV1, AuthorityDocumentV1] {
+  if (hash(contractOf(packet)) !== hash(c)) throw new Error('CONTRACT_PACKET_MISMATCH');
+  const key = hash([hash(c), input.nonce]).slice(0, 24);
+  const grant = (operation: string, target: string, authorizationId: string) => ({ authorizationId, actorRole: 'HUMAN', operation, target,
+    runId: c.runId, packetId: packet.packetId, scope: { ...SCOPE, egressDestinations: [...SCOPE.egressDestinations] }, issuedAt: input.issuedAt,
+    expiresAt: input.expiresAt, reason: 'M1 single run approved by the Human with a passkey in the CHIEF Workspace' });
+  const document = (kind: 'IMPLEMENTATION_PACKET' | 'AUTHORIZATION', authorityId: string, body: unknown) => parseAuthorityDocument({ schemaVersion: 1,
+    recordClass: 'DIRECT_AUTHORITY', kind, authorityId, version: 1, issuedAt: input.issuedAt,
+    issuer: kind === 'IMPLEMENTATION_PACKET' ? { role: 'GPT_ARCHITECT', principalRef: input.architectPrincipalRef } : { role: 'HUMAN', principalRef: input.humanPrincipalRef },
+    subject: { repository: c.repository, sliceId: packet.sliceId }, supersedes: null, body });
+  return [document('IMPLEMENTATION_PACKET', packet.packetId, packet),
+    document('AUTHORIZATION', `m1-live-${key}`, grant('LIVE_PROVIDER_MODEL_CALL', 'live-provider-model-call', `m1-live-${key}`)),
+    document('AUTHORIZATION', `m1-limited-${key}`, grant('LIMITED_README_WORKER', hash(c), `m1-limited-${key}`))];
+}
+/** The record hash a document will have once preserved (the Authority Archive seals the same way). */
+export const recordHashOf = (document: AuthorityDocumentV1) => sealAuthorityRecord(document).recordHash;
+
 /** Trusted-host integration candidate. No writer factory, dispatch, credential or Workspace route. */
 export function limitedActivationCandidate(options: {
   core: GovernedActivationCore; store: WorkerStore; readModel(): GovernedReadModelV1;
@@ -58,6 +82,8 @@ export function limitedActivationCandidate(options: {
   readSource(c: Contract): { sha: string; path: string; text: string };
   readGoal(c: Contract): string;
   preserveIssued?:(documents:readonly AuthorityDocumentV1[])=>void;
+  /** M1-B: the signing policy of the set this activation commits (S1_UNSIGNED_V0 when absent). */
+  signaturePolicy?:SignaturePolicyVersion;
 }) {
   return Object.freeze({ stage(id: string, rawBundle: unknown, rawLimitedDocument: unknown) {
     const job=options.store.read().jobs.find(j=>j.id===id);
@@ -102,7 +128,7 @@ export function limitedActivationCandidate(options: {
     verifyPermit(c,{grant:limitedDocument.body,liveGrant:liveDocument.body,model:current,packet,humanPrincipalRef:options.humanPrincipalRef,architectPrincipalRef:options.architectPrincipalRef,now:options.now()});
     // S1: all three documents are durably archived, current and verified; only now is their ACTIVATION_SET
     // committed (idempotent), and the committed set is re-derived and re-verified before the Controller moves.
-    const setInput={contract:c,packet,model:current,liveGrant:liveDocument.body,limitedGrant:limitedDocument.body};
+    const setInput={contract:c,packet,model:current,liveGrant:liveDocument.body,limitedGrant:limitedDocument.body,signaturePolicy:options.signaturePolicy};
     publishActivationSet(options.store.directory,setInput);
     const set=verifyActivationSet(options.store.directory,{...setInput,model:options.readModel()});
     const result=options.core.activate(target,{implementationPacket:packetDocument,liveCallAuthorizations:[liveDocument]});

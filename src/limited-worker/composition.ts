@@ -10,6 +10,7 @@ import { LimitedReadmeWorker } from './adapter.js';
 import { SCOPE, EXE, hash, assertInputReady, contractOf, type Contract } from './contract.js';
 import { WorkerStore } from './store.js';
 import type { WorkerTransport } from './transport.js';
+import type { SignaturePolicyVersion } from './activation-set.js';
 import { packetFor } from './contract.js';
 import { verifyPermit, limitedActivationCandidate } from './governance.js';
 import type { GovernedActivationCore } from '../automation/activation-core.js';
@@ -42,6 +43,8 @@ export function composeLimitedWorker(options: {
   currentImplementation(): { sha: string; codeHash: string; clean: boolean };
   liveCallGrant: unknown; limitedGrant: unknown; readSource(c: Contract): { text: string; sha: string; path: string; bytes: number; hash: string };
   readGoal(c: Contract): string; deadlineMs?: number;
+  /** M1-B (trusted Host only): the signing policy of this worker's sets and the passkey attestation verifier. */
+  signaturePolicy?: SignaturePolicyVersion; liveApproval?(c: Contract, setHash: string): void;
 }, trusted?: {createActivation(controller:AutomationController):GovernedActivationCore;
   preserveIssued:NonNullable<Parameters<typeof limitedActivationCandidate>[0]['preserveIssued']>}) {
   options = { ...options, liveCallGrant: structuredClone(options.liveCallGrant), limitedGrant: structuredClone(options.limitedGrant) };
@@ -63,7 +66,8 @@ export function composeLimitedWorker(options: {
   const target = (c: Contract) => ({ source: { kind: 'WORKSPACE_GOAL' as const, projectId: c.projectId, goalId: c.goalId }, runId: c.runId });
   const activation=trusted?limitedActivationCandidate({core:trusted.createActivation(controller),store,readModel,
     humanPrincipalRef:options.humanPrincipalRef,architectPrincipalRef:options.architectPrincipalRef,now:()=>options.clock.now(),
-    identity:options.currentImplementation,readSource:options.readSource,readGoal:options.readGoal,preserveIssued:trusted.preserveIssued}):null;
+    identity:options.currentImplementation,readSource:options.readSource,readGoal:options.readGoal,preserveIssued:trusted.preserveIssued,
+    signaturePolicy:options.signaturePolicy}):null;
   return Object.freeze({
     /** M0: OFFLINE_SYNTHETIC or LIVE_PROVIDER, so the Workspace service can say which kind of run a START would be. */
     transportKind: options.transport.kind,

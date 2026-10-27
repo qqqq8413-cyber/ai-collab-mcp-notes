@@ -39,7 +39,8 @@ export function dispatchGuarded(signal:AbortSignal,beforeSend:(()=>void)|undefin
 const modelMetadataSchema=z.object({id:z.literal(MODEL),type:z.literal('model'),lifecycle:z.literal('active'),
   max_input_tokens:z.literal(200000),max_tokens:z.number().int().min(2048),
   capabilities:z.object({thinking:z.object({types:z.object({disabled:z.object({supported:z.literal(true)})})})})});
-export function boundedHttps(url: string, options: { method: 'GET' | 'POST'; signal: AbortSignal; headers?: Record<string, string>; body?: string;beforeSend?:()=>void },requester:typeof request=request): Promise<string> {
+export function boundedHttps(url: string, options: { method: 'GET' | 'POST'; signal: AbortSignal; headers?: Record<string, string>; body?: string;beforeSend?:()=>void;
+  /** M1-C: the provider's request-id response header, for evidence. */ onRequestId?(id: string): void },requester:typeof request=request): Promise<string> {
   const target = new URL(url);
   const allowed = url === PRICE_URL || url === `https://api.anthropic.com/v1/models/${MODEL}` || url === 'https://api.anthropic.com/v1/messages';
   if (!allowed || target.username || target.password || options.signal.aborted ||
@@ -47,6 +48,8 @@ export function boundedHttps(url: string, options: { method: 'GET' | 'POST'; sig
   return new Promise((resolve, reject) => {
     try{options.beforeSend?.();}catch{reject(new Error('FINAL_SEND_GUARD_REFUSED'));return;}
     const req = requester(target, { method: options.method, signal: options.signal, agent: false, headers: options.headers }, response => {
+      const requestId = response.headers?.['request-id'];
+      if (typeof requestId === 'string' && /^[A-Za-z0-9_-]{1,200}$/.test(requestId)) options.onRequestId?.(requestId);
       if (response.statusCode !== 200) { response.resume(); reject(new Error('PROVIDER_HTTP_REFUSED')); return; }
       const chunks: Buffer[] = []; let size = 0;
       response.on('data', b => { size += b.length; if (size > 512 * 1024) req.destroy(new Error('PROVIDER_OUTPUT_BYTES')); else chunks.push(b); });
@@ -70,7 +73,9 @@ const preflightSchema = z.strictObject({ evidenceClass: z.enum(['LIVE_PROVIDER',
 export type PreflightFact = z.infer<typeof preflightSchema>;
 export function parsePreflight(v: unknown): PreflightFact { return preflightSchema.parse(v); }
 export interface ProviderReply { id: string; model: string; content: Array<{ type: string; text?: string }>; stop_reason: string;
-  usage: { input_tokens: number; output_tokens: number; cache_creation_input_tokens: number; cache_read_input_tokens: number; service_tier: string } }
+  usage: { input_tokens: number; output_tokens: number; cache_creation_input_tokens: number; cache_read_input_tokens: number; service_tier: string };
+  /** M1-C: the provider's request-id header, when the transport saw one (evidence, never trusted for binding). */
+  requestId?: string }
 export interface WorkerTransport {
   readonly kind: 'LIVE_PROVIDER' | 'OFFLINE_SYNTHETIC';
   preflight(c: Contract, signal: AbortSignal,payload?:{objective:string;source:string}): Promise<PreflightFact>;
@@ -99,8 +104,12 @@ export function offlineAnthropicTransport(io:{price(c:Contract,signal:AbortSigna
       dispatchGuarded(signal,beforeSend,()=>{sent=io.send(c,wire,signal);});return sent!;},
   });
 }
-/** Trusted host only; API credentials never enter prompts, files, journals, UI or error messages. No SDK, retry, redirect or tool loop. */
-export function nativeAnthropicTransport(apiKey: () => string): WorkerTransport {
+/**
+ * Trusted host only; API credentials never enter prompts, files, journals, UI or error messages. No SDK, retry, redirect or tool loop.
+ * `requester` replaces node:https only in tests (a local TLS server); production passes nothing.
+ */
+export function nativeAnthropicTransport(apiKey: () => string, options: { requester?: typeof request } = {}): WorkerTransport {
+  const requester = options.requester ?? request;
   const headers = () => {
     const key = apiKey(); if (!key || /[\r\n]/.test(key)) throw new Error('CREDENTIAL_NOT_CONFIGURED');
     return { 'x-api-key': key, 'anthropic-version': API_VERSION, 'content-type': 'application/json' };
@@ -111,10 +120,10 @@ export function nativeAnthropicTransport(apiKey: () => string): WorkerTransport 
       assertInputReady(c);
       if(!payload)throw new Error('PREFLIGHT_INPUT_REQUIRED');
       messageBody(c,payload.objective,payload.source);checkQuote(c.quote,new Date().toISOString());
-      const doc = await boundedHttps(PRICE_URL, { method: 'GET', signal });
+      const doc = await boundedHttps(PRICE_URL, { method: 'GET', signal }, requester);
       if (hash(doc) !== c.quote.sourceSha256) throw new Error('PRICE_SNAPSHOT_CHANGED');
       tariffFromMarkdown(doc, new Date().toISOString());
-      const model = JSON.parse(await boundedHttps(`https://api.anthropic.com/v1/models/${MODEL}`, { method: 'GET', signal, headers: headers() }));
+      const model = JSON.parse(await boundedHttps(`https://api.anthropic.com/v1/models/${MODEL}`, { method: 'GET', signal, headers: headers() }, requester));
       return verifyAnthropicPreflight(c,{...payload,priceDocument:doc,model},new Date().toISOString(),'LIVE_PROVIDER');
     },
     async generate(c: Contract, objective: string, source: string, signal: AbortSignal,beforeSend?:()=>void) {
@@ -122,7 +131,10 @@ export function nativeAnthropicTransport(apiKey: () => string): WorkerTransport 
       assertInputReady(c);
       if(!beforeSend)throw new Error('FINAL_SEND_GUARD_REQUIRED');
       const body=serializeRequest(messageBody(c,objective,source)),credentialHeaders=headers();
-      return JSON.parse(await boundedHttps('https://api.anthropic.com/v1/messages', { method: 'POST', signal, headers:credentialHeaders,body,beforeSend })) as ProviderReply;
+      let requestId: string | undefined;
+      const reply = JSON.parse(await boundedHttps('https://api.anthropic.com/v1/messages', { method: 'POST', signal, headers:credentialHeaders,body,beforeSend,
+        onRequestId: (id) => { requestId = id; } }, requester)) as ProviderReply;
+      return requestId && reply && typeof reply === 'object' ? { ...reply, requestId } : reply;
     },
   });
 }

@@ -29,6 +29,14 @@ import { hash, type Contract } from './contract.js';
 
 export const ACTIVATION_SET_SCHEMA = 'chief-activation-set.v1';
 export const SIGNATURE_POLICY = Object.freeze({ version: 'S1_UNSIGNED_V0', humanSignatureRequired: false });
+/**
+ * M1-B: the one signing policy. Its set is a different set (the policy is set content, so a different setHash) and is
+ * live-eligible only with a verified Human passkey attestation over that setHash, kept in its own record (never in
+ * the set: `attestations` stays empty, as the S2 preimage contract requires). S1 sets stay ineligible forever.
+ */
+export const M1_SIGNATURE_POLICY = Object.freeze({ version: 'M1_PASSKEY_RUN_V1', humanSignatureRequired: true });
+export type SignaturePolicyVersion = typeof SIGNATURE_POLICY.version | typeof M1_SIGNATURE_POLICY.version;
+const policyOf = (version: SignaturePolicyVersion | undefined) => version === M1_SIGNATURE_POLICY.version ? M1_SIGNATURE_POLICY : SIGNATURE_POLICY;
 const ROLES = ['IMPLEMENTATION_PACKET', 'LIVE_PROVIDER_MODEL_CALL', 'LIMITED_README_WORKER'] as const;
 const HEX = /^[a-f0-9]{64}$/;
 
@@ -59,6 +67,8 @@ export interface ActivationSetFacts {
 export interface ActivationSetInput {
   contract: Contract; packet: ImplementationPacket; model: ActivationSetFacts;
   liveGrant: unknown; limitedGrant: unknown;
+  /** M1: the signing policy the set states; S1_UNSIGNED_V0 when absent. */
+  signaturePolicy?: SignaturePolicyVersion;
 }
 export interface ActivationSetVerification { setHash: string; signed: false; policy: string }
 
@@ -89,7 +99,30 @@ export function expectedActivationSet(input: ActivationSetInput): ActivationSetV
     members: [memberOf(model, 'IMPLEMENTATION_PACKET', 'IMPLEMENTATION_PACKET', packet.packetId, packet),
       memberOf(model, 'LIVE_PROVIDER_MODEL_CALL', 'AUTHORIZATION', grantId(input.liveGrant), input.liveGrant),
       memberOf(model, 'LIMITED_README_WORKER', 'AUTHORIZATION', grantId(input.limitedGrant), input.limitedGrant)],
-    signaturePolicy: { ...SIGNATURE_POLICY }, attestations: [] });
+    signaturePolicy: { ...policyOf(input.signaturePolicy) }, attestations: [] });
+}
+
+/**
+ * M1-B: the set that archiving exactly these three documents (each as version 1, none archived yet) will require.
+ * Pure; it lets the Human approve the setHash before anything is preserved. After preservation the set is
+ * re-derived from the archive by expectedActivationSet, and the two hashes must be equal.
+ */
+/** A drafted member: the document's identity and body, and the record hash the archive will seal it with (caller-computed). */
+export interface ProspectiveMember { kind: string; authorityId: string; version: number; supersedes: unknown; body: unknown; recordHash: string }
+export function prospectiveActivationSet(input: { contract: Contract; packet: ImplementationPacket; signaturePolicy: SignaturePolicyVersion;
+  documents: readonly [ProspectiveMember, ProspectiveMember, ProspectiveMember] }): { set: ActivationSetV1; setHash: string } {
+  const { contract: c, packet } = input, roles = ['IMPLEMENTATION_PACKET', 'LIVE_PROVIDER_MODEL_CALL', 'LIMITED_README_WORKER'] as const;
+  const members = input.documents.map((document, i) => {
+    if (document.version !== 1 || document.supersedes !== null || document.kind !== (i === 0 ? 'IMPLEMENTATION_PACKET' : 'AUTHORIZATION')) refuse('ACTIVATION_SET_MEMBER_INVALID');
+    return { role: roles[i], kind: document.kind, authorityId: document.authorityId, version: 1, recordHash: document.recordHash,
+      bodyHash: authorityBodyHash(document.body as JsonObject) };
+  });
+  if (members[0].bodyHash !== authorityBodyHash(packet as unknown as JsonObject)) refuse('ACTIVATION_SET_MEMBER_INVALID');
+  const set = setSchema.parse({ schema: ACTIVATION_SET_SCHEMA, recordClass: 'OPERATIONAL_RECORD', notAuthority: true,
+    runId: c.runId, repository: c.repository, sliceId: packet.sliceId, packetId: packet.packetId, packetHash: packetHash(packet), contractHash: hash(c),
+    implementationSha: c.implementationSha, workerCodeHash: c.workerCodeHash, members,
+    signaturePolicy: { ...policyOf(input.signaturePolicy) }, attestations: [] });
+  return { set, setHash: activationSetHash(set) };
 }
 
 const runKey = (runId: string) => sha256(`chief-activation-set-run\n${runId}`);
@@ -193,11 +226,19 @@ export function verifyActivationSet(root: string, input: ActivationSetInput): Ac
   // The stored content hashes to the expected set, so its signature policy and its (empty) attestation list are
   // exactly the expected ones; a set carrying any attestation never parses in S1.
   if (stored.setHash !== setHash || activationSetHash(stored.set) !== setHash) refuse('ACTIVATION_SET_CORRUPT');
-  return Object.freeze({ setHash, signed: false as const, policy: SIGNATURE_POLICY.version });
+  return Object.freeze({ setHash, signed: false as const, policy: set.signaturePolicy.version });
 }
 
-/** Formal live eligibility needs a verified Human attestation under a signing policy; S1 has neither. */
-export function liveEligibility(verification: ActivationSetVerification | null): { eligible: false; reason: string } {
+/**
+ * Formal live eligibility needs a verified Human attestation under a signing policy. An S1 set is never eligible,
+ * whatever the caller claims. An M1 set is eligible only when `attestation(setHash)` (the trusted Host's verifier:
+ * pinned passkey, re-derived payload, time window) returns without throwing.
+ */
+export function liveEligibility(verification: ActivationSetVerification | null, attestation?: (setHash: string) => void):
+  { eligible: boolean; reason: string | null } {
   if (!verification) return { eligible: false, reason: 'ACTIVATION_SET_MISSING' };
-  return { eligible: false, reason: 'ACTIVATION_SET_NOT_SIGNED' };
+  if (verification.policy !== M1_SIGNATURE_POLICY.version) return { eligible: false, reason: 'ACTIVATION_SET_NOT_SIGNED' };
+  if (!attestation) return { eligible: false, reason: 'ACTIVATION_ATTESTATION_MISSING' };
+  try { attestation(verification.setHash); return { eligible: true, reason: null }; }
+  catch (error) { return { eligible: false, reason: error instanceof Error && /^[A-Z0-9_]{1,100}$/.test(error.message) ? error.message : 'ACTIVATION_ATTESTATION_INVALID' }; }
 }

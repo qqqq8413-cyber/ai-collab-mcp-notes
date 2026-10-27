@@ -1,0 +1,1446 @@
+{
+  "schema": "chief-m1-cli-probe.v1",
+  "recordClass": "OPERATIONAL_RECORD",
+  "evidenceClass": "REAL_CLI_FAKE_LOCAL_PROVIDER",
+  "notice": "Real Claude Code binary against a fake local Messages API; network limited to localhost by Seatbelt; dummy key; no provider reachable, no paid call.",
+  "at": "2026-10-27T04:03:40.524Z",
+  "platform": "darwin arm64",
+  "node": "v24.15.0",
+  "executable": {
+    "path": "/Users/Dawn/.local/share/claude/versions/2.1.283",
+    "sha256": "d8cb1e5c79684cc12a8bfc813e3a2073406921b6245744b3009be3ab5651d21e",
+    "version": "2.1.283 (Claude Code)",
+    "bytes": 225036032
+  },
+  "model": "claude-haiku-4-5-20251001",
+  "readerArguments": [
+    "-p",
+    "--output-format",
+    "json",
+    "--model",
+    "claude-haiku-4-5-20251001",
+    "--max-turns",
+    "3",
+    "--max-budget-usd",
+    "0.630720",
+    "--restricted",
+    "--permission-prompts",
+    "none",
+    "--permission-mode",
+    "dontAsk",
+    "--no-session-persistence",
+    "--strict-mcp-config",
+    "--disable-slash-commands",
+    "--no-chrome",
+    "--tools",
+    "Read,Glob,Grep",
+    "--settings",
+    "{\"permissions\":{\"allow\":[\"Read(./README.md)\"],\"deny\":[\"Edit(./**)\",\"Read(./.*)\",\"Read(./**/.*)\"],\"disableBypassPermissionsMode\":\"disable\"}}",
+    "--disallowedTools",
+    "Bash,WebFetch,WebSearch,Edit,Write,NotebookEdit",
+    "--json-schema",
+    "{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"report\"],\"properties\":{\"report\":{\"type\":\"string\"}}}"
+  ],
+  "readerEnvironment": {
+    "CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1",
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "DISABLE_AUTOUPDATER": "1",
+    "DISABLE_TELEMETRY": "1",
+    "DISABLE_ERROR_REPORTING": "1",
+    "DISABLE_PROMPT_CACHING": "1",
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "2048"
+  },
+  "readerReportSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "report"
+    ],
+    "properties": {
+      "report": {
+        "type": "string"
+      }
+    }
+  },
+  "scenarios": [
+    {
+      "name": "unknown-flag-calibration",
+      "exitCode": 1,
+      "signal": null,
+      "durationMs": 58,
+      "messagesRequests": 0,
+      "otherRequests": [],
+      "requests": [],
+      "stdoutJson": null,
+      "stdoutHead": "",
+      "stderrHead": "error: unknown option '--chief-nonexistent-flag'\n"
+    },
+    {
+      "name": "m0-direct-answer",
+      "exitCode": 0,
+      "signal": null,
+      "durationMs": 346,
+      "messagesRequests": 1,
+      "otherRequests": [
+        "HEAD /api/hello"
+      ],
+      "requests": [
+        {
+          "method": "HEAD",
+          "path": "/api/hello",
+          "apiKeyIsDummy": false,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "Bun/1.4.3"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": "enabled",
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        }
+      ],
+      "stdoutJson": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": false,
+        "num_turns": 2,
+        "total_cost_usd": 0.0014,
+        "usage": {
+          "input_tokens": 1200,
+          "output_tokens": 40,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        "modelUsage": [
+          "claude-haiku-4-5-20251001"
+        ],
+        "structured_output": {
+          "report": "# probe\nfake provider report"
+        },
+        "result": "{\"report\":\"# probe\\nfake provider report\"}",
+        "errors": null
+      },
+      "stdoutHead": null,
+      "stderrHead": ""
+    },
+    {
+      "name": "m0-one-read-turn",
+      "exitCode": 0,
+      "signal": null,
+      "durationMs": 353,
+      "messagesRequests": 2,
+      "otherRequests": [
+        "HEAD /api/hello"
+      ],
+      "requests": [
+        {
+          "method": "HEAD",
+          "path": "/api/hello",
+          "apiKeyIsDummy": false,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "Bun/1.4.3"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": "enabled",
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 3,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": "enabled",
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        }
+      ],
+      "stdoutJson": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": false,
+        "num_turns": 3,
+        "total_cost_usd": 0.0028,
+        "usage": {
+          "input_tokens": 2400,
+          "output_tokens": 80,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        "modelUsage": [
+          "claude-haiku-4-5-20251001"
+        ],
+        "structured_output": {
+          "report": "# probe\nfake provider report"
+        },
+        "result": "{\"report\":\"# probe\\nfake provider report\"}",
+        "errors": null
+      },
+      "stdoutHead": null,
+      "stderrHead": ""
+    },
+    {
+      "name": "m0-always-tool",
+      "exitCode": 1,
+      "signal": null,
+      "durationMs": 367,
+      "messagesRequests": 3,
+      "otherRequests": [
+        "HEAD /api/hello"
+      ],
+      "requests": [
+        {
+          "method": "HEAD",
+          "path": "/api/hello",
+          "apiKeyIsDummy": false,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "Bun/1.4.3"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": "enabled",
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 3,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": "enabled",
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 5,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": "enabled",
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        }
+      ],
+      "stdoutJson": {
+        "type": "result",
+        "subtype": "error_max_turns",
+        "is_error": true,
+        "num_turns": 4,
+        "total_cost_usd": 0.0042,
+        "usage": {
+          "input_tokens": 3600,
+          "output_tokens": 120,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        "modelUsage": [
+          "claude-haiku-4-5-20251001"
+        ],
+        "structured_output": null,
+        "result": null,
+        "errors": [
+          "Reached maximum number of turns (3)"
+        ]
+      },
+      "stdoutHead": null,
+      "stderrHead": ""
+    },
+    {
+      "name": "m0-one-529",
+      "exitCode": 0,
+      "signal": null,
+      "durationMs": 920,
+      "messagesRequests": 2,
+      "otherRequests": [
+        "HEAD /api/hello"
+      ],
+      "requests": [
+        {
+          "method": "HEAD",
+          "path": "/api/hello",
+          "apiKeyIsDummy": false,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "Bun/1.4.3"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": "enabled",
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": "enabled",
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        }
+      ],
+      "stdoutJson": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": false,
+        "num_turns": 2,
+        "total_cost_usd": 0.0014,
+        "usage": {
+          "input_tokens": 1200,
+          "output_tokens": 40,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        "modelUsage": [
+          "claude-haiku-4-5-20251001"
+        ],
+        "structured_output": {
+          "report": "# probe\nfake provider report"
+        },
+        "result": "{\"report\":\"# probe\\nfake provider report\"}",
+        "errors": null
+      },
+      "stdoutHead": null,
+      "stderrHead": ""
+    },
+    {
+      "name": "m0-empty-stream",
+      "exitCode": 1,
+      "signal": null,
+      "durationMs": 363,
+      "messagesRequests": 2,
+      "otherRequests": [
+        "HEAD /api/hello"
+      ],
+      "requests": [
+        {
+          "method": "HEAD",
+          "path": "/api/hello",
+          "apiKeyIsDummy": false,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "Bun/1.4.3"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": "enabled",
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": false,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": "enabled",
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        }
+      ],
+      "stdoutJson": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": true,
+        "num_turns": 1,
+        "total_cost_usd": 0,
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        "modelUsage": [],
+        "structured_output": null,
+        "result": "API Error: API returned an empty or malformed response (HTTP 200) — check for a proxy or gateway intercepting the request. Response: content-type json, body is JSON but not a Message, size unknown, re",
+        "errors": null
+      },
+      "stdoutHead": null,
+      "stderrHead": ""
+    },
+    {
+      "name": "strict-direct-answer",
+      "exitCode": 0,
+      "signal": null,
+      "durationMs": 346,
+      "messagesRequests": 1,
+      "otherRequests": [
+        "HEAD /api/hello"
+      ],
+      "requests": [
+        {
+          "method": "HEAD",
+          "path": "/api/hello",
+          "apiKeyIsDummy": false,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "Bun/1.4.3"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        }
+      ],
+      "stdoutJson": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": false,
+        "num_turns": 2,
+        "total_cost_usd": 0.0014,
+        "usage": {
+          "input_tokens": 1200,
+          "output_tokens": 40,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        "modelUsage": [
+          "claude-haiku-4-5-20251001"
+        ],
+        "structured_output": {
+          "report": "# probe\nfake provider report"
+        },
+        "result": "{\"report\":\"# probe\\nfake provider report\"}",
+        "errors": null
+      },
+      "stdoutHead": null,
+      "stderrHead": ""
+    },
+    {
+      "name": "strict-always-tool",
+      "exitCode": 1,
+      "signal": null,
+      "durationMs": 356,
+      "messagesRequests": 3,
+      "otherRequests": [
+        "HEAD /api/hello"
+      ],
+      "requests": [
+        {
+          "method": "HEAD",
+          "path": "/api/hello",
+          "apiKeyIsDummy": false,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "Bun/1.4.3"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 3,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 5,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        }
+      ],
+      "stdoutJson": {
+        "type": "result",
+        "subtype": "error_max_turns",
+        "is_error": true,
+        "num_turns": 4,
+        "total_cost_usd": 0.0042,
+        "usage": {
+          "input_tokens": 3600,
+          "output_tokens": 120,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        "modelUsage": [
+          "claude-haiku-4-5-20251001"
+        ],
+        "structured_output": null,
+        "result": null,
+        "errors": [
+          "Reached maximum number of turns (3)"
+        ]
+      },
+      "stdoutHead": null,
+      "stderrHead": ""
+    },
+    {
+      "name": "strict-one-529",
+      "exitCode": 1,
+      "signal": null,
+      "durationMs": 273,
+      "messagesRequests": 1,
+      "otherRequests": [
+        "HEAD /api/hello"
+      ],
+      "requests": [
+        {
+          "method": "HEAD",
+          "path": "/api/hello",
+          "apiKeyIsDummy": false,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "Bun/1.4.3"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        }
+      ],
+      "stdoutJson": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": true,
+        "num_turns": 1,
+        "total_cost_usd": 0,
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        "modelUsage": [],
+        "structured_output": null,
+        "result": "API Error: 529 probe. This is a server-side issue, usually temporary — try again in a moment. If it persists, check your inference gateway (127.0.0.1:58573).",
+        "errors": null
+      },
+      "stdoutHead": null,
+      "stderrHead": ""
+    },
+    {
+      "name": "strict-empty-stream",
+      "exitCode": 1,
+      "signal": null,
+      "durationMs": 333,
+      "messagesRequests": 1,
+      "otherRequests": [
+        "HEAD /api/hello"
+      ],
+      "requests": [
+        {
+          "method": "HEAD",
+          "path": "/api/hello",
+          "apiKeyIsDummy": false,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "Bun/1.4.3"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        }
+      ],
+      "stdoutJson": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": true,
+        "num_turns": 1,
+        "total_cost_usd": 0,
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        "modelUsage": [],
+        "structured_output": null,
+        "result": "API Error: Stream ended without receiving any events",
+        "errors": null
+      },
+      "stdoutHead": null,
+      "stderrHead": ""
+    },
+    {
+      "name": "strict-always-500",
+      "exitCode": 1,
+      "signal": null,
+      "durationMs": 288,
+      "messagesRequests": 1,
+      "otherRequests": [
+        "HEAD /api/hello"
+      ],
+      "requests": [
+        {
+          "method": "HEAD",
+          "path": "/api/hello",
+          "apiKeyIsDummy": false,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "Bun/1.4.3"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        }
+      ],
+      "stdoutJson": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": true,
+        "num_turns": 1,
+        "total_cost_usd": 0,
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        "modelUsage": [],
+        "structured_output": null,
+        "result": "API Error: 500 probe. This is a server-side issue, usually temporary — try again in a moment. If it persists, check your inference gateway (127.0.0.1:58579).",
+        "errors": null
+      },
+      "stdoutHead": null,
+      "stderrHead": ""
+    },
+    {
+      "name": "strict-max-tokens-stop",
+      "exitCode": 0,
+      "signal": null,
+      "durationMs": 357,
+      "messagesRequests": 2,
+      "otherRequests": [
+        "HEAD /api/hello"
+      ],
+      "requests": [
+        {
+          "method": "HEAD",
+          "path": "/api/hello",
+          "apiKeyIsDummy": false,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "Bun/1.4.3"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 3,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        }
+      ],
+      "stdoutJson": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": false,
+        "num_turns": 3,
+        "total_cost_usd": 0.0028,
+        "usage": {
+          "input_tokens": 2400,
+          "output_tokens": 80,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        "modelUsage": [
+          "claude-haiku-4-5-20251001"
+        ],
+        "structured_output": {
+          "report": "# probe\nfake provider report"
+        },
+        "result": "{\"report\":\"# probe\\nfake provider report\"}",
+        "errors": null
+      },
+      "stdoutHead": null,
+      "stderrHead": ""
+    },
+    {
+      "name": "strict-plain-text-answer",
+      "exitCode": 0,
+      "signal": null,
+      "durationMs": 342,
+      "messagesRequests": 2,
+      "otherRequests": [
+        "HEAD /api/hello"
+      ],
+      "requests": [
+        {
+          "method": "HEAD",
+          "path": "/api/hello",
+          "apiKeyIsDummy": false,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "Bun/1.4.3"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 3,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        }
+      ],
+      "stdoutJson": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": false,
+        "num_turns": 2,
+        "total_cost_usd": 0.0028,
+        "usage": {
+          "input_tokens": 2400,
+          "output_tokens": 80,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        "modelUsage": [
+          "claude-haiku-4-5-20251001"
+        ],
+        "structured_output": null,
+        "result": "plain text, no structured output tool",
+        "errors": null
+      },
+      "stdoutHead": null,
+      "stderrHead": ""
+    },
+    {
+      "name": "strict-prompt-too-long",
+      "exitCode": 1,
+      "signal": null,
+      "durationMs": 288,
+      "messagesRequests": 1,
+      "otherRequests": [
+        "HEAD /api/hello"
+      ],
+      "requests": [
+        {
+          "method": "HEAD",
+          "path": "/api/hello",
+          "apiKeyIsDummy": false,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "Bun/1.4.3"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        }
+      ],
+      "stdoutJson": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": true,
+        "num_turns": 1,
+        "total_cost_usd": 0,
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        "modelUsage": [],
+        "structured_output": null,
+        "result": "Prompt is too long · the request is ~250000 tokens (limit 200000) but this conversation is only ~381 tokens — the rest is system prompt, tool definitions, and attachment content. A single-exchange con",
+        "errors": null
+      },
+      "stdoutHead": null,
+      "stderrHead": ""
+    },
+    {
+      "name": "m0-max-tokens-stop",
+      "exitCode": 0,
+      "signal": null,
+      "durationMs": 380,
+      "messagesRequests": 2,
+      "otherRequests": [
+        "HEAD /api/hello"
+      ],
+      "requests": [
+        {
+          "method": "HEAD",
+          "path": "/api/hello",
+          "apiKeyIsDummy": false,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "Bun/1.4.3"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": "enabled",
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 3,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": "enabled",
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        }
+      ],
+      "stdoutJson": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": false,
+        "num_turns": 3,
+        "total_cost_usd": 0.0028,
+        "usage": {
+          "input_tokens": 2400,
+          "output_tokens": 80,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        "modelUsage": [
+          "claude-haiku-4-5-20251001"
+        ],
+        "structured_output": {
+          "report": "# probe\nfake provider report"
+        },
+        "result": "{\"report\":\"# probe\\nfake provider report\"}",
+        "errors": null
+      },
+      "stdoutHead": null,
+      "stderrHead": ""
+    },
+    {
+      "name": "strict-always-max-tokens-stop",
+      "exitCode": 1,
+      "signal": null,
+      "durationMs": 388,
+      "messagesRequests": 4,
+      "otherRequests": [
+        "HEAD /api/hello"
+      ],
+      "requests": [
+        {
+          "method": "HEAD",
+          "path": "/api/hello",
+          "apiKeyIsDummy": false,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "Bun/1.4.3"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 3,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 5,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 7,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        }
+      ],
+      "stdoutJson": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": true,
+        "num_turns": 4,
+        "total_cost_usd": 0.0056,
+        "usage": {
+          "input_tokens": 4800,
+          "output_tokens": 160,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        "modelUsage": [
+          "claude-haiku-4-5-20251001"
+        ],
+        "structured_output": null,
+        "result": "API Error: Claude's response exceeded the 2048 output token maximum. To configure this behavior, set the CLAUDE_CODE_MAX_OUTPUT_TOKENS environment variable.",
+        "errors": null
+      },
+      "stdoutHead": null,
+      "stderrHead": ""
+    },
+    {
+      "name": "strict-always-plain-text",
+      "exitCode": 0,
+      "signal": null,
+      "durationMs": 373,
+      "messagesRequests": 2,
+      "otherRequests": [
+        "HEAD /api/hello"
+      ],
+      "requests": [
+        {
+          "method": "HEAD",
+          "path": "/api/hello",
+          "apiKeyIsDummy": false,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "Bun/1.4.3"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 1,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages?beta=true",
+          "apiKeyIsDummy": true,
+          "authorizationHeader": "ABSENT",
+          "userAgent": "claude-cli/2.1.283 (external, sdk-cli)",
+          "model": "claude-haiku-4-5-20251001",
+          "maxTokens": 2048,
+          "stream": true,
+          "messages": 3,
+          "tools": [
+            "Glob",
+            "Grep",
+            "Read",
+            "StructuredOutput"
+          ],
+          "toolChoice": null,
+          "thinking": null,
+          "systemBlocks": 3,
+          "cacheControl": false,
+          "metadata": [
+            "user_id"
+          ]
+        }
+      ],
+      "stdoutJson": {
+        "type": "result",
+        "subtype": "success",
+        "is_error": false,
+        "num_turns": 2,
+        "total_cost_usd": 0.0028,
+        "usage": {
+          "input_tokens": 2400,
+          "output_tokens": 80,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        "modelUsage": [
+          "claude-haiku-4-5-20251001"
+        ],
+        "structured_output": null,
+        "result": "plain text, no structured output tool",
+        "errors": null
+      },
+      "stdoutHead": null,
+      "stderrHead": ""
+    }
+  ]
+}

@@ -42,7 +42,8 @@ export function activationCandidate(c:Contract,sliceId:string,objective:string) 
     constraint:'No Workspace issuance; trusted governance must preserve separately issued exact documents. Activation alone does not release HOLD.'};
 }
 export function planConditions(c:Contract,now:string,identity:{sha:string;codeHash:string;clean:boolean},reserved:number) {
-  const conditions=['EXE_HOLD','H1_H9_NOT_GRANTED','ACCOUNT_MODEL_UNVERIFIED'];
+  // M1: EXE_HOLD is listed only while the build holds it; the H1–H9 and account items stay until a run proves otherwise.
+  const conditions=[...(EXE==='HOLD'?['EXE_HOLD']:[]),'H1_H9_NOT_GRANTED','ACCOUNT_MODEL_UNVERIFIED'];
   if(c.inputPolicy?.revision!=='A3')conditions.push(c.inputPolicy?'INPUT_LIMIT_DECISION_REQUIRED':'INPUT_POLICY_LEGACY_REQUIRES_REPLAN');
   if(c.inputPolicy&&c.inputPolicy.revision!=='A3')conditions.push('INPUT_POLICY_LEGACY_REQUIRES_REPLAN');
   try{checkQuote(c.quote,now);}catch{conditions.push('PRICE_QUOTE_EXPIRED');}

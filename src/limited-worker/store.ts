@@ -13,10 +13,15 @@ const jobSchema = z.strictObject({ id: digest, contract: z.unknown().transform(p
   report: z.string().max(65536).nullable(), reportHash: digest.nullable(), actualCostMicroUsd: z.number().int().nonnegative().nullable(),
   modelPreflight: z.unknown().transform(parsePreflight).nullable().optional(), providerMessageId: z.string().min(1).max(200).nullable().optional(),
   usage: z.strictObject({ inputTokens: z.number().int().nonnegative(), outputTokens: z.number().int().nonnegative() }).nullable(),
+  // M1: the provider's request-id response header (evidence only), the pending passkey approval request (the exact
+  // payload shown and to be signed; validated by run-approval.ts) and the consumed approval's summary.
+  providerRequestId: z.string().regex(/^[A-Za-z0-9_-]{1,200}$/).nullable().optional(),
+  approvalRequest: z.strictObject({ payload: z.unknown(), createdAt: instant }).nullable().optional(),
+  approval: z.strictObject({ payloadHash: digest, assertionHash: digest, keyId: digest, consumedAt: instant }).nullable().optional(),
   events: z.array(z.strictObject({ at: instant, kind: z.string().max(100) })).max(100) });
 export type Job = z.infer<typeof jobSchema>;
 const observationSchema=z.strictObject({id:z.string().uuid(),projectId:z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),at:instant,
-  kind:z.enum(['SETUP_OPENED','TASK_FORM_STARTED','PLAN_READY','PLAN_REUSED','CHECK','START_REFUSED','START_APPROVED','CANCEL','RECONCILIATION_REQUESTED','RUNTIME_START']),
+  kind:z.enum(['SETUP_OPENED','TASK_FORM_STARTED','PLAN_READY','PLAN_REUSED','CHECK','START_REFUSED','START_APPROVED','CANCEL','RECONCILIATION_REQUESTED','RUNTIME_START','APPROVAL_REQUESTED']),
   interactionId:z.string().uuid().nullable(),jobId:digest.nullable(),reason:z.string().regex(/^[A-Z0-9_]{1,100}$/).nullable(),
   evidenceClass:z.enum(['LOCAL_OBSERVATION','OFFLINE_SYNTHETIC']),clientElapsedMs:z.number().int().min(0).max(86400000).nullable()});
 export type Observation=z.infer<typeof observationSchema>;
@@ -59,7 +64,7 @@ export interface WorkerStoreOptions {
   initializationEvidence?(storageIdentity: string): string | null;
 }
 // Entries that exist only after a job was in this store's ledger: the ACTIVATION_SET root and report directories.
-const USED_STORE_ENTRY = /^(activation-sets|[0-9a-f]{64})$/;
+const USED_STORE_ENTRY = /^(activation-sets|m1-approvals|[0-9a-f]{64})$/;
 
 export class WorkerStore {
   readonly directory: string;

@@ -124,7 +124,8 @@ await test('M0 live paths stay behind EXE HOLD: the Seatbelt reader runner and a
   await assert.rejects(routed.preflight(contract('limited-readme-worker')), /AGENT_TRANSPORT_UNAVAILABLE/);
   // The real Host routes the reader to the unconfigured live transport and never loads the rehearsal.
   const main = readFileSync(join(ROOT, 'src/limited-worker/main.ts'), 'utf8');
-  assert.match(main, /'claude-code-reader':unconfiguredLiveTransport\('CLAUDE_CODE_READER_NOT_CONFIGURED'\)/);
+  // M1-A: the live reader stays unconfigured because the CLI does not bound its requests.
+  assert.match(main, /'claude-code-reader':unconfiguredLiveTransport\('READER_REQUEST_BOUND_UNPROVEN'\)/);
   assert.doesNotMatch(main, /rehearsal|offlineReaderRunner|offlineAnthropicTransport/);
   assert.doesNotMatch(readFileSync(join(ROOT, 'dist/limited-worker/main.js'), 'utf8'), /rehearsal/);
 });
@@ -141,7 +142,7 @@ await test('M0 service on a LIVE_PROVIDER Host: START is refused as EXE_HOLD bef
   const service = createLimitedWorkerService({ goals, governance: {}, admission: {}, projects: ['chief'], store, quote: null, source: () => source,
     identity, runtime, now: () => new Date().toISOString() });
   const view = service.read('chief', human);
-  assert.deepEqual(view.execution, { evidenceClass: 'LIVE_PROVIDER', startAvailable: false, authorizationSteps: [...LIVE_AUTHORIZATION_STEPS] });
+  assert.deepEqual(view.execution, { evidenceClass: 'LIVE_PROVIDER', startAvailable: false, authorizationSteps: [...LIVE_AUTHORIZATION_STEPS], approvalMethod: 'PASSKEY_PER_RUN' });
   assert.ok(LIVE_AUTHORIZATION_STEPS.some((s) => /EXE／H1–H9 HOLD/.test(s)) && LIVE_AUTHORIZATION_STEPS.some((s) => /S2/.test(s)));
   await assert.rejects(service.action('chief', hash(c), { requestId: randomUUID(), action: 'START', approval: { maxReservationMicroUsd: 630720 } }, human),
     (e) => e.code === 'EXE_HOLD' && e.status === 403);
@@ -184,7 +185,7 @@ for (const agentId of ['claude-code-reader', 'limited-readme-worker']) {
     let host = await startHost(data), call = await client(host);
     try {
       let view = await call('GET', '/projects/chief/limited-worker');
-      assert.deepEqual(view.execution, { evidenceClass: 'OFFLINE_SYNTHETIC', startAvailable: true, authorizationSteps: [] });
+      assert.deepEqual(view.execution, { evidenceClass: 'OFFLINE_SYNTHETIC', startAvailable: true, authorizationSteps: [], approvalMethod: 'OFFLINE_REHEARSAL_CHECKBOX' });
       const job = await submit(call, agentId);
       assert.deepEqual([job.state, job.contract.agentId, job.evidenceClass, job.maximumReservationMicroUsd],
         ['PREPARED', agentId, 'OFFLINE_SYNTHETIC', agentId === 'claude-code-reader' ? 630720 : 210240]);
@@ -245,7 +246,8 @@ await test('M0 rehearsal: a second Claude Code task that the conservative US$1 c
 
 // ---------------------------------------------------------------- the Workspace panel
 await test('M0 panel: approval checkbox and enabled start only on an executable Host for a prepared job; a LIVE Host shows LOCKED and the authorization steps', async () => {
-  assert.match(workerHTML(), /<option value="claude-code-reader">Claude Code 唯讀分析<\/option><option value="limited-readme-worker">/);
+  // M1: the README Worker is listed (and selected) first; the reader is marked offline-only from the Host's view data.
+  assert.match(workerHTML(), /<option value="limited-readme-worker">README 審查 Worker<\/option><option value="claude-code-reader">/);
   const job = { id: 'j'.repeat(64), objective: GOAL, state: 'PREPARED', effectiveState: 'PREPARED', evidenceClass: 'OFFLINE_SYNTHETIC',
     contract: { agentId: 'claude-code-reader', sourceBytes: 10, inputPolicy: { revision: 'A3' } }, maximumReservationMicroUsd: 630720, actualCostMicroUsd: null,
     usage: null, startedAt: null, finishedAt: null, driver: { state: 'IDLE' }, invocations: [], events: [], report: null };
@@ -258,7 +260,7 @@ await test('M0 panel: approval checkbox and enabled start only on an executable 
   assert.doesNotMatch(full, /data-worker-start|data-approve/, 'no approval for a job the remaining budget cannot hold'); assert.match(full, /剩餘預算不足/);
   const live = { ...offline, execution: { evidenceClass: 'LIVE_PROVIDER', startAvailable: false, authorizationSteps: [...LIVE_AUTHORIZATION_STEPS] } };
   const locked = jobsHTML(live);
-  assert.doesNotMatch(locked, /data-worker-start|data-approve/); assert.match(locked, /啟動執行 · LOCKED/); assert.match(locked, /正式執行還需要的授權步驟/);
+  assert.doesNotMatch(locked, /data-worker-start|data-approve/); assert.match(locked, /以通行金鑰批准並執行 · LOCKED/); assert.match(locked, /正式執行還需要的授權步驟/);
   assert.deepEqual([modeText(offline.execution), modeText(live.execution)], ['OFFLINE_SYNTHETIC 演練：不呼叫模型', '正式執行：EXE HOLD']);
 });
 

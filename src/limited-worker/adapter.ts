@@ -3,11 +3,11 @@ import type { ImplementationAgentPort, ImplementationInput, ImplementationResult
 import type { ControllerRun } from '../automation/types.js';
 import type { InvocationJournal } from '../automation/invocation-journal.js';
 import type { GovernedReadModelV1 } from '../automation/read-model/governed-read-model.js';
-import { EXE, MODEL, contractOf, hash, maximumCost, checkQuote, assertInputReady, messageBody,serializeRequest, turnsOf, type Contract } from './contract.js';
+import { EXE, MODEL, contractOf, hash, maximumCost, checkQuote, assertInputReady, assertLiveRequestBound, messageBody,serializeRequest, turnsOf, type Contract } from './contract.js';
 import { verifyInvocation, verifyPermit } from './governance.js';
 import { WorkerStore } from './store.js';
 import { parsePreflight, type WorkerTransport } from './transport.js';
-import { liveEligibility, verifyActivationSet } from './activation-set.js';
+import { liveEligibility, verifyActivationSet, type SignaturePolicyVersion } from './activation-set.js';
 
 // M0: usage covers the whole invocation, so its bounds scale with the contract's request limit (1, or the reader's turns).
 const replySchemaFor = (c: Contract) => z.object({ id: z.string().min(1).max(200), model: z.literal(MODEL), stop_reason: z.literal('end_turn'),
@@ -28,6 +28,8 @@ export interface WorkerDependencies {
   deadlineMs?: number;
   /** S1: where committed ACTIVATION_SETs live, and whether this worker (the trusted Host's) requires one. */
   activationSetRoot?: string; requireActivationSet?: boolean;
+  /** M1-B: the set's signing policy, and the trusted Host's passkey attestation verifier for an M1 set. */
+  signaturePolicy?: SignaturePolicyVersion; liveApproval?(c: Contract, setHash: string): void;
 }
 export class LimitedReadmeWorker implements ImplementationAgentPort {
   readonly #d: WorkerDependencies;
@@ -42,6 +44,8 @@ export class LimitedReadmeWorker implements ImplementationAgentPort {
     if (d.transport.kind === 'LIVE_PROVIDER' && EXE === 'HOLD') return { status: 'HUMAN_STOP', reason: 'EXE_HOLD_NO_PROVIDER_REQUEST' };
     const check = () => {
       if (c.inputPolicy || d.transport.kind === 'LIVE_PROVIDER') assertInputReady(c);
+      // M1-A: a live request needs a proven request bound (one request, no retry); the Claude Code reader has none.
+      if (d.transport.kind === 'LIVE_PROVIDER') assertLiveRequestBound(c);
       const identity = d.currentImplementation();
       if (!identity.clean || identity.sha !== c.implementationSha || identity.codeHash !== c.workerCodeHash) throw new Error('IMPLEMENTATION_CHANGED');
       if (c.implementationSha !== d.implementationSha || c.workerCodeHash !== d.workerCodeHash || c.storageIdentity !== d.store.identity() || input.runId !== c.runId || input.implementationIteration !== 1 || input.correction) throw new Error('IMPLEMENTATION_BINDING_MISMATCH');
@@ -51,8 +55,12 @@ export class LimitedReadmeWorker implements ImplementationAgentPort {
       // S1: the trusted Host's worker (and any live provider call) re-verifies the complete committed set at every check,
       // including the final send guard; an unsigned set is never eligible for a live provider call.
       if (d.requireActivationSet || d.transport.kind === 'LIVE_PROVIDER') {
-        const set = verifyActivationSet(d.activationSetRoot ?? d.store.directory, { contract: c, packet: input.packet, model, liveGrant: d.liveGrant, limitedGrant: d.humanGrant });
-        if (d.transport.kind === 'LIVE_PROVIDER') { const live = liveEligibility(set); if (!live.eligible) throw new Error(live.reason); }
+        const set = verifyActivationSet(d.activationSetRoot ?? d.store.directory, { contract: c, packet: input.packet, model, liveGrant: d.liveGrant,
+          limitedGrant: d.humanGrant, signaturePolicy: d.signaturePolicy });
+        if (d.transport.kind === 'LIVE_PROVIDER') {
+          const verify = d.liveApproval, live = liveEligibility(set, verify ? (setHash) => verify(c, setHash) : undefined);
+          if (!live.eligible) throw new Error(live.reason ?? 'ACTIVATION_SET_NOT_SIGNED');
+        }
       }
       const record = input.invocationId ? d.journal.get(input.invocationId) : undefined;
       verifyInvocation(c, input.packet, d.readRun(c.runId), record);
@@ -96,7 +104,9 @@ export class LimitedReadmeWorker implements ImplementationAgentPort {
         if(abort.signal.aborted)throw abort.signal.reason;
       };
       beforeSend();
-      const response = replySchemaFor(c).parse(await bounded(d.transport.generate(c, objective, source.text, abort.signal,beforeSend)));
+      const raw = await bounded(d.transport.generate(c, objective, source.text, abort.signal,beforeSend));
+      const response = replySchemaFor(c).parse(raw);
+      const requestId = typeof raw?.requestId === 'string' && /^[A-Za-z0-9_-]{1,200}$/.test(raw.requestId) ? raw.requestId : null;
       if (abort.signal.aborted) throw abort.signal.reason;
       const report = response.content.map(b => b.text).join('\n');
       if (!report.trim() || Buffer.byteLength(report) > 65536) throw new Error('REPORT_BYTES_LIMIT');
@@ -105,7 +115,7 @@ export class LimitedReadmeWorker implements ImplementationAgentPort {
       if (actualCostMicroUsd > maximumCost(c)) throw new Error('USAGE_EXCEEDED_RESERVED_BOUND');
       d.store.writeReport(c, report);
       d.store.change(id, j => { j.state = 'COMPLETED'; j.report = report; j.reportHash = hash(report); j.usage = usage;
-        j.actualCostMicroUsd = actualCostMicroUsd; j.providerMessageId = response.id; j.events.push({ at: d.now(), kind: 'RESULT_PERSISTED_NOT_AUTHORITY' }); });
+        j.actualCostMicroUsd = actualCostMicroUsd; j.providerMessageId = response.id; if (requestId) j.providerRequestId = requestId; j.events.push({ at: d.now(), kind: 'RESULT_PERSISTED_NOT_AUTHORITY' }); });
       return { status: 'COMPLETED', validationEvidence: [`limited-worker:${id}`, `report-sha256:${hash(report)}`,
         `evidence-class:${d.transport.kind}`, `reserved-micro-usd:${maximumCost(c)}`, 'No Git writes, delivery, tools or other agents'] };
     } catch (error) {

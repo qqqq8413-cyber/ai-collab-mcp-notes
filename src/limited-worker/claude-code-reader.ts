@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { egressRefusal, verifyPinnedExecutable, type LiveModelProcessExecutor } from '../automation/live/model-process-isolation.js';
 import type { ProcessResult } from '../automation/process-executor.js';
-import { EXE, MODEL, SCOPE, assertInputReady, hash, maximumCost, messageBody, turnsOf, type Contract } from './contract.js';
+import { EXE, MODEL, SCOPE, assertInputReady, assertLiveRequestBound, hash, maximumCost, messageBody, turnsOf, type Contract } from './contract.js';
 import { dispatchGuarded, verifyAnthropicPreflight, type ProviderReply, type WorkerTransport } from './transport.js';
 
 // M0: Claude Code as a read-only analyst for one governed Worker job. It runs in a fresh workspace that holds only
@@ -18,9 +18,13 @@ export const READER_REPORT_SCHEMA = Object.freeze({ type: 'object', additionalPr
   properties: { report: { type: 'string' } } });
 // No CLAUDE.md or auto-memory from anywhere, no non-essential traffic, and no prompt caching, so every request is
 // priced as plain input and output tokens and usage carries no cache tokens.
+// M1-C: zero automatic retries, no non-streaming second request after a failed stream, no extended thinking. The real
+// CLI 2.1.283 retried a 529 and re-sent a failed stream without these (regressions/m1/cli-probe-result.json); they
+// still do not bound requests (max_tokens continuations go past --max-turns), so the live reader stays refused.
 const READER_ENVIRONMENT = Object.freeze({ CLAUDE_CODE_DISABLE_CLAUDE_MDS: '1', CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1',
   CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', DISABLE_AUTOUPDATER: '1', DISABLE_TELEMETRY: '1', DISABLE_ERROR_REPORTING: '1',
-  DISABLE_PROMPT_CACHING: '1' });
+  DISABLE_PROMPT_CACHING: '1', CLAUDE_CODE_MAX_RETRIES: '0', CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK: '1',
+  CLAUDE_CODE_DISABLE_THINKING: '1', MAX_THINKING_TOKENS: '0' });
 const MAX_STDOUT = 1_000_000, MAX_STDERR = 200_000;
 
 const own = (c: Contract) => { if (c.agentId !== 'claude-code-reader') throw new Error('AGENT_TRANSPORT_MISMATCH'); };
@@ -142,7 +146,8 @@ export interface ClaudeCodeReaderSettings { executable: string; executableSha256
 /** The reader as a Worker transport. Preflight checks the pinned executable, price and model; generate runs one invocation. */
 export function claudeCodeReaderTransport(settings: ClaudeCodeReaderSettings, runner: ReaderRunner,
   io: { price(c: Contract, signal: AbortSignal): Promise<string>; model(c: Contract, signal: AbortSignal): Promise<unknown>; now(): string }): WorkerTransport {
-  const gate = (c: Contract) => { own(c); if (runner.kind === 'LIVE_PROVIDER' && EXE === 'HOLD') throw new Error('EXE_HOLD'); };
+  // M1-A: a live reader is refused even after EXE HOLD is lifted, because the CLI does not bound its requests.
+  const gate = (c: Contract) => { own(c); if (runner.kind === 'LIVE_PROVIDER') { if (EXE === 'HOLD') throw new Error('EXE_HOLD'); assertLiveRequestBound(c); } };
   return Object.freeze({ kind: runner.kind,
     async preflight(c: Contract, signal: AbortSignal, payload?: { objective: string; source: string }) {
       gate(c);
