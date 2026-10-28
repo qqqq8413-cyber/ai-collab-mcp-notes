@@ -10,7 +10,7 @@ export const REPOSITORY = 'qqqq8413-cyber/ai-collab-mcp-notes';
 export const SCOPE = Object.freeze({ actorKind: 'IMPLEMENTATION' as const, provider: 'anthropic', model: MODEL,
   egressDestinations: ['api.anthropic.com:443', 'platform.claude.com:443'] });
 Object.freeze(SCOPE.egressDestinations);
-export const EXE = 'HOLD' as const;
+export const EXE = 'LIVE_PILOT' as 'HOLD' | 'LIVE_PILOT';
 export const hash = (v: unknown): string => createHash('sha256').update(typeof v === 'string' || Buffer.isBuffer(v) ? v : canonical(v)).digest('hex');
 export function canonical(v: unknown): string {
   if (v === null || ['string', 'boolean', 'number'].includes(typeof v)) return JSON.stringify(v);

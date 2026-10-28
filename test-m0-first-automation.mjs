@@ -105,20 +105,21 @@ await test('M0 reader in its workspace: only README.md is present, the workspace
   await assert.rejects(wrongPin.generate(c, GOAL, README, AbortSignal.timeout(5000), () => {}));
   assert.equal(seen.length, 1, 'no refused attempt started the reader'); assert.deepEqual(readdirSync(settings.workspaceRoot), []);
 });
-await test('M0 live paths stay behind EXE HOLD: the Seatbelt reader runner and an unconfigured live agent refuse before any process or request', async (dir) => {
-  assert.equal(EXE, 'HOLD');
+// M1-LIFT-P0: this build is the LIVE_PILOT candidate; the EXE_HOLD refusal of the Seatbelt runner, the reader and the unconfigured
+// transport is kept on a HOLD copy (test-m1-real-task-activation.mjs). Here the reader is refused by its unproven request bound.
+await test('M0 live paths on the LIFT build: the live reader and an unconfigured live agent refuse before any process or request', async (dir) => {
+  assert.equal(EXE, 'LIVE_PILOT');
   const c = contract('claude-code-reader');
   let models = 0;
   const executor = { async runModel() { models++; return { isolation: 'ENFORCED', result: result(), egress: { status: 'RECORDED', summary: {} } }; } };
   const live = claudeCodeReaderTransport({ executable: OFFLINE_READER_EXECUTABLE, executableSha256: sha256(OFFLINE_READER_EXECUTABLE), workspaceRoot: join(dir, 'w') },
     seatbeltReaderRunner(executor), transportIO);
   assert.equal(live.kind, 'LIVE_PROVIDER');
-  await assert.rejects(live.preflight(c, AbortSignal.timeout(5000), { objective: GOAL, source: README }), /EXE_HOLD/);
-  await assert.rejects(live.generate(c, GOAL, README, AbortSignal.timeout(5000), () => {}), /EXE_HOLD/);
-  await assert.rejects(seatbeltReaderRunner(executor).run({}), /EXE_HOLD/);
+  await assert.rejects(live.preflight(c, AbortSignal.timeout(5000), { objective: GOAL, source: README }), /READER_REQUEST_BOUND_UNPROVEN/);
+  await assert.rejects(live.generate(c, GOAL, README, AbortSignal.timeout(5000), () => {}), /READER_REQUEST_BOUND_UNPROVEN/);
   assert.equal(models, 0); assert.equal(existsSync(join(dir, 'w')), false);
   const unconfigured = unconfiguredLiveTransport('CLAUDE_CODE_READER_NOT_CONFIGURED');
-  await assert.rejects(unconfigured.preflight(c), /EXE_HOLD/); await assert.rejects(unconfigured.generate(c), /EXE_HOLD/);
+  await assert.rejects(unconfigured.preflight(c), /CLAUDE_CODE_READER_NOT_CONFIGURED/); await assert.rejects(unconfigured.generate(c), /CLAUDE_CODE_READER_NOT_CONFIGURED/);
   assert.throws(() => agentTransports({ 'claude-code-reader': unconfigured, 'limited-readme-worker': live.kind === 'LIVE_PROVIDER' ? { kind: 'OFFLINE_SYNTHETIC' } : live }), /TRANSPORT_KIND_MIXED/);
   const routed = agentTransports({ 'claude-code-reader': unconfigured });
   await assert.rejects(routed.preflight(contract('limited-readme-worker')), /AGENT_TRANSPORT_UNAVAILABLE/);
@@ -131,7 +132,7 @@ await test('M0 live paths stay behind EXE HOLD: the Seatbelt reader runner and a
 });
 
 // ---------------------------------------------------------------- service: START needs the Human's approval and an executable Host
-await test('M0 service on a LIVE_PROVIDER Host: START is refused as EXE_HOLD before anything runs, and the remaining authorization steps are shown', async (dir) => {
+await test('M0 service on a LIVE_PROVIDER Host (LIFT build): START of the reader is refused by its request bound before anything runs', async (dir) => {
   const store = new WorkerStore(join(dir, 'results')), c = { ...contract('claude-code-reader'), storageIdentity: store.identity() };
   store.create(parseContract(c), new Date().toISOString());
   let executed = 0;
@@ -142,17 +143,17 @@ await test('M0 service on a LIVE_PROVIDER Host: START is refused as EXE_HOLD bef
   const service = createLimitedWorkerService({ goals, governance: {}, admission: {}, projects: ['chief'], store, quote: null, source: () => source,
     identity, runtime, now: () => new Date().toISOString() });
   const view = service.read('chief', human);
-  assert.deepEqual(view.execution, { evidenceClass: 'LIVE_PROVIDER', startAvailable: false, authorizationSteps: [...LIVE_AUTHORIZATION_STEPS], approvalMethod: 'PASSKEY_PER_RUN' });
+  assert.deepEqual(view.execution, { evidenceClass: 'LIVE_PROVIDER', startAvailable: true, authorizationSteps: [...LIVE_AUTHORIZATION_STEPS], approvalMethod: 'PASSKEY_PER_RUN' });
   assert.ok(LIVE_AUTHORIZATION_STEPS.some((s) => /EXE／H1–H9 HOLD/.test(s)) && LIVE_AUTHORIZATION_STEPS.some((s) => /S2/.test(s)));
   await assert.rejects(service.action('chief', hash(c), { requestId: randomUUID(), action: 'START', approval: { maxReservationMicroUsd: 630720 } }, human),
-    (e) => e.code === 'EXE_HOLD' && e.status === 403);
+    (e) => e.code === 'READER_REQUEST_BOUND_UNPROVEN' && e.status === 409);
   assert.equal(executed, 0); assert.equal(store.read().jobs[0].state, 'PREPARED');
-  // An OFFLINE_SYNTHETIC runtime alone does not open START: only the rehearsal Host's explicit allowOfflineStart does.
+  // An OFFLINE_SYNTHETIC runtime alone does not open offline START: without the rehearsal Host's explicit allowOfflineStart it is gated as a live (passkey) Host.
   const offlineOnly = createLimitedWorkerService({ goals, governance: {}, admission: {}, projects: ['chief'], store, quote: null, source: () => source,
     identity, runtime: { ...runtime, transportKind: 'OFFLINE_SYNTHETIC' }, now: () => new Date().toISOString() });
-  assert.equal(offlineOnly.read('chief', human).execution.startAvailable, false);
+  assert.deepEqual(offlineOnly.read('chief', human).execution, { evidenceClass: 'OFFLINE_SYNTHETIC', startAvailable: true, authorizationSteps: [...LIVE_AUTHORIZATION_STEPS], approvalMethod: 'PASSKEY_PER_RUN' });
   await assert.rejects(offlineOnly.action('chief', hash(c), { requestId: randomUUID(), action: 'START', approval: { maxReservationMicroUsd: 630720 } }, human),
-    (e) => e.code === 'EXE_HOLD');
+    (e) => e.code === 'READER_REQUEST_BOUND_UNPROVEN');
   assert.equal(executed, 0);
   const users = readdirSync(join(ROOT, 'src'), { recursive: true }).map(String).filter((p) => p.endsWith('.ts'))
     .filter((p) => /allowOfflineStart\s*:\s*true/.test(readFileSync(join(ROOT, 'src', p), 'utf8')));

@@ -74,9 +74,10 @@ await test('a current A1 contract refuses even synthetic execution before Driver
   const w=await fixture(dir);await assert.rejects(w.runtime.execute(w.c),/INPUT_LIMIT_DECISION_REQUIRED/);
   assert.equal(w.calls,0);assert.equal(w.preflights,0);assert.equal(w.job().reservedMicroUsd,0);assert.equal(w.controller.get(w.c.runId).state,'PACKET_READY');
 });
-await test('native transport remains HOLD before credential reads for both new and legacy contracts',async dir=>{
+// M1-LIFT-P0: this build is the LIVE_PILOT candidate; the HOLD refusal of each layer is kept on a HOLD copy (test-m1-real-task-activation.mjs).
+await test('native transport on the LIFT build still refuses an undecided input policy before credential reads',async dir=>{
   const w=await fixture(dir);let keys=0;const native=nativeAnthropicTransport(()=>{keys++;return'never';});
-  await assert.rejects(native.preflight(w.c,new AbortController().signal),/EXE_HOLD/);await assert.rejects(native.generate(w.c,w.g.text,w.source.text,new AbortController().signal),/EXE_HOLD/);assert.equal(keys,0);
+  await assert.rejects(native.preflight(w.c,new AbortController().signal),/INPUT_LIMIT_DECISION_REQUIRED/);await assert.rejects(native.generate(w.c,w.g.text,w.source.text,new AbortController().signal),/INPUT_LIMIT_DECISION_REQUIRED/);assert.equal(keys,0);
 });
 await test('legacy contracts are readable but never input-ready for live use',async dir=>{const w=await fixture(dir,{legacy:true});assert.throws(()=>assertInputReady(w.c),/LEGACY_REQUIRES_REPLAN/);assert.equal(w.store.read().jobs.length,1);});
 for(const[field,value]of[['requestedHardLimitTokens',200000],['decision','APPROVED'],['hardLimitVerification','VERIFIED'],['estimatedInputTokens',4096],['requestMaxBytes',999999]])await test('client cannot declare input policy '+field+' accepted',async dir=>{
@@ -100,8 +101,8 @@ await test('existing AP1 safely activates separately issued synthetic documents,
 await test('AP1 rejects forged Human principal before any activation write',async dir=>{
   const w=await fixture(dir,{activate:false});w.bundle.liveCallAuthorizations[0].issuer.principalRef='human:forged';assert.throws(()=>w.activation.activate(w.target,w.bundle));assert.equal(w.controller.get(w.c.runId).state,'IDLE');assert.deepEqual(readdirSync(w.options.authorityArchiveDirectory),[]);
 });
-await test('live A1 composition cannot advance a correctly activated synthetic Run under HOLD',async dir=>{
-  const w=await fixture(dir,{kind:'LIVE_PROVIDER'});await assert.rejects(w.runtime.execute(w.c),/EXE_HOLD/);assert.equal(w.calls,0);assert.equal(w.preflights,0);assert.equal(w.controller.get(w.c.runId).state,'PACKET_READY');
+await test('live A1 composition cannot advance a correctly activated synthetic Run on the LIFT build (input decision still required)',async dir=>{
+  const w=await fixture(dir,{kind:'LIVE_PROVIDER'});await assert.rejects(w.runtime.execute(w.c),/INPUT_LIMIT_DECISION_REQUIRED/);assert.equal(w.calls,0);assert.equal(w.preflights,0);assert.equal(w.controller.get(w.c.runId).state,'PACKET_READY');
 });
 await test('legacy synthetic calibration still exercises AP1 -> Driver -> Worker -> Journal -> report, not A1 live eligibility',async dir=>{
   const w=await fixture(dir,{legacy:true});await w.runtime.execute(w.c);const seen=w.runtime.inspect(w.c);assert.equal(w.calls,1);assert.equal(seen.driver.state,'IMPLEMENTATION_COMPLETE');assert.equal(seen.journal[0].state,'APPLIED');assert.ok(seen.journal[0].appliedAt);assert.equal(w.store.reportIsValid(w.job()),true);
@@ -110,7 +111,7 @@ await test('legacy synthetic calibration still exercises AP1 -> Driver -> Worker
   const at=process.argv.indexOf('--evidence');if(at>=0)writeFileSync(process.argv[at+1],JSON.stringify(proof,null,2));
 });
 await test('readiness tells the operator who acts next without making operational records into authority',()=>{
-  const r=readiness(['EXE_HOLD','INPUT_LIMIT_DECISION_REQUIRED','EXE_HOLD']);assert.equal(r.canStart,false);assert.equal(r.checks.length,2);assert.ok(r.checks.every(c=>c.title&&c.nextStep&&c.owner));assert.equal(EXE,'HOLD');
+  const r=readiness(['EXE_HOLD','INPUT_LIMIT_DECISION_REQUIRED','EXE_HOLD']);assert.equal(r.canStart,false);assert.equal(r.checks.length,2);assert.ok(r.checks.every(c=>c.title&&c.nextStep&&c.owner));assert.equal(EXE,'LIVE_PILOT');
 });
 await test('changed SHA, code, dirty checkout, expired price and exhausted budget all appear as blockers',async dir=>{
   const w=await fixture(dir);const a=planConditions(w.c,w.c.quote.validUntil,{sha:'c'.repeat(40),codeHash:'d'.repeat(64),clean:false},1000000);
@@ -133,10 +134,10 @@ await test('forged telemetry cannot approve policy, choose evidence class or iss
   for(const field of['authority','evidenceClass','exe','provider','inputPolicy'])await assert.rejects(w.service.prepare('chief',{...input,[field]:'APPROVED'},HUMAN),/INVALID_WORKER_PLAN/);
   assert.equal(w.store.read().observations,undefined);assert.equal(w.calls,0);
 });
-await test('HOLD refusals are measured once per request, not model requests or authorizations',async dir=>{
+await test('LIFT build: a START without the Human approval amount is refused before anything runs, not as a model request or authorization',async dir=>{
   const w=await fixture(dir),input={requestId:randomUUID(),action:'START'};
-  for(let i=0;i<2;i++)await assert.rejects(w.service.action('chief',hash(w.c),input,HUMAN),/EXE_HOLD/);
-  const e=w.service.read('chief',HUMAN).efficiency;assert.equal(e.recordedOperatorActions,1);assert.equal(e.tasks[0].blockedAttempts[0].reason,'EXE_HOLD');assert.equal(w.calls,0);assert.equal(w.job().reservedMicroUsd,0);
+  for(let i=0;i<2;i++)await assert.rejects(w.service.action('chief',hash(w.c),input,HUMAN),/APPROVAL_REQUIRED/);
+  const e=w.service.read('chief',HUMAN).efficiency;assert.equal(e.recordedOperatorActions,0);assert.deepEqual(e.tasks[0].blockedAttempts,[]);assert.equal(w.calls,0);assert.equal(w.job().reservedMicroUsd,0);
 });
 await test('reconciliation records a request only: no refund, re-dispatch or authority change',async dir=>{
   const w=await fixture(dir);w.store.reserve(hash(w.c),210240,hash('OFFLINE_SYNTHETIC_CLAIM'),w.clock.now(),true);w.store.recover(w.clock.now());const before=readdirSync(join(w.options.authorityArchiveDirectory,'records'));
@@ -156,7 +157,7 @@ await test('real HTTP routes reject direct START and forged scope, while plan ge
   const w=await fixture(dir,{activate:false}),server=await startWorkspaceServer({config:w.config,uiDirectory:'workspace-ui',port:0,store:w.bridge.store,limitedWorker:w.service});
   try{const res=await fetch(server.url),cookie=res.headers.get('set-cookie').split(';')[0],headers={Cookie:cookie,Origin:new URL(server.url).origin,'Content-Type':'application/json','X-Chief-Workspace':'1'};
     const url=server.url+'api/v0/projects/chief/limited-worker',post=(path,body)=>fetch(path,{method:'POST',headers,body:JSON.stringify(body)});
-    assert.equal((await post(url+'/'+hash(w.c)+'/actions',{action:'START',requestId:randomUUID()})).status,403);
+    {const start=await post(url+'/'+hash(w.c)+'/actions',{action:'START',requestId:randomUUID()});assert.equal(start.status,400);assert.equal((await start.json()).error.code,'APPROVAL_REQUIRED');}
     assert.equal((await post(url,{goalId:w.g.goalId,agentId:'limited-readme-worker',requestId:randomUUID(),authority:'fake'})).status,400);
     const read=await fetch(url,{headers:{Cookie:cookie}});const data=await read.json();assert.equal(read.status,200,JSON.stringify(data));assert.equal(data.jobs[0].reviewPacket.state,'UNISSUED_NOT_AUTHORITY');assert.equal(data.jobs[0].readiness.canStart,false);assert.deepEqual(readdirSync(w.options.authorityArchiveDirectory),[]);
   }finally{await server.close();}
@@ -264,11 +265,12 @@ await test('A2 cancelled or uncertain jobs cannot be staged or replayed',async d
   const w=await fixture(dir,{activate:false}),limited=archiveA2(w);w.store.change(hash(w.c),j=>{j.state='CANCELLED';});
   assert.throws(()=>a2Gate(w).stage(hash(w.c),w.bundle,limited),/JOB_NOT_PREPARED/);assert.equal(w.controller.get(w.c.runId).state,'IDLE');
 });
-await test('A3 resource policy is input-ready, has no token hard-cap claim, and still has production HOLD',async dir=>{
+await test('A3 resource policy is input-ready, has no token hard-cap claim, and the LIFT build still lists H1-H9 and the account check',async dir=>{
   const w=await fixture(dir,{a3:true});assert.doesNotThrow(()=>assertInputReady(w.c));
   const f=inputFacts(w.c,w.g.text,w.source.text);assert.equal(f.requestedHardLimitTokens,null);assert.equal(f.hardLimitVerification,'NOT_CLAIMED');
-  assert.equal(f.estimatedInputTokens,null);assert.equal(f.exactInputTokens,null);assert.equal(EXE,'HOLD');
-  const conditions=planConditions(w.c,w.clock.now(),w.options.currentImplementation(),0);assert.ok(!conditions.includes('INPUT_LIMIT_DECISION_REQUIRED'));assert.ok(conditions.includes('EXE_HOLD'));
+  assert.equal(f.estimatedInputTokens,null);assert.equal(f.exactInputTokens,null);assert.equal(EXE,'LIVE_PILOT');
+  const conditions=planConditions(w.c,w.clock.now(),w.options.currentImplementation(),0);assert.ok(!conditions.includes('INPUT_LIMIT_DECISION_REQUIRED'));
+  assert.ok(!conditions.includes('EXE_HOLD')&&conditions.includes('H1_H9_NOT_GRANTED')&&conditions.includes('ACCOUNT_MODEL_UNVERIFIED'));
 });
 for(const size of[16383,16384,16385])await test('A3 source UTF8 byte boundary '+size+' is enforced without truncation',async dir=>{
   const w=await fixture(dir,{a3:true}),text='x'.repeat(size),c={...w.c,sourceBytes:size,sourceHash:hash(text)};
@@ -305,11 +307,14 @@ await test('A3 may accept synthetic usage above 4096 without treating that forme
   w.options.transport.generate=async()=>{const r=await generate();r.usage.input_tokens=6000;return r;};
   await w.runtime.execute(w.c);assert.equal(w.job().usage.inputTokens,6000);assert.equal(w.runtime.resultConsistency(w.c),true);
 });
-await test('A3 live composition and native transport remain HOLD before key reads, budget and invocation',async dir=>{
+await test('A3 live composition on the LIFT build stops at the missing activation set, and native transport refuses incomplete calls, before key reads, budget and any request',async dir=>{
   const w=await fixture(dir,{a3:true,kind:'LIVE_PROVIDER'});let keys=0;const native=nativeAnthropicTransport(()=>{keys++;throw new Error('NEVER_READ_KEY');});
-  await assert.rejects(w.runtime.execute(w.c),/EXE_HOLD/);await assert.rejects(native.preflight(w.c,new AbortController().signal),/EXE_HOLD/);
-  await assert.rejects(native.generate(w.c,w.g.text,w.source.text,new AbortController().signal),/EXE_HOLD/);
-  assert.equal(keys,0);assert.equal(w.calls,0);assert.equal(w.job().reservedMicroUsd,0);assert.deepEqual(w.runtime.inspect(w.c).journal,[]);
+  const step=await w.runtime.execute(w.c);assert.equal(step.postState,'HUMAN_STOP');
+  assert.deepEqual([w.job().state,w.job().reason,w.job().generationClaimed],['BLOCKED','ACTIVATION_SET_MISSING',false]);
+  await assert.rejects(native.preflight(w.c,new AbortController().signal),/PREFLIGHT_INPUT_REQUIRED/);
+  await assert.rejects(native.generate(w.c,w.g.text,w.source.text,new AbortController().signal),/FINAL_SEND_GUARD_REQUIRED/);
+  assert.equal(keys,0);assert.equal(w.calls,0);assert.equal(w.preflights,0);assert.equal(w.job().reservedMicroUsd,0);
+  assert.deepEqual(w.runtime.inspect(w.c).journal.map(i=>i.state),['APPLIED'],'only the Driver step that stopped the Run');
 });
 await test('A3 rejects missing archived limited grant even when a packet was activated',async dir=>{
   const w=await fixture(dir,{a3:true,activate:false});w.activation.activate(w.target,w.bundle);
@@ -354,7 +359,7 @@ await test('A3 service creates new system-bound contracts and UNISSUED packets w
   const view=await w.service.prepare('chief',{requestId:randomUUID(),goalId:g.goalId,agentId:'limited-readme-worker'},HUMAN),j=view.jobs.at(-1);
   assert.equal(j.contract.inputPolicy.revision,'A3');assert.ok(!j.conditions.includes('INPUT_LIMIT_DECISION_REQUIRED'));assert.equal(j.readiness.canStart,false);
   assert.equal(j.reviewPacket.state,'UNISSUED_NOT_AUTHORITY');assert.equal(j.reviewPacket.issuedAt,null);assert.equal(j.input.requestedHardLimitTokens,null);
-  await assert.rejects(w.service.action('chief',j.id,{requestId:randomUUID(),action:'START'},HUMAN),/EXE_HOLD/);assert.deepEqual(readdirSync(w.options.authorityArchiveDirectory),[]);assert.equal(w.calls,0);
+  await assert.rejects(w.service.action('chief',j.id,{requestId:randomUUID(),action:'START'},HUMAN),/APPROVAL_REQUIRED/);assert.deepEqual(readdirSync(w.options.authorityArchiveDirectory),[]);assert.equal(w.calls,0);
 });
 const a4Fixture=(dir,options={})=>fixture(dir,{a3:true,a4:true,activate:false,...options});
 const issuedLimited=w=>w.document('AUTHORIZATION',w.limited);
@@ -432,10 +437,14 @@ await test('A4 dispatch guard is synchronous, after simulated TLS-ready, before 
   let writes=0;assert.throws(()=>dispatchGuarded(abort.signal,()=>{throw new Error('REVOKED');},()=>writes++));assert.equal(writes,0);
   assert.throws(()=>dispatchGuarded(abort.signal,()=>abort.abort(),()=>writes++));assert.equal(writes,0);
 });
-await test('A4 live Host still refuses before credential lookup, account API or generation',async dir=>{
-  const w=await a4Fixture(dir);activateA4(w);let keys=0;const native=nativeAnthropicTransport(()=>{keys++;throw new Error('NO_KEY_ALLOWED');});
-  await assert.rejects(native.preflight(w.c,new AbortController().signal,{objective:w.g.text,source:w.source.text}),/EXE_HOLD/);
-  await assert.rejects(native.generate(w.c,w.g.text,w.source.text,new AbortController().signal,()=>{}),/EXE_HOLD/);assert.equal(keys,0);
+await test('A4 native transport on the LIFT build: its only own gate was EXE, so a recording requester sees just the price read and a missing key stops generation before any send',async dir=>{
+  // No network: production passes no requester; here it only records the destination and refuses. The passkey gate is the Host's (M1 suites).
+  const w=await a4Fixture(dir);activateA4(w);let keys=0;const seen=[];
+  const native=nativeAnthropicTransport(()=>{keys++;throw new Error('NO_KEY_ALLOWED');},{requester:(url)=>{seen.push(String(url));throw new Error('NO_NETWORK_IN_TEST');}});
+  await assert.rejects(native.preflight(w.c,new AbortController().signal,{objective:w.g.text,source:w.source.text}),/NO_NETWORK_IN_TEST/);
+  assert.equal(keys,0);assert.deepEqual(seen,['https://platform.claude.com/docs/en/models/haiku-4-5/overview.md']);
+  await assert.rejects(native.generate(w.c,w.g.text,w.source.text,new AbortController().signal,()=>{}),/NO_KEY_ALLOWED/);assert.equal(keys,1);
+  assert.deepEqual(seen,['https://platform.claude.com/docs/en/models/haiku-4-5/overview.md'],'no account, model or Messages request');
 });
 for(const revoke of[false,true])await test('A4 actual HTTPS adapter with synthetic socket '+(revoke?'revocation before secureConnect refuses writes':'writes only after secureConnect and last guard'),async()=>{
   const socket=new EventEmitter();socket.connecting=true;let checks=0,writes=0,ends=0,valid=true;
