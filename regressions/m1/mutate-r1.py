@@ -34,11 +34,11 @@ M_ = [
  ('MR16 approval record copied to another job accepted', 'dist/limited-worker/run-approval.js', 'if (record.jobId !== jobId)', 'if (false)', [R('WebAuthn replay')]),
  ('MR17 approval binding ignores the derived record and acceptance fields', 'dist/limited-worker/live-runtime.js',
   "payload.packetRecordClass !== 'CLASS_DERIVED_AUTHORITY' || payload.packetRecordHash !== recordHashOf(documents[0]) || payload.acceptanceHash !== approver.acceptanceHash ||", '',
-  [R('LIFT build: substituting')], 'REDUNDANT: setHash names the derived packet record, whose hash covers the derivation and acceptance hash'),
+  [R('EXE-lifted copy: substituting')], 'REDUNDANT: setHash names the derived packet record, whose hash covers the derivation and acceptance hash'),
  # EXE HOLD and provider distinction
  ('MR18 runtime trusts the service for EXE HOLD', 'dist/limited-worker/live-runtime.js',
   ("if (EXE === 'HOLD')\n                fail('EXE_HOLD');\n            const a = eligible(c), job", "if (EXE === 'HOLD')\n                fail('EXE_HOLD');\n            const a = eligible(c);"),
-  ('const a = eligible(c), job', 'const a = eligible(c);'), [R('HOLD copy')]),
+  ('const a = eligible(c), job', 'const a = eligible(c);'), [R('Real build')]),
  ('MR19 fake provider labelled as the public API', 'dist/limited-worker/transport.js', "const endpoint = options.requester ? 'INJECTED_TEST_REQUESTER' : 'ANTHROPIC_PUBLIC_API';", "const endpoint = 'ANTHROPIC_PUBLIC_API';", [M]),
  ('MR20 fake provider metadata counted as the account', 'dist/limited-worker/service.js', ": j.providerEndpoint === 'ANTHROPIC_PUBLIC_API' ? 'ACCOUNT_METADATA_VERIFIED' : 'TEST_REQUESTER_NOT_ACCOUNT',", ": 'ACCOUNT_METADATA_VERIFIED',", [M]),
  ('MR21 status view shows a derived packet as direct authority', 'dist/intake/goal-execution-status-bridge.js',

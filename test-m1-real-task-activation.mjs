@@ -16,8 +16,8 @@ import { LIVE_AUTHORIZATION_STEPS, approvalPreview } from './dist/limited-worker
 import { jobsHTML, workerHTML } from './workspace-ui/limited-worker.js';
 
 // M1 REAL TASK ACTIVATION. No real credential, provider, account or paid call exists in this file: passkeys are
-// software P-256 test keys, the provider is a local TLS fake inside a child process. M1-LIFT-P0: the repository's source
-// and dist are the LIVE_PILOT candidate; the HOLD runs use a COPY of dist patched back to EXE = 'HOLD' in a temporary directory.
+// software P-256 test keys, the provider is a local TLS fake inside a child process, and the "EXE lifted" runs use a
+// patched COPY of dist in a temporary directory (the repository's source and dist keep EXE = 'HOLD').
 const ROOT = process.cwd();
 let passed = 0, failed = 0;
 async function test(name, fn) {
@@ -94,7 +94,7 @@ await test('M1-A reader: zero retries, no non-streaming second request and no th
   let ran = 0;
   const live = claudeCodeReaderTransport({ executable: '/nonexistent', executableSha256: 'a'.repeat(64), workspaceRoot: '/nonexistent' },
     seatbeltReaderRunner({ runModel: async () => { ran++; throw new Error('NEVER'); } }), { price: async () => '', model: async () => ({}), now: () => new Date().toISOString() });
-  await assert.rejects(live.generate(contract('claude-code-reader'), 'goal', README, new AbortController().signal, () => {}), /READER_REQUEST_BOUND_UNPROVEN/);
+  await assert.rejects(live.generate(contract('claude-code-reader'), 'goal', README, new AbortController().signal, () => {}), /EXE_HOLD/);
   assert.equal(ran, 0);
 });
 await test('M1-C real CLI evidence (non-paid): the pinned binary accepted the M0 argv, and under --max-turns 3 it still sent 4 requests (no request bound)', async () => {
@@ -231,7 +231,7 @@ await test('M1-B real Host: trusted live runtime, root-owned approver, startup-o
   assert.doesNotMatch(main, /release=workerStore\.lease\(\)/, 'no process-long runtime lease');
   assert.match(main, /const startup=workerStore\.lease\(\);\s*try\{workerStore\.recover\(clock\.now\(\)\);\}finally\{startup\(\);\}/);
   assert.doesNotMatch(readFileSync(join(ROOT, 'dist/limited-worker/main.js'), 'utf8'), /rehearsal/);
-  assert.equal(EXE, 'LIVE_PILOT');
+  assert.equal(EXE, 'HOLD');
   assert.ok(LIVE_AUTHORIZATION_STEPS.some((s) => /EXE／H1–H9 HOLD/.test(s)) && LIVE_AUTHORIZATION_STEPS.some((s) => /root/.test(s)) && LIVE_AUTHORIZATION_STEPS.some((s) => /支出上限/.test(s)));
 });
 await test('M1-B/D panel: before approval the Human sees task, data scope, model and budget; the live Host shows the passkey step, LOCKED under EXE HOLD', async () => {
@@ -257,7 +257,7 @@ await test('M1-B/D panel: before approval the Human sees task, data scope, model
   assert.match(workerHTML(), /<option value="limited-readme-worker">/);
 });
 
-// ---------------------------------------------------------------- end to end over HTTP: EXE LIVE_PILOT (repository build) and EXE HOLD (patched copy)
+// ---------------------------------------------------------------- end to end over HTTP: EXE HOLD (real build) and EXE lifted (patched copy)
 const harness = join(ROOT, 'regressions/m1/lifted-host.mjs');
 const runHarness = (dist, scenario, dir) => {
   const work = join(dir, scenario); mkdirSync(work, { recursive: true });
@@ -266,20 +266,8 @@ const runHarness = (dist, scenario, dir) => {
   assert.equal(facts.error, undefined, facts.error);
   return facts;
 };
-let held = null;
-const holdDist = () => {
-  if (held) return held;
-  const base = realpathSync(mkdtempSync(join(tmpdir(), 'chief-m1-hold-')));
-  for (const p of ['dist', 'workspace-ui', 'package.json']) cpSync(join(ROOT, p), join(base, p), { recursive: true });
-  symlinkSync(join(ROOT, 'node_modules'), join(base, 'node_modules'));
-  const file = join(base, 'dist/limited-worker/contract.js'), text = readFileSync(file, 'utf8');
-  assert.equal(text.split("export const EXE = 'LIVE_PILOT';").length, 2, 'exactly one EXE declaration');
-  writeFileSync(file, text.replace("export const EXE = 'LIVE_PILOT';", "export const EXE = 'HOLD';"));
-  held = { base, dist: join(base, 'dist') };
-  return held;
-};
-await test('M1 HOLD copy over HTTP (EXE patched back to HOLD): the Human sees the run; approval and START refuse before any write, verification or request', async (dir) => {
-  const f = runHarness(holdDist().dist, 'hold', dir);
+await test('M1 real build over HTTP (EXE HOLD): the Human sees the run; approval and START refuse before any write, verification or request', async (dir) => {
+  const f = runHarness(join(ROOT, 'dist'), 'hold', dir);
   assert.deepEqual([f.hold.request, f.hold.start, f.noApprover, f.readerPlan], ['EXE_HOLD', 'EXE_HOLD', 'EXE_HOLD', 'READER_REQUEST_BOUND_UNPROVEN']);
   assert.deepEqual(f.holdJob, { state: 'PREPARED', approvalRequest: null, approval: null, reserved: 0, events: ['PREPARED_NO_EXECUTION'], driver: 'IDLE' });
   assert.deepEqual([f.holdArchive, f.holdRecords, f.holdSets], [0, false, false]);
@@ -287,60 +275,20 @@ await test('M1 HOLD copy over HTTP (EXE patched back to HOLD): the Human sees th
   assert.equal(f.execution.startAvailable, false); assert.equal(f.preview.model, MODEL); assert.equal(f.status.classAccepted, true);
   assert.deepEqual(f.agentAvailability, { 'limited-readme-worker': 'LIVE_REQUIRES_APPROVAL', 'claude-code-reader': 'READER_REQUEST_BOUND_UNPROVEN' });
 });
-// M1-LIFT-P0: the layers below the Host that the older suites checked for EXE_HOLD on the repository build are checked on the HOLD copy.
-await test('M1 HOLD copy below the Host: service, composition, adapter, native transport, Seatbelt runner, live reader, unconfigured agent and readiness all refuse as EXE_HOLD', async (dir) => {
-  const load = (p) => import(join(holdDist().dist, p));
-  const [{ EXE: heldExe }, transport, reader, readiness, composition, adapter] = await Promise.all(['limited-worker/contract.js', 'limited-worker/transport.js',
-    'limited-worker/claude-code-reader.js', 'limited-worker/readiness.js', 'limited-worker/composition.js', 'limited-worker/adapter.js'].map(load));
-  assert.equal(heldExe, 'HOLD');
-  const c = contract('limited-readme-worker');
-  let sent = 0, keys = 0; const seen = [];
-  const counting = { kind: 'LIVE_PROVIDER', preflight: async () => { sent++; throw new Error('NEVER'); }, generate: async () => { sent++; throw new Error('NEVER'); } };
-  const roots = Object.fromEntries(['controllerStoreDirectory', 'authorityArchiveDirectory', 'changeRegistryDirectory', 'journalDirectory', 'resultDirectory']
-    .map((k) => { const p = join(dir, k); mkdirSync(p, { mode: 0o700 }); return [k, p]; }));
-  const composed = composition.composeLimitedWorker({ ...roots, architectPrincipalRef: 'architect:m1-hold-copy', humanPrincipalRef: 'human:m1-hold-copy',
-    implementationSha: c.implementationSha, workerCodeHash: c.workerCodeHash, clock: { now: () => new Date().toISOString() }, transport: counting,
-    currentImplementation: () => ({ sha: c.implementationSha, codeHash: c.workerCodeHash, clean: true }), liveCallGrant: null, limitedGrant: null,
-    readSource: () => source, readGoal: () => 'goal' });
-  await assert.rejects(composed.execute(c), /EXE_HOLD/);
-  assert.deepEqual(await new adapter.LimitedReadmeWorker({ transport: counting }).execute({ packet: packetFor(c, 'slice-1') }),
-    { status: 'HUMAN_STOP', reason: 'EXE_HOLD_NO_PROVIDER_REQUEST' });
-  // The native transport with a full payload and a send guard: the requester only records and refuses, so no network is possible.
-  const native = transport.nativeAnthropicTransport(() => { keys++; throw new Error('NO_KEY'); }, { requester: (u) => { seen.push(String(u)); throw new Error('NO_NETWORK_IN_TEST'); } });
-  await assert.rejects(native.preflight(c, new AbortController().signal, { objective: 'goal', source: README }), /EXE_HOLD/);
-  await assert.rejects(native.generate(c, 'goal', README, new AbortController().signal, () => {}), /EXE_HOLD/);
-  let models = 0; const executor = { async runModel() { models++; throw new Error('NEVER'); } };
-  await assert.rejects(reader.seatbeltReaderRunner(executor).run({}), /EXE_HOLD/);
-  const live = reader.claudeCodeReaderTransport({ executable: '/nonexistent', executableSha256: 'a'.repeat(64), workspaceRoot: join(dir, 'reader') },
-    reader.seatbeltReaderRunner(executor), { price: async () => '', model: async () => ({}), now: () => new Date().toISOString() });
-  await assert.rejects(live.preflight(contract('claude-code-reader'), new AbortController().signal, { objective: 'goal', source: README }), /EXE_HOLD/);
-  await assert.rejects(live.generate(contract('claude-code-reader'), 'goal', README, new AbortController().signal, () => {}), /EXE_HOLD/);
-  const unconfigured = transport.unconfiguredLiveTransport('CLAUDE_CODE_READER_NOT_CONFIGURED');
-  await assert.rejects(unconfigured.preflight(c), /EXE_HOLD/); await assert.rejects(unconfigured.generate(c), /EXE_HOLD/);
-  assert.equal(readiness.planConditions(c, new Date().toISOString(), { sha: c.implementationSha, codeHash: c.workerCodeHash, clean: true }, 0)[0], 'EXE_HOLD');
-  // The service's own check, with a runtime that has no EXE check of its own: 403 EXE_HOLD before the runtime is called, even with an amount and a passkey.
-  const [{ WorkerStore }, { createLimitedWorkerService }] = await Promise.all(['limited-worker/store.js', 'limited-worker/service.js'].map(load));
-  const store = new WorkerStore(join(dir, 'service')), sc = parseContract({ ...c, storageIdentity: store.identity() });
-  store.create(sc, new Date().toISOString());
-  let runtimeCalls = 0;
-  const human = { schemaVersion: 1, kind: 'HUMAN', principalRef: 'human:m1-hold-copy' };
-  const service = createLimitedWorkerService({ goals: { read: () => ({ goals: [{ goalId: sc.goalId, text: 'goal', submittedBy: human, createdAt: new Date().toISOString() }] }) },
-    governance: {}, admission: {}, projects: ['chief'], store, quote: null, source: () => source, now: () => new Date().toISOString(),
-    identity: () => ({ sha: sc.implementationSha, codeHash: sc.workerCodeHash, clean: true }),
-    runtime: { transportKind: 'LIVE_PROVIDER', permit() { throw new Error('NO_PERMIT'); }, inspect: () => ({ driver: { state: 'IDLE', change: null }, journal: [], job: null }),
-      resultConsistency: () => false, cancel: () => false, async execute() { runtimeCalls++; }, requestApproval() { runtimeCalls++; } } });
-  assert.equal(service.read('chief', human).execution.startAvailable, false);
-  const approval = { maxReservationMicroUsd: maximumCost(sc) }, passkey = { credentialId: 'x', authenticatorData: 'x', clientDataJSON: 'x', signature: 'x' };
-  for (const action of ['REQUEST_APPROVAL', 'START']) {
-    await assert.rejects(service.action('chief', hash(sc), { requestId: randomUUID(), action, approval, passkey }, human), (e) => e.code === 'EXE_HOLD' && e.status === 403);
-  }
-  assert.deepEqual([runtimeCalls, store.read().jobs[0].state], [0, 'PREPARED']);
-  assert.deepEqual([sent, keys, seen.length, models, existsSync(join(dir, 'reader'))], [0, 0, 0, 0, false]);
-});
-await test('M1 LIFT build over HTTP: passkey approval, three preserved documents, M1 set, exactly one provider request, evidence kept, no resend', async (dir) => {
-  const f = runHarness(join(ROOT, 'dist'), 'happy', dir);
-  // M1-LIFT-P0: the repository build is the LIVE_PILOT candidate: START is offered only with the per-run passkey; the reader stays unavailable.
-  assert.deepEqual([f.execution.startAvailable, f.execution.approvalMethod, f.agentAvailability['claude-code-reader']], [true, 'PASSKEY_PER_RUN', 'READER_REQUEST_BOUND_UNPROVEN']);
+let lifted = null;
+const liftedDist = () => {
+  if (lifted) return lifted;
+  const base = realpathSync(mkdtempSync(join(tmpdir(), 'chief-m1-lifted-')));
+  for (const p of ['dist', 'workspace-ui', 'package.json']) cpSync(join(ROOT, p), join(base, p), { recursive: true });
+  symlinkSync(join(ROOT, 'node_modules'), join(base, 'node_modules'));
+  const file = join(base, 'dist/limited-worker/contract.js'), text = readFileSync(file, 'utf8');
+  assert.equal(text.split("export const EXE = 'HOLD';").length, 2, 'exactly one EXE declaration');
+  writeFileSync(file, text.replace("export const EXE = 'HOLD';", "export const EXE = 'LIVE_PILOT';"));
+  lifted = { base, dist: join(base, 'dist') };
+  return lifted;
+};
+await test('M1 EXE-lifted copy over HTTP: passkey approval, three preserved documents, M1 set, exactly one provider request, evidence kept, no resend', async (dir) => {
+  const f = runHarness(liftedDist().dist, 'happy', dir);
   assert.deepEqual([f.noApprover, f.readerPlan, f.noPasskeyStart, f.wrongAmount], ['APPROVER_NOT_CONFIGURED', 'READER_REQUEST_BOUND_UNPROVEN', 'PASSKEY_APPROVAL_REQUIRED', 'APPROVAL_DOES_NOT_MATCH_COST']);
   assert.deepEqual([f.pending.rpId, f.pending.credentialMatches, f.pending.challengeMatches, f.pending.payload.maxModelRequests, f.pending.payload.approvedMaxReservationMicroUsd],
     ['localhost', true, true, 1, 210240]);
@@ -369,23 +317,23 @@ await test('M1 LIFT build over HTTP: passkey approval, three preserved documents
   assert.deepEqual([f.again, f.replayOnOtherRun, f.afterRestart], ['WORK_ALREADY_STARTED_OR_TERMINAL', 'PASSKEY_CHALLENGE_MISMATCH', 'WORK_ALREADY_STARTED_OR_TERMINAL']);
   assert.deepEqual([f.restarted.state, f.restarted.resultApplied, f.restarted.invocations, f.restarted.report], ['COMPLETED', true, ['APPLIED'], f.done.report]);
 });
-await test('M1 LIFT build: a wrong, foreign or unverified assertion and an expired approval preserve nothing and send nothing', async (dir) => {
-  const f = runHarness(join(ROOT, 'dist'), 'tampered', dir);
+await test('M1 EXE-lifted copy: a wrong, foreign or unverified assertion and an expired approval preserve nothing and send nothing', async (dir) => {
+  const f = runHarness(liftedDist().dist, 'tampered', dir);
   assert.deepEqual(f.tampered, { otherChallenge: 'PASSKEY_CHALLENGE_MISMATCH', otherOrigin: 'PASSKEY_ORIGIN_MISMATCH', otherRpId: 'PASSKEY_RP_ID_MISMATCH',
     notVerified: 'PASSKEY_USER_NOT_VERIFIED', notPresent: 'PASSKEY_USER_NOT_PRESENT', otherKey: 'PASSKEY_SIGNATURE_INVALID', otherCredential: 'PASSKEY_CREDENTIAL_MISMATCH' });
   assert.equal(f.expired, 'APPROVAL_EXPIRED');
   assert.deepEqual([f.archivedAfterTampered, f.recordsAfterTampered, f.provider.messages, f.provider.models], [0, false, 0, 0]);
 });
-await test('M1 LIFT build: a browser that disconnects mid-request does not stop or repeat the run; the Host finishes it once', async (dir) => {
-  const f = runHarness(join(ROOT, 'dist'), 'disconnect', dir);
+await test('M1 EXE-lifted copy: a browser that disconnects mid-request does not stop or repeat the run; the Host finishes it once', async (dir) => {
+  const f = runHarness(liftedDist().dist, 'disconnect', dir);
   assert.match(f.clientAborted, /abort/i); assert.equal(f.stateAfterDisconnect, 'COMPLETED'); assert.equal(f.provider.messages, 1);
 });
-await test('M1 LIFT build: a class the Architect did not accept cannot be approved', async (dir) => {
-  const f = runHarness(join(ROOT, 'dist'), 'class-not-accepted', dir);
+await test('M1 EXE-lifted copy: a class the Architect did not accept cannot be approved', async (dir) => {
+  const f = runHarness(liftedDist().dist, 'class-not-accepted', dir);
   assert.equal(f.request, 'WORKER_CLASS_NOT_ACCEPTED'); assert.equal(f.status.classAccepted, false); assert.equal(f.provider.messages, 0);
 });
-if (held) rmSync(held.base, { recursive: true, force: true });
-assert.equal(readFileSync(join(ROOT, 'dist/limited-worker/contract.js'), 'utf8').includes("export const EXE = 'LIVE_PILOT';"), true, 'the repository build is the LIVE_PILOT candidate');
+if (lifted) rmSync(lifted.base, { recursive: true, force: true });
+assert.equal(readFileSync(join(ROOT, 'dist/limited-worker/contract.js'), 'utf8').includes("export const EXE = 'HOLD';"), true, 'the repository build keeps HOLD');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

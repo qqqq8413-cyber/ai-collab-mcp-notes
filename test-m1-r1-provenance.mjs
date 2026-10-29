@@ -14,9 +14,9 @@ import { CLASS_DELEGATION_RULE, openAuthorityRecord, parseAuthorityDocument, sea
 import { canonicalJson } from './dist/automation/invocation-journal.js';
 
 // M1-R1: Architect Authority provenance (R-1) and first live pilot readiness. Everything is local and synthetic:
-// software P-256 passkeys and a local TLS fake provider inside a child process. M1-LIFT-P0: the repository's source and
-// dist are the LIVE_PILOT candidate; the HOLD run uses a COPY of dist patched back to EXE = 'HOLD' in a temporary
-// directory. No credential, account, provider or paid call exists in this file.
+// software P-256 passkeys, a local TLS fake provider inside a child process, and "EXE lifted" runs on a patched COPY
+// of dist in a temporary directory (the repository's source and dist keep EXE = 'HOLD'). No credential, account,
+// provider or paid call exists in this file.
 const ROOT = process.cwd();
 let passed = 0, failed = 0;
 // M1R1_ONLY=<name prefix> runs only the matching tests (used by regressions/m1/mutate-r1.py).
@@ -246,25 +246,23 @@ await test('Pilot profile: the accepted class pins the README Worker, one Messag
   assert.doesNotMatch(main, /requester/);
   assert.match(main, /\| EXE \$\{EXE\} \|/, 'the Host states the real EXE value at startup');
 });
-await test('EXE cannot be changed by an agent: one source constant (LIVE_PILOT in this candidate), no environment, flag, config, file or HTTP action changes it', async () => {
+await test('EXE HOLD cannot be lifted by an agent: one source constant, no environment, flag, config, file or HTTP action changes it', async () => {
   const files = (dir) => readdirSync(join(ROOT, dir), { recursive: true }).map(String).filter((p) => p.endsWith('.ts')).map((p) => join(dir, p));
   const src = files('src').map((p) => [p, readFileSync(join(ROOT, p), 'utf8')]);
-  const LIFT = "export const EXE = 'LIVE_PILOT' as 'HOLD' | 'LIVE_PILOT';";
   assert.deepEqual(src.filter(([, t]) => /export const EXE\b/.test(t)).map(([p, t]) => [p, t.match(/export const EXE = [^;]+;/)[0]]),
-    [['src/limited-worker/contract.ts', LIFT]]);
-  assert.deepEqual(src.filter(([, t]) => /\bEXE\s*=[^=]/.test(t.replace(LIFT, ''))).map(([p]) => p), [], 'no other assignment');
-  assert.deepEqual(src.flatMap(([p, t]) => t.split('\n').filter((l) => /LIVE_PILOT/.test(l)).map((l) => [p, l])), [['src/limited-worker/contract.ts', LIFT]],
-    'only the one declaration names the lifted value');
+    [['src/limited-worker/contract.ts', "export const EXE = 'HOLD' as const;"]]);
+  assert.deepEqual(src.filter(([, t]) => /\bEXE\s*=[^=]/.test(t.replace(/export const EXE = 'HOLD' as const;/, ''))).map(([p]) => p), [], 'no other assignment');
+  assert.deepEqual(src.filter(([, t]) => /LIVE_PILOT/.test(t)).map(([p]) => p), [], 'no code names the lifted value');
   // The limited worker reads exactly one environment variable: the Host's API key.
   const envReads = src.filter(([p]) => p.startsWith('src/limited-worker/')).flatMap(([p, t]) => [...t.matchAll(/process\.env(?:\.([A-Z_]+)|\[)/g)].map((m) => `${p}:${m[1] ?? '['}`));
   assert.deepEqual([...new Set(envReads)].filter((r) => !r.startsWith('src/limited-worker/claude-code-reader.ts')), ['src/limited-worker/main.ts:CHIEF_LIMITED_ANTHROPIC_KEY']);
   assert.match(readFileSync(join(ROOT, 'src/limited-worker/main.ts'), 'utf8'), /allowed = \['--host-config','--port','--approver-config','--measurement-mode'\]/);
   assert.match(readFileSync(join(ROOT, 'src/limited-worker/service.ts'), 'utf8'), /action: z\.enum\(\['CHECK', 'START', 'CANCEL','RECONCILE','REQUEST_APPROVAL'\]\)/);
-  assert.equal(EXE, 'LIVE_PILOT');
-  assert.equal(readFileSync(join(ROOT, 'dist/limited-worker/contract.js'), 'utf8').includes("export const EXE = 'LIVE_PILOT';"), true);
+  assert.equal(EXE, 'HOLD');
+  assert.equal(readFileSync(join(ROOT, 'dist/limited-worker/contract.js'), 'utf8').includes("export const EXE = 'HOLD';"), true);
 });
 
-// ================================================================ over HTTP: repository build (LIVE_PILOT candidate) and HOLD copy
+// ================================================================ over HTTP: real build (HOLD) and EXE-lifted copy
 const harness = join(ROOT, 'regressions/m1/lifted-host.mjs');
 const runHarness = (dist, scenario, dir, env = {}) => {
   const work = join(dir, scenario); mkdirSync(work, { recursive: true });
@@ -273,26 +271,26 @@ const runHarness = (dist, scenario, dir, env = {}) => {
   assert.equal(facts.error, undefined, facts.error);
   return facts;
 };
-let held = null;
-const holdDist = () => {
-  if (held) return held;
-  const base = realpathSync(mkdtempSync(join(tmpdir(), 'chief-m1r1-hold-')));
+let lifted = null;
+const liftedDist = () => {
+  if (lifted) return lifted;
+  const base = realpathSync(mkdtempSync(join(tmpdir(), 'chief-m1r1-lifted-')));
   for (const p of ['dist', 'workspace-ui', 'package.json']) cpSync(join(ROOT, p), join(base, p), { recursive: true });
   symlinkSync(join(ROOT, 'node_modules'), join(base, 'node_modules'));
   const file = join(base, 'dist/limited-worker/contract.js'), text = readFileSync(file, 'utf8');
-  assert.equal(text.split("export const EXE = 'LIVE_PILOT';").length, 2, 'exactly one EXE declaration');
-  writeFileSync(file, text.replace("export const EXE = 'LIVE_PILOT';", "export const EXE = 'HOLD';"));
-  held = { base, dist: join(base, 'dist') };
-  return held;
+  assert.equal(text.split("export const EXE = 'HOLD';").length, 2, 'exactly one EXE declaration');
+  writeFileSync(file, text.replace("export const EXE = 'HOLD';", "export const EXE = 'LIVE_PILOT';"));
+  lifted = { base, dist: join(base, 'dist') };
+  return lifted;
 };
-await test('HOLD copy (EXE patched back to HOLD), valid candidate, agent-set environment: the runtime called directly still refuses EXE_HOLD before any write', async (dir) => {
-  const f = runHarness(holdDist().dist, 'hold', dir, { EXE: 'LIVE_PILOT', CHIEF_EXE: 'LIVE_PILOT', CHIEF_LIMITED_EXE: 'LIVE_PILOT' });
+await test('Real build (EXE HOLD), valid candidate, agent-set environment: the runtime called directly still refuses EXE_HOLD before any write', async (dir) => {
+  const f = runHarness(join(ROOT, 'dist'), 'hold', dir, { EXE: 'LIVE_PILOT', CHIEF_EXE: 'LIVE_PILOT', CHIEF_LIMITED_EXE: 'LIVE_PILOT' });
   assert.deepEqual(f.holdDirect, { request: 'EXE_HOLD', execute: 'EXE_HOLD', envSeen: ['EXE', 'CHIEF_EXE', 'CHIEF_LIMITED_EXE'] });
   assert.deepEqual([f.hold.request, f.hold.start, f.status.classAccepted, f.status.implementationAccepted, f.status.refusal], ['EXE_HOLD', 'EXE_HOLD', true, true, null]);
   assert.deepEqual([f.holdArchive, f.holdRecords, f.holdSets, f.provider.messages, f.provider.models, f.provider.price], [0, false, false, 0, 0, 0]);
 });
-await test('LIFT build: only the run the Human approved executes; unrequested, passkey-less, replayed, copied-record and archive-planted runs never send', async (dir) => {
-  const f = runHarness(join(ROOT, 'dist'), 'only-approved', dir);
+await test('EXE-lifted copy: only the run the Human approved executes; unrequested, passkey-less, replayed, copied-record and archive-planted runs never send', async (dir) => {
+  const f = runHarness(liftedDist().dist, 'only-approved', dir);
   assert.equal(f.runA, 'COMPLETED');
   assert.deepEqual(f.runB, { notRequested: 'APPROVAL_NOT_REQUESTED', noPasskey: 'PASSKEY_APPROVAL_REQUIRED', replayA: 'PASSKEY_CHALLENGE_MISMATCH',
     copiedRecord: 'APPROVAL_RECORD_CORRUPT', direct: 'PASSKEY_APPROVAL_REQUIRED' });
@@ -301,8 +299,8 @@ await test('LIFT build: only the run the Human approved executes; unrequested, p
   assert.deepEqual(f.consumed, f.expectedConsumed);
   assert.deepEqual([f.provider.messages, f.provider.models, f.provider.price], [1, 1, 1], 'exactly one Messages request in total: run A');
 });
-await test('LIFT build: substituting the acceptance source, its version, the accepted SHA or the Architect principal after approval sends nothing', async (dir) => {
-  const f = runHarness(join(ROOT, 'dist'), 'substitution', dir);
+await test('EXE-lifted copy: substituting the acceptance source, its version, the accepted SHA or the Architect principal after approval sends nothing', async (dir) => {
+  const f = runHarness(liftedDist().dist, 'substitution', dir);
   assert.deepEqual(f.sourceSubstituted, { acceptanceChanged: true, start: 'APPROVAL_BINDING_MISMATCH' });
   assert.deepEqual(f.versionSuperseded, { acceptanceChanged: true, start: 'APPROVAL_BINDING_MISMATCH' });
   assert.deepEqual(f.otherSha, { start: 'IMPLEMENTATION_NOT_ACCEPTED', request: 'IMPLEMENTATION_NOT_ACCEPTED' });
@@ -311,8 +309,8 @@ await test('LIFT build: substituting the acceptance source, its version, the acc
   assert.deepEqual([f.afterSubstitution.archive, f.afterSubstitution.records, f.afterSubstitution.sets, f.afterSubstitution.messages], [0, false, false, 0]);
   assert.deepEqual(f.restored, { acceptanceIsV1: true, state: 'COMPLETED', messages: 1 });
 });
-if (held) rmSync(held.base, { recursive: true, force: true });
-assert.equal(readFileSync(join(ROOT, 'dist/limited-worker/contract.js'), 'utf8').includes("export const EXE = 'LIVE_PILOT';"), true, 'the repository build is the LIVE_PILOT candidate');
+if (lifted) rmSync(lifted.base, { recursive: true, force: true });
+assert.equal(readFileSync(join(ROOT, 'dist/limited-worker/contract.js'), 'utf8').includes("export const EXE = 'HOLD';"), true, 'the repository build keeps HOLD');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

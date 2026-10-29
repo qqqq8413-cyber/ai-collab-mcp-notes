@@ -62,11 +62,10 @@ await test('R1 cannot silently migrate model/API, widen policy or change budget/
  for(const[k,v]of[['model','claude-haiku-4-5'],['apiVersion','2026-10-21'],['maxCalls',2],['maxRetries',1],['timeoutSeconds',301],['maxCostMicroUsd',1000001],['totalCostMicroUsd',1000001]])assert.throws(()=>parseContract({...base,[k]:v}));
  assert.throws(()=>parseContract({...base,inputPolicy:{...inputPolicy(),requestedHardLimitTokens:200000}}));
  assert.equal(base.maxCalls,1);assert.equal(base.maxRetries,0);assert.equal(base.timeoutSeconds,300);assert.equal(maximumCost(base),210240);
- assert.equal(MODEL,base.model);assert.equal(API_VERSION,base.apiVersion);assert.equal(EXE,'LIVE_PILOT');
+ assert.equal(MODEL,base.model);assert.equal(API_VERSION,base.apiVersion);assert.equal(EXE,'HOLD');
 });
-// M1-LIFT-P0: this build is the LIVE_PILOT candidate; the native transport's HOLD refusal is kept on a HOLD copy (test-m1-real-task-activation.mjs).
-await test('R1 native preflight and generation on the LIFT build refuse the R1 contract before key callback; no proof opens an execution path',async()=>{
+await test('R1 native preflight and generation refuse before key callback; no proof opens an execution path',async()=>{
  let keyReads=0;const native=nativeAnthropicTransport(()=>{keyReads++;throw new Error('MUST_NOT_READ_KEY');}),signal=new AbortController().signal;
- await assert.rejects(native.preflight(contract(),signal),/INPUT_LIMIT_DECISION_REQUIRED/);await assert.rejects(native.generate(contract(),goal,source.text,signal),/INPUT_LIMIT_DECISION_REQUIRED/);assert.equal(keyReads,0);
+ await assert.rejects(native.preflight(contract(),signal),/EXE_HOLD/);await assert.rejects(native.generate(contract(),goal,source.text,signal),/EXE_HOLD/);assert.equal(keyReads,0);
 });
 console.log(`\n${passed} passed, ${failed} failed`);process.exitCode=failed?1:0;

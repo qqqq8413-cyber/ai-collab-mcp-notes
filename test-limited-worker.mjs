@@ -113,9 +113,8 @@ await test('completed document never enters Git delivery, second Agent, review o
   await assert.rejects(w.runtime.execute(w.c), /LIMITED_WORKER_NOT_AT_OWNED_STAGE/); assert.equal(w.calls, 1);
   assert.equal(w.controller.get(w.c.runId).remoteSha, undefined);
 });
-// M1-LIFT-P0: this build is the LIVE_PILOT candidate; the HOLD refusal of each layer is kept on a HOLD copy (test-m1-real-task-activation.mjs).
-await test('live transport cannot run with synthetic valid archived permits on the LIFT build: a legacy contract still needs a replan, nothing is sent', async dir => {
-  const w = await world(dir, { kind: 'LIVE_PROVIDER' }); await assert.rejects(w.runtime.execute(w.c), /INPUT_POLICY_LEGACY_REQUIRES_REPLAN/);
+await test('live transport cannot run even with synthetic valid archived permits while EXE HOLD', async dir => {
+  const w = await world(dir, { kind: 'LIVE_PROVIDER' }); await assert.rejects(w.runtime.execute(w.c), /EXE_HOLD/);
   assert.equal(w.calls, 0); assert.equal(w.preflights, 0); assert.equal(w.journal().length, 0); assert.equal(w.job().reservedMicroUsd, 0);
 });
 await test('unarchived generic live-call grant is blocked by the real Driver', async dir => {
@@ -213,10 +212,10 @@ await test('arbitrary destination and already-cancelled native requests cannot r
   await assert.rejects(boundedHttps('https://example.com/', { method:'GET',signal:new AbortController().signal }),/TRANSPORT_REFUSED/);
   const abort=new AbortController();abort.abort();await assert.rejects(boundedHttps('https://api.anthropic.com/v1/messages',{method:'POST',signal:abort.signal}),/TRANSPORT_REFUSED/);
 });
-await test('native transport on the LIFT build refuses a legacy contract before reading a key or opening account/model requests', async dir => {
+await test('native transport itself refuses HOLD before reading a key or opening account/model requests', async dir => {
   const w=await world(dir); let keys=0; const native=nativeAnthropicTransport(()=>{keys++;throw new Error('must not read');});
-  await assert.rejects(native.preflight(w.c,new AbortController().signal),/INPUT_POLICY_LEGACY_REQUIRES_REPLAN/);
-  await assert.rejects(native.generate(w.c,w.g.text,w.source.text,new AbortController().signal),/INPUT_POLICY_LEGACY_REQUIRES_REPLAN/);assert.equal(keys,0);
+  await assert.rejects(native.preflight(w.c,new AbortController().signal),/EXE_HOLD/);
+  await assert.rejects(native.generate(w.c,w.g.text,w.source.text,new AbortController().signal),/EXE_HOLD/);assert.equal(keys,0);
 });
 await test('implementation identity is rechecked after provider preflight, not just at composition', async dir => {
   let clean=true; const w=await world(dir,{preflight(){clean=false;},options:{currentImplementation:()=>({sha:'b'.repeat(40),codeHash:hash('OFFLINE_SYNTHETIC_CODE'),clean})}});
@@ -233,7 +232,7 @@ await test('generic live-call authority superseded during preflight cannot dispa
   }});
   await w.runtime.execute(w.c);assert.equal(w.calls,0);assert.equal(w.job().state,'BLOCKED');
 });
-await test('real Workspace HTTP path enforces session/origin, approval before START, forged-field refusal and cancellation', async dir => {
+await test('real Workspace HTTP path enforces session/origin, HOLD, forged-field refusal and cancellation', async dir => {
   const w=await world(dir);const service=createLimitedWorkerService({goals:w.bridge.store,governance:w.bridge.governance,admission:w.admission,projects:['chief'],
     store:w.store,quote:w.c.quote,source:()=>w.source,identity:w.options.currentImplementation,runtime:w.runtime,now:w.clock.now});
   const server=await startWorkspaceServer({config:w.workspace,uiDirectory:'workspace-ui',port:0,store:w.bridge.store,limitedWorker:service});
@@ -247,7 +246,7 @@ await test('real Workspace HTTP path enforces session/origin, approval before ST
     assert.equal((await post(endpoint,{...input,authorization:'fake',sourcePath:'/private/session'})).status,400);
     const prepared=await post(endpoint,input);assert.equal(prepared.status,201);assert.equal((await prepared.json()).jobs.length,1);
     const action=endpoint+'/'+hash(w.c)+'/actions';const start=await post(action,{action:'START',requestId:randomUUID()});
-    assert.equal(start.status,400);assert.equal((await start.json()).error.code,'APPROVAL_REQUIRED');assert.equal(w.calls,0);
+    assert.equal(start.status,403);assert.equal((await start.json()).error.code,'EXE_HOLD');assert.equal(w.calls,0);
     const cancelled=await post(action,{action:'CANCEL',requestId:randomUUID()});assert.equal((await cancelled.json()).jobs[0].state,'CANCELLED');
     const packet=pilotPacket(w.job(),w.packet.sliceId);assert.equal(packet.issuedAt,null);assert.equal(packet.state,'UNISSUED_NOT_AUTHORITY');
     assert.equal((await fetch(endpoint+'?grant=1',{headers:{Cookie:cookie}})).status,400);
@@ -300,6 +299,6 @@ await test('explicit grant-copy files are private strict inputs, never authority
   writeFileSync(file,JSON.stringify({...raw,exe:'AUTHORIZED'}));assert.throws(()=>loadGrantCopies(file));
   writeFileSync(file,JSON.stringify({...raw,limitedGrant:{...w.limited,actorRole:'GPT_ARCHITECT'}}));assert.throws(()=>loadGrantCopies(file),/GRANT_COPY_INVALID/);
   symlinkSync(file,join(dir,'copies-alias'));assert.throws(()=>loadGrantCopies(join(dir,'copies-alias')));
-  assert.equal(contractModule.EXE,'LIVE_PILOT');
+  assert.equal(contractModule.EXE,'HOLD');
 });
 console.log(`\n${passed} passed, ${failed} failed`);process.exitCode=failed?1:0;

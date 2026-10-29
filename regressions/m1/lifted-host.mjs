@@ -1,9 +1,9 @@
-// M1 test harness (child process only): the real Host's live path on a given dist (M1-LIFT-P0: the repository build is LIVE_PILOT).
+// M1 test harness (child process only): the real Host's live path with EXE HOLD lifted in a PATCHED COPY of dist.
 //
 //   node lifted-host.mjs <patched dist dir> <scenario> <work dir>
 //
-// The parent test runs the `hold` scenario on a COPY of dist with only `EXE = 'LIVE_PILOT'` changed back to `'HOLD'`, and
-// every other scenario on the repository build itself. Everything external is local and synthetic: a fake Anthropic TLS
+// The parent test copies dist/ to a temporary directory and changes only `EXE = 'HOLD'` to `'LIVE_PILOT'` in that copy;
+// the repository's own dist and source keep HOLD. Everything external is local and synthetic: a fake Anthropic TLS
 // server on 127.0.0.1 (self-signed), a software P-256 "passkey", synthetic principals and a dummy API key. No real
 // network, credential, account or paid call exists here. Prints one JSON line of facts for the parent to assert.
 import assert from 'node:assert/strict';
@@ -17,7 +17,7 @@ import { join } from 'node:path';
 const [DIST, SCENARIO, WORK] = process.argv.slice(2);
 const load = (path) => import(join(DIST, path));
 const { EXE, MODEL, REPOSITORY, hash, maximumCost } = await load('limited-worker/contract.js');
-// Only the `hold` scenario runs on the HOLD copy; every other scenario needs the LIVE_PILOT build.
+// Only the `hold` scenario runs on the unpatched build; every other scenario needs the patched copy.
 if (SCENARIO !== 'serve') assert.equal(EXE, SCENARIO === 'hold' ? 'HOLD' : 'LIVE_PILOT');
 const { startTrustedWorkspaceHost } = await load('intake/workspace-host.js');
 const { parseTrustedWorkspaceHostConfig } = await load('intake/workspace-host-config.js');

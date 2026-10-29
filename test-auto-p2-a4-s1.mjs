@@ -465,7 +465,7 @@ for (const change of ['removed', 'corrupted', 'stale']) await test(`S1-B the fin
   assert.equal(w.calls, 0); assert.equal(w.job().generationClaimed, true); assert.equal(w.job().state, 'UNCERTAIN'); assert.equal(w.job().reservedMicroUsd, 210240);
   if (change !== 'stale') assert.equal(w.job().reason, change === 'removed' ? 'ACTIVATION_SET_MISSING' : 'ACTIVATION_SET_CORRUPT');
 });
-await test('S1-B an unsigned set never yields live eligibility; on the LIFT build a live transport stops at the unsigned set before any request', async (dir) => {
+await test('S1-B an unsigned set never yields live eligibility, and a live transport stays behind EXE HOLD', async (dir) => {
   const w = await world(dir); const staged = activate(w);
   assert.deepEqual(liveEligibility(staged.activationSet), { eligible: false, reason: 'ACTIVATION_SET_NOT_SIGNED' });
   assert.deepEqual(liveEligibility(null), { eligible: false, reason: 'ACTIVATION_SET_MISSING' });
@@ -474,10 +474,7 @@ await test('S1-B an unsigned set never yields live eligibility; on the LIFT buil
   let preflights = 0;
   const live = composeLimitedWorker({ ...w.options, transport: { kind: 'LIVE_PROVIDER', preflight: async () => { preflights++; throw new Error('NO'); },
     generate: async () => { preflights++; throw new Error('NO'); } } });
-  // M1-LIFT-P0: the composition's EXE_HOLD refusal is no longer reachable on this build; the unsigned set stops the Run instead.
-  const step = await live.execute(w.c); assert.equal(step.postState, 'HUMAN_STOP');
-  assert.deepEqual([w.job().state, w.job().reason, w.job().generationClaimed, w.job().reservedMicroUsd], ['BLOCKED', 'ACTIVATION_SET_NOT_SIGNED', false, 0]);
-  assert.equal(preflights, 0); assert.equal(w.calls, 0);
+  await assert.rejects(live.execute(w.c), /EXE_HOLD/); assert.equal(preflights, 0); assert.equal(w.calls, 0);
 });
 await test('S1-B publishing writes nothing to the Authority Archive and never rewrites its history', async (dir) => {
   const w = await world(dir);
