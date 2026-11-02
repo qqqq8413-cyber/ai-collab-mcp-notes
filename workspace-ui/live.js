@@ -40,6 +40,10 @@ export function createLiveSource({ fetchImpl = globalThis.fetch.bind(globalThis)
     limitedWorker: (projectId) => call('GET', `/projects/${enc(projectId)}/limited-worker`),
     prepareWorker: (projectId, input) => call('POST', `/projects/${enc(projectId)}/limited-worker`, input),
     workerAction: (projectId, jobId, input) => call('POST', `/projects/${enc(projectId)}/limited-worker/${enc(jobId)}/actions`, input),
+    // M2-0: the queue the Human's own Claude Code works from. Add, read and cancel only.
+    subscriptionTasks: (projectId) => call('GET', `/projects/${enc(projectId)}/subscription-tasks`),
+    createSubscriptionTask: (projectId, input) => call('POST', `/projects/${enc(projectId)}/subscription-tasks`, input),
+    subscriptionTaskAction: (projectId, taskId, input) => call('POST', `/projects/${enc(projectId)}/subscription-tasks/${enc(taskId)}/actions`, input),
     // G1-WE1-R0: read-only governed execution status of one goal. GET only; the server derives everything else.
     executionStatus: (projectId, goalId) => call('GET', `/projects/${enc(projectId)}/goals/${enc(goalId)}/execution`),
     /** onEvent(name, data) for hello / goal.created / queue.reordered / goal.removed; onState('connecting' | 'open' | 'retrying'). */

@@ -1,6 +1,7 @@
 import { readerIcon } from './reader.generated.js';
 import { aiPilotHTML, attachAiPilot } from './ai-pilot.js';
 import { workerHTML, attachWorker } from './limited-worker.js';
+import { subscriptionHTML, attachSubscription } from './subscription-tasks.js';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const time = iso => iso ? new Date(iso).toLocaleString('zh-TW', { hour12: false }) : '—';
@@ -27,8 +28,9 @@ function resultHTML(result) {
 
 export function automationHTML() {
   return `<section class="auto-page" id="automation" aria-label="自動化">
-    <header class="auto-head"><div><h1>自動化</h1><p>CHIEF CI WATCH</p></div><span class="auto-lock">AI 執行 · HOLD</span></header>
+    <header class="auto-head"><div><h1>自動化</h1><p>CHIEF CI WATCH</p></div><span class="auto-lock">API 執行 · HOLD</span></header>
     <div class="auto-message" role="status"></div>
+    ${subscriptionHTML()}
     ${workerHTML()}
     <details><summary>舊版 Agent 準備紀錄</summary>${aiPilotHTML()}</details>
     <details class="auto-create" open><summary>新增自動化工作</summary><form id="auto-form" class="auto-form">
@@ -100,6 +102,7 @@ async function refresh() {
 export function attachAutomation({ projectId, source, root }) {
   if (!root || mounted?.root === root) return;
   mounted = { projectId, source, root };
+  attachSubscription({ projectId, source, root: root.querySelector('#subscription-tasks') });
   attachAiPilot({ projectId, source, root: root.querySelector('#ai-pilot') });
   attachWorker({ projectId, source, root: root.querySelector('#limited-worker') });
   const form = root.querySelector('#auto-form');

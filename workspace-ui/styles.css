@@ -625,3 +625,6 @@ ol,ul{margin:0;padding:0;list-style:none}
   .auto-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
   .auto-head h1 { font-size: 24px; }
 }
+
+/* M2-0: the Claude Code start commands wrap instead of running off the panel. */
+.sub-runner pre { white-space: pre-wrap; overflow-wrap: anywhere; user-select: all; }

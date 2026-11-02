@@ -11,6 +11,7 @@ import { FileCollaborationStore, CollaborationStoreError } from './collaboration
 import { AutomationRequestError, type AutomationPort } from './automation-port.js';
 import { AiPilotRequestError, type AiPilotPort } from './ai-pilot-port.js';
 import { LimitedWorkerRequestError, type LimitedWorkerPort } from './limited-worker-port.js';
+import { SubscriptionTaskRequestError, type SubscriptionTaskPort } from './subscription-task-port.js';
 
 // The local Workspace server (WS-L1). It serves the Workspace UI and a small API over
 // the non-authoritative goal queue, from one origin, on the IPv4 loopback address only.
@@ -42,6 +43,9 @@ export const API_ROUTES = Object.freeze([
   'GET /api/v0/projects/:projectId/limited-worker',
   'POST /api/v0/projects/:projectId/limited-worker',
   'POST /api/v0/projects/:projectId/limited-worker/:jobId/actions',
+  'GET /api/v0/projects/:projectId/subscription-tasks',
+  'POST /api/v0/projects/:projectId/subscription-tasks',
+  'POST /api/v0/projects/:projectId/subscription-tasks/:taskId/actions',
   'POST /api/v0/projects/:projectId/goals',
   'POST /api/v0/projects/:projectId/goals/order',
   'DELETE /api/v0/projects/:projectId/goals/:goalId',
@@ -74,6 +78,7 @@ const STATIC: Readonly<Record<string, { file: string; type: string }>> = Object.
   '/automation.js': { file: 'automation.js', type: 'text/javascript; charset=utf-8' },
   '/ai-pilot.js': { file: 'ai-pilot.js', type: 'text/javascript; charset=utf-8' },
   '/limited-worker.js': { file: 'limited-worker.js', type: 'text/javascript; charset=utf-8' },
+  '/subscription-tasks.js': { file: 'subscription-tasks.js', type: 'text/javascript; charset=utf-8' },
   '/styles.css': { file: 'styles.css', type: 'text/css; charset=utf-8' },
 });
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; " +
@@ -103,6 +108,8 @@ export interface WorkspaceServerOptions {
   /** Preparation only: no execution or authorization capability. */
   aiPilot?: AiPilotPort;
   limitedWorker?: LimitedWorkerPort;
+  /** M2-0: the local queue the Human's own Claude Code works from. Queue operations only. */
+  subscriptionTasks?: SubscriptionTaskPort;
   clock?: { now(): string };
 }
 
@@ -259,6 +266,17 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
       throw new HttpError(404, 'NOT_FOUND', 'Not found.');
     }
 
+    if (rest[0] === 'projects' && rest[2] === 'subscription-tasks') {
+      const current = project(rest[1]);
+      if (new URL(request.url!, 'http://local').search) throw new HttpError(400, 'UNEXPECTED_QUERY', 'This operation accepts no query.');
+      const port = options.subscriptionTasks;
+      if (!port) throw new HttpError(503, 'SUBSCRIPTION_TASKS_UNAVAILABLE', '這個 Host 沒有接上 Claude Code 任務佇列。');
+      if (rest.length === 3 && method === 'GET') { await noBody(request); json(response, 200, port.read(current.projectId, submittedBy)); return; }
+      if (rest.length === 3 && method === 'POST') { json(response, 201, port.create(current.projectId, await readJson(request), submittedBy)); return; }
+      if (rest.length === 5 && rest[4] === 'actions' && method === 'POST') { json(response, 200, port.action(current.projectId, rest[3], await readJson(request), submittedBy)); return; }
+      throw new HttpError(404, 'NOT_FOUND', 'Not found.');
+    }
+
     if (rest[0] === 'projects' && rest[2] === 'ai-pilot') {
       const current = project(rest[1]);
       if (new URL(request.url!, 'http://local').search) throw new HttpError(400, 'UNEXPECTED_QUERY', 'This operation accepts no query.');
@@ -389,6 +407,7 @@ export function startWorkspaceServer(options: WorkspaceServerOptions): Promise<R
       if (error instanceof AutomationRequestError) { json(response, error.status, { error: { code: error.code, message: error.message } }); return; }
       if (error instanceof AiPilotRequestError) { json(response, error.status, { error: { code: error.code, message: error.message } }); return; }
       if (error instanceof LimitedWorkerRequestError) { json(response, error.status, { error: { code: error.code, message: error.message } }); return; }
+      if (error instanceof SubscriptionTaskRequestError) { json(response, error.status, { error: { code: error.code, message: error.message } }); return; }
       if (error instanceof GoalGovernanceError) {
         const status = error.code === 'UNKNOWN_GOAL' || error.code === 'UNKNOWN_PROJECT' ? 404 :
           error.code === 'GOAL_PRINCIPAL_MISMATCH' ? 403 :
